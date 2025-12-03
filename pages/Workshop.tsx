@@ -1,10 +1,10 @@
-import React, { useContext, useState, useEffect, useRef } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
 import { ItemStatus, ProductItem } from '../types';
 import { 
   ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, 
-  XCircle, RotateCcw, Plus, Trash2, List, Grid, Flag
+  XCircle, RotateCcw, Trash2, List, Grid, Flag
 } from 'lucide-react';
 
 const Workshop: React.FC = () => {
@@ -21,7 +21,6 @@ const Workshop: React.FC = () => {
 
   // Edit/Modal State
   const [showErrorModal, setShowErrorModal] = useState(false);
-  const [showNewItemModal, setShowNewItemModal] = useState(false);
   
   // Temporary state for edits
   const [editingItem, setEditingItem] = useState<Partial<ProductItem>>({});
@@ -40,7 +39,7 @@ const Workshop: React.FC = () => {
   }, [currentIndex, currentItem]);
 
   const saveCurrent = () => {
-    if (!inputValue && currentItem.status !== ItemStatus.SKIPPED) return; // Allow empty if skipped, else logic handled elsewhere
+    if (!inputValue && currentItem.status !== ItemStatus.SKIPPED) return; 
 
     const numVal = parseFloat(inputValue);
     
@@ -51,7 +50,6 @@ const Workshop: React.FC = () => {
         quantity: isNaN(numVal) ? null : numVal,
         status: (isNaN(numVal) && next[currentIndex].status === ItemStatus.PENDING) ? ItemStatus.PENDING : (next[currentIndex].status === ItemStatus.SKIPPED ? ItemStatus.SKIPPED : ItemStatus.COMPLETED)
       };
-      // If we typed a number, ensure it's completed not skipped
       if (!isNaN(numVal)) {
         next[currentIndex].status = ItemStatus.COMPLETED;
       }
@@ -113,7 +111,6 @@ const Workshop: React.FC = () => {
         setItems(prev => {
             const next = [...prev];
             next[currentIndex].isUnused = !next[currentIndex].isUnused;
-            // Also mark as done with 0 qty if unused
             if (next[currentIndex].isUnused) {
                 next[currentIndex].quantity = 0;
                 next[currentIndex].status = ItemStatus.COMPLETED;
@@ -214,26 +211,28 @@ const Workshop: React.FC = () => {
       {/* Main Work Area */}
       <main className="flex-1 p-4 flex flex-col overflow-hidden relative">
         
-        {/* Left/Right Drawer Toggles (Mobile friendly lists) */}
+        {/* Left/Right Drawer Toggles with labels */}
         <div className="absolute top-4 left-2 z-20">
             <button 
                 onClick={() => setShowLeftDrawer(true)}
-                className="bg-white p-2 rounded-full shadow-md text-slate-600 hover:text-brand-600 border border-slate-200"
+                className="bg-white pl-2 pr-3 py-2 rounded-full shadow-md text-slate-600 hover:text-brand-600 border border-slate-200 flex items-center gap-1"
             >
-                <List size={24} />
+                <List size={20} />
+                <span className="text-xs font-bold">已点</span>
             </button>
         </div>
         <div className="absolute top-4 right-2 z-20">
             <button 
                 onClick={() => setShowRightDrawer(true)}
-                className="bg-white p-2 rounded-full shadow-md text-slate-600 hover:text-brand-600 border border-slate-200"
+                className="bg-white pl-3 pr-2 py-2 rounded-full shadow-md text-slate-600 hover:text-brand-600 border border-slate-200 flex items-center gap-1"
             >
-                <Grid size={24} />
+                <span className="text-xs font-bold">待点</span>
+                <Grid size={20} />
             </button>
         </div>
 
         {/* Card */}
-        <div className="flex-1 flex flex-col justify-center items-center max-w-lg mx-auto w-full">
+        <div className="flex-1 flex flex-col justify-center items-center max-w-lg mx-auto w-full pt-10">
             <div className="bg-white w-full rounded-2xl shadow-xl p-6 flex flex-col items-center border border-slate-100 relative">
                 
                 {/* Status Badges */}

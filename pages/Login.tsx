@@ -1,9 +1,9 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
-import { fetchUsers, downloadTemplates, MOCK_USERS } from '../services/dataService';
+import { fetchUsers, downloadTemplates } from '../services/dataService';
 import { User } from '../types';
-import { Store, LogIn, AlertCircle, FileDown, Info } from 'lucide-react';
+import { Store, LogIn, AlertCircle, FileDown } from 'lucide-react';
 
 const Login: React.FC = () => {
   const { setUser } = useContext(AppContext);
@@ -113,25 +113,8 @@ const Login: React.FC = () => {
                 <FileDown size={18} /> 下载配置文件模板
             </button>
 
-            {/* Default Credentials Hint */}
-            <div className="bg-slate-50 p-4 rounded-lg text-xs text-slate-500 w-full">
-                <div className="flex items-center gap-2 mb-2 font-bold text-slate-700">
-                    <Info size={14} /> 测试账号 (未配置时可用):
-                </div>
-                <div className="space-y-1 font-mono">
-                    <div className="flex justify-between">
-                        <span>{MOCK_USERS[0].storeName}</span>
-                        <span>{MOCK_USERS[0].username} / {MOCK_USERS[0].password}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-slate-200 pt-1 mt-1">
-                        <span>{MOCK_USERS[1].storeName}</span>
-                        <span>{MOCK_USERS[1].username} / {MOCK_USERS[1].password}</span>
-                    </div>
-                </div>
-            </div>
-
-            <div className="text-center text-xs text-slate-300">
-                系统版本 v1.0.2
+            <div className="text-center text-xs text-slate-300 mt-4">
+                系统版本 v1.0.3
             </div>
         </div>
       </div>

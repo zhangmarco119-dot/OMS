@@ -39,7 +39,8 @@ const App: React.FC = () => {
   return (
     <AppContext.Provider value={{ user, setUser, mode, setMode, items, setItems, resetSession }}>
       <HashRouter>
-        <div className="h-screen w-full bg-slate-50 flex flex-col font-sans overflow-x-hidden">
+        {/* h-[100dvh] fixes mobile browser toolbar overlay issues */}
+        <div className="h-[100dvh] w-full bg-slate-50 flex flex-col font-sans overflow-hidden">
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />

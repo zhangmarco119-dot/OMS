@@ -4,7 +4,7 @@ import { AppContext } from '../App';
 import { ItemStatus, ProductItem } from '../types';
 import { 
   ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, 
-  XCircle, RotateCcw, Trash2, List, Grid, Flag
+  XCircle, Trash2, List, Grid, Flag, StepForward, LogOut
 } from 'lucide-react';
 
 const Workshop: React.FC = () => {
@@ -26,6 +26,11 @@ const Workshop: React.FC = () => {
   const [editingItem, setEditingItem] = useState<Partial<ProductItem>>({});
 
   const currentItem = items[currentIndex];
+
+  // Fix: Scroll to top on mount to prevent layout shift if returning from a scrolled page
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   // Sync input value when current item changes
   useEffect(() => {
@@ -104,6 +109,12 @@ const Workshop: React.FC = () => {
     }
   };
 
+  const handleExitSystem = () => {
+    if(window.confirm("确定要退出当前系统返回主菜单吗？未保存的进度可能会丢失（除非已导出）。")) {
+        navigate('/dashboard');
+    }
+  };
+
   // --- FLAGS ---
 
   const handleMarkUnused = () => {
@@ -159,9 +170,9 @@ const Workshop: React.FC = () => {
     const filteredItems = items.map((item, idx) => ({ item, idx })).filter(x => filter(x.item));
 
     return (
-      <div className="fixed inset-0 z-50 flex">
+      <div className="fixed inset-0 z-50 flex w-full h-full">
         <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-        <div className={`relative w-64 bg-white shadow-2xl flex flex-col ${side === 'right' ? 'ml-auto' : ''}`}>
+        <div className={`relative w-64 bg-white shadow-2xl flex flex-col h-full ${side === 'right' ? 'ml-auto' : ''}`}>
           <div className="p-4 bg-slate-100 border-b font-bold flex justify-between items-center">
             {title} ({filteredItems.length})
             <button onClick={onClose}><XCircle size={20} /></button>
@@ -186,11 +197,22 @@ const Workshop: React.FC = () => {
     );
   };
 
+  // Determine button labels based on mode
+  const leftBtnLabel = mode === 'COUNT' ? '已点' : '已订';
+  const rightBtnLabel = mode === 'COUNT' ? '待点' : '待订';
+
   return (
     <div className="flex flex-col h-full bg-slate-100 relative">
       {/* Header */}
-      <header className="bg-white shadow-sm px-4 py-3 flex flex-col items-center z-10">
-        <h1 className="text-lg font-bold text-slate-800 text-center leading-tight">
+      <header className="bg-white shadow-sm px-4 py-3 flex flex-col items-center z-10 relative">
+        <button 
+            onClick={handleExitSystem}
+            className="absolute right-3 top-3 p-2 text-slate-400 hover:text-red-500 transition-colors"
+        >
+            <LogOut size={20} />
+        </button>
+
+        <h1 className="text-lg font-bold text-slate-800 text-center leading-tight mt-1">
           {user?.storeName}
           <span className="block text-sm font-normal text-brand-600 mt-1">
             {mode === 'COUNT' ? '盘点系统' : '订货系统'}
@@ -209,7 +231,8 @@ const Workshop: React.FC = () => {
       </header>
 
       {/* Main Work Area */}
-      <main className="flex-1 p-4 flex flex-col overflow-hidden relative">
+      {/* Replaced 'justify-center' with 'pt-16' (padding top) to prevent vertical layout shifts on mobile when keyboard toggles */}
+      <main className="flex-1 px-4 pt-16 flex flex-col items-center overflow-x-hidden relative w-full max-w-full">
         
         {/* Left/Right Drawer Toggles with labels */}
         <div className="absolute top-4 left-2 z-20">
@@ -218,7 +241,7 @@ const Workshop: React.FC = () => {
                 className="bg-white pl-2 pr-3 py-2 rounded-full shadow-md text-slate-600 hover:text-brand-600 border border-slate-200 flex items-center gap-1"
             >
                 <List size={20} />
-                <span className="text-xs font-bold">已点</span>
+                <span className="text-xs font-bold">{leftBtnLabel}</span>
             </button>
         </div>
         <div className="absolute top-4 right-2 z-20">
@@ -226,13 +249,13 @@ const Workshop: React.FC = () => {
                 onClick={() => setShowRightDrawer(true)}
                 className="bg-white pl-3 pr-2 py-2 rounded-full shadow-md text-slate-600 hover:text-brand-600 border border-slate-200 flex items-center gap-1"
             >
-                <span className="text-xs font-bold">待点</span>
+                <span className="text-xs font-bold">{rightBtnLabel}</span>
                 <Grid size={20} />
             </button>
         </div>
 
         {/* Card */}
-        <div className="flex-1 flex flex-col justify-center items-center max-w-lg mx-auto w-full pt-10">
+        <div className="w-full max-w-lg flex flex-col items-center">
             <div className="bg-white w-full rounded-2xl shadow-xl p-6 flex flex-col items-center border border-slate-100 relative">
                 
                 {/* Status Badges */}
@@ -242,7 +265,7 @@ const Workshop: React.FC = () => {
                     {currentItem.isNew && <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded">新增</span>}
                 </div>
 
-                <h2 className="text-2xl font-bold text-slate-800 text-center mb-1">{currentItem.name}</h2>
+                <h2 className="text-2xl font-bold text-slate-800 text-center mb-1 break-words w-full">{currentItem.name}</h2>
                 <p className="text-slate-500 mb-6">{currentItem.spec}</p>
 
                 <div className="flex items-center w-full mb-8 gap-3">
@@ -252,7 +275,7 @@ const Workshop: React.FC = () => {
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder="0"
-                        className="flex-1 text-center text-4xl font-bold py-4 border-b-2 border-brand-200 focus:border-brand-500 outline-none bg-transparent transition-colors placeholder-slate-200"
+                        className="flex-1 text-center text-4xl font-bold py-4 border-b-2 border-brand-200 focus:border-brand-500 outline-none bg-transparent transition-colors placeholder-slate-200 w-full"
                         autoFocus
                     />
                     <span className="text-xl font-medium text-slate-400 whitespace-nowrap min-w-[3rem]">
@@ -282,36 +305,37 @@ const Workshop: React.FC = () => {
                 </div>
             </div>
 
-            {/* Ordering Mode: Skip Button */}
+            {/* Ordering Mode: Skip Button - Made larger and clearer */}
             {mode === 'ORDER' && (
                  <button 
                     onClick={handleSkip}
-                    className="mt-4 text-slate-400 hover:text-slate-600 text-sm flex items-center gap-1"
+                    className="mt-6 w-full py-4 bg-slate-200 text-slate-600 hover:bg-slate-300 rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform"
                 >
-                    <RotateCcw size={14} /> 无需订货 (跳过)
+                    <StepForward size={24} className="fill-slate-600" /> 
+                    跳过 (无需订货)
                 </button>
             )}
         </div>
 
         {/* Bottom Actions */}
-        <div className="mt-6 grid grid-cols-2 gap-3 max-w-lg mx-auto w-full">
+        <div className="mt-8 grid grid-cols-2 gap-3 max-w-lg w-full mb-8">
             <button 
                 onClick={handleMarkUnused}
-                className={`py-2 px-3 rounded-lg border text-sm flex items-center justify-center gap-2 ${currentItem.isUnused ? 'bg-red-50 border-red-200 text-red-600' : 'border-slate-200 text-slate-600'}`}
+                className={`py-3 px-3 rounded-lg border text-sm flex items-center justify-center gap-2 ${currentItem.isUnused ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-200 text-slate-600'}`}
             >
-                <Trash2 size={16} /> 标记不再使用
+                <Trash2 size={18} /> 标记不再使用
             </button>
             <button 
                 onClick={openErrorModal}
-                className="py-2 px-3 rounded-lg border border-slate-200 text-slate-600 text-sm flex items-center justify-center gap-2"
+                className="py-3 px-3 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm flex items-center justify-center gap-2"
             >
-                <Flag size={16} /> 标记信息有误
+                <Flag size={18} /> 标记信息有误
             </button>
             <button 
                 onClick={jumpToUnfinished}
-                className="col-span-2 py-3 bg-white border border-brand-200 text-brand-600 rounded-lg font-medium flex items-center justify-center gap-2 shadow-sm"
+                className="col-span-2 py-4 bg-white border border-brand-200 text-brand-600 rounded-lg font-bold flex items-center justify-center gap-2 shadow-sm"
             >
-                <CheckCircle2 size={18} /> 跳转到下一个未点货品
+                <CheckCircle2 size={20} /> 跳转到下一个{mode === 'COUNT' ? '未点' : '未订'}货品
             </button>
         </div>
 
@@ -329,14 +353,14 @@ const Workshop: React.FC = () => {
 
       {/* Drawers */}
       <ItemListDrawer 
-        title="已完成货品" 
+        title={mode === 'COUNT' ? "已完成货品" : "已订货品"}
         side="left"
         isOpen={showLeftDrawer} 
         onClose={() => setShowLeftDrawer(false)}
         filter={(i) => i.status !== ItemStatus.PENDING}
       />
       <ItemListDrawer 
-        title="未完成货品" 
+        title={mode === 'COUNT' ? "未完成货品" : "待订货品"} 
         side="right"
         isOpen={showRightDrawer} 
         onClose={() => setShowRightDrawer(false)}

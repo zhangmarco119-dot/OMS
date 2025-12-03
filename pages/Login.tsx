@@ -1,9 +1,9 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
-import { fetchUsers, downloadTemplates } from '../services/dataService';
+import { fetchUsers } from '../services/dataService';
 import { User } from '../types';
-import { Store, LogIn, AlertCircle, FileDown } from 'lucide-react';
+import { Store, LogIn, AlertCircle } from 'lucide-react';
 
 const Login: React.FC = () => {
   const { setUser } = useContext(AppContext);
@@ -39,12 +39,6 @@ const Login: React.FC = () => {
         setLoading(false);
       }
     }, 500);
-  };
-
-  const handleDownloadTemplate = () => {
-    if(window.confirm("是否下载配置模板(users.json 和 products.xlsx)？\n\n下载后请将它们放入项目根目录的 public/config 文件夹中即可生效。")) {
-        downloadTemplates();
-    }
   };
 
   return (
@@ -104,17 +98,9 @@ const Login: React.FC = () => {
           </button>
         </form>
         
-        {/* Helper Actions */}
         <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center gap-4">
-            <button 
-                onClick={handleDownloadTemplate}
-                className="text-sm text-brand-600 hover:text-brand-800 font-medium flex items-center gap-2 py-2 px-4 rounded-lg hover:bg-brand-50 transition-colors"
-            >
-                <FileDown size={18} /> 下载配置文件模板
-            </button>
-
-            <div className="text-center text-xs text-slate-300 mt-4">
-                系统版本 v1.0.3
+            <div className="text-center text-xs text-slate-300">
+                系统版本 v1.0.4
             </div>
         </div>
       </div>

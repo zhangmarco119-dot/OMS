@@ -1,12 +1,12 @@
 import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
-import { exportToExcel } from '../services/dataService';
-import { CheckCircle, ArrowLeft, PlusCircle, Download } from 'lucide-react';
+import { shareExcel } from '../services/dataService';
+import { CheckCircle, ArrowLeft, PlusCircle, Share2 } from 'lucide-react';
 import { ItemStatus, ProductItem } from '../types';
 
 const Summary: React.FC = () => {
-  const { user, mode, items, setItems, items: allItems } = useContext(AppContext);
+  const { user, mode, items, setItems } = useContext(AppContext);
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newItem, setNewItem] = useState({ name: '', spec: '', unit: '', quantity: '' });
@@ -14,10 +14,15 @@ const Summary: React.FC = () => {
   const totalItems = items.length;
   const completedItems = items.filter(i => i.status !== ItemStatus.PENDING).length;
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (user && mode) {
-      exportToExcel(items, user, mode, 0);
-      alert("Excel文件已生成并开始下载。您可以直接分享该文件。");
+      try {
+        await shareExcel(items, user, mode);
+        // We don't need a specific alert here if sharing works, the system UI handles it.
+        // If it fell back to download, the browser handles the download.
+      } catch (e) {
+        alert("导出失败，请重试");
+      }
     }
   };
 
@@ -43,7 +48,7 @@ const Summary: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-50 h-full p-6">
+    <div className="flex-1 flex flex-col bg-slate-50 h-full p-6 overflow-y-auto">
       
       <div className="flex-1 flex flex-col items-center justify-center text-center">
         <div className="bg-green-100 p-6 rounded-full mb-6">
@@ -77,7 +82,7 @@ const Summary: React.FC = () => {
                 onClick={handleExport}
                 className="w-full py-4 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-green-200 hover:bg-green-700"
             >
-                <Download size={20} /> 结束并导出Excel
+                <Share2 size={20} /> 结束并分享/导出Excel
             </button>
         </div>
       </div>
@@ -85,7 +90,7 @@ const Summary: React.FC = () => {
       {/* Add New Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4">
-            <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl animate-slide-up">
+            <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl">
                 <h3 className="text-lg font-bold mb-4">新增货品</h3>
                 <div className="space-y-4">
                     <input 

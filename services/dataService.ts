@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { ProductItem, ItemStatus, User } from '../types';
 
-// --- MOCK DATA FOR DEMONSTRATION IF FILES MISSING ---
+// --- MOCK DATA FOR DEMONSTRATION ---
 export const MOCK_USERS: User[] = [
   { username: 'wdk_user', password: '123', storeName: '宝珠奶酪（五道口店）' },
   { username: 'xzm_user', password: '123', storeName: 'OMEGA酸奶（西直门店）' },
@@ -43,7 +43,6 @@ export const fetchProducts = async (storeName: string): Promise<ProductItem[]> =
     const arrayBuffer = await response.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     
-    // Check if sheet exists
     if (!workbook.SheetNames.includes(storeName)) {
       throw new Error(`Sheet "${storeName}" not found in Excel.`);
     }
@@ -60,7 +59,7 @@ export const fetchProducts = async (storeName: string): Promise<ProductItem[]> =
   }
 };
 
-export const exportToExcel = (items: ProductItem[], user: User, mode: string, startTime: number) => {
+const generateWorkbook = (items: ProductItem[], user: User, mode: string) => {
   const headers = items.map((item, index) => {
     const statusText = item.status === ItemStatus.SKIPPED ? '无需订货' : (item.quantity?.toString() || '0');
     
@@ -84,55 +83,57 @@ export const exportToExcel = (items: ProductItem[], user: User, mode: string, st
   const ws = XLSX.utils.json_to_sheet(headers);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "清单");
+  return wb;
+};
 
-  // Generate filename
+// Legacy download method (fallback)
+export const exportToExcel = (items: ProductItem[], user: User, mode: string, startTime: number) => {
+  const wb = generateWorkbook(items, user, mode);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const typeStr = mode === 'COUNT' ? '盘点单' : '订货单';
+  const fileName = `${user.storeName}_${typeStr}_${user.username}_${dateStr}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+};
+
+// New Sharing Method
+export const shareExcel = async (items: ProductItem[], user: User, mode: string) => {
+  const wb = generateWorkbook(items, user, mode);
   const dateStr = new Date().toISOString().slice(0, 10);
   const typeStr = mode === 'COUNT' ? '盘点单' : '订货单';
   const fileName = `${user.storeName}_${typeStr}_${user.username}_${dateStr}.xlsx`;
 
-  XLSX.writeFile(wb, fileName);
-};
-
-// --- TEMPLATE GENERATION ---
-
-export const downloadTemplates = () => {
-  // 1. Generate users.json
-  const usersTemplate = [
-    { "username": "店员A", "password": "123", "storeName": "宝珠奶酪（五道口店）" },
-    { "username": "店员B", "password": "123", "storeName": "OMEGA酸奶（西直门店）" }
-  ];
-  const blob = new Blob([JSON.stringify(usersTemplate, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = "users.json";
-  a.click();
-  URL.revokeObjectURL(url);
-
-  // 2. Generate products.xlsx
-  const wb = XLSX.utils.book_new();
+  // Write to binary
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   
-  // Sheet 1
-  const data1 = [
-    { "货品名称": "示例货品1", "规格": "500g/袋", "点货单位": "袋" },
-    { "货品名称": "示例货品2", "规格": "10个/盒", "点货单位": "盒" }
-  ];
-  const ws1 = XLSX.utils.json_to_sheet(data1);
-  XLSX.utils.book_append_sheet(wb, ws1, "宝珠奶酪（五道口店）");
+  // Create File object
+  const file = new File([wbout], fileName, {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
 
-  // Sheet 2
-  const data2 = [
-    { "货品名称": "酸奶A", "规格": "1杯", "点货单位": "杯" },
-    { "货品名称": "配料B", "规格": "1kg/桶", "点货单位": "桶" }
-  ];
-  const ws2 = XLSX.utils.json_to_sheet(data2);
-  XLSX.utils.book_append_sheet(wb, ws2, "OMEGA酸奶（西直门店）");
-
-  XLSX.writeFile(wb, "products.xlsx");
+  // Check if Web Share API is supported and can share files
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: fileName,
+        text: `这是 ${user.storeName} 的${typeStr}，请查收。`,
+      });
+      return true; // Shared successfully
+    } catch (error) {
+      console.warn('Sharing failed or canceled', error);
+      // If user canceled, we don't necessarily need to download, 
+      // but if it failed technically, we might want to fallback.
+      // For now, let's treat cancel as "done".
+      return false;
+    }
+  } else {
+    // Fallback to direct download
+    XLSX.writeFile(wb, fileName);
+    return false; // Used fallback
+  }
 };
 
 // --- HELPER ---
-
 const mapExcelDataToItems = (data: any[]): ProductItem[] => {
   return data.map((row, index) => ({
     id: `item-${index}-${Date.now()}`,

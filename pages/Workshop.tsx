@@ -21,18 +21,14 @@ const Workshop: React.FC = () => {
 
   // Edit/Modal State
   const [showErrorModal, setShowErrorModal] = useState(false);
-  
-  // Temporary state for edits
   const [editingItem, setEditingItem] = useState<Partial<ProductItem>>({});
 
   const currentItem = items[currentIndex];
 
-  // Fix: Scroll to top on mount to prevent layout shift if returning from a scrolled page
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Sync input value when current item changes
   useEffect(() => {
     if (currentItem) {
       if (currentItem.quantity !== null) {
@@ -53,7 +49,9 @@ const Workshop: React.FC = () => {
       next[currentIndex] = {
         ...next[currentIndex],
         quantity: isNaN(numVal) ? null : numVal,
-        status: (isNaN(numVal) && next[currentIndex].status === ItemStatus.PENDING) ? ItemStatus.PENDING : (next[currentIndex].status === ItemStatus.SKIPPED ? ItemStatus.SKIPPED : ItemStatus.COMPLETED)
+        status: (isNaN(numVal) && next[currentIndex].status === ItemStatus.PENDING) 
+          ? ItemStatus.PENDING 
+          : (next[currentIndex].status === ItemStatus.SKIPPED ? ItemStatus.SKIPPED : ItemStatus.COMPLETED)
       };
       if (!isNaN(numVal)) {
         next[currentIndex].status = ItemStatus.COMPLETED;
@@ -110,12 +108,10 @@ const Workshop: React.FC = () => {
   };
 
   const handleExitSystem = () => {
-    if(window.confirm("确定要退出当前系统返回主菜单吗？未保存的进度可能会丢失（除非已导出）。")) {
+    if(window.confirm("确定要退出当前系统返回主菜单吗？")) {
         navigate('/dashboard');
     }
   };
-
-  // --- FLAGS ---
 
   const handleMarkUnused = () => {
     if(window.confirm(`确定标记 ${currentItem.name} 为不再使用吗？`)) {
@@ -157,8 +153,11 @@ const Workshop: React.FC = () => {
     setShowErrorModal(false);
   };
 
-  // --- DRAWER COMPONENTS ---
+  // Drawer Labels
+  const leftBtnLabel = mode === 'COUNT' ? '已点' : '已订';
+  const rightBtnLabel = mode === 'COUNT' ? '待点' : '待订';
 
+  // --- SUB COMPONENT ---
   const ItemListDrawer: React.FC<{
     title: string;
     filter: (i: ProductItem) => boolean;
@@ -168,7 +167,6 @@ const Workshop: React.FC = () => {
   }> = ({ title, filter, isOpen, onClose, side }) => {
     if (!isOpen) return null;
     const filteredItems = items.map((item, idx) => ({ item, idx })).filter(x => filter(x.item));
-
     return (
       <div className="fixed inset-0 z-50 flex w-full h-full">
         <div className="absolute inset-0 bg-black/50" onClick={onClose} />
@@ -197,161 +195,118 @@ const Workshop: React.FC = () => {
     );
   };
 
-  // Determine button labels based on mode
-  const leftBtnLabel = mode === 'COUNT' ? '已点' : '已订';
-  const rightBtnLabel = mode === 'COUNT' ? '待点' : '待订';
-
   return (
-    <div className="flex flex-col h-full bg-slate-100 relative">
-      {/* Header */}
-      <header className="bg-white shadow-sm px-4 py-3 flex flex-col items-center z-10 relative">
-        <button 
-            onClick={handleExitSystem}
-            className="absolute right-3 top-3 p-2 text-slate-400 hover:text-red-500 transition-colors"
-        >
+    <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
+      
+      {/* 1. COMPACT HEADER */}
+      <header className="bg-white px-4 py-2 border-b border-slate-200 flex items-center justify-between shrink-0 h-14">
+        <div className="flex flex-col">
+            <h1 className="text-sm font-bold text-slate-800 leading-none">{user?.storeName}</h1>
+            <div className="text-xs text-brand-600 font-medium mt-1 flex items-center gap-2">
+                {mode === 'COUNT' ? '盘点系统' : '订货系统'}
+                <span className="text-slate-400">|</span>
+                <span className="text-slate-500">进度: {items.filter(i => i.status !== ItemStatus.PENDING).length}/{items.length}</span>
+            </div>
+        </div>
+        <button onClick={handleExitSystem} className="p-2 text-slate-400 hover:text-red-500">
             <LogOut size={20} />
         </button>
-
-        <h1 className="text-lg font-bold text-slate-800 text-center leading-tight mt-1">
-          {user?.storeName}
-          <span className="block text-sm font-normal text-brand-600 mt-1">
-            {mode === 'COUNT' ? '盘点系统' : '订货系统'}
-          </span>
-        </h1>
-        {/* Progress Bar */}
-        <div className="w-full mt-3 h-2 bg-slate-200 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-brand-500 transition-all duration-300"
-            style={{ width: `${((items.filter(i => i.status !== ItemStatus.PENDING).length) / items.length) * 100}%` }}
-          />
-        </div>
-        <div className="text-xs text-slate-400 mt-1 w-full text-center">
-            进度: {items.filter(i => i.status !== ItemStatus.PENDING).length} / {items.length}
-        </div>
       </header>
 
-      {/* Main Work Area */}
-      {/* Replaced 'justify-center' with 'pt-16' (padding top) to prevent vertical layout shifts on mobile when keyboard toggles */}
-      <main className="flex-1 px-4 pt-16 flex flex-col items-center overflow-x-hidden relative w-full max-w-full">
+      {/* 2. MAIN FLEX AREA (No scroll) */}
+      <main className="flex-1 flex flex-col px-4 relative overflow-hidden">
         
-        {/* Left/Right Drawer Toggles with labels */}
-        <div className="absolute top-4 left-2 z-20">
-            <button 
-                onClick={() => setShowLeftDrawer(true)}
-                className="bg-white pl-2 pr-3 py-2 rounded-full shadow-md text-slate-600 hover:text-brand-600 border border-slate-200 flex items-center gap-1"
-            >
-                <List size={20} />
-                <span className="text-xs font-bold">{leftBtnLabel}</span>
+        {/* Drawer Buttons (Top Row) */}
+        <div className="flex justify-between items-center py-3 shrink-0">
+             <button onClick={() => setShowLeftDrawer(true)} className="flex items-center gap-1 text-slate-500 hover:text-brand-600 px-2 py-1 bg-white border rounded-full text-xs shadow-sm">
+                <List size={16} /> {leftBtnLabel}
             </button>
-        </div>
-        <div className="absolute top-4 right-2 z-20">
-            <button 
-                onClick={() => setShowRightDrawer(true)}
-                className="bg-white pl-3 pr-2 py-2 rounded-full shadow-md text-slate-600 hover:text-brand-600 border border-slate-200 flex items-center gap-1"
-            >
-                <span className="text-xs font-bold">{rightBtnLabel}</span>
-                <Grid size={20} />
+            <button onClick={() => setShowRightDrawer(true)} className="flex items-center gap-1 text-slate-500 hover:text-brand-600 px-2 py-1 bg-white border rounded-full text-xs shadow-sm">
+                {rightBtnLabel} <Grid size={16} />
             </button>
         </div>
 
-        {/* Card */}
-        <div className="w-full max-w-lg flex flex-col items-center">
-            <div className="bg-white w-full rounded-2xl shadow-xl p-6 flex flex-col items-center border border-slate-100 relative">
-                
-                {/* Status Badges */}
-                <div className="absolute top-4 right-4 flex gap-2">
-                    {currentItem.isUnused && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded">不再使用</span>}
-                    {currentItem.hasError && <span className="bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded">已修正</span>}
-                    {currentItem.isNew && <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded">新增</span>}
-                </div>
+        {/* Product Info (Takes available space) */}
+        <div className="flex-1 flex flex-col justify-center items-center text-center min-h-0">
+             {/* Flags */}
+             <div className="h-6 mb-2">
+                {currentItem.isUnused && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full">不再使用</span>}
+                {currentItem.hasError && <span className="bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded-full">已修正</span>}
+                {currentItem.isNew && <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">新增</span>}
+             </div>
 
-                <h2 className="text-2xl font-bold text-slate-800 text-center mb-1 break-words w-full">{currentItem.name}</h2>
-                <p className="text-slate-500 mb-6">{currentItem.spec}</p>
+             <h2 className="text-3xl font-bold text-slate-800 mb-2 leading-tight">{currentItem.name}</h2>
+             <p className="text-slate-500 text-sm mb-6 bg-slate-100 px-3 py-1 rounded-lg">{currentItem.spec}</p>
 
-                <div className="flex items-center w-full mb-8 gap-3">
-                    <input 
-                        type="number"
-                        inputMode="decimal"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="0"
-                        className="flex-1 text-center text-4xl font-bold py-4 border-b-2 border-brand-200 focus:border-brand-500 outline-none bg-transparent transition-colors placeholder-slate-200 w-full"
-                        autoFocus
-                    />
-                    <span className="text-xl font-medium text-slate-400 whitespace-nowrap min-w-[3rem]">
-                        {currentItem.unit}
-                    </span>
-                </div>
+             <div className="flex items-baseline justify-center gap-2 w-full max-w-xs border-b-2 border-brand-200 focus-within:border-brand-500 transition-colors pb-1">
+                 <input 
+                    type="number"
+                    inputMode="decimal"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder="0"
+                    className="text-center text-5xl font-bold text-slate-800 bg-transparent outline-none w-32 placeholder-slate-200"
+                    autoFocus
+                 />
+                 <span className="text-xl text-slate-400 font-medium">{currentItem.unit}</span>
+             </div>
+        </div>
 
-                <div className="flex gap-4 w-full">
-                    <button 
-                        onClick={handlePrev}
-                        disabled={currentIndex === 0}
-                        className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-600 font-medium hover:bg-slate-200 disabled:opacity-50"
-                    >
-                        <div className="flex items-center justify-center gap-1">
-                            <ChevronLeft size={18} /> 上一个
-                        </div>
-                    </button>
-                    <button 
-                        onClick={handleNext}
-                        disabled={currentIndex === items.length - 1}
-                        className="flex-1 py-3 rounded-xl bg-brand-600 text-white font-bold hover:bg-brand-700 shadow-lg shadow-brand-200 disabled:opacity-50"
-                    >
-                        <div className="flex items-center justify-center gap-1">
-                            下一个 <ChevronRight size={18} />
-                        </div>
-                    </button>
-                </div>
-            </div>
-
-            {/* Ordering Mode: Skip Button - Made larger and clearer */}
-            {mode === 'ORDER' && (
-                 <button 
-                    onClick={handleSkip}
-                    className="mt-6 w-full py-4 bg-slate-200 text-slate-600 hover:bg-slate-300 rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform"
+        {/* Primary Controls */}
+        <div className="py-4 space-y-3 shrink-0">
+            <div className="grid grid-cols-2 gap-4">
+                <button 
+                    onClick={handlePrev} 
+                    disabled={currentIndex === 0}
+                    className="py-3 rounded-xl bg-slate-200 text-slate-600 font-bold hover:bg-slate-300 disabled:opacity-30"
                 >
-                    <StepForward size={24} className="fill-slate-600" /> 
-                    跳过 (无需订货)
+                    <ChevronLeft className="inline mb-1" size={20} /> 上一个
+                </button>
+                <button 
+                    onClick={handleNext} 
+                    disabled={currentIndex === items.length - 1}
+                    className="py-3 rounded-xl bg-brand-600 text-white font-bold hover:bg-brand-700 shadow-lg shadow-brand-200 disabled:opacity-30"
+                >
+                    下一个 <ChevronRight className="inline mb-1" size={20} />
+                </button>
+            </div>
+            
+            {mode === 'ORDER' && (
+                <button 
+                    onClick={handleSkip}
+                    className="w-full py-3 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 text-sm"
+                >
+                    <StepForward size={18} /> 跳过此货品 (无需订货)
                 </button>
             )}
         </div>
 
-        {/* Bottom Actions */}
-        <div className="mt-8 grid grid-cols-2 gap-3 max-w-lg w-full mb-8">
-            <button 
-                onClick={handleMarkUnused}
-                className={`py-3 px-3 rounded-lg border text-sm flex items-center justify-center gap-2 ${currentItem.isUnused ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-200 text-slate-600'}`}
-            >
-                <Trash2 size={18} /> 标记不再使用
-            </button>
-            <button 
-                onClick={openErrorModal}
-                className="py-3 px-3 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm flex items-center justify-center gap-2"
-            >
-                <Flag size={18} /> 标记信息有误
-            </button>
-            <button 
-                onClick={jumpToUnfinished}
-                className="col-span-2 py-4 bg-white border border-brand-200 text-brand-600 rounded-lg font-bold flex items-center justify-center gap-2 shadow-sm"
-            >
-                <CheckCircle2 size={20} /> 跳转到下一个{mode === 'COUNT' ? '未点' : '未订'}货品
-            </button>
+        {/* Secondary Toolbar (Icons) */}
+        <div className="border-t border-slate-200 py-2 flex justify-around shrink-0 pb-2">
+             <button onClick={handleMarkUnused} className={`p-2 flex flex-col items-center gap-1 text-[10px] ${currentItem.isUnused ? 'text-red-500' : 'text-slate-400'}`}>
+                <Trash2 size={20} />
+                <span>废弃</span>
+             </button>
+             <button onClick={openErrorModal} className="p-2 flex flex-col items-center gap-1 text-[10px] text-slate-400 hover:text-brand-600">
+                <Flag size={20} />
+                <span>报错</span>
+             </button>
+             <button onClick={jumpToUnfinished} className="p-2 flex flex-col items-center gap-1 text-[10px] text-slate-400 hover:text-brand-600">
+                <CheckCircle2 size={20} />
+                <span>跳转未完</span>
+             </button>
         </div>
 
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t p-4 z-10">
-        <button 
-            onClick={handleFinish}
-            className="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 active:scale-[0.98] transition-transform"
-        >
+      {/* 3. FOOTER */}
+      <footer className="bg-slate-900 p-4 shrink-0">
+         <button onClick={handleFinish} className="w-full text-white font-bold py-3 rounded-lg hover:bg-slate-800 active:scale-[0.98] transition-all">
             结束{mode === 'COUNT' ? '盘点' : '订货'}
-        </button>
+         </button>
       </footer>
 
-      {/* Drawers */}
+      {/* DRAWERS & MODALS */}
       <ItemListDrawer 
         title={mode === 'COUNT' ? "已完成货品" : "已订货品"}
         side="left"
@@ -366,31 +321,22 @@ const Workshop: React.FC = () => {
         onClose={() => setShowRightDrawer(false)}
         filter={(i) => i.status === ItemStatus.PENDING}
       />
-
-      {/* Error Edit Modal */}
-      {showErrorModal && (
+      
+       {/* Error Modal */}
+       {showErrorModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                     <AlertTriangle className="text-orange-500" /> 修正货品信息
                 </h3>
                 <div className="space-y-4">
-                    <div>
-                        <label className="text-xs text-slate-500">货品名称</label>
-                        <input className="w-full border rounded p-2" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="text-xs text-slate-500">规格</label>
-                        <input className="w-full border rounded p-2" value={editingItem.spec} onChange={e => setEditingItem({...editingItem, spec: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="text-xs text-slate-500">单位</label>
-                        <input className="w-full border rounded p-2" value={editingItem.unit} onChange={e => setEditingItem({...editingItem, unit: e.target.value})} />
-                    </div>
+                    <input className="w-full border rounded p-2" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} placeholder="名称" />
+                    <input className="w-full border rounded p-2" value={editingItem.spec} onChange={e => setEditingItem({...editingItem, spec: e.target.value})} placeholder="规格" />
+                    <input className="w-full border rounded p-2" value={editingItem.unit} onChange={e => setEditingItem({...editingItem, unit: e.target.value})} placeholder="单位" />
                 </div>
                 <div className="flex gap-3 mt-6">
                     <button onClick={() => setShowErrorModal(false)} className="flex-1 py-2 rounded-lg bg-slate-100">取消</button>
-                    <button onClick={saveErrorEdit} className="flex-1 py-2 rounded-lg bg-brand-600 text-white">保存并标记</button>
+                    <button onClick={saveErrorEdit} className="flex-1 py-2 rounded-lg bg-brand-600 text-white">保存</button>
                 </div>
             </div>
         </div>

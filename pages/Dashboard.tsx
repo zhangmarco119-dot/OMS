@@ -46,15 +46,15 @@ const Dashboard: React.FC = () => {
     <div className="flex-1 flex flex-col h-full bg-slate-50">
       {/* Header */}
       <header className="bg-white shadow-sm px-6 py-4 flex justify-between items-center z-10">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800">{user.storeName}</h1>
-          <p className="text-sm text-slate-500">欢迎您，{user.username}</p>
+        <div className="overflow-hidden">
+          <h1 className="text-base font-bold text-slate-800 leading-tight truncate">{user.storeName}</h1>
+          <p className="text-xs text-slate-500 mt-0.5">欢迎您，{user.username}</p>
         </div>
         <button 
           onClick={handleLogout}
-          className="flex items-center gap-1 py-2 px-3 rounded-lg bg-slate-100 text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors text-sm font-medium"
+          className="flex items-center gap-1 py-2 px-3 ml-4 rounded-lg bg-slate-100 text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors text-xs font-medium shrink-0"
         >
-          <LogOut size={18} />
+          <LogOut size={16} />
           退出登录
         </button>
       </header>

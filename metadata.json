@@ -1,0 +1,5 @@
+{
+  "name": "StoreInventoryPro",
+  "description": "A mobile-first inventory counting and ordering system for retail stores with Excel integration.",
+  "requestFramePermissions": []
+}

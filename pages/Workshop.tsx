@@ -281,41 +281,41 @@ const Workshop: React.FC = () => {
             )}
         </div>
 
-        {/* Secondary Actions (Text Buttons - 2 Row Layout) */}
-        <div className="border-t border-slate-200 p-2 space-y-2 shrink-0 bg-slate-50">
-            <div className="grid grid-cols-2 gap-2">
+        {/* Secondary Actions (Single Row Grid) */}
+        <div className="border-t border-slate-200 py-3 shrink-0 bg-slate-50">
+            <div className="grid grid-cols-3 gap-2">
                  <button 
                     onClick={handleMarkUnused} 
-                    className={`py-2 px-2 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${
+                    className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg transition-colors ${
                         currentItem.isUnused 
-                        ? 'bg-red-100 text-red-600 border-red-200' 
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-red-100 text-red-600 border border-red-200' 
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                     }`}
                  >
-                    <Trash2 size={14} />
-                    {currentItem.isUnused ? '已标记不再使用' : '标记不再使用'}
+                    <Trash2 size={20} />
+                    <span className="text-[10px] leading-tight font-bold">标记不再使用</span>
                  </button>
                  
                  <button 
                     onClick={openErrorModal} 
-                    className={`py-2 px-2 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${
+                    className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg transition-colors ${
                         currentItem.hasError
-                        ? 'bg-orange-100 text-orange-600 border-orange-200' 
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-orange-100 text-orange-600 border border-orange-200' 
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                     }`}
                  >
-                    <Flag size={14} />
-                    {currentItem.hasError ? '已标记信息有误' : '标记信息有误'}
+                    <Flag size={20} />
+                    <span className="text-[10px] leading-tight font-bold">标记信息有误</span>
                  </button>
+
+                 <button 
+                    onClick={jumpToUnfinished} 
+                    className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg bg-white text-brand-600 border border-brand-200 hover:bg-brand-50"
+                >
+                    <CheckCircle2 size={20} />
+                    <span className="text-[10px] leading-tight font-bold">下一个未{mode === 'COUNT' ? '点' : '订'}货品</span>
+                </button>
             </div>
-            
-            <button 
-                onClick={jumpToUnfinished} 
-                className="w-full py-2 rounded-lg text-xs font-bold bg-white text-brand-600 border border-brand-200 hover:bg-brand-50 flex items-center justify-center gap-2"
-            >
-                <CheckCircle2 size={16} />
-                跳转到下一个未{mode === 'COUNT' ? '点' : '订'}货品
-            </button>
         </div>
 
       </main>

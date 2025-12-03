@@ -1,8 +1,8 @@
 import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
-import { shareExcel } from '../services/dataService';
-import { CheckCircle, ArrowLeft, PlusCircle, Share2 } from 'lucide-react';
+import { exportToExcel } from '../services/dataService';
+import { CheckCircle, ArrowLeft, PlusCircle, Download } from 'lucide-react';
 import { ItemStatus, ProductItem } from '../types';
 
 const Summary: React.FC = () => {
@@ -14,14 +14,14 @@ const Summary: React.FC = () => {
   const totalItems = items.length;
   const completedItems = items.filter(i => i.status !== ItemStatus.PENDING).length;
 
-  const handleExport = async () => {
+  const handleExport = () => {
     if (user && mode) {
       try {
-        await shareExcel(items, user, mode);
-        // We don't need a specific alert here if sharing works, the system UI handles it.
-        // If it fell back to download, the browser handles the download.
+        exportToExcel(items, user, mode);
+        alert("Excel文件已开始下载");
       } catch (e) {
         alert("导出失败，请重试");
+        console.error(e);
       }
     }
   };
@@ -82,7 +82,7 @@ const Summary: React.FC = () => {
                 onClick={handleExport}
                 className="w-full py-4 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-green-200 hover:bg-green-700"
             >
-                <Share2 size={20} /> 结束并分享/导出Excel
+                <Download size={20} /> 结束并导出Excel
             </button>
         </div>
       </div>

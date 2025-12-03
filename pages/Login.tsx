@@ -100,7 +100,7 @@ const Login: React.FC = () => {
         
         <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center gap-4">
             <div className="text-center text-xs text-slate-300">
-                系统版本 v1.0.4
+                系统版本 v1.0.5
             </div>
         </div>
       </div>

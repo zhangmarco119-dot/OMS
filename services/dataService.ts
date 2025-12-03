@@ -59,8 +59,22 @@ export const fetchProducts = async (storeName: string): Promise<ProductItem[]> =
   }
 };
 
-const generateWorkbook = (items: ProductItem[], user: User, mode: string) => {
-  const headers = items.map((item, index) => {
+export const exportToExcel = (items: ProductItem[], user: User, mode: string) => {
+  const typeStr = mode === 'COUNT' ? '盘点' : '订货';
+  const dateStr = new Date().toLocaleString();
+  const fileNameDatePart = new Date().toISOString().slice(0, 10);
+  
+  // 1. Prepare Metadata Rows
+  const metadata = [
+    ["门店名称", user.storeName],
+    ["操作人员", user.username],
+    ["单据类型", typeStr],
+    ["操作时间", dateStr],
+    [] // Empty row spacer
+  ];
+
+  // 2. Prepare Data Rows
+  const tableData = items.map((item, index) => {
     const statusText = item.status === ItemStatus.SKIPPED ? '无需订货' : (item.quantity?.toString() || '0');
     
     let notes = [];
@@ -80,57 +94,19 @@ const generateWorkbook = (items: ProductItem[], user: User, mode: string) => {
     };
   });
 
-  const ws = XLSX.utils.json_to_sheet(headers);
+  // 3. Create Sheet with Metadata
+  // Use aoa_to_sheet for the first part
+  const ws = XLSX.utils.aoa_to_sheet(metadata);
+
+  // 4. Append Table Data starting from row 6 (index 5, since metadata uses 0-4)
+  XLSX.utils.sheet_add_json(ws, tableData, { origin: "A6" });
+
+  // 5. Create Workbook and Download
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "清单");
-  return wb;
-};
-
-// Legacy download method (fallback)
-export const exportToExcel = (items: ProductItem[], user: User, mode: string, startTime: number) => {
-  const wb = generateWorkbook(items, user, mode);
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const typeStr = mode === 'COUNT' ? '盘点单' : '订货单';
-  const fileName = `${user.storeName}_${typeStr}_${user.username}_${dateStr}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-};
-
-// New Sharing Method
-export const shareExcel = async (items: ProductItem[], user: User, mode: string) => {
-  const wb = generateWorkbook(items, user, mode);
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const typeStr = mode === 'COUNT' ? '盘点单' : '订货单';
-  const fileName = `${user.storeName}_${typeStr}_${user.username}_${dateStr}.xlsx`;
-
-  // Write to binary
-  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   
-  // Create File object
-  const file = new File([wbout], fileName, {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-
-  // Check if Web Share API is supported and can share files
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: fileName,
-        text: `这是 ${user.storeName} 的${typeStr}，请查收。`,
-      });
-      return true; // Shared successfully
-    } catch (error) {
-      console.warn('Sharing failed or canceled', error);
-      // If user canceled, we don't necessarily need to download, 
-      // but if it failed technically, we might want to fallback.
-      // For now, let's treat cancel as "done".
-      return false;
-    }
-  } else {
-    // Fallback to direct download
-    XLSX.writeFile(wb, fileName);
-    return false; // Used fallback
-  }
+  const fileName = `${user.storeName}_${typeStr}单_${user.username}_${fileNameDatePart}.xlsx`;
+  XLSX.writeFile(wb, fileName);
 };
 
 // --- HELPER ---

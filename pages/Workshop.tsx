@@ -253,7 +253,7 @@ const Workshop: React.FC = () => {
         </div>
 
         {/* Primary Controls */}
-        <div className="py-4 space-y-3 shrink-0">
+        <div className="py-2 space-y-2 shrink-0">
             <div className="grid grid-cols-2 gap-4">
                 <button 
                     onClick={handlePrev} 
@@ -281,26 +281,47 @@ const Workshop: React.FC = () => {
             )}
         </div>
 
-        {/* Secondary Toolbar (Icons) */}
-        <div className="border-t border-slate-200 py-2 flex justify-around shrink-0 pb-2">
-             <button onClick={handleMarkUnused} className={`p-2 flex flex-col items-center gap-1 text-[10px] ${currentItem.isUnused ? 'text-red-500' : 'text-slate-400'}`}>
-                <Trash2 size={20} />
-                <span>废弃</span>
-             </button>
-             <button onClick={openErrorModal} className="p-2 flex flex-col items-center gap-1 text-[10px] text-slate-400 hover:text-brand-600">
-                <Flag size={20} />
-                <span>报错</span>
-             </button>
-             <button onClick={jumpToUnfinished} className="p-2 flex flex-col items-center gap-1 text-[10px] text-slate-400 hover:text-brand-600">
-                <CheckCircle2 size={20} />
-                <span>跳转未完</span>
-             </button>
+        {/* Secondary Actions (Text Buttons - 2 Row Layout) */}
+        <div className="border-t border-slate-200 p-2 space-y-2 shrink-0 bg-slate-50">
+            <div className="grid grid-cols-2 gap-2">
+                 <button 
+                    onClick={handleMarkUnused} 
+                    className={`py-2 px-2 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${
+                        currentItem.isUnused 
+                        ? 'bg-red-100 text-red-600 border-red-200' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                 >
+                    <Trash2 size={14} />
+                    {currentItem.isUnused ? '已标记不再使用' : '标记不再使用'}
+                 </button>
+                 
+                 <button 
+                    onClick={openErrorModal} 
+                    className={`py-2 px-2 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${
+                        currentItem.hasError
+                        ? 'bg-orange-100 text-orange-600 border-orange-200' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                 >
+                    <Flag size={14} />
+                    {currentItem.hasError ? '已标记信息有误' : '标记信息有误'}
+                 </button>
+            </div>
+            
+            <button 
+                onClick={jumpToUnfinished} 
+                className="w-full py-2 rounded-lg text-xs font-bold bg-white text-brand-600 border border-brand-200 hover:bg-brand-50 flex items-center justify-center gap-2"
+            >
+                <CheckCircle2 size={16} />
+                跳转到下一个未{mode === 'COUNT' ? '点' : '订'}货品
+            </button>
         </div>
 
       </main>
 
       {/* 3. FOOTER */}
-      <footer className="bg-slate-900 p-4 shrink-0">
+      <footer className="bg-slate-900 p-3 shrink-0">
          <button onClick={handleFinish} className="w-full text-white font-bold py-3 rounded-lg hover:bg-slate-800 active:scale-[0.98] transition-all">
             结束{mode === 'COUNT' ? '盘点' : '订货'}
          </button>

@@ -246,7 +246,7 @@ function AdminDashboard() {
                   <p className="text-xs font-semibold text-brand-700">StoreHub V2</p>
                   <h2 className="mt-1 text-lg font-bold text-slate-900" id="admin-arrival-title">到货中心</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    管理员到货消息、每日汇总和统计将在数据库与 RLS 就绪后接入。
+                    数据库与 RLS 结构已准备，管理员消息、每日汇总和统计界面将在后续阶段接入。
                   </p>
                 </div>
               </div>

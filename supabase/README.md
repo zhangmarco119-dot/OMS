@@ -4,6 +4,9 @@
 
 - `migrations/0001_initial_schema.sql`：表结构、约束、索引、触发器、RLS helper function、RLS policy。
 - `seed.sql`：两家门店和少量脱敏商品测试数据。
+- `migrations/0010_arrival_reports.sql`：StoreHub V2 到货表、索引、RPC、RLS、私有 Storage bucket 和 policy。
+- `rollbacks/0010_arrival_reports.sql`：到货模块安全回滚；bucket 非空时拒绝执行。
+- `tests/0010_arrival_schema.sql`：migration 应用后的数据库 catalog smoke test。
 
 ## 本地/远程执行顺序
 

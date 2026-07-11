@@ -50,9 +50,9 @@ export function ArrivalEntryPage() {
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
           <div>
-            <h2 className="font-bold text-amber-950">本阶段不开放数据提交</h2>
+            <h2 className="font-bold text-amber-950">数据库基础已准备，提交界面尚未开放</h2>
             <p className="mt-2 text-sm leading-6 text-amber-900">
-              到货表、私有图片存储、草稿和提交服务将在后续数据与表单阶段完成，并通过 RLS 验证后再开放。本页没有假数据、上传按钮或空提交操作。
+              到货表、私有图片策略和受控提交 RPC 已完成代码设计；草稿服务、图片处理和提交表单将在下一阶段接入并完成真实 RLS 验证。本页没有假数据、上传按钮或空提交操作。
             </p>
           </div>
         </div>

@@ -1,5 +1,11 @@
 # 数据库与 RLS 方案
 
+## StoreHub V2 到货数据库
+
+V2 阶段 2 新增 `arrival_reports`、`arrival_report_items`、`arrival_report_images` 和 `notifications`，对应 migration 为 `supabase/migrations/0010_arrival_reports.sql`。到货模块使用独立表和权限函数，不修改 V1 点货/订货的 `tasks`、`task_items` 逻辑。
+
+完整的表、索引、RPC、RLS、私有 Storage 和回滚说明见 `docs/V2_PHASE_2_DATABASE.md`。
+
 ## 多门店账号
 
 - `profile_store_access` 保存账号可以访问的全部门店。

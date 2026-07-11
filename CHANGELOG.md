@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-07-12 StoreHub V2 阶段 2
+
+- 新增到货单、商品明细、图片元数据和通知表，不修改 V1 migrations。
+- 新增到货索引、门店/商品一致性触发器、乐观版本号和提交幂等键。
+- 新增数据库生成规范描述、幂等提交、管理员查看和作废 RPC，并写入通知与审计日志。
+- 新增每日明细和商品汇总 `security_invoker` View，作废记录不参与汇总。
+- 创建私有 `arrival-report-images` bucket 及读取、上传、删除 Storage Policy。
+- 新增到货 TypeScript 数据库类型、SQL catalog smoke test、静态 schema 校验和安全回滚脚本。
+- 本阶段未实现门店端草稿、图片上传 UI、正式提交界面或管理员到货中心页面。
+
 ## 2026-07-12 StoreHub V2 阶段 0/1
 
 - 完成 V1 代码、数据库、RLS、Storage 和质量基线审计，记录员工、店长和管理员原有差异。

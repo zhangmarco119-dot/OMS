@@ -1,5 +1,7 @@
 # StoreHub V2 阶段 0/1 审计与设计草案
 
+> 本文保留阶段 0/1 当时的审计和设计记录。阶段 2 已实施，当前状态以 `docs/V2_PHASE_2_DATABASE.md` 为准。
+
 审计基线：`42d139e`（V1 `manage-system` 最新提交）
 
 实施分支：`v2-development`

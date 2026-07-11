@@ -5,6 +5,9 @@ const root = process.cwd();
 const migrationDirectory = join(root, 'supabase', 'migrations');
 const seedPath = join(root, 'supabase', 'seed.sql');
 const envExamplePath = join(root, '.env.example');
+const arrivalRollbackPath = join(root, 'supabase', 'rollbacks', '0010_arrival_reports.sql');
+const arrivalTestPath = join(root, 'supabase', 'tests', '0010_arrival_schema.sql');
+const arrivalMigrationPath = join(root, 'supabase', 'migrations', '0010_arrival_reports.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -13,6 +16,9 @@ const migration = readdirSync(migrationDirectory)
   .join('\n');
 const seed = readFileSync(seedPath, 'utf8');
 const envExample = readFileSync(envExamplePath, 'utf8');
+const arrivalRollback = readFileSync(arrivalRollbackPath, 'utf8');
+const arrivalTest = readFileSync(arrivalTestPath, 'utf8');
+const arrivalMigration = readFileSync(arrivalMigrationPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -25,6 +31,10 @@ const requiredTables = [
   'task_items',
   'product_feedback',
   'audit_logs',
+  'arrival_reports',
+  'arrival_report_items',
+  'arrival_report_images',
+  'notifications',
 ];
 
 const storeScopedTables = [
@@ -34,6 +44,8 @@ const storeScopedTables = [
   'task_items',
   'product_feedback',
   'audit_logs',
+  'arrival_reports',
+  'arrival_report_images',
 ];
 
 const requiredPolicies = [
@@ -54,6 +66,21 @@ const requiredPolicies = [
   'product_feedback_update_admin',
   'products_insert_admin',
   'audit_logs_insert_actor',
+  'arrival_reports_select_allowed',
+  'arrival_reports_insert_own_draft',
+  'arrival_reports_update_own_draft',
+  'arrival_reports_delete_own_draft',
+  'arrival_report_items_select_allowed',
+  'arrival_report_items_insert_own_draft',
+  'arrival_report_items_update_own_draft',
+  'arrival_report_items_delete_own_draft',
+  'arrival_report_images_select_allowed',
+  'arrival_report_images_insert_own_draft',
+  'arrival_report_images_delete_own_draft',
+  'notifications_select_recipient',
+  'arrival_images_storage_select',
+  'arrival_images_storage_insert',
+  'arrival_images_storage_delete',
 ];
 
 const requiredFunctions = [
@@ -70,6 +97,19 @@ const requiredFunctions = [
   'import_inventory_task',
   'switch_current_store',
   'admin_set_profile_stores',
+  'generate_arrival_report_no',
+  'set_arrival_report_snapshots',
+  'validate_arrival_report_item',
+  'validate_arrival_report_image',
+  'can_operate_arrival_modules',
+  'can_read_arrival_report',
+  'can_edit_arrival_report',
+  'generate_arrival_summary',
+  'submit_arrival_report',
+  'mark_arrival_viewed',
+  'void_arrival_report',
+  'can_read_arrival_image_object',
+  'can_write_arrival_image_object',
 ];
 
 const failures = [];
@@ -130,6 +170,61 @@ if (!migration.includes("status in ('open', 'resolved', 'ignored', 'reverted')")
 
 if (!migration.includes('references public.products(id) on delete set null')) {
   failures.push('missing safe product deletion foreign key behavior');
+}
+
+for (const view of ['arrival_daily_detail_view', 'arrival_daily_product_summary_view']) {
+  if (!migration.includes(`create view public.${view}`)) {
+    failures.push(`missing view public.${view}`);
+  }
+}
+
+if ((migration.match(/with \(security_invoker = true\)/g) ?? []).length < 2) {
+  failures.push('arrival views must use security_invoker');
+}
+
+if (!migration.includes("'arrival-report-images',\n  'arrival-report-images',\n  false")) {
+  failures.push('missing private arrival-report-images bucket');
+}
+
+if (!migration.includes("array['image/jpeg', 'image/png', 'image/webp']")) {
+  failures.push('arrival bucket MIME allowlist is missing');
+}
+
+const arrivalSecurityDefiners = arrivalMigration.match(/security definer/g) ?? [];
+const hardenedArrivalSecurityDefiners = arrivalMigration.match(
+  /security definer\s+set search_path = public/g,
+) ?? [];
+if (arrivalSecurityDefiners.length !== hardenedArrivalSecurityDefiners.length) {
+  failures.push('every arrival security definer function must set search_path to public');
+}
+
+if (arrivalMigration.includes('on storage.objects for update')) {
+  failures.push('arrival Storage must not allow object overwrite updates');
+}
+
+if (!arrivalMigration.includes('join public.arrival_report_images image')) {
+  failures.push('arrival Storage reads must require matching image metadata');
+}
+
+if (!migration.includes('p_expected_version integer') || !migration.includes('p_idempotency_key text')) {
+  failures.push('arrival submission concurrency and idempotency arguments are missing');
+}
+
+if (!migration.includes("count(*) filter (where image_type = 'waybill')")
+  || !migration.includes("count(*) filter (where image_type = 'goods')")) {
+  failures.push('arrival submission image requirements are missing');
+}
+
+if (!arrivalRollback.includes("arrival-report-images is not empty")) {
+  failures.push('arrival rollback must refuse to remove a non-empty image bucket');
+}
+
+if (!arrivalRollback.includes('drop table if exists public.arrival_reports')) {
+  failures.push('arrival rollback is missing schema cleanup');
+}
+
+if (!arrivalTest.includes('StoreHub V2 arrival schema smoke checks passed')) {
+  failures.push('arrival SQL catalog smoke test is missing');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

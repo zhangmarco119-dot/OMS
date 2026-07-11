@@ -7,6 +7,9 @@
 - `migrations/0010_arrival_reports.sql`：StoreHub V2 到货表、索引、RPC、RLS、私有 Storage bucket 和 policy。
 - `rollbacks/0010_arrival_reports.sql`：到货模块安全回滚；bucket 非空时拒绝执行。
 - `tests/0010_arrival_schema.sql`：migration 应用后的数据库 catalog smoke test。
+- `migrations/0011_save_arrival_draft.sql`：原子草稿保存 RPC 和到货核心表直写权限收紧。
+- `rollbacks/0011_save_arrival_draft.sql`：恢复阶段 2 的草稿直写权限。
+- `tests/0011_arrival_draft_rpc.sql`：原子草稿 RPC 和数据库权限 smoke test。
 
 ## 本地/远程执行顺序
 

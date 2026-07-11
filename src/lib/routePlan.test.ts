@@ -19,6 +19,8 @@ describe('routePlan', () => {
       '/app/order',
       '/app/history',
       '/app/arrivals',
+      '/app/arrivals/history',
+      '/app/arrivals/:reportId/success',
     ]));
   });
 });

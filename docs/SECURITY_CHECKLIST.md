@@ -13,6 +13,7 @@
 - [ ] V2 到货四张表已启用 RLS，并用员工、店长、跨门店账号和管理员 JWT 完成集成测试。
 - [ ] `arrival-report-images` 为私有 bucket，只允许 JPEG/PNG/WEBP 且单图不超过 10 MiB。
 - [ ] Storage 读取同时校验授权门店、父到货单和 `arrival_report_images` 元数据。
+- [ ] 到货草稿通过 `save_arrival_draft` 原子保存，authenticated 角色不能直接更新到货单或增删改商品明细。
 - [ ] 管理员账号只授权必要门店。
 - [ ] `admin-users` Edge Function 的 `SUPABASE_SERVICE_ROLE_KEY` 只存在于 Supabase Function 环境。
 - [ ] 已重置开发过程中在聊天或截图里出现过的数据库密码。

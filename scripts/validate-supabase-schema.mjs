@@ -7,7 +7,10 @@ const seedPath = join(root, 'supabase', 'seed.sql');
 const envExamplePath = join(root, '.env.example');
 const arrivalRollbackPath = join(root, 'supabase', 'rollbacks', '0010_arrival_reports.sql');
 const arrivalTestPath = join(root, 'supabase', 'tests', '0010_arrival_schema.sql');
+const arrivalDraftTestPath = join(root, 'supabase', 'tests', '0011_arrival_draft_rpc.sql');
 const arrivalMigrationPath = join(root, 'supabase', 'migrations', '0010_arrival_reports.sql');
+const arrivalDraftMigrationPath = join(root, 'supabase', 'migrations', '0011_save_arrival_draft.sql');
+const arrivalDraftRollbackPath = join(root, 'supabase', 'rollbacks', '0011_save_arrival_draft.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -18,7 +21,10 @@ const seed = readFileSync(seedPath, 'utf8');
 const envExample = readFileSync(envExamplePath, 'utf8');
 const arrivalRollback = readFileSync(arrivalRollbackPath, 'utf8');
 const arrivalTest = readFileSync(arrivalTestPath, 'utf8');
+const arrivalDraftTest = readFileSync(arrivalDraftTestPath, 'utf8');
 const arrivalMigration = readFileSync(arrivalMigrationPath, 'utf8');
+const arrivalDraftMigration = readFileSync(arrivalDraftMigrationPath, 'utf8');
+const arrivalDraftRollback = readFileSync(arrivalDraftRollbackPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -107,6 +113,7 @@ const requiredFunctions = [
   'generate_arrival_summary',
   'submit_arrival_report',
   'mark_arrival_viewed',
+  'save_arrival_draft',
   'void_arrival_report',
   'can_read_arrival_image_object',
   'can_write_arrival_image_object',
@@ -225,6 +232,31 @@ if (!arrivalRollback.includes('drop table if exists public.arrival_reports')) {
 
 if (!arrivalTest.includes('StoreHub V2 arrival schema smoke checks passed')) {
   failures.push('arrival SQL catalog smoke test is missing');
+}
+
+if (!migration.includes('function public.save_arrival_draft')) {
+  failures.push('missing atomic arrival draft save RPC');
+}
+
+if (!migration.includes('revoke update, delete on public.arrival_reports from authenticated')
+  || !migration.includes('revoke insert, update, delete on public.arrival_report_items from authenticated')) {
+  failures.push('arrival draft tables must prevent direct concurrent writes');
+}
+
+if (!migration.includes('arrival_reports_one_draft_per_reporter_idx')) {
+  failures.push('arrival drafts require a per-store reporter uniqueness index');
+}
+
+if (!arrivalDraftTest.includes('StoreHub V2 atomic arrival draft checks passed')) {
+  failures.push('atomic arrival draft SQL privilege test is missing');
+}
+
+if (!/security definer\s+set search_path = public/.test(arrivalDraftMigration)) {
+  failures.push('arrival draft RPC must harden its security definer search_path');
+}
+
+if (!arrivalDraftRollback.includes('drop function if exists public.save_arrival_draft')) {
+  failures.push('arrival draft RPC rollback is missing');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

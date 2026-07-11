@@ -50,8 +50,15 @@ const runViewport = async (browser, viewport, label) => {
   await assertText(page, '门店盘点订货系统');
   await page.getByPlaceholder('请输入账号名或姓名').waitFor({ state: 'visible', timeout: 10000 });
 
-  await page.goto(`${baseUrl}/app/history`, { waitUntil: 'domcontentloaded' });
-  await assertText(page, '请登录以继续');
+  for (const protectedPath of [
+    '/app/history',
+    '/app/arrivals',
+    '/app/arrivals/history',
+    '/app/arrivals/00000000-0000-4000-8000-000000000001/success',
+  ]) {
+    await page.goto(`${baseUrl}${protectedPath}`, { waitUntil: 'domcontentloaded' });
+    await assertText(page, '请登录以继续');
+  }
 
   await page.close();
   console.log(`E2E smoke passed: ${label}`);

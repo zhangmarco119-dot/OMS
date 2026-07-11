@@ -1,0 +1,164 @@
+import { Search, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+
+import type { ProductRow } from '../../services/arrivals.service';
+import type { ArrivalDraftItem } from './arrivalForm';
+
+interface ArrivalItemCardProps {
+  canRemove: boolean;
+  index: number;
+  item: ArrivalDraftItem;
+  onChange: (item: ArrivalDraftItem) => void;
+  onRemove: () => void;
+  products: ProductRow[];
+}
+
+const useDebouncedValue = (value: string, delay: number) => {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [delay, value]);
+  return debounced;
+};
+
+export function ArrivalItemCard({
+  canRemove,
+  index,
+  item,
+  onChange,
+  onRemove,
+  products,
+}: ArrivalItemCardProps) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const query = useDebouncedValue(item.productName.trim().toLocaleLowerCase('zh-CN'), 250);
+  const matches = useMemo(() => {
+    if (!query) return products.slice(0, 6);
+    return products.filter((product) =>
+      [product.name, product.spec, product.product_code ?? '']
+        .some((value) => value.toLocaleLowerCase('zh-CN').includes(query)),
+    ).slice(0, 6);
+  }, [products, query]);
+
+  const selectProduct = (product: ProductRow) => {
+    onChange({
+      ...item,
+      isUnmatchedProduct: false,
+      productId: product.id,
+      productName: product.name,
+      spec: product.spec,
+      unit: product.count_unit,
+    });
+    setSearchOpen(false);
+  };
+
+  const updateProductName = (productName: string) => {
+    onChange({
+      ...item,
+      isUnmatchedProduct: true,
+      productId: null,
+      productName,
+      spec: '',
+    });
+    setSearchOpen(true);
+  };
+
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-brand-700">产品 {index + 1}</p>
+          <h3 className="mt-1 font-bold text-slate-900">{item.productName || '请选择或填写产品'}</h3>
+        </div>
+        <button
+          aria-label={`删除产品 ${index + 1}`}
+          className="flex h-11 w-11 items-center justify-center rounded-lg bg-red-50 text-red-700 disabled:opacity-40"
+          disabled={!canRemove}
+          onClick={onRemove}
+          type="button"
+        >
+          <Trash2 className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="relative mt-4">
+        <label className="text-sm font-semibold text-slate-700" htmlFor={`arrival-product-${item.id}`}>产品名称</label>
+        <div className="relative mt-2">
+          <Search className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-slate-400" aria-hidden="true" />
+          <input
+            autoComplete="off"
+            className="min-h-12 w-full rounded-lg border border-slate-200 pl-10 pr-3 outline-none focus:border-brand-500"
+            id={`arrival-product-${item.id}`}
+            onChange={(event) => updateProductName(event.target.value)}
+            onFocus={() => setSearchOpen(true)}
+            placeholder="搜索本店商品或手动填写"
+            value={item.productName}
+          />
+        </div>
+
+        {searchOpen && item.productName.trim() ? (
+          <div className="absolute inset-x-0 z-20 mt-2 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+            {matches.length > 0 ? matches.map((product) => (
+              <button
+                className="flex min-h-12 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left active:bg-slate-100"
+                key={product.id}
+                onClick={() => selectProduct(product)}
+                type="button"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-slate-900">{product.name}</span>
+                  <span className="block truncate text-xs text-slate-500">{product.spec || '无规格'} · {product.count_unit}</span>
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-brand-700">选择</span>
+              </button>
+            )) : (
+              <p className="p-3 text-sm leading-6 text-slate-600">本店商品中没有匹配项，将按手工产品保存。</p>
+            )}
+            <button className="mt-1 min-h-10 w-full rounded-md bg-slate-100 text-sm font-semibold text-slate-700" onClick={() => setSearchOpen(false)} type="button">收起搜索结果</button>
+          </div>
+        ) : null}
+      </div>
+
+      {item.productId ? (
+        <p className="mt-3 rounded-md bg-brand-50 px-3 py-2 text-sm text-brand-700">已匹配本店商品 · {item.spec || '无规格'}</p>
+      ) : item.productName.trim() ? (
+        <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">未匹配正式商品，仅用于本次到货记录。</p>
+      ) : null}
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <label className="text-sm font-semibold text-slate-700">
+          数量
+          <input
+            className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 text-lg font-semibold outline-none focus:border-brand-500"
+            inputMode="decimal"
+            min="0"
+            onChange={(event) => onChange({ ...item, quantity: event.target.value })}
+            placeholder="0"
+            step="0.001"
+            type="number"
+            value={item.quantity}
+          />
+        </label>
+        <label className="text-sm font-semibold text-slate-700">
+          单位
+          <input
+            className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500"
+            onChange={(event) => onChange({ ...item, unit: event.target.value })}
+            placeholder="箱 / 个 / 瓶"
+            value={item.unit}
+          />
+        </label>
+      </div>
+
+      <label className="mt-4 block text-sm font-semibold text-slate-700">
+        产品备注（选填）
+        <input
+          className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500"
+          onChange={(event) => onChange({ ...item, note: event.target.value })}
+          placeholder="例如：其中一箱外包装轻微破损"
+          value={item.note}
+        />
+      </label>
+    </article>
+  );
+}

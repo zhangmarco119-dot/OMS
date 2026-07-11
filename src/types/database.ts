@@ -707,6 +707,15 @@ export type Database = {
         Args: { p_report_id: string };
         Returns: Json;
       };
+      save_arrival_draft: {
+        Args: {
+          p_expected_version: number;
+          p_fields: Json;
+          p_items: Json;
+          p_report_id: string;
+        };
+        Returns: Json;
+      };
       submit_arrival_report: {
         Args: {
           p_expected_version: number;

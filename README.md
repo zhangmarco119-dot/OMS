@@ -28,7 +28,7 @@
 打开：
 
 - 本机：[http://localhost:5173/app](http://localhost:5173/app)
-- 阶段状态页：[http://localhost:5173/phase-1](http://localhost:5173/phase-1)
+- 登录页面：[http://localhost:5173/login](http://localhost:5173/login)
 
 ## 手机预览
 

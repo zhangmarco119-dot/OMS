@@ -9,7 +9,7 @@
 本机打开：
 
 - `http://localhost:5173/app`
-- `http://localhost:5173/phase-1`
+- `http://localhost:5173/login`
 
 手机预览：
 

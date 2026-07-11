@@ -38,9 +38,13 @@ const checkServer = (url) => new Promise((resolve, reject) => {
 const runViewport = async (browser, viewport, label) => {
   const page = await browser.newPage({ viewport });
 
+  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForURL(`${baseUrl}/login`, { timeout: 10000 });
+  await assertText(page, '门店盘点订货系统');
+
   await page.goto(`${baseUrl}/phase-1`, { waitUntil: 'domcontentloaded' });
-  await assertText(page, '阶段 9 测试和部署');
-  await assertText(page, '移动端门店盘点订货系统');
+  await page.waitForURL(`${baseUrl}/login`, { timeout: 10000 });
+  await assertText(page, '门店盘点订货系统');
 
   await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });
   await assertText(page, '门店盘点订货系统');

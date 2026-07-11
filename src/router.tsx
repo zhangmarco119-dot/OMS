@@ -8,17 +8,16 @@ import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { PhaseStatusPage } from './pages/PhaseStatusPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/phase-1" replace />,
+    element: <Navigate to="/app" replace />,
   },
   {
     path: '/phase-1',
-    element: <PhaseStatusPage />,
+    element: <Navigate to="/app" replace />,
   },
   {
     path: '/login',

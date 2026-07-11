@@ -1,0 +1,14 @@
+import { describe, expect, it } from 'vitest';
+
+import { routePlan } from './routePlan';
+
+describe('routePlan', () => {
+  it('keeps one shared route for inventory and order flows', () => {
+    expect(routePlan.map((item) => item.path)).toEqual(
+      expect.arrayContaining(['/app/inventory', '/app/order']),
+    );
+    expect(routePlan.find((item) => item.path === '/app/inventory')?.phase).toBeLessThan(
+      routePlan.find((item) => item.path === '/app/order')?.phase ?? 0,
+    );
+  });
+});

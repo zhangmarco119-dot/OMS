@@ -1,0 +1,65 @@
+# Supabase 阶段 2 说明
+
+本目录包含阶段 2 的数据库交付物：
+
+- `migrations/0001_initial_schema.sql`：表结构、约束、索引、触发器、RLS helper function、RLS policy。
+- `seed.sql`：两家门店和少量脱敏商品测试数据。
+
+## 本地/远程执行顺序
+
+1. 在 Supabase 创建项目。
+2. 执行 `migrations/0001_initial_schema.sql`。
+3. 执行 `seed.sql`。
+4. 在 Supabase Auth 中创建测试用户。
+5. 把 Auth 用户 ID 写入 `public.profiles`，绑定 `store_id` 和 `role`。
+6. 管理员账号如需管理门店，在 `public.admin_store_access` 添加授权行。
+7. 用不同用户 token 验证 RLS 越权访问失败。
+
+## Bootstrap 管理员
+
+publishable key 不能创建管理员账号。第一次管理员需要在 Supabase Dashboard 中创建 Auth 用户，然后插入 profile：
+
+```sql
+insert into public.profiles (id, store_id, username, display_name, role)
+values (
+  '<admin-auth-user-uuid>',
+  '00000000-0000-4000-8000-000000000001',
+  'admin',
+  '管理员',
+  'admin'
+);
+
+insert into public.admin_store_access (admin_profile_id, store_id)
+values
+  ('<admin-auth-user-uuid>', '00000000-0000-4000-8000-000000000001'),
+  ('<admin-auth-user-uuid>', '00000000-0000-4000-8000-000000000002');
+```
+
+之后可在应用后台继续创建和维护账号。
+
+## 测试用户建议
+
+不要把真实密码提交到仓库。建议在 Supabase Dashboard 中手动创建以下测试用户：
+
+| 用户 | 角色 | 门店 |
+|---|---|---|
+| `baozhu_staff@example.test` | `staff` | 宝珠奶酪（五道口店） |
+| `omega_staff@example.test` | `staff` | OMEGA酸奶（西直门店） |
+| `baozhu_manager@example.test` | `manager` | 宝珠奶酪（五道口店） |
+| `admin@example.test` | `admin` | 任一主门店，并通过 `admin_store_access` 授权 |
+
+创建 Auth 用户后，按实际 Auth UUID 插入 profiles。示例：
+
+```sql
+insert into public.profiles (id, store_id, username, display_name, role)
+values
+  ('<auth-user-uuid>', '00000000-0000-4000-8000-000000000001', 'baozhu_staff', '宝珠员工', 'staff');
+```
+
+## 静态验证
+
+```powershell
+.\scripts\use-pnpm.ps1 validate:supabase
+```
+
+该命令检查关键表、`store_id`、RLS、策略、helper function、seed 数据和前端环境变量边界。它不能替代真实 Supabase RLS 集成测试。

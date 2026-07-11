@@ -1,0 +1,7 @@
+const enabledByDefault = (value: string | undefined) => value?.trim().toLowerCase() !== 'false';
+
+export const parseFeatureFlag = enabledByDefault;
+
+export const featureFlags = {
+  arrivalEntry: enabledByDefault(import.meta.env.VITE_ENABLE_V2_ARRIVAL_ENTRY),
+} as const;

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database } from '../../types/database';
 import type { TaskType } from '../../types/domain';
+import { getV1HistoryScope } from '../access/roleCapabilities';
 import { loadTaskWithItems } from '../tasks/taskService';
 
 type Client = SupabaseClient<Database>;
@@ -29,9 +30,10 @@ export const loadSubmittedTasks = async (
     .eq('status', 'submitted')
     .order('submitted_at', { ascending: false });
 
-  if (profile.role === 'staff') {
+  const historyScope = getV1HistoryScope(profile.role);
+  if (historyScope === 'self') {
     query = query.eq('created_by', profile.id);
-  } else if (profile.role === 'manager') {
+  } else if (historyScope === 'store') {
     query = query.eq('store_id', profile.store_id);
   }
 

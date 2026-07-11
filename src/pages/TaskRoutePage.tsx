@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { canManageV1ProductsFromTask } from '../features/access/roleCapabilities';
+import { useAuth } from '../features/auth/AuthContext';
 import { asProductSnapshot, type TaskItemRow } from '../features/tasks/taskCalculations';
 import { useTaskSession } from '../features/tasks/useTaskSession';
-import { useAuth } from '../features/auth/AuthContext';
 import type { InventoryTemplate } from '../features/tasks/taskService';
 import type { TaskType } from '../types/domain';
 
@@ -107,7 +108,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const [inventoryImportStatus, setInventoryImportStatus] = useState<'idle' | 'loading' | 'importing' | 'error'>('idle');
   const [inventoryImportMessage, setInventoryImportMessage] = useState<string | null>(null);
   const [extraForm, setExtraForm] = useState({ name: '', spec: '', countUnit: '', productCode: '', quantity: '', note: '' });
-  const isManager = auth.profile?.role === 'manager';
+  const isManager = canManageV1ProductsFromTask(auth.profile?.role);
   const snapshot = task.currentItem ? asProductSnapshot(task.currentItem.product_snapshot) : null;
   const progressStyle = { width: `${task.stats.percent}%` };
   const canGoPrevious = task.currentIndex > 0;

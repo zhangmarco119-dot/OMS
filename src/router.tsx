@@ -4,6 +4,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/AdminPage';
+import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
       { path: 'messages', element: <DashboardPage /> },
       { path: 'inventory', element: <TaskRoutePage mode="inventory" /> },
       { path: 'order', element: <TaskRoutePage mode="order" /> },
+      { path: 'arrivals', element: <ArrivalEntryPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'account', element: <AccountPage /> },
       {

@@ -1,7 +1,9 @@
-import { Bell, CheckCheck, ClipboardList, History, LogOut, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
+import { Bell, CheckCheck, ClipboardList, History, LogOut, PackageCheck, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { featureFlags } from '../config/featureFlags';
+import { canOperateV2Modules } from '../features/access/roleCapabilities';
 import { useAuth } from '../features/auth/AuthContext';
 import { loadUnreadSubmittedTasks, markSubmittedTasksRead, type HistoryTask } from '../features/history/historyService';
 import { supabase } from '../lib/supabase';
@@ -23,6 +25,14 @@ const actions = [
     className: 'from-[#5f7f3a] to-[#38541f]',
   },
 ];
+
+const arrivalAction = {
+  to: '/app/arrivals',
+  label: '到货上报',
+  description: '拍摄面单和货品，登记本次到货',
+  icon: PackageCheck,
+  className: 'from-[#7b5a35] to-[#50381f]',
+};
 
 const taskTypeLabel: Record<TaskType, string> = {
   inventory: '点货',
@@ -60,6 +70,9 @@ function StaffDashboard() {
   const auth = useAuth();
   const [switchingStore, setSwitchingStore] = useState(false);
   const [storeMessage, setStoreMessage] = useState<string | null>(null);
+  const dashboardActions = featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role)
+    ? [...actions, arrivalAction]
+    : actions;
 
   const handleSignOut = () => {
     void auth.signOut();
@@ -101,8 +114,8 @@ function StaffDashboard() {
           </div>
         </header>
 
-        <div className="grid grid-cols-2 gap-4">
-          {actions.map(({ to, label, description, icon: Icon, className }) => (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {dashboardActions.map(({ to, label, description, icon: Icon, className }) => (
             <Link
               key={to}
               to={to}
@@ -221,6 +234,26 @@ function AdminDashboard() {
             </button>
           </div>
         </header>
+
+        {featureFlags.arrivalEntry ? (
+          <section className="rounded-lg border border-brand-100 bg-white p-5 shadow-sm" aria-labelledby="admin-arrival-title">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                  <PackageCheck className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-brand-700">StoreHub V2</p>
+                  <h2 className="mt-1 text-lg font-bold text-slate-900" id="admin-arrival-title">到货中心</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    管理员到货消息、每日汇总和统计将在数据库与 RLS 就绪后接入。
+                  </p>
+                </div>
+              </div>
+              <span className="shrink-0 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">尚未接入数据</span>
+            </div>
+          </section>
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-3">
           <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/history">

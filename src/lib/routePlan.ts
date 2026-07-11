@@ -5,6 +5,7 @@ export const routePlan: RoutePlanItem[] = [
   { path: '/app', phase: 3, purpose: '登录后的门店首页' },
   { path: '/app/inventory', phase: 5, purpose: '盘点任务页面' },
   { path: '/app/order', phase: 6, purpose: '订货任务页面' },
+  { path: '/app/arrivals', phase: 1, purpose: 'V2 到货上报共享执行入口和角色边界' },
   { path: '/app/history', phase: 7, purpose: '历史单据和重新导出' },
   { path: '/app/account', phase: 8, purpose: '本人修改密码' },
   { path: '/app/admin', phase: 8, purpose: '商品、Excel 导入和用户维护' },

@@ -1,6 +1,8 @@
-import { ClipboardList, History, Home, PackagePlus, Settings, UserRound } from 'lucide-react';
+import { ClipboardList, History, Home, PackageCheck, PackagePlus, Settings, UserRound } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
+import { featureFlags } from '../../config/featureFlags';
+import { canOperateV2Modules } from '../../features/access/roleCapabilities';
 import { useAuth } from '../../features/auth/AuthContext';
 
 const staffNavItems = [
@@ -18,9 +20,15 @@ const adminNavItems = [
   { to: '/app/account', label: '账号', icon: UserRound },
 ];
 
+const arrivalNavItem = { to: '/app/arrivals', label: '到货', icon: PackageCheck };
+
 export function AppLayout() {
   const auth = useAuth();
-  const navItems = auth.profile?.role === 'admin' ? adminNavItems : staffNavItems;
+  const navItems = auth.profile?.role === 'admin'
+    ? adminNavItems
+    : featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role)
+      ? [...staffNavItems.slice(0, 3), arrivalNavItem, ...staffNavItems.slice(3)]
+      : staffNavItems;
 
   return (
     <div className="min-h-screen bg-[#f4f7f3]">

@@ -11,4 +11,14 @@ describe('routePlan', () => {
       routePlan.find((item) => item.path === '/app/order')?.phase ?? 0,
     );
   });
+
+  it('adds the V2 arrival entry without replacing V1 routes', () => {
+    const paths = routePlan.map((item) => item.path);
+    expect(paths).toEqual(expect.arrayContaining([
+      '/app/inventory',
+      '/app/order',
+      '/app/history',
+      '/app/arrivals',
+    ]));
+  });
 });

@@ -1,4 +1,4 @@
-import { ClipboardList, History, Home, PackageCheck, PackagePlus, Settings, UserRound } from 'lucide-react';
+import { ClipboardList, History, Home, ListTodo, PackageCheck, PackagePlus, Settings, UserRound } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 import { featureFlags } from '../../config/featureFlags';
@@ -16,6 +16,7 @@ const staffNavItems = [
 const adminNavItems = [
   { to: '/app', label: '消息', icon: Home },
   { to: '/app/admin/arrivals', label: '到货', icon: PackageCheck },
+  { to: '/app/admin/tasks', label: '任务', icon: ListTodo },
   { to: '/app/history', label: '记录', icon: History },
   { to: '/app/admin', label: '后台', icon: Settings },
   { to: '/app/account', label: '账号', icon: UserRound },

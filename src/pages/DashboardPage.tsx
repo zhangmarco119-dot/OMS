@@ -8,6 +8,7 @@ import { AdminArrivalOverview } from '../features/arrivals/AdminArrivalOverview'
 import { useAuth } from '../features/auth/AuthContext';
 import { loadUnreadSubmittedTasks, markSubmittedTasksRead, type HistoryTask } from '../features/history/historyService';
 import { supabase } from '../lib/supabase';
+import { loadAdminOperationOverview, type AdminOperationOverview } from '../services/admin-operation-overview.service';
 import type { TaskType } from '../types/domain';
 
 const actions = [
@@ -162,6 +163,7 @@ function AdminDashboard() {
   const auth = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<HistoryTask[]>([]);
+  const [overview, setOverview] = useState<AdminOperationOverview | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
 
@@ -180,8 +182,12 @@ function AdminDashboard() {
         await markSubmittedTasksRead(supabase, auth.profile.id, legacySeenIds);
         window.localStorage.removeItem(seenStorageKey(auth.profile.id));
       }
-      const loaded = await loadUnreadSubmittedTasks(supabase, auth.profile, 12);
+      const [loaded, nextOverview] = await Promise.all([
+        loadUnreadSubmittedTasks(supabase, auth.profile, 12),
+        loadAdminOperationOverview(supabase),
+      ]);
       setMessages(loaded);
+      setOverview(nextOverview);
       setStatus('ready');
     } catch (error) {
       setStatus('error');
@@ -245,6 +251,15 @@ function AdminDashboard() {
             </button>
           </div>
         </header>
+
+        <section className="rounded-lg bg-white p-4 shadow-sm">
+          <div><p className="text-sm font-semibold text-brand-700">运营概览</p><h2 className="mt-1 text-xl font-bold text-slate-900">到货、盘点与任务完成情况</h2></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <Link className="rounded-lg bg-amber-50 p-4 active:scale-[0.99]" to="/app/admin/arrivals"><div className="flex items-center gap-2 text-amber-800"><PackageCheck className="h-5 w-5" /><b>到货</b></div><p className="mt-3 text-2xl font-bold text-slate-900">{overview?.arrival_today ?? '—'}</p><p className="mt-1 text-sm text-slate-600">今日上报 · 待查看 {overview?.arrival_pending ?? '—'}</p></Link>
+            <Link className="rounded-lg bg-sky-50 p-4 active:scale-[0.99]" to="/app/history"><div className="flex items-center gap-2 text-sky-800"><ClipboardList className="h-5 w-5" /><b>盘点</b></div><p className="mt-3 text-2xl font-bold text-slate-900">{overview?.inventory_completed_today ?? '—'}</p><p className="mt-1 text-sm text-slate-600">今日已完成 · 进行中 {overview?.inventory_pending ?? '—'}</p></Link>
+            <Link className="rounded-lg bg-brand-50 p-4 active:scale-[0.99]" to="/app/admin/tasks"><div className="flex items-center gap-2 text-brand-800"><ListTodo className="h-5 w-5" /><b>任务</b></div><p className="mt-3 text-2xl font-bold text-slate-900">{overview?.v2_task_completed ?? '—'}</p><p className="mt-1 text-sm text-slate-600">已通过 · 待处理 {overview?.v2_task_active ?? '—'}</p></Link>
+          </div>
+        </section>
 
         {featureFlags.arrivalEntry ? (
           <AdminArrivalOverview />

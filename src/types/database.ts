@@ -536,9 +536,9 @@ export type Database = {
         Relationships: [];
       };
       v2_task_schedules: {
-        Row: { created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; next_due_at: string; paused_at: string | null; paused_by: string | null; schedule_type: 'interval_days' | 'weekly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[] };
-        Insert: { created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; next_due_at: string; paused_at?: string | null; paused_by?: string | null; schedule_type: 'interval_days' | 'weekly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[] };
-        Update: { created_at?: string; created_by?: string; due_time?: string; id?: string; interval_days?: number | null; is_active?: boolean; next_due_at?: string; paused_at?: string | null; paused_by?: string | null; schedule_type?: 'interval_days' | 'weekly'; store_id?: string; template_id?: string; template_version_id?: string; updated_at?: string; weekdays?: number[] };
+        Row: { created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[] };
+        Insert: { created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[] };
+        Update: { created_at?: string; created_by?: string; due_time?: string; id?: string; interval_days?: number | null; is_active?: boolean; month_day?: number | null; next_due_at?: string; paused_at?: string | null; paused_by?: string | null; schedule_type?: 'interval_days' | 'weekly' | 'monthly'; store_id?: string; template_id?: string; template_version_id?: string; updated_at?: string; weekdays?: number[] };
         Relationships: [];
       };
       v2_tasks: {
@@ -686,7 +686,8 @@ export type Database = {
     Functions: {
       can_edit_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       can_read_v2_task: { Args: { p_task_id: string }; Returns: boolean };
-      create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      admin_operation_overview: { Args: Record<PropertyKey, never>; Returns: { arrival_pending: number; arrival_today: number; inventory_completed_today: number; inventory_pending: number; v2_task_active: number; v2_task_completed: number }[] };
+      create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_month_day: number | null; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       pause_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       publish_v2_tasks: { Args: { p_due_at: string | null; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };

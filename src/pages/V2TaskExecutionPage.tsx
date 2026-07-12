@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { SuccessToast } from '../components/feedback/SuccessToast';
 import { useAuth } from '../features/auth/AuthContext';
 import { TaskImagePreview } from '../features/v2-tasks/TaskImagePreview';
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
@@ -18,6 +19,8 @@ export function V2TaskExecutionPage() {
   const [answers, setAnswers] = useState<V2TaskAnswerRow[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [requiredImageLabels, setRequiredImageLabels] = useState<string[]>([]);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const dirty = useRef(false);
 
@@ -40,13 +43,13 @@ export function V2TaskExecutionPage() {
   const update = (id: string, answer: Json) => { dirty.current = true; setAnswers((current) => current.map((entry) => entry.item_id === id ? { ...entry, answer } : entry)); };
   const save = async (manual = false) => {
     if (!supabase || !detail) return detail?.task;
-    if (!dirty.current) { if (manual) setMessage('已保存'); return detail.task; }
+    if (!dirty.current) { if (manual) setSuccessMessage('任务已保存'); return detail.task; }
     setBusy(true);
     try {
       const task = await saveV2TaskProgress(supabase, detail.task.id, detail.task.version, answers);
       dirty.current = false;
       setDetail({ ...detail, task });
-      setMessage(manual ? '已保存' : '已自动保存');
+      if (manual) setSuccessMessage('任务已保存'); else setMessage('已自动保存');
       return task;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存失败');
@@ -57,11 +60,18 @@ export function V2TaskExecutionPage() {
   useEffect(() => { if (!editable || !dirty.current) return; const timer = setTimeout(() => void save(), 800); return () => clearTimeout(timer); }, [answers, editable]);
   const submit = async () => {
     if (!supabase || !detail) return;
+    const missingImages = answers.filter((answer) => {
+      const item = asTaskItemSnapshot(answer.item_snapshot);
+      return item.is_required && (['image', 'multi_image'].includes(item.field_type) || item.image_requirement === 'single' || item.image_requirement === 'multiple')
+        && !detail.images.some((image) => image.item_id === answer.item_id);
+    }).map((answer) => asTaskItemSnapshot(answer.item_snapshot).label);
+    if (missingImages.length > 0) { setRequiredImageLabels(missingImages); return; }
     setBusy(true);
     try {
       const saved = await save();
       await submitV2Task(supabase, detail.task.id, saved?.version ?? detail.task.version);
-      navigate('/app/tasks');
+      setSuccessMessage('任务已提交，等待管理员审核');
+      window.setTimeout(() => navigate('/app/tasks'), 900);
     } catch (error) { setMessage(error instanceof Error ? error.message : '提交失败'); }
     finally { setBusy(false); }
   };
@@ -73,7 +83,7 @@ export function V2TaskExecutionPage() {
       const uploadedImageUrls = await loadV2TaskImageUrls(supabase, [uploaded]);
       setDetail((current) => current ? { ...current, images: [...current.images, uploaded] } : current);
       setImageUrls((current) => ({ ...current, ...uploadedImageUrls }));
-      setMessage('图片已上传，可点击预览。');
+      setSuccessMessage('图片已上传，可点击预览');
     }
     catch (error) { setMessage(error instanceof Error ? error.message : '图片上传失败'); }
     finally { setBusy(false); }
@@ -84,6 +94,8 @@ export function V2TaskExecutionPage() {
     {message ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{message}</p> : null}
     <div className="space-y-3">{answers.map((answer) => <AnswerCard answer={answer} editable={editable} imageUrls={imageUrls} images={detail.images.filter((image) => image.item_id === answer.item_id)} key={answer.id} onChange={(value) => update(answer.item_id, value)} onUpload={(file) => void upload(answer.item_id, file)} />)}</div>
     {editable ? <div className="grid grid-cols-2 gap-3 rounded-lg bg-white p-4 shadow-sm"><button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border font-bold" disabled={busy} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-brand-600 font-bold text-white" disabled={busy} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />提交检查</button></div> : null}</> : <p className="rounded-lg bg-white p-5">正在加载任务</p>}
+    {requiredImageLabels.length > 0 ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-label="缺少必传图片"><section className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"><h2 className="text-lg font-bold text-slate-900">请先上传必传图片</h2><p className="mt-2 text-sm leading-6 text-slate-600">以下项目至少需要一张图片，上传后才能提交：</p><ul className="mt-3 list-disc space-y-1 pl-5 text-sm font-semibold text-slate-800">{requiredImageLabels.map((label) => <li key={label}>{label}</li>)}</ul><button className="mt-5 min-h-11 w-full rounded-lg bg-brand-600 font-bold text-white" onClick={() => setRequiredImageLabels([])} type="button">我知道了</button></section></div> : null}
+    <SuccessToast message={successMessage} onClose={() => setSuccessMessage(null)} />
   </PageShell>;
 }
 

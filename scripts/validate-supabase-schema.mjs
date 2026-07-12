@@ -25,6 +25,10 @@ const taskVisibilityScheduleTestPath = join(root, 'supabase', 'tests', '0018_v2_
 const taskSchedulePrivilegeMigrationPath = join(root, 'supabase', 'migrations', '0019_v2_task_schedule_helper_privileges.sql');
 const recurringTaskScheduleMigrationPath = join(root, 'supabase', 'migrations', '0020_v2_recurring_task_schedules.sql');
 const recurringTaskScheduleTestPath = join(root, 'supabase', 'tests', '0020_v2_recurring_task_schedules.sql');
+const adminOperationOverviewMigrationPath = join(root, 'supabase', 'migrations', '0021_admin_operation_overview.sql');
+const adminOperationOverviewTestPath = join(root, 'supabase', 'tests', '0021_admin_operation_overview.sql');
+const monthlyTaskScheduleMigrationPath = join(root, 'supabase', 'migrations', '0022_v2_monthly_task_schedules.sql');
+const monthlyTaskScheduleTestPath = join(root, 'supabase', 'tests', '0022_v2_monthly_task_schedules.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -53,6 +57,10 @@ const taskVisibilityScheduleTest = readFileSync(taskVisibilityScheduleTestPath, 
 const taskSchedulePrivilegeMigration = readFileSync(taskSchedulePrivilegeMigrationPath, 'utf8');
 const recurringTaskScheduleMigration = readFileSync(recurringTaskScheduleMigrationPath, 'utf8');
 const recurringTaskScheduleTest = readFileSync(recurringTaskScheduleTestPath, 'utf8');
+const adminOperationOverviewMigration = readFileSync(adminOperationOverviewMigrationPath, 'utf8');
+const adminOperationOverviewTest = readFileSync(adminOperationOverviewTestPath, 'utf8');
+const monthlyTaskScheduleMigration = readFileSync(monthlyTaskScheduleMigrationPath, 'utf8');
+const monthlyTaskScheduleTest = readFileSync(monthlyTaskScheduleTestPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -170,6 +178,7 @@ const requiredFunctions = [
   'archive_v2_task_template',
   'can_read_v2_task', 'can_edit_v2_task', 'publish_v2_tasks', 'save_v2_task_progress', 'submit_v2_task', 'review_v2_task',
   'create_v2_task_schedule', 'dispatch_v2_task_schedules', 'pause_v2_task_schedule',
+  'admin_operation_overview',
 ];
 
 const failures = [];
@@ -383,6 +392,16 @@ if (!recurringTaskScheduleMigration.includes('create extension if not exists pg_
 
 if (!recurringTaskScheduleTest.includes('StoreHub V2 recurring task schedule checks passed')) {
   failures.push('V2 recurring task schedule SQL smoke test is missing');
+}
+
+if (!adminOperationOverviewMigration.includes('function public.admin_operation_overview')
+  || !adminOperationOverviewTest.includes('StoreHub V2 admin operation overview checks passed')) {
+  failures.push('V2 admin operation overview RPC is missing');
+}
+
+if (!monthlyTaskScheduleMigration.includes("schedule_type in ('interval_days', 'weekly', 'monthly')")
+  || !monthlyTaskScheduleTest.includes('StoreHub V2 monthly task schedule checks passed')) {
+  failures.push('V2 monthly task schedule support is missing');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

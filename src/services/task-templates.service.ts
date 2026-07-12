@@ -15,6 +15,7 @@ type TaskTemplateItemRow = Database['public']['Tables']['v2_task_template_items'
 export interface TaskTemplateListItem extends TaskTemplateRow {
   storeIds: string[];
 }
+export interface SavedTaskTemplate { id: string; status: TaskTemplateRow['status']; }
 
 const throwIfError = (error: { message: string } | null) => {
   if (error) throw new Error(error.message);
@@ -89,7 +90,7 @@ const serializeGroups = (groups: TaskTemplateGroupDraft[]): Json => groups.map((
   title: group.title,
 }));
 
-export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft) => {
+export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft): Promise<SavedTaskTemplate> => {
   const draft = validateTaskTemplateDraft(input);
   const { data, error } = await client.rpc('save_v2_task_template', {
     p_fields: {
@@ -107,7 +108,7 @@ export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft)
     p_template_id: draft.id,
   });
   throwIfError(error);
-  return data;
+  return data as unknown as SavedTaskTemplate;
 };
 
 export const publishTaskTemplate = async (client: Client, templateId: string) => {

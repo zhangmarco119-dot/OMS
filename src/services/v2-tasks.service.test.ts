@@ -16,8 +16,8 @@ describe('V2 task workflow service', () => {
   });
   it('creates a recurring task schedule through the guarded RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
-    await createV2TaskSchedule(client, { firstDueAt: '2026-07-20T12:00:00Z', intervalDays: null, scheduleType: 'weekly', storeIds: ['store-1'], templateId: 'template-1', weekdays: [1, 5] });
-    expect(rpc).toHaveBeenCalledWith('create_v2_task_schedule', { p_first_due_at: '2026-07-20T12:00:00Z', p_interval_days: null, p_schedule_type: 'weekly', p_store_ids: ['store-1'], p_template_id: 'template-1', p_weekdays: [1, 5] });
+    await createV2TaskSchedule(client, { firstDueAt: '2026-07-20T12:00:00Z', intervalDays: null, monthDay: null, scheduleType: 'weekly', storeIds: ['store-1'], templateId: 'template-1', weekdays: [1, 5] });
+    expect(rpc).toHaveBeenCalledWith('create_v2_task_schedule', { p_first_due_at: '2026-07-20T12:00:00Z', p_interval_days: null, p_month_day: null, p_schedule_type: 'weekly', p_store_ids: ['store-1'], p_template_id: 'template-1', p_weekdays: [1, 5] });
   });
   it('requires review action through RPC',async()=>{const rpc=vi.fn().mockResolvedValue({data:{},error:null});const client={rpc} as unknown as SupabaseClient<Database>;await reviewV2Task(client,'task-1','rejected','重新拍照',['item-1']);expect(rpc).toHaveBeenCalledWith('review_v2_task',{p_action:'rejected',p_correction_item_ids:['item-1'],p_note:'重新拍照',p_task_id:'task-1'});});
 });

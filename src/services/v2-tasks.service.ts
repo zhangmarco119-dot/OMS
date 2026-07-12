@@ -37,8 +37,8 @@ export const publishV2Tasks = async (client: Client, templateId: string, storeId
 export const loadV2TaskSchedules = async (client: Client) => {
   const { data, error } = await client.from('v2_task_schedules').select('*').order('next_due_at'); fail(error); return data ?? [];
 };
-export const createV2TaskSchedule = async (client: Client, input: { firstDueAt: string; intervalDays: number | null; scheduleType: 'interval_days' | 'weekly'; storeIds: string[]; templateId: string; weekdays: number[] }) => {
-  const { data, error } = await client.rpc('create_v2_task_schedule', { p_first_due_at: input.firstDueAt, p_interval_days: input.intervalDays, p_schedule_type: input.scheduleType, p_store_ids: input.storeIds, p_template_id: input.templateId, p_weekdays: input.weekdays }); fail(error); return data ?? [];
+export const createV2TaskSchedule = async (client: Client, input: { firstDueAt: string; intervalDays: number | null; monthDay: number | null; scheduleType: 'interval_days' | 'weekly' | 'monthly'; storeIds: string[]; templateId: string; weekdays: number[] }) => {
+  const { data, error } = await client.rpc('create_v2_task_schedule', { p_first_due_at: input.firstDueAt, p_interval_days: input.intervalDays, p_month_day: input.monthDay, p_schedule_type: input.scheduleType, p_store_ids: input.storeIds, p_template_id: input.templateId, p_weekdays: input.weekdays }); fail(error); return data ?? [];
 };
 export const pauseV2TaskSchedule = async (client: Client, scheduleId: string) => {
   const { data, error } = await client.rpc('pause_v2_task_schedule', { p_schedule_id: scheduleId }); fail(error); return data;

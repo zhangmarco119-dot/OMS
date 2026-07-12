@@ -54,8 +54,9 @@ export function LoginPage() {
           <div className="mb-4 rounded-full bg-brand-100 p-3">
             <Store className="h-10 w-10 text-brand-600" aria-hidden="true" />
           </div>
-          <h1 className="text-2xl font-bold">门店盘点订货系统</h1>
+          <h1 className="text-2xl font-bold">门店运营系统</h1>
           <p className="mt-2 text-sm text-slate-500">请登录以继续</p>
+          <p className="mt-1 text-xs font-medium text-slate-400">系统版本 V2.0.0</p>
         </div>
 
         <div className="space-y-6">

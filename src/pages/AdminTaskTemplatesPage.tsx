@@ -53,7 +53,7 @@ export function AdminTaskTemplatesPage() {
   const visibleTemplates = useMemo(() => templates.filter((template) => filter === 'all' || template.category === filter), [filter, templates]);
 
   if (!featureFlags.taskTemplates) {
-    return <PageShell eyebrow="StoreHub V2" title="任务模板暂未开放" backTo="/app"><p className="rounded-lg bg-white p-5 text-sm text-slate-600 shadow-sm">当前环境已关闭 V2 任务模板功能。</p></PageShell>;
+    return <PageShell eyebrow="门店运营系统" title="任务模板暂未开放" backTo="/app"><p className="rounded-lg bg-white p-5 text-sm text-slate-600 shadow-sm">当前环境已关闭 V2 任务模板功能。</p></PageShell>;
   }
 
   const storeName = (id: string) => auth.availableStores.find((store) => store.id === id)?.short_name ?? '未知门店';
@@ -98,7 +98,7 @@ export function AdminTaskTemplatesPage() {
     finally { setBusy(false); }
   };
 
-  return <PageShell eyebrow="StoreHub V2 · 阶段 5" title="任务模板" backTo="/app/admin/tasks">
+  return <PageShell eyebrow="门店运营系统 · 管理员" title="任务模板" backTo="/app/admin/tasks">
     <section className="rounded-lg bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-slate-900">周清、月清与巡店模板</h2><p className="mt-1 text-sm text-slate-500">发布时生成不可变版本，阶段 6 将据此创建执行任务。</p></div><button aria-label="刷新模板" className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void refresh()} type="button"><RefreshCw className="h-4 w-4" /></button></div>
       <div className="mt-4 flex gap-2 overflow-x-auto pb-1">{(['all', ...taskTemplateCategories] as const).map((value) => <button className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`} key={value} onClick={() => setFilter(value)} type="button">{value === 'all' ? '全部' : categoryLabel[value]}</button>)}</div>

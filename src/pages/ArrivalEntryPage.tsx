@@ -55,7 +55,7 @@ export function ArrivalEntryPage() {
 
   if (draft.loadStatus === 'loading') {
     return (
-      <PageShell eyebrow="StoreHub V2" title="到货上报" backTo="/app">
+      <PageShell eyebrow="门店运营系统" title="到货上报" backTo="/app">
         <div className="space-y-3" aria-label="正在加载到货草稿">
           {[1, 2, 3].map((item) => <div className="h-32 animate-pulse rounded-lg bg-white shadow-sm" key={item} />)}
         </div>
@@ -65,7 +65,7 @@ export function ArrivalEntryPage() {
 
   if (draft.loadStatus === 'error' || !draft.form || !draft.report) {
     return (
-      <PageShell eyebrow="StoreHub V2" title="到货上报加载失败" backTo="/app">
+      <PageShell eyebrow="门店运营系统" title="到货上报加载失败" backTo="/app">
         <div className="rounded-lg bg-white p-5 shadow-sm">
           <p className="text-sm leading-6 text-red-700">{draft.message ?? '无法加载到货草稿，请检查网络和数据库 migration。'}</p>
           <button className="mt-4 min-h-12 w-full rounded-lg bg-brand-600 px-4 font-bold text-white" onClick={draft.reload} type="button">重新加载</button>
@@ -101,7 +101,7 @@ export function ArrivalEntryPage() {
   };
 
   return (
-    <PageShell eyebrow="StoreHub V2 · 门店执行" title="到货上报" backTo="/app">
+    <PageShell eyebrow="门店运营系统 · 门店执行" title="到货上报" backTo="/app">
       <section className="rounded-lg bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>

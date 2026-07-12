@@ -33,7 +33,7 @@ export function AdminArrivalSummaryPage() {
     units: summary.details.reduce((total, row) => total + (Number(row.quantity) || 0), 0),
   }), [summary]);
 
-  return <PageShell eyebrow="StoreHub V2 · 管理员" title="每日到货汇总" backTo="/app/admin/arrivals">
+  return <PageShell eyebrow="门店运营系统 · 管理员" title="每日到货汇总" backTo="/app/admin/arrivals">
     <section className="rounded-lg bg-white p-4 shadow-sm"><div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]"><label className="text-sm font-semibold text-slate-700">日期<input className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 px-3" onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label><label className="text-sm font-semibold text-slate-700">门店<select className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 px-3" onChange={(event) => setStoreId(event.target.value)} value={storeId}><option value="">全部门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label><button className="mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:opacity-40" disabled={status !== 'ready' || summary.details.length === 0} onClick={() => downloadArrivalExport(createArrivalSummaryExport(summary, date))} type="button"><FileDown className="h-5 w-5" />导出 Excel</button></div></section>
     {message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
     {status === 'loading' ? <p className="rounded-lg bg-white p-5 font-semibold text-slate-600 shadow-sm">正在汇总到货数据</p> : null}

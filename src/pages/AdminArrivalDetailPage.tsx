@@ -101,7 +101,7 @@ export function AdminArrivalDetailPage() {
   };
 
   return (
-    <PageShell eyebrow="StoreHub V2 · 管理员" title="到货详情" backTo="/app/admin/arrivals">
+    <PageShell eyebrow="门店运营系统 · 管理员" title="到货详情" backTo="/app/admin/arrivals">
       {message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
       {status === 'loading' ? <p className="rounded-lg bg-white p-5 font-semibold text-slate-600 shadow-sm">正在加载到货详情</p> : null}
       {status === 'ready' && detail ? <>

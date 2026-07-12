@@ -1,36 +1,27 @@
-import { ClipboardList, History, Home, ListTodo, PackageCheck, PackagePlus, Settings, UserRound } from 'lucide-react';
+import { ClipboardList, Home, ListTodo, Menu, PackageCheck, PackagePlus } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
-import { featureFlags } from '../../config/featureFlags';
-import { canOperateV2Modules } from '../../features/access/roleCapabilities';
 import { useAuth } from '../../features/auth/AuthContext';
 
 const staffNavItems = [
   { to: '/app', label: '首页', icon: Home },
   { to: '/app/inventory', label: '点货', icon: ClipboardList },
   { to: '/app/order', label: '订货', icon: PackagePlus },
-  { to: '/app/history', label: '记录', icon: History },
-  { to: '/app/account', label: '账号', icon: UserRound },
+  { to: '/app/menu', label: '更多', icon: Menu },
 ];
 
 const adminNavItems = [
   { to: '/app', label: '消息', icon: Home },
   { to: '/app/admin/arrivals', label: '到货', icon: PackageCheck },
   { to: '/app/admin/tasks', label: '任务', icon: ListTodo },
-  { to: '/app/history', label: '记录', icon: History },
-  { to: '/app/admin', label: '后台', icon: Settings },
-  { to: '/app/account', label: '账号', icon: UserRound },
+  { to: '/app/menu', label: '更多', icon: Menu },
 ];
-
-const arrivalNavItem = { to: '/app/arrivals', label: '到货', icon: PackageCheck };
 
 export function AppLayout() {
   const auth = useAuth();
   const navItems = auth.profile?.role === 'admin'
     ? adminNavItems
-    : featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role)
-      ? [...staffNavItems.slice(0, 3), arrivalNavItem, ...staffNavItems.slice(3)]
-      : staffNavItems;
+    : staffNavItems;
 
   return (
     <div className="min-h-screen bg-[#f4f7f3]">
@@ -46,7 +37,7 @@ export function AppLayout() {
             <NavLink
               key={to}
               to={to}
-              end={to === '/app'}
+              end
               className={({ isActive }) =>
                 [
                   'flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium',

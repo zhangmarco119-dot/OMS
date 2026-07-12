@@ -1,5 +1,6 @@
 import { Bell, Pin, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { supabase } from '../lib/supabase';
@@ -12,13 +13,28 @@ export function AnnouncementsPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
 
   const load = useCallback(async () => {
     if (!supabase) { setStatus('error'); setMessage('缺少 Supabase 配置，暂时无法加载公告。'); return; }
     setStatus('loading');
-    try { setNotices((await loadNotices(supabase)).filter((notice) => notice.status === 'published')); setStatus('ready'); setMessage(null); }
+    try {
+      const loaded = (await loadNotices(supabase)).filter((notice) => notice.status === 'published');
+      const targetId = searchParams.get('notice');
+      setNotices(loaded);
+      setStatus('ready');
+      setMessage(null);
+      if (targetId && loaded.some((notice) => notice.id === targetId)) {
+        setExpandedId(targetId);
+        const target = loaded.find((notice) => notice.id === targetId);
+        if (target && !target.isRead) {
+          await markNoticeRead(supabase, target.id);
+          setNotices((current) => current.map((notice) => notice.id === target.id ? { ...notice, isRead: true } : notice));
+        }
+      }
+    }
     catch (error) { setStatus('error'); setMessage(error instanceof Error ? error.message : '加载公告失败。'); }
-  }, []);
+  }, [searchParams]);
   useEffect(() => { void load(); }, [load]);
 
   const openNotice = async (notice: NoticeListItem) => {
@@ -31,7 +47,7 @@ export function AnnouncementsPage() {
     }
   };
 
-  return <PageShell eyebrow="StoreHub V2" title="门店公告" backTo="/app">
+  return <PageShell eyebrow="门店运营系统" title="门店公告" backTo="/app">
     <section className="rounded-lg bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-brand-700">公告中心</p><p className="mt-1 text-sm text-slate-500">展示当前门店可查看的公告，打开后会自动标记已读。</p></div><button aria-label="刷新公告" className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void load()} type="button"><RefreshCw className="h-4 w-4" /></button></div></section>
     {message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
     {status === 'loading' ? <p className="rounded-lg bg-white p-5 text-sm font-semibold text-slate-600 shadow-sm">正在加载公告</p> : null}

@@ -38,7 +38,7 @@ export function AdminArrivalOverview() {
   };
 
   return <section className="space-y-4" aria-labelledby="admin-arrival-title">
-    <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-brand-700">StoreHub V2</p><h2 className="mt-1 text-lg font-bold text-slate-900" id="admin-arrival-title">今日到货</h2></div><button aria-label="刷新到货概览" className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white" onClick={() => void load()} type="button"><RefreshCw className="h-4 w-4" /></button></div>
+    <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-brand-700">门店运营系统</p><h2 className="mt-1 text-lg font-bold text-slate-900" id="admin-arrival-title">今日到货</h2></div><button aria-label="刷新到货概览" className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white" onClick={() => void load()} type="button"><RefreshCw className="h-4 w-4" /></button></div>
     {message ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</p> : null}
     {loading ? <p className="rounded-lg bg-white p-4 text-sm font-semibold text-slate-600 shadow-sm">正在加载今日到货</p> : null}
     {data ? <>

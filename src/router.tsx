@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { AccountPage } from './pages/AccountPage';
+import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminPage } from './pages/AdminPage';
 import { AdminContentPage } from './pages/AdminContentPage';
 import { AdminArrivalDetailPage } from './pages/AdminArrivalDetailPage';
@@ -15,10 +16,12 @@ import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
 import { ArrivalHistoryPage } from './pages/ArrivalHistoryPage';
 import { ArrivalSuccessPage } from './pages/ArrivalSuccessPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
+import { AppMenuPage } from './pages/AppMenuPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
@@ -59,7 +62,9 @@ export const router = createBrowserRouter([
       { path: 'notices', element: <AnnouncementsPage /> },
       { path: 'sops', element: <SopLibraryPage /> },
       { path: 'history', element: <HistoryPage /> },
+      { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'account', element: <AccountPage /> },
+      { path: 'menu', element: <AppMenuPage /> },
       {
         path: 'admin',
         element: (
@@ -87,6 +92,7 @@ export const router = createBrowserRouter([
       { path: 'admin/tasks', element: <ProtectedRoute requireAdmin><AdminV2TasksPage /></ProtectedRoute> },
       { path: 'admin/tasks/:taskId', element: <ProtectedRoute requireAdmin><AdminV2TaskReviewPage /></ProtectedRoute> },
       { path: 'admin/content', element: <ProtectedRoute requireAdmin><AdminContentPage /></ProtectedRoute> },
+      { path: 'admin/analytics', element: <ProtectedRoute requireAdmin><AdminAnalyticsPage /></ProtectedRoute> },
     ],
   },
   {

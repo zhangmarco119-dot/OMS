@@ -1,9 +1,11 @@
-import { ChevronRight, Eye, EyeOff, KeyRound, LogOut, Store, UserRound } from 'lucide-react';
-import { useState } from 'react';
+import { Bell, ChevronRight, Eye, EyeOff, KeyRound, LogOut, Store, UserRound } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 
 const roleLabel = {
   admin: '管理员',
@@ -18,6 +20,14 @@ export function AccountPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [notices, setNotices] = useState<NoticeListItem[]>([]);
+
+  const loadNoticesForAccount = useCallback(async () => {
+    if (!supabase || auth.profile?.role === 'admin') return;
+    try { setNotices((await loadNotices(supabase)).filter((notice) => notice.status === 'published' && !notice.isRead)); }
+    catch { setNotices([]); }
+  }, [auth.profile?.role]);
+  useEffect(() => { void loadNoticesForAccount(); }, [loadNoticesForAccount]);
 
   const updatePassword = async () => {
     setMessage(null);
@@ -48,6 +58,7 @@ export function AccountPage() {
   if (view === 'profile') {
     return (
       <PageShell eyebrow="账户" title="账户信息" backTo="/app">
+        {notices.length ? <Link className="notice-ticker flex min-h-12 items-center gap-2 overflow-hidden rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white shadow-sm" to={`/app/notices?notice=${notices[0].id}`}><Bell className="h-4 w-4 shrink-0" /><span className="notice-ticker-text">最新公告：{notices.map((notice) => notice.title).join('　·　')}</span><ChevronRight className="ml-auto h-4 w-4 shrink-0" /></Link> : null}
         <section className="overflow-hidden rounded-lg border border-line bg-white shadow-panel">
           <div className="flex items-center gap-3 border-b border-line p-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-brand-700">

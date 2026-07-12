@@ -86,7 +86,7 @@ export function AdminArrivalsPage() {
   const storeOptions = useMemo(() => auth.availableStores, [auth.availableStores]);
 
   return (
-    <PageShell eyebrow="StoreHub V2 · 管理员" title="到货中心" backTo="/app">
+    <PageShell eyebrow="门店运营系统 · 管理员" title="到货中心" backTo="/app">
       <section className="rounded-lg bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

@@ -48,7 +48,7 @@ export function ArrivalHistoryPage() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <PageShell eyebrow="StoreHub V2" title="到货历史" backTo="/app/arrivals">
+    <PageShell eyebrow="门店运营系统" title="到货历史" backTo="/app/arrivals">
       <div className="flex items-center justify-between gap-3 rounded-lg bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">当前门店</p><p className="mt-1 font-bold text-slate-900">{auth.store?.name}</p></div>
         <button aria-label="刷新到货历史" className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100 text-slate-700" onClick={() => void load()} type="button"><RefreshCw className="h-5 w-5" aria-hidden="true" /></button>

@@ -16,7 +16,7 @@ interface TaskRoutePageProps {
 
 const copy = {
   inventory: {
-    title: '门店盘点系统',
+    title: '门店运营系统',
     modeLabel: '盘点',
     quantityLabel: '盘点数量',
     processedLabel: '已点',
@@ -26,7 +26,7 @@ const copy = {
     summaryBody: '货品已清点完毕，可以返回修改或继续补充临时商品。',
   },
   order: {
-    title: '门店订货系统',
+    title: '门店运营系统',
     modeLabel: '订货',
     quantityLabel: '订货数量',
     processedLabel: '已订',

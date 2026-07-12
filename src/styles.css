@@ -29,3 +29,18 @@ input {
 .safe-bottom {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
+
+.notice-ticker-text {
+  display: inline-block;
+  min-width: max-content;
+  animation: notice-ticker-scroll 13s linear infinite;
+}
+
+@keyframes notice-ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-22%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-ticker-text { animation: none; }
+}

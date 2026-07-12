@@ -27,7 +27,7 @@ export function ArrivalSuccessPage() {
   }, [reportId]);
 
   return (
-    <PageShell eyebrow="StoreHub V2" title="提交结果" backTo="/app">
+    <PageShell eyebrow="门店运营系统" title="提交结果" backTo="/app">
       <section className="rounded-lg bg-white p-6 text-center shadow-sm">
         <CheckCircle2 className="mx-auto h-16 w-16 text-brand-600" aria-hidden="true" />
         <h2 className="mt-4 text-2xl font-bold text-slate-900">到货上报已提交</h2>

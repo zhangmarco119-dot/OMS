@@ -1,10 +1,9 @@
-import { Bell, BookOpenCheck, CheckCheck, ClipboardList, History, LayoutTemplate, ListTodo, LogOut, PackageCheck, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
+import { BarChart3, Bell, BookOpenCheck, CheckCheck, ClipboardList, History, LayoutTemplate, ListTodo, LogOut, PackageCheck, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { featureFlags } from '../config/featureFlags';
 import { canOperateV2Modules } from '../features/access/roleCapabilities';
-import { AdminArrivalOverview } from '../features/arrivals/AdminArrivalOverview';
 import { useAuth } from '../features/auth/AuthContext';
 import { loadUnreadSubmittedTasks, markSubmittedTasksRead, type HistoryTask } from '../features/history/historyService';
 import { supabase } from '../lib/supabase';
@@ -125,7 +124,7 @@ function StaffDashboard() {
         <header className="rounded-lg bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm text-slate-500">当前门店</p>
+              <p className="text-sm font-semibold text-brand-700">门店运营系统 · 当前门店</p>
               <select aria-label="切换当前门店" className="mt-1 min-h-11 max-w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-lg font-bold text-slate-900" disabled={switchingStore} onChange={(event) => void changeStore(event.target.value)} value={auth.store?.id ?? ''}>
                 {auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
               </select>
@@ -252,11 +251,9 @@ function AdminDashboard() {
         <header className="rounded-lg bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-brand-700">管理员消息中心</p>
-              <h1 className="mt-1 text-2xl font-bold text-slate-900">最近提交提醒</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                员工完成点货或订货后，会在这里形成一条提交消息。
-              </p>
+              <p className="text-sm font-semibold text-brand-700">门店运营系统 · 管理员</p>
+              <h1 className="mt-1 text-2xl font-bold text-slate-900">运营与待办</h1>
+              <p className="mt-1 text-sm text-slate-600">任务、盘点和提交提醒集中处理。</p>
             </div>
             <button
               aria-label="退出登录"
@@ -269,18 +266,7 @@ function AdminDashboard() {
           </div>
         </header>
 
-        <section className="rounded-lg bg-white p-4 shadow-sm">
-          <div><p className="text-sm font-semibold text-brand-700">运营概览</p><h2 className="mt-1 text-xl font-bold text-slate-900">到货、盘点与任务完成情况</h2></div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <Link className="rounded-lg bg-amber-50 p-4 active:scale-[0.99]" to="/app/admin/arrivals"><div className="flex items-center gap-2 text-amber-800"><PackageCheck className="h-5 w-5" /><b>到货</b></div><p className="mt-3 text-2xl font-bold text-slate-900">{overview?.arrival_today ?? '—'}</p><p className="mt-1 text-sm text-slate-600">今日上报 · 待查看 {overview?.arrival_pending ?? '—'}</p></Link>
-            <Link className="rounded-lg bg-sky-50 p-4 active:scale-[0.99]" to="/app/history"><div className="flex items-center gap-2 text-sky-800"><ClipboardList className="h-5 w-5" /><b>盘点</b></div><p className="mt-3 text-2xl font-bold text-slate-900">{overview?.inventory_completed_today ?? '—'}</p><p className="mt-1 text-sm text-slate-600">今日已完成 · 进行中 {overview?.inventory_pending ?? '—'}</p></Link>
-            <Link className="rounded-lg bg-brand-50 p-4 active:scale-[0.99]" to="/app/admin/tasks"><div className="flex items-center gap-2 text-brand-800"><ListTodo className="h-5 w-5" /><b>任务</b></div><p className="mt-3 text-2xl font-bold text-slate-900">{overview?.v2_task_completed ?? '—'}</p><p className="mt-1 text-sm text-slate-600">已通过 · 待处理 {overview?.v2_task_active ?? '—'}</p></Link>
-          </div>
-        </section>
-
-        {featureFlags.arrivalEntry ? (
-          <AdminArrivalOverview />
-        ) : null}
+        <section className="rounded-lg bg-white p-3 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-brand-700">运营概览</p><h2 className="text-base font-bold text-slate-900">关键完成情况</h2></div><Link className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700" to="/app/admin/analytics"><BarChart3 className="h-4 w-4" />全部统计</Link></div><div className="mt-3 grid grid-cols-3 gap-2"><Link className="rounded-lg bg-sky-50 p-3" to="/app/history"><p className="text-xs font-bold text-sky-800">盘点</p><p className="mt-1 text-xl font-bold text-slate-900">{overview?.inventory_completed_today ?? '—'}</p><p className="text-[11px] text-slate-600">完成 · 进行中 {overview?.inventory_pending ?? '—'}</p></Link><Link className="rounded-lg bg-brand-50 p-3" to="/app/admin/tasks"><p className="text-xs font-bold text-brand-800">任务</p><p className="mt-1 text-xl font-bold text-slate-900">{overview?.v2_task_completed ?? '—'}</p><p className="text-[11px] text-slate-600">通过 · 待办 {overview?.v2_task_active ?? '—'}</p></Link><Link className="rounded-lg bg-amber-50 p-3" to="/app/admin/arrivals"><p className="text-xs font-bold text-amber-800">到货待看</p><p className="mt-1 text-xl font-bold text-slate-900">{overview?.arrival_pending ?? '—'}</p><p className="text-[11px] text-slate-600">到货管理入口</p></Link></div></section>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/history">
@@ -299,6 +285,10 @@ function AdminDashboard() {
             <BookOpenCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />
             公告与 SOP 管理
           </Link> : null}
+          <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/analytics">
+            <BarChart3 className="h-5 w-5 text-slate-500" aria-hidden="true" />
+            运营统计
+          </Link>
           <button className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99] disabled:text-slate-300" disabled={messages.length === 0} onClick={() => void markAllSeen()} type="button">
             <CheckCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />
             点货/订货全部已读

@@ -40,14 +40,14 @@ const runViewport = async (browser, viewport, label) => {
 
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForURL(`${baseUrl}/login`, { timeout: 10000 });
-  await assertText(page, '门店盘点订货系统');
+  await assertText(page, '门店运营系统');
 
   await page.goto(`${baseUrl}/phase-1`, { waitUntil: 'domcontentloaded' });
   await page.waitForURL(`${baseUrl}/login`, { timeout: 10000 });
-  await assertText(page, '门店盘点订货系统');
+  await assertText(page, '门店运营系统');
 
   await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });
-  await assertText(page, '门店盘点订货系统');
+  await assertText(page, '门店运营系统');
   await page.getByPlaceholder('请输入账号名或姓名').waitFor({ state: 'visible', timeout: 10000 });
 
   for (const protectedPath of [

@@ -10,6 +10,9 @@
 - `migrations/0011_save_arrival_draft.sql`：原子草稿保存 RPC 和到货核心表直写权限收紧。
 - `rollbacks/0011_save_arrival_draft.sql`：恢复阶段 2 的草稿直写权限。
 - `tests/0011_arrival_draft_rpc.sql`：原子草稿 RPC 和数据库权限 smoke test。
+- `migrations/0012_arrival_report_returning_rls.sql`：修复创建草稿时 `INSERT ... RETURNING` 的行级读取策略。
+- `rollbacks/0012_arrival_report_returning_rls.sql`：恢复原到货主表读取策略。
+- `tests/0012_arrival_report_returning_rls.sql`：防止读取策略再次通过主表自查询判断新行。
 
 ## 本地/远程执行顺序
 
@@ -20,6 +23,12 @@
 5. 把 Auth 用户 ID 写入 `public.profiles`，绑定 `store_id` 和 `role`。
 6. 管理员账号如需管理门店，在 `public.admin_store_access` 添加授权行。
 7. 用不同用户 token 验证 RLS 越权访问失败。
+
+V2 到货模块在已有 `0001–0009` 的项目上按顺序执行：
+
+1. `0010_arrival_reports.sql`；
+2. `0011_save_arrival_draft.sql`；
+3. `0012_arrival_report_returning_rls.sql`。
 
 ## Bootstrap 管理员
 

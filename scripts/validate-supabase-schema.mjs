@@ -11,6 +11,9 @@ const arrivalDraftTestPath = join(root, 'supabase', 'tests', '0011_arrival_draft
 const arrivalMigrationPath = join(root, 'supabase', 'migrations', '0010_arrival_reports.sql');
 const arrivalDraftMigrationPath = join(root, 'supabase', 'migrations', '0011_save_arrival_draft.sql');
 const arrivalDraftRollbackPath = join(root, 'supabase', 'rollbacks', '0011_save_arrival_draft.sql');
+const arrivalReturningMigrationPath = join(root, 'supabase', 'migrations', '0012_arrival_report_returning_rls.sql');
+const arrivalReturningRollbackPath = join(root, 'supabase', 'rollbacks', '0012_arrival_report_returning_rls.sql');
+const arrivalReturningTestPath = join(root, 'supabase', 'tests', '0012_arrival_report_returning_rls.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -25,6 +28,9 @@ const arrivalDraftTest = readFileSync(arrivalDraftTestPath, 'utf8');
 const arrivalMigration = readFileSync(arrivalMigrationPath, 'utf8');
 const arrivalDraftMigration = readFileSync(arrivalDraftMigrationPath, 'utf8');
 const arrivalDraftRollback = readFileSync(arrivalDraftRollbackPath, 'utf8');
+const arrivalReturningMigration = readFileSync(arrivalReturningMigrationPath, 'utf8');
+const arrivalReturningRollback = readFileSync(arrivalReturningRollbackPath, 'utf8');
+const arrivalReturningTest = readFileSync(arrivalReturningTestPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -257,6 +263,20 @@ if (!/security definer\s+set search_path = public/.test(arrivalDraftMigration)) 
 
 if (!arrivalDraftRollback.includes('drop function if exists public.save_arrival_draft')) {
   failures.push('arrival draft RPC rollback is missing');
+}
+
+if (arrivalReturningMigration.includes('can_read_arrival_report(id)')
+  || !arrivalReturningMigration.includes('has_store_access(store_id)')
+  || !arrivalReturningMigration.includes('current_user_store_id()')) {
+  failures.push('arrival report select policy must support INSERT RETURNING without a self-lookup');
+}
+
+if (!arrivalReturningTest.includes('StoreHub V2 arrival INSERT RETURNING RLS checks passed')) {
+  failures.push('arrival INSERT RETURNING RLS SQL test is missing');
+}
+
+if (!arrivalReturningRollback.includes('using (public.can_read_arrival_report(id))')) {
+  failures.push('arrival INSERT RETURNING RLS rollback is missing');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

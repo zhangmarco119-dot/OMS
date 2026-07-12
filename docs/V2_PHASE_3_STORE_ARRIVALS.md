@@ -137,9 +137,10 @@ supabase/tests/0011_arrival_draft_rpc.sql
 
 先关闭 `VITE_ENABLE_V2_ARRIVAL_ENTRY`，再按逆序执行：
 
-1. `supabase/rollbacks/0011_save_arrival_draft.sql`；
-2. 清理到货图片对象；
-3. `supabase/rollbacks/0010_arrival_reports.sql`。
+1. `supabase/rollbacks/0012_arrival_report_returning_rls.sql`；
+2. `supabase/rollbacks/0011_save_arrival_draft.sql`；
+3. 清理到货图片对象；
+4. `supabase/rollbacks/0010_arrival_reports.sql`。
 
 回滚不会修改 V1 `0001–0009`。
 

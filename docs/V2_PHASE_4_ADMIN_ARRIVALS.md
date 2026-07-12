@@ -41,14 +41,15 @@
 
 单条记录包含 `到货信息`、`产品明细`、`操作日志`。每日汇总包含 `到货明细`、`产品汇总`，文件名遵循 `到货汇总_YYYY-MM-DD.xlsx`。
 
-## 5. 部署前置条件
+## 5. 数据库部署
 
-当前远程 Supabase 尚未部署阶段 2/3 数据库迁移。管理员到货中心与门店到货页面正式可用前，必须按顺序执行：
+远程 Supabase 已按顺序部署：
 
 1. `supabase/migrations/0010_arrival_reports.sql`；
-2. `supabase/migrations/0011_save_arrival_draft.sql`。
+2. `supabase/migrations/0011_save_arrival_draft.sql`；
+3. `supabase/migrations/0012_arrival_report_returning_rls.sql`。
 
-迁移只新增 V2 到货结构，不修改或回退 V1 `0001–0009`。本机没有 Supabase CLI 或管理凭据，本阶段不冒充已完成远程数据库验证。
+`0012` 修复 PostgREST 创建草稿并返回新行时的 RLS 自查询问题。数据库 smoke test、当前门店 `INSERT ... RETURNING` 和跨门店拒绝均已在远程项目验证；V1 `0001–0009` 未修改或回退。
 
 ## 6. 下一阶段
 

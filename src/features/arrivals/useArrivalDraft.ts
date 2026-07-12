@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
+import { createUuid } from '../../lib/uuid';
 import { supabase } from '../../lib/supabase';
 import {
   loadOrCreateArrivalDraft,
@@ -102,7 +103,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
   const formRef = useRef<ArrivalDraftFormState | null>(null);
   const savePromiseRef = useRef<Promise<ArrivalReportRow> | null>(null);
   const saveAgainRef = useRef(false);
-  const idempotencyKeyRef = useRef(crypto.randomUUID());
+  const idempotencyKeyRef = useRef(createUuid());
 
   useEffect(() => {
     if (!supabase || !profileId || !storeId) {

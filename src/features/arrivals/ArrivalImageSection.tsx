@@ -1,6 +1,7 @@
 import { Camera, CheckCircle2, ImagePlus, Loader2, RefreshCw, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { createUuid } from '../../lib/uuid';
 import type { ArrivalImageType, ArrivalImageWithUrl } from '../../services/arrival-images.service';
 
 interface PendingUpload {
@@ -77,7 +78,7 @@ export function ArrivalImageSection({
       const entry: PendingUpload = {
         error: null,
         file,
-        id: crypto.randomUUID(),
+        id: createUuid(),
         previewUrl: URL.createObjectURL(file),
         progress: 0,
         status: 'uploading',

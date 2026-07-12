@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { createUuid } from '../../lib/uuid';
+
 export interface ArrivalDraftItem {
   id: string;
   isUnmatchedProduct: boolean;
@@ -50,7 +52,7 @@ export const arrivalDraftItemSchema = z.object({
 });
 
 export const createEmptyArrivalItem = (sortOrder = 0): ArrivalDraftItem => ({
-  id: crypto.randomUUID(),
+  id: createUuid(),
   isUnmatchedProduct: true,
   note: '',
   productId: null,

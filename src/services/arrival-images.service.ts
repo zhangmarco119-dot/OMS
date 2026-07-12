@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { createUuid } from '../lib/uuid';
 import type { Database } from '../types/database';
 
 type Client = SupabaseClient<Database>;
@@ -125,7 +126,7 @@ export const uploadArrivalImage = async (
   onProgress?.(10);
   const processed = await compressArrivalImage(input.file);
   onProgress?.(35);
-  const objectId = crypto.randomUUID();
+  const objectId = createUuid();
   const objectPath = `${input.storeId}/${input.reportId}/${input.imageType}/${objectId}.${extensionForMime(processed.mimeType)}`;
   const { error: uploadError } = await client.storage.from(bucket).upload(objectPath, processed.blob, {
     cacheControl: '3600',

@@ -11,6 +11,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RouteErrorPage } from './pages/RouteErrorPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
 
 export const router = createBrowserRouter([
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/app',
+    errorElement: <RouteErrorPage />,
     element: (
       <ProtectedRoute>
         <AppLayout />

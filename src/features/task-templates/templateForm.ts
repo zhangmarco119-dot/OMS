@@ -38,6 +38,7 @@ export interface TaskTemplateDraft {
   id: string | null;
   name: string;
   recurrence: 'none' | 'weekly' | 'monthly';
+  recurrenceDay: number | null;
   requiresReview: boolean;
   storeIds: string[];
 }
@@ -68,6 +69,7 @@ export const createEmptyTaskTemplate = (storeIds: string[] = []): TaskTemplateDr
   id: null,
   name: '',
   recurrence: 'weekly',
+  recurrenceDay: 1,
   requiresReview: true,
   storeIds,
 });
@@ -101,8 +103,22 @@ export const taskTemplateDraftSchema = z.object({
   id: z.string().uuid().nullable(),
   name: z.string().trim().min(1, '请填写模板名称。'),
   recurrence: z.enum(['none', 'weekly', 'monthly']),
+  recurrenceDay: z.number().int().min(1).max(31).nullable(),
   requiresReview: z.boolean(),
   storeIds: z.array(z.string().uuid()).min(1, '至少选择一个适用门店。'),
+}).superRefine((draft, context) => {
+  if (draft.recurrence !== 'none' && !draft.dueTime) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: '周期任务需要设置完成时间。', path: ['dueTime'] });
+  }
+  if (draft.recurrence === 'weekly' && (draft.recurrenceDay === null || draft.recurrenceDay > 7)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: '每周任务需要选择截止日。', path: ['recurrenceDay'] });
+  }
+  if (draft.recurrence === 'monthly' && draft.recurrenceDay === null) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: '每月任务需要选择截止日。', path: ['recurrenceDay'] });
+  }
+  if (draft.recurrence === 'none' && draft.recurrenceDay !== null) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: '不重复任务不需要周期截止日。', path: ['recurrenceDay'] });
+  }
 });
 
 export const validateTaskTemplateDraft = (draft: TaskTemplateDraft) => {

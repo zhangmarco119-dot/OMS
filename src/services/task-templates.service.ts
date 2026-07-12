@@ -66,6 +66,7 @@ export const loadTaskTemplateDraft = async (client: Client, template: TaskTempla
     id: template.id,
     name: template.name,
     recurrence: template.recurrence,
+    recurrenceDay: template.recurrence_day,
     requiresReview: template.requires_review,
     storeIds: template.storeIds,
   };
@@ -98,6 +99,7 @@ export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft)
       due_time: draft.dueTime || null,
       name: draft.name,
       recurrence: draft.recurrence,
+      recurrence_day: draft.recurrenceDay,
       requires_review: draft.requiresReview,
     },
     p_groups: serializeGroups(draft.groups),
@@ -118,16 +120,4 @@ export const archiveTaskTemplate = async (client: Client, templateId: string) =>
   const { data, error } = await client.rpc('archive_v2_task_template', { p_template_id: templateId });
   throwIfError(error);
   return data;
-};
-
-export const loadPublishedTemplatesForStore = async (client: Client, storeId: string) => {
-  const { data: assignments, error: assignmentError } = await client
-    .from('v2_task_template_stores').select('*').eq('store_id', storeId);
-  throwIfError(assignmentError);
-  const ids = (assignments ?? []).map((entry) => entry.template_id);
-  if (ids.length === 0) return [];
-  const { data, error } = await client
-    .from('v2_task_templates').select('*').in('id', ids).eq('status', 'published').order('updated_at', { ascending: false });
-  throwIfError(error);
-  return data ?? [];
 };

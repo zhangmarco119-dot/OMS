@@ -21,6 +21,8 @@
 - `migrations/0016_v2_task_execution.sql`：任务实例、答案、私有图片、审核状态机及执行/审核 RPC。
 - `rollbacks/0016_v2_task_execution.sql`、`tests/0016_v2_task_execution.sql`：阶段 6 回滚与 smoke test。
 - `migrations/0017_v2_task_submission_validation.sql`：按字段类型和图片元数据执行必填校验。
+- `migrations/0018_v2_task_visibility_schedule_and_images.sql`：模板管理员可见性、周期截止日和下一次截止时间计算。
+- `migrations/0019_v2_task_schedule_helper_privileges.sql`：禁止前端直接调用周期截止时间计算辅助函数。
 
 ## 本地/远程执行顺序
 

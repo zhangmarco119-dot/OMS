@@ -584,19 +584,19 @@ export type Database = {
         Row: {
           allow_overdue: boolean; category: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
           created_at: string; created_by: string; current_version: number; description: string;
-          due_time: string | null; id: string; name: string; recurrence: 'none' | 'weekly' | 'monthly';
+          due_time: string | null; id: string; name: string; recurrence: 'none' | 'weekly' | 'monthly'; recurrence_day: number | null;
           requires_review: boolean; status: 'draft' | 'published' | 'archived'; updated_at: string;
         };
         Insert: {
           allow_overdue?: boolean; category: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
           created_at?: string; created_by: string; current_version?: number; description?: string;
-          due_time?: string | null; id?: string; name: string; recurrence?: 'none' | 'weekly' | 'monthly';
+          due_time?: string | null; id?: string; name: string; recurrence?: 'none' | 'weekly' | 'monthly'; recurrence_day?: number | null;
           requires_review?: boolean; status?: 'draft' | 'published' | 'archived'; updated_at?: string;
         };
         Update: {
           allow_overdue?: boolean; category?: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
           created_at?: string; created_by?: string; current_version?: number; description?: string;
-          due_time?: string | null; id?: string; name?: string; recurrence?: 'none' | 'weekly' | 'monthly';
+          due_time?: string | null; id?: string; name?: string; recurrence?: 'none' | 'weekly' | 'monthly'; recurrence_day?: number | null;
           requires_review?: boolean; status?: 'draft' | 'published' | 'archived'; updated_at?: string;
         };
         Relationships: [];
@@ -680,7 +680,7 @@ export type Database = {
     Functions: {
       can_edit_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       can_read_v2_task: { Args: { p_task_id: string }; Returns: boolean };
-      publish_v2_tasks: { Args: { p_due_at: string; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      publish_v2_tasks: { Args: { p_due_at: string | null; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
       save_v2_task_progress: { Args: { p_answers: Json; p_expected_version: number; p_task_id: string }; Returns: Json };
       submit_v2_task: { Args: { p_expected_version: number; p_key: string; p_task_id: string }; Returns: Json };

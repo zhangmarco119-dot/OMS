@@ -8,8 +8,9 @@ type Client = SupabaseClient<Database>;
 export type V2TaskRow = Database['public']['Tables']['v2_tasks']['Row'];
 export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['Row'];
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
+export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
 export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json }
-export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: Database['public']['Tables']['v2_task_images']['Row'][]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
+export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
 
 const fail = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 export const asTaskItemSnapshot = (value: Json): TaskItemSnapshot => value as unknown as TaskItemSnapshot;
@@ -29,8 +30,15 @@ export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<
   if (!task.data) throw new Error('任务不存在或无权查看。');
   return { answers: answers.data ?? [], images: images.data ?? [], reviews: reviews.data ?? [], task: task.data };
 };
-export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string) => {
+export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string | null) => {
   const { data, error } = await client.rpc('publish_v2_tasks', { p_due_at: dueAt, p_store_ids: storeIds, p_template_id: templateId }); fail(error); return data ?? [];
+};
+export const loadV2TaskImageUrls = async (client: Client, images: V2TaskImageRow[]) => {
+  const results = await Promise.all(images.map(async (image) => {
+    const { data, error } = await client.storage.from(image.bucket).createSignedUrl(image.object_path, 60 * 60);
+    return error || !data?.signedUrl ? null : [image.id, data.signedUrl] as const;
+  }));
+  return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
 };
 export const saveV2TaskProgress = async (client: Client, taskId: string, version: number, answers: V2TaskAnswerRow[]) => {
   const { data, error } = await client.rpc('save_v2_task_progress', { p_answers: answers.map((a) => ({ answer: a.answer, is_issue: a.is_issue, item_id: a.item_id, note: a.note })), p_expected_version: version, p_task_id: taskId }); fail(error); return data as unknown as V2TaskRow;

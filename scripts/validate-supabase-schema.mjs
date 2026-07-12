@@ -20,6 +20,9 @@ const taskTemplateTestPath = join(root, 'supabase', 'tests', '0013_v2_task_templ
 const taskTemplatePrivilegeMigrationPath = join(root, 'supabase', 'migrations', '0014_v2_task_template_privileges.sql');
 const taskTemplateArchiveAuditMigrationPath = join(root, 'supabase', 'migrations', '0015_v2_task_template_archive_audit.sql');
 const taskExecutionTestPath = join(root, 'supabase', 'tests', '0016_v2_task_execution.sql');
+const taskVisibilityScheduleMigrationPath = join(root, 'supabase', 'migrations', '0018_v2_task_visibility_schedule_and_images.sql');
+const taskVisibilityScheduleTestPath = join(root, 'supabase', 'tests', '0018_v2_task_visibility_schedule_and_images.sql');
+const taskSchedulePrivilegeMigrationPath = join(root, 'supabase', 'migrations', '0019_v2_task_schedule_helper_privileges.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -43,6 +46,9 @@ const taskTemplateTest = readFileSync(taskTemplateTestPath, 'utf8');
 const taskTemplatePrivilegeMigration = readFileSync(taskTemplatePrivilegeMigrationPath, 'utf8');
 const taskTemplateArchiveAuditMigration = readFileSync(taskTemplateArchiveAuditMigrationPath, 'utf8');
 const taskExecutionTest = readFileSync(taskExecutionTestPath, 'utf8');
+const taskVisibilityScheduleMigration = readFileSync(taskVisibilityScheduleMigrationPath, 'utf8');
+const taskVisibilityScheduleTest = readFileSync(taskVisibilityScheduleTestPath, 'utf8');
+const taskSchedulePrivilegeMigration = readFileSync(taskSchedulePrivilegeMigrationPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -344,6 +350,23 @@ if (!taskTemplateArchiveAuditMigration.includes("'v2_task_template_archived'")) 
 
 if (!taskExecutionTest.includes('StoreHub V2 task execution schema checks passed')) {
   failures.push('V2 task execution database smoke test is missing');
+}
+
+if (!taskVisibilityScheduleMigration.includes('recurrence_day')
+  || !taskVisibilityScheduleMigration.includes('function public.next_v2_task_template_due')) {
+  failures.push('V2 recurring task deadline migration is missing');
+}
+
+if (!taskVisibilityScheduleMigration.includes('select public.can_manage_v2_task_template(target_template_id)')) {
+  failures.push('store users must not be able to read V2 task templates');
+}
+
+if (!taskVisibilityScheduleTest.includes('StoreHub V2 task visibility and schedule checks passed')) {
+  failures.push('V2 task visibility and schedule SQL smoke test is missing');
+}
+
+if (!taskSchedulePrivilegeMigration.includes('revoke all on function public.next_v2_task_template_due(uuid) from authenticated')) {
+  failures.push('V2 schedule helper must not be directly callable by authenticated users');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

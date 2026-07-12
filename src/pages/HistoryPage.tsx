@@ -1,5 +1,5 @@
 import { Eye, FileSpreadsheet, RefreshCw, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ProductFeedbackRecords } from '../features/admin/ProductFeedbackRecords';
@@ -48,7 +48,8 @@ export function HistoryPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<TaskWithItems | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<HistoryTask | null>(null);
-  const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
+  const detailRequestRef = useRef(0);
   const isAdmin = auth.profile?.role === 'admin';
 
   const loadHistory = useCallback(async () => {
@@ -80,16 +81,24 @@ export function HistoryPage() {
       return;
     }
 
-    setDetailStatus('loading');
+    const requestId = detailRequestRef.current + 1;
+    detailRequestRef.current = requestId;
+    setLoadingDetailId(summary.task.id);
     setMessage(null);
     try {
       const detail = await loadSubmittedTaskDetail(supabase, summary.task.id);
-      setSelected(detail);
-      setSelectedSummary(summary);
-      setDetailStatus('idle');
+      if (detailRequestRef.current === requestId) {
+        setSelected(detail);
+        setSelectedSummary(summary);
+      }
     } catch (error) {
-      setDetailStatus('error');
-      setMessage(error instanceof Error ? error.message : '加载明细失败。');
+      if (detailRequestRef.current === requestId) {
+        setMessage(error instanceof Error ? error.message : '加载明细失败。');
+      }
+    } finally {
+      if (detailRequestRef.current === requestId) {
+        setLoadingDetailId(null);
+      }
     }
   };
 
@@ -171,12 +180,12 @@ export function HistoryPage() {
               </div>
               <button
                 className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:bg-slate-300"
-                disabled={detailStatus === 'loading'}
+                disabled={loadingDetailId === task.id}
                 onClick={() => void openDetail(summary)}
                 type="button"
               >
                 <Eye className="h-5 w-5" aria-hidden="true" />
-                {detailStatus === 'loading' ? '正在加载' : '查看明细'}
+                {loadingDetailId === task.id ? '正在加载' : '查看明细'}
               </button>
             </article>
             );

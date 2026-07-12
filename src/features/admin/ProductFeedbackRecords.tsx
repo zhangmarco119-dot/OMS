@@ -15,14 +15,14 @@ import {
 type FeedbackFilter = 'all' | ProductFeedbackRow['feedback_type'];
 
 const typeLabels: Record<ProductFeedbackRow['feedback_type'], string> = {
-  discontinued: '删除',
+  discontinued: '删除申请',
   incorrect: '修改',
   new: '新增',
 };
 
 const feedbackStatus = (item: ProductFeedbackRow) => {
   if (item.status === 'resolved' && item.feedback_type === 'discontinued') {
-    return { label: '已删除', className: 'bg-red-50 text-red-700' };
+    return { label: '已接受并删除', className: 'bg-red-50 text-red-700' };
   }
   if (item.status === 'resolved') {
     return { label: '已读', className: 'bg-emerald-50 text-emerald-700' };
@@ -33,7 +33,9 @@ const feedbackStatus = (item: ProductFeedbackRow) => {
   if (item.status === 'reverted') {
     return { label: '已撤回', className: 'bg-slate-100 text-slate-600' };
   }
-  return { label: '已忽略', className: 'bg-slate-100 text-slate-600' };
+  return item.feedback_type === 'discontinued'
+    ? { label: '已拒绝', className: 'bg-slate-100 text-slate-600' }
+    : { label: '已忽略', className: 'bg-slate-100 text-slate-600' };
 };
 
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('zh-CN', {
@@ -71,7 +73,7 @@ export function ProductFeedbackRecords() {
   );
 
   const handleFeedback = async (item: ProductFeedbackRow, action: AdminFeedbackAction) => {
-    if (action === 'confirm_delete' && !window.confirm(`再次确认：从商品数据库删除“${feedbackProductText(item)}”？`)) {
+    if (action === 'confirm_delete' && !window.confirm(`接受删除申请：确认从商品数据库删除“${feedbackProductText(item)}”？`)) {
       return;
     }
     if (action === 'revert' && !window.confirm(`确认撤回“${feedbackProductText(item)}”的修改？`)) {
@@ -97,7 +99,7 @@ export function ProductFeedbackRecords() {
             ['all', '全部'],
             ['incorrect', '修改'],
             ['new', '新增'],
-            ['discontinued', '删除'],
+            ['discontinued', '删除申请'],
           ] as const).map(([value, label]) => (
             <button className={`min-h-10 rounded-md text-sm font-bold ${filter === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} key={value} onClick={() => setFilter(value)} type="button">
               {label}
@@ -157,7 +159,7 @@ export function ProductFeedbackRecords() {
                     <input className="mt-3 min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setResolutionDrafts((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="处理备注（选填）" value={resolutionDrafts[item.id] ?? ''} />
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       {item.feedback_type === 'discontinued' ? (
-                        <><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" onClick={() => void handleFeedback(item, 'ignore')} type="button">忽略</button><button className="min-h-10 rounded-lg bg-red-700 text-sm font-bold text-white" onClick={() => void handleFeedback(item, 'confirm_delete')} type="button">确认删除</button></>
+                        <><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" onClick={() => void handleFeedback(item, 'ignore')} type="button">拒绝请求</button><button className="min-h-10 rounded-lg bg-red-700 text-sm font-bold text-white" onClick={() => void handleFeedback(item, 'confirm_delete')} type="button">接受并删除</button></>
                       ) : appliedCorrection ? (
                         <><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" onClick={() => void handleFeedback(item, 'revert')} type="button">撤回修改</button><button className="min-h-10 rounded-lg bg-brand-600 text-sm font-bold text-white" onClick={() => void handleFeedback(item, 'acknowledge')} type="button">我知道了</button></>
                       ) : (

@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { PageShell } from '../components/layout/PageShell';
 import {
   createProduct,
+  createAllProductsExportFile,
   deleteProduct,
+  downloadProductExportFile,
   importProducts,
   loadAdminProductsData,
   parseProductImportFile,
@@ -24,7 +26,8 @@ import {
 } from '../features/admin/adminUsersService';
 import { useAuth } from '../features/auth/AuthContext';
 
-type AdminTab = 'products' | 'import' | 'users';
+type AdminTab = 'products' | 'users';
+type ProductTab = 'catalog' | 'import' | 'export';
 
 const emptyProductDraft = (storeId = ''): ProductDraft => ({
   count_unit: '',
@@ -49,6 +52,7 @@ const productToDraft = (product: ProductRow): ProductDraft => ({
 export function AdminPage() {
   const auth = useAuth();
   const [tab, setTab] = useState<AdminTab>('products');
+  const [productTab, setProductTab] = useState<ProductTab>('catalog');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -168,6 +172,17 @@ export function AdminPage() {
     }
   };
 
+  const exportAllProducts = async () => {
+    setMessage(null);
+    try {
+      const file = await createAllProductsExportFile();
+      downloadProductExportFile(file);
+      setMessage(`已导出全部 ${file.count} 个商品。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '导出商品失败');
+    }
+  };
+
   const createUser = async () => {
     setMessage(null);
     if (!newUser.username.trim() || !newUser.displayName.trim() || !newUser.password || newUser.storeIds.length === 0) {
@@ -273,10 +288,9 @@ export function AdminPage() {
   return (
     <PageShell eyebrow="管理员" title="后台管理" backTo="/app">
       <div className="rounded-2xl bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1 text-sm">
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 text-sm">
           {[
             ['products', '商品'],
-            ['import', '导入'],
             ['users', '账号'],
           ].map(([value, label]) => (
             <button
@@ -293,15 +307,17 @@ export function AdminPage() {
           ))}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <select className="min-h-11 rounded-xl border border-slate-200 px-3" onChange={(event) => changeStore(event.target.value)} value={selectedStoreId}>
-            {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
-          </select>
-          <button className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold" onClick={() => void refresh(selectedStoreId)} type="button">
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            刷新
-          </button>
-        </div>
+        {tab === 'products' ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <select className="min-h-11 rounded-xl border border-slate-200 px-3" onChange={(event) => changeStore(event.target.value)} value={selectedStoreId}>
+              {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+            </select>
+            <button className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold" onClick={() => void refresh(selectedStoreId)} type="button">
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              刷新
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {message ? <p className="rounded-xl bg-accent-50 p-3 text-sm leading-6 text-accent-700">{message}</p> : null}
@@ -309,6 +325,25 @@ export function AdminPage() {
 
       {tab === 'products' ? (
         <section className="space-y-2">
+          <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 text-sm">
+            {([
+              ['catalog', '商品列表'],
+              ['import', '导入商品'],
+              ['export', '导出商品'],
+            ] as const).map(([value, label]) => (
+              <button
+                className={`min-h-10 rounded-md font-bold ${productTab === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`}
+                key={value}
+                onClick={() => setProductTab(value)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {productTab === 'catalog' ? (
+            <>
           <div className="rounded-lg bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-base font-bold text-slate-900">新增商品</h2>
             <ProductDraftForm draft={newProduct} onChange={setNewProduct} />
@@ -337,31 +372,44 @@ export function AdminPage() {
               </article>
             ))}
           </div>
-        </section>
-      ) : null}
+            </>
+          ) : null}
 
-      {tab === 'import' ? (
-        <section className="rounded-lg bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-slate-900">Excel 导入商品</h2>
-            <a className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700" download href="/templates/商品导入模板.xlsx">
-              <Download className="h-4 w-4" aria-hidden="true" />
-              下载模板
-            </a>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            默认读取第一个 Sheet。支持列名：商品名称、规格、单位、商品编码、排序、启用。导入时按商品编码优先匹配，其次按名称+规格+单位匹配。
-          </p>
-          <input
-            accept=".xlsx,.xls"
-            className="mt-4 block w-full rounded-xl border border-slate-200 p-3 text-sm"
-            onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
-            type="file"
-          />
-          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void importExcel()} type="button">
-            <FileUp className="h-4 w-4" aria-hidden="true" />
-            导入到当前门店
-          </button>
+          {productTab === 'import' ? (
+            <div className="rounded-lg bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-slate-900">Excel 导入商品</h2>
+                <a className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700" download href="/templates/商品导入模板.xlsx">
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  下载模板
+                </a>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                默认读取第一个 Sheet。支持列名：商品名称、规格、单位、商品编码、排序、启用。导入时按商品编码优先匹配，其次按名称+规格+单位匹配。
+              </p>
+              <input
+                accept=".xlsx,.xls"
+                className="mt-4 block w-full rounded-xl border border-slate-200 p-3 text-sm"
+                onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+                type="file"
+              />
+              <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void importExcel()} type="button">
+                <FileUp className="h-4 w-4" aria-hidden="true" />
+                导入到当前门店
+              </button>
+            </div>
+          ) : null}
+
+          {productTab === 'export' ? (
+            <div className="rounded-lg bg-white p-4 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-900">导出全部商品</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店商品，包括商品编号、门店、规格、单位、编码、状态和创建/更新时间。</p>
+              <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void exportAllProducts()} type="button">
+                <Download className="h-4 w-4" aria-hidden="true" />
+                导出全部商品 Excel
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

@@ -39,6 +39,12 @@ export interface ProductImportResult {
   skipped: number;
 }
 
+export interface ProductExportFile {
+  blob: Blob;
+  count: number;
+  filename: string;
+}
+
 const requireClient = () => {
   if (!supabase) {
     throw new Error('Supabase 未配置');
@@ -115,6 +121,68 @@ export const loadAdminProductsData = async (storeId?: string) => {
     selectedStoreId,
     stores: stores ?? [],
   };
+};
+
+export const createAllProductsExportFile = async (): Promise<ProductExportFile> => {
+  const client = requireClient();
+  const [productsResult, storesResult] = await Promise.all([
+    client
+      .from('products')
+      .select('*')
+      .order('store_id', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true }),
+    client.from('stores').select('*').order('name', { ascending: true }),
+  ]);
+
+  if (productsResult.error) {
+    throw new Error(productsResult.error.message);
+  }
+  if (storesResult.error) {
+    throw new Error(storesResult.error.message);
+  }
+
+  const storeNames = new Map((storesResult.data ?? []).map((store) => [store.id, store.name]));
+  const products = productsResult.data ?? [];
+  const rows = products.map((product) => ({
+    商品编号: product.id,
+    门店: storeNames.get(product.store_id) ?? product.store_id,
+    商品名称: product.name,
+    规格: product.spec,
+    单位: product.count_unit,
+    商品编码: product.product_code ?? '',
+    排序: product.sort_order,
+    状态: product.is_active ? '启用' : '停用',
+    创建时间: product.created_at,
+    更新时间: product.updated_at,
+  }));
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(rows, {
+    header: ['商品编号', '门店', '商品名称', '规格', '单位', '商品编码', '排序', '状态', '创建时间', '更新时间'],
+  });
+  sheet['!cols'] = [
+    { wch: 38 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
+    { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 22 },
+  ];
+  XLSX.utils.book_append_sheet(workbook, sheet, '全部商品');
+
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+  return {
+    blob: new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    count: products.length,
+    filename: `全部商品_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  };
+};
+
+export const downloadProductExportFile = ({ blob, filename }: ProductExportFile) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 };
 
 export const loadProductFeedbackRecords = async (): Promise<ProductFeedbackRecord[]> => {

@@ -301,6 +301,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      v2_notices: {
+        Row: { body: string; created_at: string; created_by: string; id: string; is_pinned: boolean; published_at: string | null; retracted_at: string | null; status: 'draft' | 'published' | 'retracted'; title: string; updated_at: string; };
+        Insert: { body?: string; created_at?: string; created_by: string; id?: string; is_pinned?: boolean; published_at?: string | null; retracted_at?: string | null; status?: 'draft' | 'published' | 'retracted'; title: string; updated_at?: string; };
+        Update: { body?: string; created_at?: string; created_by?: string; id?: string; is_pinned?: boolean; published_at?: string | null; retracted_at?: string | null; status?: 'draft' | 'published' | 'retracted'; title?: string; updated_at?: string; };
+        Relationships: [];
+      };
+      v2_notice_stores: {
+        Row: { created_at: string; notice_id: string; store_id: string; };
+        Insert: { created_at?: string; notice_id: string; store_id: string; };
+        Update: { created_at?: string; notice_id?: string; store_id?: string; };
+        Relationships: [];
+      };
+      v2_notice_reads: {
+        Row: { notice_id: string; profile_id: string; read_at: string; };
+        Insert: { notice_id: string; profile_id: string; read_at?: string; };
+        Update: { notice_id?: string; profile_id?: string; read_at?: string; };
+        Relationships: [];
+      };
+      v2_sops: {
+        Row: { body: string; category: string; created_at: string; created_by: string; effective_at: string | null; id: string; published_at: string | null; status: 'draft' | 'published' | 'archived'; task_template_id: string | null; title: string; updated_at: string; version: number; };
+        Insert: { body?: string; category?: string; created_at?: string; created_by: string; effective_at?: string | null; id?: string; published_at?: string | null; status?: 'draft' | 'published' | 'archived'; task_template_id?: string | null; title: string; updated_at?: string; version?: number; };
+        Update: { body?: string; category?: string; created_at?: string; created_by?: string; effective_at?: string | null; id?: string; published_at?: string | null; status?: 'draft' | 'published' | 'archived'; task_template_id?: string | null; title?: string; updated_at?: string; version?: number; };
+        Relationships: [];
+      };
+      v2_sop_stores: {
+        Row: { created_at: string; sop_id: string; store_id: string; };
+        Insert: { created_at?: string; sop_id: string; store_id: string; };
+        Update: { created_at?: string; sop_id?: string; store_id?: string; };
+        Relationships: [];
+      };
+      v2_sop_roles: {
+        Row: { created_at: string; role: 'staff' | 'manager'; sop_id: string; };
+        Insert: { created_at?: string; role: 'staff' | 'manager'; sop_id: string; };
+        Update: { created_at?: string; role?: 'staff' | 'manager'; sop_id?: string; };
+        Relationships: [];
+      };
+      v2_sop_assets: {
+        Row: { bucket: 'v2-sop-assets'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; uploaded_by: string; };
+        Insert: { bucket?: 'v2-sop-assets'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; uploaded_by: string; };
+        Update: { bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path?: string; size_bytes?: number; sop_id?: string; uploaded_by?: string; };
+        Relationships: [];
+      };
       product_feedback: {
         Row: {
           created_at: string;
@@ -684,13 +726,24 @@ export type Database = {
       };
     };
     Functions: {
+      archive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
+      can_manage_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };
+      can_manage_v2_sop: { Args: { p_sop_id: string }; Returns: boolean };
+      can_read_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };
+      can_read_v2_sop: { Args: { p_sop_id: string }; Returns: boolean };
       can_edit_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       can_read_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       admin_operation_overview: { Args: Record<PropertyKey, never>; Returns: { arrival_pending: number; arrival_today: number; inventory_completed_today: number; inventory_pending: number; v2_task_active: number; v2_task_completed: number }[] };
       create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_month_day: number | null; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       pause_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
+      mark_v2_notice_read: { Args: { p_notice_id: string }; Returns: Json };
+      publish_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
+      publish_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       publish_v2_tasks: { Args: { p_due_at: string | null; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
+      retract_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
+      save_v2_notice: { Args: { p_fields: Json; p_notice_id: string | null; p_store_ids: string[] }; Returns: Json };
+      save_v2_sop: { Args: { p_fields: Json; p_roles: string[]; p_sop_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_task_progress: { Args: { p_answers: Json; p_expected_version: number; p_task_id: string }; Returns: Json };
       submit_v2_task: { Args: { p_expected_version: number; p_key: string; p_task_id: string }; Returns: Json };
       archive_v2_task_template: {

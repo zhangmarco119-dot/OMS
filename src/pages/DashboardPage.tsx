@@ -1,4 +1,4 @@
-import { Bell, CheckCheck, ClipboardList, History, LayoutTemplate, ListTodo, LogOut, PackageCheck, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
+import { Bell, BookOpenCheck, CheckCheck, ClipboardList, History, LayoutTemplate, ListTodo, LogOut, PackageCheck, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -44,6 +44,22 @@ const taskCenterAction = {
   className: 'from-[#6b4f8a] to-[#46325f]',
 };
 
+const noticeAction = {
+  to: '/app/notices',
+  label: '门店公告',
+  description: '查看当前门店公告并自动记录已读',
+  icon: Bell,
+  className: 'from-[#a4515a] to-[#74323b]',
+};
+
+const sopAction = {
+  to: '/app/sops',
+  label: 'SOP 手册',
+  description: '查看适用于当前角色的操作流程',
+  icon: BookOpenCheck,
+  className: 'from-[#49706b] to-[#2d4b47]',
+};
+
 const taskTypeLabel: Record<TaskType, string> = {
   inventory: '点货',
   order: '订货',
@@ -84,6 +100,7 @@ function StaffDashboard() {
     ...actions,
     ...(featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role) ? [arrivalAction] : []),
     ...(featureFlags.taskTemplates && canOperateV2Modules(auth.profile?.role) ? [taskCenterAction] : []),
+    ...(featureFlags.noticesAndSops && canOperateV2Modules(auth.profile?.role) ? [noticeAction, sopAction] : []),
   ];
 
   const handleSignOut = () => {
@@ -277,6 +294,10 @@ function AdminDashboard() {
           {featureFlags.taskTemplates ? <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/tasks">
             <LayoutTemplate className="h-5 w-5 text-slate-500" aria-hidden="true" />
             任务管理
+          </Link> : null}
+          {featureFlags.noticesAndSops ? <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/content">
+            <BookOpenCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />
+            公告与 SOP 管理
           </Link> : null}
           <button className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99] disabled:text-slate-300" disabled={messages.length === 0} onClick={() => void markAllSeen()} type="button">
             <CheckCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />

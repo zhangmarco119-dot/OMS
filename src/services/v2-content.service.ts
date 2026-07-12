@@ -1,0 +1,170 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+import { createUuid } from '../lib/uuid';
+import type { Database, Json } from '../types/database';
+
+type Client = SupabaseClient<Database>;
+export type NoticeRow = Database['public']['Tables']['v2_notices']['Row'];
+export type SopRow = Database['public']['Tables']['v2_sops']['Row'];
+export type SopAssetRow = Database['public']['Tables']['v2_sop_assets']['Row'];
+
+export interface NoticeListItem extends NoticeRow {
+  isRead: boolean;
+  storeIds: string[];
+}
+
+export interface SopListItem extends SopRow {
+  assetUrls: Array<SopAssetRow & { signedUrl: string }>;
+  roles: Array<'staff' | 'manager'>;
+  storeIds: string[];
+  taskTemplateId: string | null;
+}
+
+export interface NoticeDraft {
+  body: string;
+  id: string | null;
+  isPinned: boolean;
+  storeIds: string[];
+  title: string;
+}
+
+export interface SopDraft {
+  body: string;
+  category: string;
+  effectiveAt: string;
+  id: string | null;
+  roles: Array<'staff' | 'manager'>;
+  storeIds: string[];
+  taskTemplateId: string | null;
+  title: string;
+}
+
+const throwIfError = (error: { message: string } | null) => {
+  if (error) throw new Error(error.message);
+};
+
+export const createEmptyNoticeDraft = (storeIds: string[] = []): NoticeDraft => ({ body: '', id: null, isPinned: false, storeIds, title: '' });
+export const createEmptySopDraft = (storeIds: string[] = []): SopDraft => ({ body: '', category: '通用', effectiveAt: '', id: null, roles: ['staff', 'manager'], storeIds, taskTemplateId: null, title: '' });
+
+export const loadNotices = async (client: Client): Promise<NoticeListItem[]> => {
+  const [notices, assignments, reads] = await Promise.all([
+    client.from('v2_notices').select('*').order('is_pinned', { ascending: false }).order('published_at', { ascending: false }).order('updated_at', { ascending: false }),
+    client.from('v2_notice_stores').select('*'),
+    client.from('v2_notice_reads').select('*'),
+  ]);
+  throwIfError(notices.error);
+  throwIfError(assignments.error);
+  throwIfError(reads.error);
+  const stores = new Map<string, string[]>();
+  (assignments.data ?? []).forEach((item) => stores.set(item.notice_id, [...(stores.get(item.notice_id) ?? []), item.store_id]));
+  const readIds = new Set((reads.data ?? []).map((item) => item.notice_id));
+  return (notices.data ?? []).map((notice) => ({ ...notice, isRead: readIds.has(notice.id), storeIds: stores.get(notice.id) ?? [] }));
+};
+
+export const saveNotice = async (client: Client, draft: NoticeDraft) => {
+  if (!draft.title.trim()) throw new Error('请填写公告标题。');
+  if (!draft.storeIds.length) throw new Error('请至少选择一个发布门店。');
+  const { data, error } = await client.rpc('save_v2_notice', {
+    p_fields: { body: draft.body, is_pinned: draft.isPinned, title: draft.title.trim() } as Json,
+    p_notice_id: draft.id,
+    p_store_ids: draft.storeIds,
+  });
+  throwIfError(error);
+  return data as unknown as NoticeRow;
+};
+
+export const publishNotice = async (client: Client, noticeId: string) => {
+  const { data, error } = await client.rpc('publish_v2_notice', { p_notice_id: noticeId });
+  throwIfError(error);
+  return data;
+};
+
+export const retractNotice = async (client: Client, noticeId: string) => {
+  const { data, error } = await client.rpc('retract_v2_notice', { p_notice_id: noticeId });
+  throwIfError(error);
+  return data;
+};
+
+export const markNoticeRead = async (client: Client, noticeId: string) => {
+  const { error } = await client.rpc('mark_v2_notice_read', { p_notice_id: noticeId });
+  throwIfError(error);
+};
+
+export const loadSops = async (client: Client): Promise<SopListItem[]> => {
+  const [sops, assignments, roles, assets] = await Promise.all([
+    client.from('v2_sops').select('*').order('category').order('effective_at', { ascending: false }).order('updated_at', { ascending: false }),
+    client.from('v2_sop_stores').select('*'),
+    client.from('v2_sop_roles').select('*'),
+    client.from('v2_sop_assets').select('*').order('created_at'),
+  ]);
+  throwIfError(sops.error);
+  throwIfError(assignments.error);
+  throwIfError(roles.error);
+  throwIfError(assets.error);
+  const stores = new Map<string, string[]>();
+  (assignments.data ?? []).forEach((item) => stores.set(item.sop_id, [...(stores.get(item.sop_id) ?? []), item.store_id]));
+  const roleMap = new Map<string, Array<'staff' | 'manager'>>();
+  (roles.data ?? []).forEach((item) => roleMap.set(item.sop_id, [...(roleMap.get(item.sop_id) ?? []), item.role]));
+  const assetMap = new Map<string, SopAssetRow[]>();
+  (assets.data ?? []).forEach((item) => assetMap.set(item.sop_id, [...(assetMap.get(item.sop_id) ?? []), item]));
+  return Promise.all((sops.data ?? []).map(async (sop) => ({
+    ...sop,
+    assetUrls: await Promise.all((assetMap.get(sop.id) ?? []).map(async (asset) => {
+      const signed = await client.storage.from('v2-sop-assets').createSignedUrl(asset.object_path, 3600);
+      throwIfError(signed.error);
+      if (!signed.data) throw new Error('无法生成 SOP 附件访问链接。');
+      return { ...asset, signedUrl: signed.data.signedUrl };
+    })),
+    roles: roleMap.get(sop.id) ?? [],
+    storeIds: stores.get(sop.id) ?? [],
+    taskTemplateId: sop.task_template_id,
+  })));
+};
+
+export const saveSop = async (client: Client, draft: SopDraft) => {
+  if (!draft.title.trim() || !draft.category.trim()) throw new Error('请填写 SOP 标题和分类。');
+  if (!draft.storeIds.length || !draft.roles.length) throw new Error('请至少选择一个适用门店和角色。');
+  const { data, error } = await client.rpc('save_v2_sop', {
+    p_fields: { body: draft.body, category: draft.category.trim(), effective_at: draft.effectiveAt ? new Date(draft.effectiveAt).toISOString() : null, task_template_id: draft.taskTemplateId, title: draft.title.trim() } as Json,
+    p_roles: draft.roles,
+    p_sop_id: draft.id,
+    p_store_ids: draft.storeIds,
+  });
+  throwIfError(error);
+  return data as unknown as SopRow;
+};
+
+export const publishSop = async (client: Client, sopId: string) => {
+  const { data, error } = await client.rpc('publish_v2_sop', { p_sop_id: sopId });
+  throwIfError(error);
+  return data;
+};
+
+export const archiveSop = async (client: Client, sopId: string) => {
+  const { data, error } = await client.rpc('archive_v2_sop', { p_sop_id: sopId });
+  throwIfError(error);
+  return data;
+};
+
+export const uploadSopAsset = async (client: Client, input: { file: File; profileId: string; sopId: string }) => {
+  const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+  if (!allowed.has(input.file.type)) throw new Error('仅支持 JPG、PNG、WEBP 图片或 PDF 文件。');
+  if (input.file.size <= 0 || input.file.size > 10 * 1024 * 1024) throw new Error('附件大小必须在 10 MB 以内。');
+  const extension = input.file.name.split('.').pop()?.toLowerCase() || 'file';
+  const objectPath = `${input.sopId}/${createUuid()}.${extension}`;
+  const upload = await client.storage.from('v2-sop-assets').upload(objectPath, input.file, { contentType: input.file.type, upsert: false });
+  throwIfError(upload.error);
+  const { data, error } = await client.from('v2_sop_assets').insert({
+    file_name: input.file.name,
+    mime_type: input.file.type as SopAssetRow['mime_type'],
+    object_path: objectPath,
+    size_bytes: input.file.size,
+    sop_id: input.sopId,
+    uploaded_by: input.profileId,
+  }).select('*').single();
+  if (error) {
+    await client.storage.from('v2-sop-assets').remove([objectPath]);
+    throw new Error(error.message);
+  }
+  return data;
+};

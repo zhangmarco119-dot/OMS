@@ -4,6 +4,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/AdminPage';
+import { AdminContentPage } from './pages/AdminContentPage';
 import { AdminArrivalDetailPage } from './pages/AdminArrivalDetailPage';
 import { AdminArrivalsPage } from './pages/AdminArrivalsPage';
 import { AdminArrivalSummaryPage } from './pages/AdminArrivalSummaryPage';
@@ -13,11 +14,13 @@ import { AdminV2TasksPage } from './pages/AdminV2TasksPage';
 import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
 import { ArrivalHistoryPage } from './pages/ArrivalHistoryPage';
 import { ArrivalSuccessPage } from './pages/ArrivalSuccessPage';
+import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
+import { SopLibraryPage } from './pages/SopLibraryPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
 import { V2TaskCenterPage } from './pages/V2TaskCenterPage';
 import { V2TaskExecutionPage } from './pages/V2TaskExecutionPage';
@@ -53,6 +56,8 @@ export const router = createBrowserRouter([
       { path: 'arrivals/:reportId/success', element: <ArrivalSuccessPage /> },
       { path: 'tasks', element: <V2TaskCenterPage /> },
       { path: 'tasks/:taskId', element: <V2TaskExecutionPage /> },
+      { path: 'notices', element: <AnnouncementsPage /> },
+      { path: 'sops', element: <SopLibraryPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'account', element: <AccountPage /> },
       {
@@ -81,6 +86,7 @@ export const router = createBrowserRouter([
       },
       { path: 'admin/tasks', element: <ProtectedRoute requireAdmin><AdminV2TasksPage /></ProtectedRoute> },
       { path: 'admin/tasks/:taskId', element: <ProtectedRoute requireAdmin><AdminV2TaskReviewPage /></ProtectedRoute> },
+      { path: 'admin/content', element: <ProtectedRoute requireAdmin><AdminContentPage /></ProtectedRoute> },
     ],
   },
   {

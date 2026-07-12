@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { featureFlags } from '../config/featureFlags';
 import { canOperateV2Modules } from '../features/access/roleCapabilities';
+import { AdminArrivalOverview } from '../features/arrivals/AdminArrivalOverview';
 import { useAuth } from '../features/auth/AuthContext';
 import { loadUnreadSubmittedTasks, markSubmittedTasksRead, type HistoryTask } from '../features/history/historyService';
 import { supabase } from '../lib/supabase';
@@ -236,23 +237,7 @@ function AdminDashboard() {
         </header>
 
         {featureFlags.arrivalEntry ? (
-          <section className="rounded-lg border border-brand-100 bg-white p-5 shadow-sm" aria-labelledby="admin-arrival-title">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-                  <PackageCheck className="h-6 w-6" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-brand-700">StoreHub V2</p>
-                  <h2 className="mt-1 text-lg font-bold text-slate-900" id="admin-arrival-title">到货中心</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    数据库与 RLS 结构已准备，管理员消息、每日汇总和统计界面将在后续阶段接入。
-                  </p>
-                </div>
-              </div>
-              <span className="shrink-0 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">尚未接入数据</span>
-            </div>
-          </section>
+          <AdminArrivalOverview />
         ) : null}
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -266,7 +251,7 @@ function AdminDashboard() {
           </Link>
           <button className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99] disabled:text-slate-300" disabled={messages.length === 0} onClick={() => void markAllSeen()} type="button">
             <CheckCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            全部标为已读
+            点货/订货全部已读
           </button>
         </div>
 

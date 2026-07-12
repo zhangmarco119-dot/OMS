@@ -15,6 +15,7 @@ const staffNavItems = [
 
 const adminNavItems = [
   { to: '/app', label: '消息', icon: Home },
+  { to: '/app/admin/arrivals', label: '到货', icon: PackageCheck },
   { to: '/app/history', label: '记录', icon: History },
   { to: '/app/admin', label: '后台', icon: Settings },
   { to: '/app/account', label: '账号', icon: UserRound },

@@ -4,6 +4,9 @@ import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/AdminPage';
+import { AdminArrivalDetailPage } from './pages/AdminArrivalDetailPage';
+import { AdminArrivalsPage } from './pages/AdminArrivalsPage';
+import { AdminArrivalSummaryPage } from './pages/AdminArrivalSummaryPage';
 import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
 import { ArrivalHistoryPage } from './pages/ArrivalHistoryPage';
 import { ArrivalSuccessPage } from './pages/ArrivalSuccessPage';
@@ -52,6 +55,18 @@ export const router = createBrowserRouter([
             <AdminPage />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: 'admin/arrivals',
+        element: <ProtectedRoute requireAdmin><AdminArrivalsPage /></ProtectedRoute>,
+      },
+      {
+        path: 'admin/arrivals/summary',
+        element: <ProtectedRoute requireAdmin><AdminArrivalSummaryPage /></ProtectedRoute>,
+      },
+      {
+        path: 'admin/arrivals/:reportId',
+        element: <ProtectedRoute requireAdmin><AdminArrivalDetailPage /></ProtectedRoute>,
       },
     ],
   },

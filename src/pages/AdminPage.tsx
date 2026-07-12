@@ -20,6 +20,7 @@ import {
   loadAdminUsers,
   setUserTemporaryPassword,
   updateProfileAdminFields,
+  updateProductPermissions,
   type AdminUserRow,
   type CreateUserInput,
   type StoreRow,
@@ -219,6 +220,7 @@ export function AdminPage() {
         is_active: user.is_active,
         storeIds: user.storeIds,
       });
+      if (user.role !== 'admin') await updateProductPermissions(user.id, user.productPermissions);
       setMessage('账号资料已更新。');
       await refresh(selectedStoreId);
     } catch (error) {
@@ -493,6 +495,7 @@ export function AdminPage() {
                     ))}
                   </div>
                 </fieldset>
+                {user.role !== 'admin' ? <fieldset className="mt-3 rounded-lg bg-slate-50 p-3"><legend className="px-1 text-xs font-bold text-slate-500">员工商品申请权限</legend><div className="mt-1 flex flex-wrap gap-3 text-sm"><label><input checked={user.productPermissions.can_request_new} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_new: event.target.checked } } : entry))} type="checkbox" /> 新增申请</label><label><input checked={user.productPermissions.can_request_incorrect} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_incorrect: event.target.checked } } : entry))} type="checkbox" /> 修订申请</label><label><input checked={user.productPermissions.can_request_discontinued} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_discontinued: event.target.checked } } : entry))} type="checkbox" /> 删除申请</label></div></fieldset> : null}
                 <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setPasswordDrafts((current) => ({ ...current, [user.id]: event.target.value }))} placeholder="设置新的临时密码" type={showPassword ? 'text' : 'password'} value={passwordDrafts[user.id] ?? ''} />
                   <button className="min-h-10 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void setTemporaryPassword(user.id)} type="button">

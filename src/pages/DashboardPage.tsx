@@ -1,343 +1,57 @@
-import { BarChart3, Bell, BookOpenCheck, CheckCheck, ClipboardList, History, LayoutTemplate, ListTodo, LogOut, PackageCheck, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
+import { Bell, ChevronRight, ClipboardCheck, LogOut, RefreshCw, Store, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
-import { featureFlags } from '../config/featureFlags';
-import { canOperateV2Modules } from '../features/access/roleCapabilities';
 import { useAuth } from '../features/auth/AuthContext';
-import { loadUnreadSubmittedTasks, markSubmittedTasksRead, type HistoryTask } from '../features/history/historyService';
 import { supabase } from '../lib/supabase';
 import { loadAdminOperationOverview, type AdminOperationOverview } from '../services/admin-operation-overview.service';
-import type { TaskType } from '../types/domain';
+import { loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
+import { loadTodoSummary, type TodoSummary } from '../services/todo.service';
+import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
+import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
 
-const actions = [
-  {
-    to: '/app/inventory',
-    label: '点货',
-    description: '逐项录入实际库存，自动保存草稿',
-    icon: ClipboardList,
-    className: 'from-[#2f6f7e] to-[#184c5c]',
-  },
-  {
-    to: '/app/order',
-    label: '订货',
-    description: '填写订货数量，支持标记无需订货',
-    icon: PackagePlus,
-    className: 'from-[#5f7f3a] to-[#38541f]',
-  },
-];
-
-const arrivalAction = {
-  to: '/app/arrivals',
-  label: '到货上报',
-  description: '拍摄面单和货品，登记本次到货',
-  icon: PackageCheck,
-  className: 'from-[#7b5a35] to-[#50381f]',
-};
-
-const taskCenterAction = {
-  to: '/app/tasks',
-  label: '任务中心',
-  description: '查看周清、月清和巡店任务',
-  icon: ListTodo,
-  className: 'from-[#6b4f8a] to-[#46325f]',
-};
-
-const noticeAction = {
-  to: '/app/notices',
-  label: '门店公告',
-  description: '查看当前门店公告并自动记录已读',
-  icon: Bell,
-  className: 'from-[#a4515a] to-[#74323b]',
-};
-
-const sopAction = {
-  to: '/app/sops',
-  label: 'SOP 手册',
-  description: '查看适用于当前角色的操作流程',
-  icon: BookOpenCheck,
-  className: 'from-[#49706b] to-[#2d4b47]',
-};
-
-const taskTypeLabel: Record<TaskType, string> = {
-  inventory: '点货',
-  order: '订货',
-};
-
-const seenStorageKey = (profileId: string) => `admin-seen-submitted-tasks:${profileId}`;
-
-const formatDateTime = (value: string | null) => {
-  if (!value) {
-    return '未记录时间';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(date);
+const notificationLink = (notification: UserNotification) => {
+  if (notification.entity_type === 'v2_notice') return `/app/notices/${notification.entity_id}`;
+  if (notification.entity_type === 'v2_task') return `/app/tasks/${notification.entity_id}`;
+  if (notification.entity_type === 'v2_sop') return '/app/sops';
+  return '/app/todos';
 };
 
 export function DashboardPage() {
-  const auth = useAuth();
-  const isAdmin = auth.profile?.role === 'admin';
-
-  if (isAdmin) {
-    return <AdminDashboard />;
-  }
-
-  return <StaffDashboard />;
+  return useAuth().profile?.role === 'admin' ? <AdminDashboard /> : <StaffDashboard />;
 }
 
 function StaffDashboard() {
   const auth = useAuth();
-  const [switchingStore, setSwitchingStore] = useState(false);
-  const [storeMessage, setStoreMessage] = useState<string | null>(null);
-  const dashboardActions = [
-    ...actions,
-    ...(featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role) ? [arrivalAction] : []),
-    ...(featureFlags.taskTemplates && canOperateV2Modules(auth.profile?.role) ? [taskCenterAction] : []),
-    ...(featureFlags.noticesAndSops && canOperateV2Modules(auth.profile?.role) ? [noticeAction, sopAction] : []),
-  ];
-
-  const handleSignOut = () => {
-    void auth.signOut();
-  };
-
-  const changeStore = async (storeId: string) => {
-    setSwitchingStore(true);
-    setStoreMessage(null);
+  const [notices, setNotices] = useState<NoticeListItem[]>([]);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [tasks, setTasks] = useState<V2TaskRow[]>([]);
+  const [summary, setSummary] = useState<TodoSummary | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [dismissedNoticeId, setDismissedNoticeId] = useState<string | null>(() => window.localStorage.getItem(`dismissed-home-notice:${auth.profile?.id ?? 'anonymous'}`));
+  const load = useCallback(async () => {
+    if (!supabase || !auth.profile) return;
     try {
-      await auth.switchStore(storeId);
-    } catch (error) {
-      setStoreMessage(error instanceof Error ? error.message : '切换门店失败。');
-    } finally {
-      setSwitchingStore(false);
-    }
-  };
-
-  return (
-    <section className="min-h-screen bg-slate-50 px-4 py-5">
-      <div className="mx-auto flex max-w-5xl flex-col gap-5">
-        <header className="rounded-lg bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-brand-700">门店运营系统 · 当前门店</p>
-              <select aria-label="切换当前门店" className="mt-1 min-h-11 max-w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-lg font-bold text-slate-900" disabled={switchingStore} onChange={(event) => void changeStore(event.target.value)} value={auth.store?.id ?? ''}>
-                {auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
-              </select>
-              <p className="mt-2 truncate text-sm text-slate-600">{auth.profile?.display_name ?? auth.user?.email ?? '未识别账号'}</p>
-              {storeMessage ? <p className="mt-2 text-sm text-red-700">{storeMessage}</p> : null}
-            </div>
-            <button
-              aria-label="退出登录"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition active:scale-95"
-              onClick={handleSignOut}
-              type="button"
-            >
-              <LogOut className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
-        </header>
-
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {dashboardActions.map(({ to, label, description, icon: Icon, className }) => (
-            <Link
-              key={to}
-              to={to}
-              className={`flex aspect-square min-h-40 flex-col items-center justify-center rounded-lg bg-gradient-to-br p-5 text-center text-white shadow-lg transition active:scale-95 ${className}`}
-            >
-              <Icon className="mb-4 h-14 w-14" aria-hidden="true" />
-              <span className="text-2xl font-bold">{label}</span>
-              <span className="mt-2 max-w-36 text-sm leading-5 text-white/85">{description}</span>
-            </Link>
-          ))}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-4">
-          <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/history">
-            <History className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            我的记录
-          </Link>
-          <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/account">
-            <UserRound className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            账号设置
-          </Link>
-          <div className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm">
-            <Store className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            {auth.store?.short_name ?? '门店'}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+      const [nextNotices, nextNotifications, nextTasks, nextSummary] = await Promise.all([
+        loadNotices(supabase), loadNotifications(supabase), loadV2Tasks(supabase, auth.store?.id), loadTodoSummary(supabase, { isAdmin: false, profileId: auth.profile.id, storeId: auth.store?.id }),
+      ]);
+      const now = Date.now();
+      setNotices(nextNotices.filter((notice) => notice.status === 'published' && (!notice.expires_at || new Date(notice.expires_at).getTime() > now)));
+      setNotifications(nextNotifications); setTasks(nextTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status)).slice(0, 3)); setSummary(nextSummary); setMessage(null);
+    } catch (error) { setMessage(error instanceof Error ? error.message : '首页信息加载失败。'); }
+  }, [auth.profile, auth.store?.id]);
+  useEffect(() => { void load(); }, [load]);
+  const changeStore = async (storeId: string) => { setSwitching(true); try { await auth.switchStore(storeId); } catch (error) { setMessage(error instanceof Error ? error.message : '切换门店失败。'); } finally { setSwitching(false); } };
+  const openNotification = (notification: UserNotification) => { if (supabase && !notification.is_read) void markNotificationRead(supabase, notification.id).then(load).catch(() => undefined); };
+  const visibleTickerNotices = notices.filter((notice) => notice.id !== dismissedNoticeId);
+  const dismissTicker = () => { const id = visibleTickerNotices[0]?.id; if (!id) return; window.localStorage.setItem(`dismissed-home-notice:${auth.profile?.id ?? 'anonymous'}`, id); setDismissedNoticeId(id); };
+  return <section className="min-h-screen bg-slate-50 px-4 py-5"><div className="mx-auto flex max-w-5xl flex-col gap-4"><header className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-xs font-bold text-brand-700">门店运营系统 · 当前门店</p>{auth.availableStores.length > 1 ? <select aria-label="切换当前门店" className="mt-1 min-h-11 w-full max-w-md rounded-lg border border-slate-200 bg-slate-50 px-3 text-lg font-bold text-slate-900" disabled={switching} onChange={(event) => void changeStore(event.target.value)} value={auth.store?.id ?? ''}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select> : <h1 className="mt-1 break-words text-xl font-bold text-slate-900">{auth.store?.name ?? '未绑定门店'}</h1>}<p className="mt-1 text-sm text-slate-500">{auth.profile?.role === 'manager' ? '店长' : '员工'} · {auth.profile?.display_name ?? auth.user?.email}</p></div><button aria-label="退出登录" className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100 text-slate-600" onClick={() => void auth.signOut()} type="button"><LogOut className="h-5 w-5" /></button></div></header>{visibleTickerNotices.length ? <div className="notice-ticker flex min-h-12 items-center gap-2 overflow-hidden rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white shadow-sm"><Link className="flex min-w-0 flex-1 items-center gap-2" to={`/app/notices/${visibleTickerNotices[0].id}`}><Bell className="h-4 w-4 shrink-0" /><span className="notice-ticker-text">最新公告：{visibleTickerNotices.map((notice) => notice.title).join('　·　')}</span><ChevronRight className="ml-auto h-4 w-4 shrink-0" /></Link><button aria-label="关闭当前公告提示" className="h-10 w-10 shrink-0 rounded-lg" onClick={dismissTicker} type="button"><X className="mx-auto h-4 w-4" /></button></div> : null}{message ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</p> : null}<section className="grid grid-cols-2 gap-3"><Link className="rounded-xl bg-white p-4 shadow-sm" to="/app/todos"><p className="text-sm font-bold text-brand-700">今日待办</p><p className="mt-1 text-3xl font-bold text-slate-900">{summary?.count ?? '—'}</p><p className="mt-1 text-xs text-slate-500">任务及需确认公告</p></Link><Link className="rounded-xl bg-white p-4 shadow-sm" to="/app/workbench"><p className="text-sm font-bold text-brand-700">工作台</p><p className="mt-1 text-lg font-bold text-slate-900">进入业务功能</p><p className="mt-1 text-xs text-slate-500">点货、订货、到货与任务</p></Link></section><section className="rounded-xl bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><div><p className="font-bold text-slate-900">即将截止 / 需整改</p><p className="mt-1 text-sm text-slate-500">只展示需要处理的任务</p></div><Link className="text-sm font-bold text-brand-700" to="/app/todos">全部待办</Link></div><div className="mt-3 space-y-2">{tasks.map((task) => <Link className="block rounded-lg bg-slate-50 p-3" key={task.id} to={`/app/tasks/${task.id}`}><b>{task.name}</b><p className={task.status === 'rejected' ? 'mt-1 text-sm text-red-700' : 'mt-1 text-sm text-slate-500'}>{task.status === 'rejected' ? `需整改：${task.review_note || '请处理指定项目。'}` : `截止：${new Date(task.due_at).toLocaleString('zh-CN')}`}</p></Link>)}{tasks.length === 0 ? <p className="py-3 text-sm text-slate-500">当前没有待处理任务。</p> : null}</div></section><section className="rounded-xl bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><p className="font-bold text-slate-900">通知中心（未读 {notifications.filter((notification) => !notification.is_read).length}）</p><button aria-label="刷新首页" className="h-10 w-10 rounded-lg border" onClick={() => void load()} type="button"><RefreshCw className="mx-auto h-4 w-4" /></button></div><div className="mt-2 divide-y">{notifications.slice(0, 3).map((notification) => <Link className="block py-3" key={notification.id} onClick={() => openNotification(notification)} to={notificationLink(notification)}><p className="text-sm font-semibold text-slate-800">{notification.is_read ? '' : '未读 · '}{notification.title}</p><p className="mt-1 line-clamp-1 text-xs text-slate-500">{notification.body} · {new Date(notification.created_at).toLocaleString('zh-CN')}</p></Link>)}{notifications.length === 0 ? <p className="py-3 text-sm text-slate-500">暂无通知。</p> : null}</div></section></div></section>;
 }
 
 function AdminDashboard() {
-  const auth = useAuth();
-  const navigate = useNavigate();
-  const [messages, setMessages] = useState<HistoryTask[]>([]);
-  const [overview, setOverview] = useState<AdminOperationOverview | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [message, setMessage] = useState<string | null>(null);
-
-  const loadMessages = useCallback(async () => {
-    if (!supabase || !auth.profile) {
-      setStatus('error');
-      setMessage('需要先登录并配置 Supabase。');
-      return;
-    }
-
-    setStatus('loading');
-    setMessage(null);
-    try {
-      const legacySeenIds = JSON.parse(window.localStorage.getItem(seenStorageKey(auth.profile.id)) ?? '[]') as string[];
-      if (legacySeenIds.length > 0) {
-        await markSubmittedTasksRead(supabase, auth.profile.id, legacySeenIds);
-        window.localStorage.removeItem(seenStorageKey(auth.profile.id));
-      }
-      const [loaded, nextOverview] = await Promise.all([
-        loadUnreadSubmittedTasks(supabase, auth.profile, 12),
-        loadAdminOperationOverview(supabase),
-      ]);
-      setMessages(loaded);
-      setOverview(nextOverview);
-      setStatus('ready');
-    } catch (error) {
-      setStatus('error');
-      setMessage(error instanceof Error ? error.message : '加载消息失败。');
-    }
-  }, [auth.profile]);
-
-  useEffect(() => {
-    void loadMessages();
-  }, [loadMessages]);
-
-  const markAllSeen = async () => {
-    if (!auth.profile || !supabase) {
-      return;
-    }
-    try {
-      const allUnread = await loadUnreadSubmittedTasks(supabase, auth.profile);
-      await markSubmittedTasksRead(supabase, auth.profile.id, allUnread.map((item) => item.task.id));
-      setMessages([]);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '标记已查看失败。');
-    }
-  };
-
-  const openMessage = async (taskId: string) => {
-    if (!auth.profile || !supabase) {
-      return;
-    }
-    try {
-      await markSubmittedTasksRead(supabase, auth.profile.id, [taskId]);
-      setMessages((current) => current.filter((item) => item.task.id !== taskId));
-      navigate('/app/history');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '打开提交记录失败。');
-    }
-  };
-
-  const handleSignOut = () => {
-    void auth.signOut();
-  };
-
-  return (
-    <section className="min-h-screen bg-slate-50 px-4 py-5">
-      <div className="mx-auto flex max-w-5xl flex-col gap-5">
-        <header className="rounded-lg bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-brand-700">门店运营系统 · 管理员</p>
-              <h1 className="mt-1 text-2xl font-bold text-slate-900">运营与待办</h1>
-              <p className="mt-1 text-sm text-slate-600">任务、盘点和提交提醒集中处理。</p>
-            </div>
-            <button
-              aria-label="退出登录"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition active:scale-95"
-              onClick={handleSignOut}
-              type="button"
-            >
-              <LogOut className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
-        </header>
-
-        <section className="rounded-lg bg-white p-3 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-brand-700">运营概览</p><h2 className="text-base font-bold text-slate-900">关键完成情况</h2></div><Link className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700" to="/app/admin/analytics"><BarChart3 className="h-4 w-4" />全部统计</Link></div><div className="mt-3 grid grid-cols-3 gap-2"><Link className="rounded-lg bg-sky-50 p-3" to="/app/history"><p className="text-xs font-bold text-sky-800">盘点</p><p className="mt-1 text-xl font-bold text-slate-900">{overview?.inventory_completed_today ?? '—'}</p><p className="text-[11px] text-slate-600">完成 · 进行中 {overview?.inventory_pending ?? '—'}</p></Link><Link className="rounded-lg bg-brand-50 p-3" to="/app/admin/tasks"><p className="text-xs font-bold text-brand-800">任务</p><p className="mt-1 text-xl font-bold text-slate-900">{overview?.v2_task_completed ?? '—'}</p><p className="text-[11px] text-slate-600">通过 · 待办 {overview?.v2_task_active ?? '—'}</p></Link><Link className="rounded-lg bg-amber-50 p-3" to="/app/admin/arrivals"><p className="text-xs font-bold text-amber-800">到货待看</p><p className="mt-1 text-xl font-bold text-slate-900">{overview?.arrival_pending ?? '—'}</p><p className="text-[11px] text-slate-600">到货管理入口</p></Link></div></section>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/history">
-            <History className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            查看全部记录
-          </Link>
-          <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin">
-            <Settings className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            商品与账号后台
-          </Link>
-          {featureFlags.taskTemplates ? <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/tasks">
-            <LayoutTemplate className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            任务管理
-          </Link> : null}
-          {featureFlags.noticesAndSops ? <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/content">
-            <BookOpenCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            公告与 SOP 管理
-          </Link> : null}
-          <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/analytics">
-            <BarChart3 className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            运营统计
-          </Link>
-          <button className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99] disabled:text-slate-300" disabled={messages.length === 0} onClick={() => void markAllSeen()} type="button">
-            <CheckCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            点货/订货全部已读
-          </button>
-        </div>
-
-        <div className="rounded-lg bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Bell className="h-5 w-5 text-brand-700" aria-hidden="true" />
-              <div>
-                <h2 className="font-bold text-slate-900">待查看提交</h2>
-                <p className="text-sm text-slate-500">{messages.length ? `${messages.length} 条待查看` : '暂无待查看提交'}</p>
-              </div>
-            </div>
-            <button className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700" onClick={() => void loadMessages()} type="button">
-              刷新
-            </button>
-          </div>
-        </div>
-
-        {status === 'loading' ? (
-          <div className="rounded-lg bg-white p-5 text-sm font-semibold text-slate-700 shadow-sm">正在加载消息</div>
-        ) : null}
-
-        {status === 'error' ? (
-          <div className="rounded-lg bg-white p-5 text-sm leading-6 text-red-700 shadow-sm">{message ?? '消息加载失败。'}</div>
-        ) : null}
-
-        {status === 'ready' && messages.length === 0 ? (
-          <div className="rounded-lg bg-white p-8 text-center shadow-sm">
-            <Bell className="mx-auto h-12 w-12 text-slate-300" aria-hidden="true" />
-            <p className="mt-4 font-bold text-slate-900">暂无待查看提交</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">新的点货或订货提交会出现在这里，查看后自动移出列表。</p>
-          </div>
-        ) : null}
-
-        {status === 'ready' && messages.length > 0 ? (
-          <div className="space-y-3">
-            {messages.map(({ itemCount, storeShortName, submitterName, task }) => (
-              <button className="w-full rounded-lg bg-white p-4 text-left shadow-sm active:scale-[0.99]" key={task.id} onClick={() => void openMessage(task.id)} type="button">
-                <p className="text-sm font-semibold text-brand-700">{storeShortName} · {taskTypeLabel[task.task_type]}提交</p>
-                <h2 className="mt-1 text-lg font-bold text-slate-900">{formatDateTime(task.submitted_at)}</h2>
-                <p className="mt-2 text-sm text-slate-500">{submitterName} · {itemCount} 个商品 · 单号 {task.id.slice(0, 8)}</p>
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
+  const auth = useAuth(); const [overview, setOverview] = useState<AdminOperationOverview | null>(null); const [summary, setSummary] = useState<TodoSummary | null>(null); const [message, setMessage] = useState<string | null>(null);
+  const load = useCallback(async () => { if (!supabase || !auth.profile) return; try { const [nextOverview, nextSummary] = await Promise.all([loadAdminOperationOverview(supabase), loadTodoSummary(supabase, { isAdmin: true, profileId: auth.profile.id })]); setOverview(nextOverview); setSummary(nextSummary); setMessage(null); } catch (error) { setMessage(error instanceof Error ? error.message : '运营概览加载失败。'); } }, [auth.profile]);
+  useEffect(() => { void load(); }, [load]);
+  return <section className="min-h-screen bg-slate-50 px-4 py-5"><div className="mx-auto flex max-w-5xl flex-col gap-4"><header className="flex items-start justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div><p className="text-sm font-bold text-brand-700">门店运营系统 · 管理员</p><h1 className="mt-1 text-2xl font-bold text-slate-900">运营概览</h1><p className="mt-1 text-sm text-slate-500">异常与待处理事项集中显示。</p></div><button aria-label="退出登录" className="h-11 w-11 rounded-lg bg-slate-100" onClick={() => void auth.signOut()} type="button"><LogOut className="mx-auto h-5 w-5" /></button></header>{message ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</p> : null}<section className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Link className="rounded-xl bg-white p-4 shadow-sm" to="/app/todos"><p className="text-xs font-bold text-red-700">待处理</p><p className="mt-1 text-3xl font-bold">{summary?.count ?? '—'}</p><p className="text-xs text-slate-500">商品申请与任务审核</p></Link><Link className="rounded-xl bg-white p-4 shadow-sm" to="/app/admin/arrivals"><p className="text-xs font-bold text-amber-700">到货待看</p><p className="mt-1 text-3xl font-bold">{overview?.arrival_pending ?? '—'}</p><p className="text-xs text-slate-500">今日到货 {overview?.arrival_today ?? '—'}</p></Link><Link className="rounded-xl bg-white p-4 shadow-sm" to="/app/history"><p className="text-xs font-bold text-sky-700">盘点</p><p className="mt-1 text-3xl font-bold">{overview?.inventory_completed_today ?? '—'}</p><p className="text-xs text-slate-500">进行中 {overview?.inventory_pending ?? '—'}</p></Link><Link className="rounded-xl bg-white p-4 shadow-sm" to="/app/admin/tasks"><p className="text-xs font-bold text-brand-700">任务</p><p className="mt-1 text-3xl font-bold">{overview?.v2_task_active ?? '—'}</p><p className="text-xs text-slate-500">已完成 {overview?.v2_task_completed ?? '—'}</p></Link></section><Link className="flex min-h-14 items-center gap-3 rounded-xl bg-white px-4 font-bold text-slate-800 shadow-sm" to="/app/workbench"><Store className="h-5 w-5 text-brand-700" />所有管理功能已归入工作台<ChevronRight className="ml-auto h-5 w-5 text-slate-400" /></Link><Link className="flex min-h-14 items-center gap-3 rounded-xl bg-white px-4 font-bold text-slate-800 shadow-sm" to="/app/todos"><ClipboardCheck className="h-5 w-5 text-brand-700" />查看需要审核或同意的事项<ChevronRight className="ml-auto h-5 w-5 text-slate-400" /></Link></div></section>;
 }

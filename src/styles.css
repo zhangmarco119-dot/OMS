@@ -26,6 +26,29 @@ input {
   -webkit-tap-highlight-color: transparent;
 }
 
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+select {
+  color: #16212f;
+  background-color: #fff;
+}
+
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="datetime-local"]:focus,
+select:focus {
+  outline: 2px solid #16785a;
+  outline-offset: 1px;
+}
+
+input:disabled,
+select:disabled {
+  color: #475569;
+  background-color: #e2e8f0;
+  opacity: 1;
+}
+
 .safe-bottom {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }

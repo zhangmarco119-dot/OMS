@@ -16,6 +16,7 @@ import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
 import { ArrivalHistoryPage } from './pages/ArrivalHistoryPage';
 import { ArrivalSuccessPage } from './pages/ArrivalSuccessPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
+import { AnnouncementDetailPage } from './pages/AnnouncementDetailPage';
 import { AppMenuPage } from './pages/AppMenuPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
@@ -25,6 +26,7 @@ import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
+import { TodoPage } from './pages/TodoPage';
 import { V2TaskCenterPage } from './pages/V2TaskCenterPage';
 import { V2TaskExecutionPage } from './pages/V2TaskExecutionPage';
 
@@ -60,11 +62,14 @@ export const router = createBrowserRouter([
       { path: 'tasks', element: <V2TaskCenterPage /> },
       { path: 'tasks/:taskId', element: <V2TaskExecutionPage /> },
       { path: 'notices', element: <AnnouncementsPage /> },
+      { path: 'notices/:noticeId', element: <AnnouncementDetailPage /> },
       { path: 'sops', element: <SopLibraryPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'menu', element: <AppMenuPage /> },
+      { path: 'workbench', element: <AppMenuPage /> },
+      { path: 'todos', element: <TodoPage /> },
       {
         path: 'admin',
         element: (

@@ -1,4 +1,4 @@
-import { Bell, ChevronRight, Eye, EyeOff, KeyRound, LogOut, Store, UserRound } from 'lucide-react';
+import { Bell, ChevronRight, Eye, EyeOff, History, KeyRound, LogOut, Settings, Store, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -77,6 +77,14 @@ export function AccountPage() {
         </section>
 
         <section className="overflow-hidden rounded-lg border border-line bg-white shadow-panel">
+          <Link className="flex min-h-14 items-center gap-3 border-b border-line px-4 text-left" to="/app/operations-history">
+            <History className="h-5 w-5 text-slate-500" aria-hidden="true" />
+            <span className="flex-1 font-semibold text-ink">个人历史与运营记录</span><ChevronRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
+          </Link>
+          <div className="flex min-h-14 items-center gap-3 border-b border-line px-4">
+            <Settings className="h-5 w-5 text-slate-500" aria-hidden="true" />
+            <span className="flex-1 font-semibold text-ink">设置</span><span className="text-sm text-slate-500">通知与账号设置</span>
+          </div>
           <button className="flex min-h-14 w-full items-center gap-3 px-4 text-left" onClick={() => { setMessage(null); setView('password'); }} type="button">
             <KeyRound className="h-5 w-5 text-slate-500" aria-hidden="true" />
             <span className="flex-1 font-semibold text-ink">修改密码</span>

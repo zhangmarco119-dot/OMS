@@ -7,10 +7,17 @@ type Client = SupabaseClient<Database>;
 export type NoticeRow = Database['public']['Tables']['v2_notices']['Row'];
 export type SopRow = Database['public']['Tables']['v2_sops']['Row'];
 export type SopAssetRow = Database['public']['Tables']['v2_sop_assets']['Row'];
+export type NoticeAssetRow = Database['public']['Tables']['v2_notice_assets']['Row'];
 
 export interface NoticeListItem extends NoticeRow {
   isRead: boolean;
+  readCount: number;
+  recipientCount: number;
+  recipientIds: string[];
+  recipients: Array<{ acknowledgedAt: string | null; firstReadAt: string | null; profileId: string; role: 'staff' | 'manager'; storeId: string }>;
   storeIds: string[];
+  assetUrls: Array<NoticeAssetRow & { signedUrl: string }>;
+  publisherName: string;
 }
 
 export interface SopListItem extends SopRow {
@@ -24,6 +31,9 @@ export interface NoticeDraft {
   body: string;
   id: string | null;
   isPinned: boolean;
+  recipientIds: string[];
+  requiresAcknowledgment: boolean;
+  expiresAt: string;
   storeIds: string[];
   title: string;
 }
@@ -43,29 +53,47 @@ const throwIfError = (error: { message: string } | null) => {
   if (error) throw new Error(error.message);
 };
 
-export const createEmptyNoticeDraft = (storeIds: string[] = []): NoticeDraft => ({ body: '', id: null, isPinned: false, storeIds, title: '' });
+export const createEmptyNoticeDraft = (storeIds: string[] = []): NoticeDraft => ({ body: '', expiresAt: '', id: null, isPinned: false, recipientIds: [], requiresAcknowledgment: false, storeIds, title: '' });
 export const createEmptySopDraft = (storeIds: string[] = []): SopDraft => ({ body: '', category: '通用', effectiveAt: '', id: null, roles: ['staff', 'manager'], storeIds, taskTemplateId: null, title: '' });
 
 export const loadNotices = async (client: Client): Promise<NoticeListItem[]> => {
-  const [notices, assignments, reads] = await Promise.all([
+  const [notices, assignments, recipients, assets, profiles, userResult] = await Promise.all([
     client.from('v2_notices').select('*').order('is_pinned', { ascending: false }).order('published_at', { ascending: false }).order('updated_at', { ascending: false }),
     client.from('v2_notice_stores').select('*'),
-    client.from('v2_notice_reads').select('*'),
+    client.from('v2_notice_recipients').select('*'),
+    client.from('v2_notice_assets').select('*').order('created_at'),
+    client.from('profiles').select('id,display_name'),
+    client.auth.getUser(),
   ]);
   throwIfError(notices.error);
   throwIfError(assignments.error);
-  throwIfError(reads.error);
+  throwIfError(recipients.error);
+  throwIfError(assets.error);
+  throwIfError(profiles.error);
+  const profileId = userResult.data.user?.id;
   const stores = new Map<string, string[]>();
   (assignments.data ?? []).forEach((item) => stores.set(item.notice_id, [...(stores.get(item.notice_id) ?? []), item.store_id]));
-  const readIds = new Set((reads.data ?? []).map((item) => item.notice_id));
-  return (notices.data ?? []).map((notice) => ({ ...notice, isRead: readIds.has(notice.id), storeIds: stores.get(notice.id) ?? [] }));
+  const byNotice = new Map<string, typeof recipients.data>();
+  (recipients.data ?? []).forEach((item) => byNotice.set(item.notice_id, [...(byNotice.get(item.notice_id) ?? []), item]));
+  const assetMap = new Map<string, NoticeAssetRow[]>();
+  (assets.data ?? []).forEach((item) => assetMap.set(item.notice_id, [...(assetMap.get(item.notice_id) ?? []), item]));
+  return Promise.all((notices.data ?? []).map(async (notice) => {
+    const rows = byNotice.get(notice.id) ?? [];
+    const assetUrls = await Promise.all((assetMap.get(notice.id) ?? []).map(async (asset) => {
+      const signed = await client.storage.from('v2-notice-assets').createSignedUrl(asset.object_path, 3600);
+      throwIfError(signed.error);
+      if (!signed.data) throw new Error('无法生成公告附件访问链接。');
+      return { ...asset, signedUrl: signed.data.signedUrl };
+    }));
+    return { ...notice, assetUrls, isRead: rows.some((item) => item.profile_id === profileId && item.first_read_at !== null), publisherName: (profiles.data ?? []).find((profile) => profile.id === notice.created_by)?.display_name ?? '系统管理员', readCount: rows.filter((item) => item.first_read_at !== null).length, recipientCount: rows.length, recipientIds: rows.map((item) => item.profile_id), recipients: rows.map((item) => ({ acknowledgedAt: item.acknowledged_at, firstReadAt: item.first_read_at, profileId: item.profile_id, role: item.role_snapshot, storeId: item.store_id })), storeIds: stores.get(notice.id) ?? [] };
+  }));
 };
 
 export const saveNotice = async (client: Client, draft: NoticeDraft) => {
   if (!draft.title.trim()) throw new Error('请填写公告标题。');
   if (!draft.storeIds.length) throw new Error('请至少选择一个发布门店。');
   const { data, error } = await client.rpc('save_v2_notice', {
-    p_fields: { body: draft.body, is_pinned: draft.isPinned, title: draft.title.trim() } as Json,
+    p_fields: { body: draft.body, expires_at: draft.expiresAt ? new Date(draft.expiresAt).toISOString() : null, is_pinned: draft.isPinned, recipient_ids: draft.recipientIds, requires_acknowledgment: draft.requiresAcknowledgment, title: draft.title.trim() } as Json,
     p_notice_id: draft.id,
     p_store_ids: draft.storeIds,
   });
@@ -88,6 +116,24 @@ export const retractNotice = async (client: Client, noticeId: string) => {
 export const markNoticeRead = async (client: Client, noticeId: string) => {
   const { error } = await client.rpc('mark_v2_notice_read', { p_notice_id: noticeId });
   throwIfError(error);
+};
+
+export const acknowledgeNotice = async (client: Client, noticeId: string) => {
+  const { error } = await client.rpc('acknowledge_v2_notice', { p_notice_id: noticeId });
+  throwIfError(error);
+};
+
+export const uploadNoticeAsset = async (client: Client, input: { file: File; noticeId: string; profileId: string }) => {
+  const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+  if (!allowed.has(input.file.type)) throw new Error('仅支持 JPG、PNG、WEBP 图片或 PDF 文件。');
+  if (input.file.size <= 0 || input.file.size > 10 * 1024 * 1024) throw new Error('附件大小必须在 10 MB 以内。');
+  const extension = input.file.name.split('.').pop()?.toLowerCase() || 'file';
+  const objectPath = `${input.noticeId}/${createUuid()}.${extension}`;
+  const upload = await client.storage.from('v2-notice-assets').upload(objectPath, input.file, { contentType: input.file.type, upsert: false });
+  throwIfError(upload.error);
+  const { data, error } = await client.from('v2_notice_assets').insert({ file_name: input.file.name, mime_type: input.file.type as NoticeAssetRow['mime_type'], notice_id: input.noticeId, object_path: objectPath, size_bytes: input.file.size, uploaded_by: input.profileId }).select('*').single();
+  if (error) { await client.storage.from('v2-notice-assets').remove([objectPath]); throw new Error(error.message); }
+  return data;
 };
 
 export const loadSops = async (client: Client): Promise<SopListItem[]> => {

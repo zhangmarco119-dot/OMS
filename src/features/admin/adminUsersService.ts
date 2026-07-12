@@ -5,6 +5,7 @@ export type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 export type StoreRow = Database['public']['Tables']['stores']['Row'];
 
 export interface AdminUserRow extends ProfileRow {
+  productPermissions: { can_request_discontinued: boolean; can_request_incorrect: boolean; can_request_new: boolean };
   storeName: string;
   storeIds: string[];
 }
@@ -28,10 +29,11 @@ const requireClient = () => {
 export const loadAdminUsers = async () => {
   const client = requireClient();
 
-  const [{ data: profiles, error: profilesError }, { data: stores, error: storesError }, accessResult] = await Promise.all([
+  const [{ data: profiles, error: profilesError }, { data: stores, error: storesError }, accessResult, permissionsResult] = await Promise.all([
     client.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
     client.from('stores').select('*').order('name', { ascending: true }),
     client.from('profile_store_access').select('*'),
+    client.from('profile_product_permissions').select('*'),
   ]);
 
   if (profilesError) {
@@ -43,14 +45,17 @@ export const loadAdminUsers = async () => {
   if (accessResult.error) {
     throw new Error(accessResult.error.message);
   }
+  if (permissionsResult.error) throw new Error(permissionsResult.error.message);
 
   const storeMap = new Map((stores ?? []).map((store) => [store.id, store.name]));
+  const permissions = new Map((permissionsResult.data ?? []).map((item) => [item.profile_id, item]));
   const storeIdsByProfile = new Map<string, string[]>();
   for (const access of accessResult.data ?? []) {
     storeIdsByProfile.set(access.profile_id, [...(storeIdsByProfile.get(access.profile_id) ?? []), access.store_id]);
   }
   const users: AdminUserRow[] = (profiles ?? []).map((profile) => ({
     ...profile,
+    productPermissions: permissions.get(profile.id) ?? { can_request_discontinued: true, can_request_incorrect: true, can_request_new: true },
     storeIds: storeIdsByProfile.get(profile.id) ?? [profile.store_id],
     storeName: (storeIdsByProfile.get(profile.id) ?? [profile.store_id])
       .map((storeId) => storeMap.get(storeId) ?? '未知门店')
@@ -85,6 +90,17 @@ export const updateProfileAdminFields = async (
   if (accessError) {
     throw new Error(accessError.message);
   }
+};
+
+export const updateProductPermissions = async (profileId: string, values: AdminUserRow['productPermissions']) => {
+  const client = requireClient();
+  const { error } = await client.rpc('admin_set_product_permissions', {
+    p_can_request_discontinued: values.can_request_discontinued,
+    p_can_request_incorrect: values.can_request_incorrect,
+    p_can_request_new: values.can_request_new,
+    p_profile_id: profileId,
+  });
+  if (error) throw new Error(error.message);
 };
 
 const invokeAdminUsers = async (body: Record<string, unknown>) => {

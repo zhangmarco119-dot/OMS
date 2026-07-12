@@ -43,6 +43,9 @@ export const createV2TaskSchedule = async (client: Client, input: { firstDueAt: 
 export const pauseV2TaskSchedule = async (client: Client, scheduleId: string) => {
   const { data, error } = await client.rpc('pause_v2_task_schedule', { p_schedule_id: scheduleId }); fail(error); return data;
 };
+export const resumeV2TaskSchedule = async (client: Client, scheduleId: string) => {
+  const { data, error } = await client.rpc('resume_v2_task_schedule', { p_schedule_id: scheduleId }); fail(error); return data;
+};
 export const loadV2TaskImageUrls = async (client: Client, images: V2TaskImageRow[]) => {
   const results = await Promise.all(images.map(async (image) => {
     const { data, error } = await client.storage.from(image.bucket).createSignedUrl(image.object_path, 60 * 60);

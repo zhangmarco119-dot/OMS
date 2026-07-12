@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { PageShell } from '../components/layout/PageShell';
 import { canManageV1ProductsFromTask } from '../features/access/roleCapabilities';
 import { useAuth } from '../features/auth/AuthContext';
+import { supabase } from '../lib/supabase';
 import { asProductSnapshot, type TaskItemRow } from '../features/tasks/taskCalculations';
 import { useTaskSession } from '../features/tasks/useTaskSession';
 import type { InventoryTemplate } from '../features/tasks/taskService';
@@ -108,6 +109,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const [inventoryImportStatus, setInventoryImportStatus] = useState<'idle' | 'loading' | 'importing' | 'error'>('idle');
   const [inventoryImportMessage, setInventoryImportMessage] = useState<string | null>(null);
   const [extraForm, setExtraForm] = useState({ name: '', spec: '', countUnit: '', productCode: '', quantity: '', note: '' });
+  const [productPermissions, setProductPermissions] = useState({ discontinued: true, incorrect: true, new: true });
   const isManager = canManageV1ProductsFromTask(auth.profile?.role);
   const snapshot = task.currentItem ? asProductSnapshot(task.currentItem.product_snapshot) : null;
   const progressStyle = { width: `${task.stats.percent}%` };
@@ -124,6 +126,15 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
     setShowCorrectionForm(false);
     setShowDeletionConfirm(false);
   }, [task.currentItem?.id]);
+
+  useEffect(() => {
+    const client = supabase;
+    if (isManager || !client) return;
+    void Promise.all(['discontinued', 'incorrect', 'new'].map(async (feedbackType) => {
+      const { data } = await client.rpc('can_request_product_feedback', { p_feedback_type: feedbackType });
+      return [feedbackType, Boolean(data)] as const;
+    })).then((entries) => setProductPermissions({ discontinued: entries.find(([type]) => type === 'discontinued')?.[1] ?? false, incorrect: entries.find(([type]) => type === 'incorrect')?.[1] ?? false, new: entries.find(([type]) => type === 'new')?.[1] ?? false }));
+  }, [isManager]);
 
   const updateQuantity = (delta: number) => {
     const current = task.quantityInput.trim() === '' ? 0 : Number(task.quantityInput);
@@ -506,6 +517,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                       </p>
                     ) : null}
                     <div className="mt-3 grid grid-cols-2 gap-3">
+                      {isManager || productPermissions.discontinued ? (
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
                         disabled={feedbackBusy || deletionActionLocked}
@@ -515,6 +527,8 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                         {isManager ? <Trash2 className="h-4 w-4" aria-hidden="true" /> : <Flag className="h-4 w-4" aria-hidden="true" />}
                         不再使用
                       </button>
+                      ) : null}
+                      {isManager || productPermissions.incorrect ? (
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
                         disabled={feedbackBusy || !task.currentItem?.product_id}
@@ -524,6 +538,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                         {isManager ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Flag className="h-4 w-4" aria-hidden="true" />}
                         信息有误
                       </button>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
@@ -532,7 +547,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   <button className="min-h-16 rounded-xl bg-brand-600 px-5 text-lg font-bold text-white shadow-lg shadow-brand-100 active:scale-[0.99]" onClick={finishTask} type="button">
                     {text.complete}
                   </button>
-                  <button
+                  {isManager || productPermissions.new ? <button
                     className="inline-flex min-h-16 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-800"
                     onClick={() => {
                       setExtraFormMessage(null);
@@ -542,7 +557,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   >
                     <PackagePlus className="h-5 w-5" aria-hidden="true" />
                     新增商品
-                  </button>
+                  </button> : null}
                 </div>
               </section>
 

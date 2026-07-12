@@ -29,6 +29,8 @@ const adminOperationOverviewMigrationPath = join(root, 'supabase', 'migrations',
 const adminOperationOverviewTestPath = join(root, 'supabase', 'tests', '0021_admin_operation_overview.sql');
 const monthlyTaskScheduleMigrationPath = join(root, 'supabase', 'migrations', '0022_v2_monthly_task_schedules.sql');
 const monthlyTaskScheduleTestPath = join(root, 'supabase', 'tests', '0022_v2_monthly_task_schedules.sql');
+const navigationPermissionsMigrationPath = join(root, 'supabase', 'migrations', '0026_navigation_notifications_permissions.sql');
+const noticeAssetsMigrationPath = join(root, 'supabase', 'migrations', '0027_notice_assets_expiry_and_notifications.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -61,6 +63,8 @@ const adminOperationOverviewMigration = readFileSync(adminOperationOverviewMigra
 const adminOperationOverviewTest = readFileSync(adminOperationOverviewTestPath, 'utf8');
 const monthlyTaskScheduleMigration = readFileSync(monthlyTaskScheduleMigrationPath, 'utf8');
 const monthlyTaskScheduleTest = readFileSync(monthlyTaskScheduleTestPath, 'utf8');
+const navigationPermissionsMigration = readFileSync(navigationPermissionsMigrationPath, 'utf8');
+const noticeAssetsMigration = readFileSync(noticeAssetsMigrationPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -84,6 +88,7 @@ const requiredTables = [
   'v2_task_template_versions',
   'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews',
   'v2_task_schedules',
+  'profile_product_permissions', 'v2_notice_recipients', 'v2_notice_assets',
 ];
 
 const storeScopedTables = [
@@ -141,6 +146,8 @@ const requiredPolicies = [
   'v2_task_images_insert_allowed', 'v2_task_images_delete_allowed', 'v2_task_reviews_select_allowed',
   'v2_task_storage_select', 'v2_task_storage_insert', 'v2_task_storage_delete',
   'v2_task_schedules_select_allowed',
+  'profile_product_permissions_select_own_or_admin', 'v2_notice_recipients_select_self_or_admin',
+  'v2_notice_assets_select_allowed', 'v2_notice_assets_insert_admin', 'v2_notice_assets_delete_admin',
 ];
 
 const requiredFunctions = [
@@ -179,6 +186,8 @@ const requiredFunctions = [
   'can_read_v2_task', 'can_edit_v2_task', 'publish_v2_tasks', 'save_v2_task_progress', 'submit_v2_task', 'review_v2_task',
   'create_v2_task_schedule', 'dispatch_v2_task_schedules', 'pause_v2_task_schedule',
   'admin_operation_overview',
+  'can_request_product_feedback', 'admin_set_product_permissions', 'resume_v2_task_schedule',
+  'acknowledge_v2_notice',
 ];
 
 const failures = [];
@@ -402,6 +411,23 @@ if (!adminOperationOverviewMigration.includes('function public.admin_operation_o
 if (!monthlyTaskScheduleMigration.includes("schedule_type in ('interval_days', 'weekly', 'monthly')")
   || !monthlyTaskScheduleTest.includes('StoreHub V2 monthly task schedule checks passed')) {
   failures.push('V2 monthly task schedule support is missing');
+}
+
+if (!navigationPermissionsMigration.includes('recipient_ids')
+  || !navigationPermissionsMigration.includes("'notice_published'")) {
+  failures.push('notice audience tracking and notice notifications are missing');
+}
+
+if (!noticeAssetsMigration.includes("'v2-notice-assets'")
+  || !noticeAssetsMigration.includes('expires_at')
+  || !noticeAssetsMigration.includes('acknowledge_v2_notice')) {
+  failures.push('notice asset, expiry, or acknowledgement migration is missing');
+}
+
+if (!noticeAssetsMigration.includes("'sop_published'")
+  || !noticeAssetsMigration.includes("'v2_task_published'")
+  || !noticeAssetsMigration.includes("'v2_task_'||p_action")) {
+  failures.push('SOP and task status notifications are missing');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

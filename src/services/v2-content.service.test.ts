@@ -5,7 +5,7 @@ import { createEmptyNoticeDraft, createEmptySopDraft } from './v2-content.servic
 describe('v2 content drafts', () => {
   it('starts an announcement as an unpinned draft for selected stores', () => {
     expect(createEmptyNoticeDraft(['store-1'])).toEqual({
-      body: '', id: null, isPinned: false, storeIds: ['store-1'], title: '',
+      body: '', expiresAt: '', id: null, isPinned: false, recipientIds: [], requiresAcknowledgment: false, storeIds: ['store-1'], title: '',
     });
   });
 

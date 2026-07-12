@@ -54,8 +54,8 @@ export interface SaveArrivalDraftInput {
 
 const localDate = () => {
   const now = new Date();
-  const offset = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
 const localTime = () => new Intl.DateTimeFormat('en-GB', {

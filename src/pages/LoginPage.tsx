@@ -7,6 +7,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import { loginSchema, type LoginFormValues } from '../features/auth/loginSchema';
 import { hasSupabaseConfig } from '../lib/env';
+import { systemVersion } from '../config/version';
 
 export function LoginPage() {
   const auth = useAuth();
@@ -41,14 +42,14 @@ export function LoginPage() {
       await auth.signIn(values.identifier, values.password);
       navigate(from, { replace: true });
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : '登录失败');
+      setSubmitError(error instanceof Error ? error.message : '账号或密码错误，请检查后重新输入。');
     }
   };
 
   const isDisabled = !hasSupabaseConfig || isSubmitting || auth.status === 'loading';
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-brand-500 to-brand-700 px-6 py-8">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-brand-500 to-brand-700 px-6 py-8">
       <form className="w-full max-w-md rounded-2xl bg-white p-8 text-slate-800 shadow-2xl" onSubmit={handleSubmit(onSubmit)}>
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 rounded-full bg-brand-100 p-3">
@@ -56,7 +57,6 @@ export function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold">门店运营系统</h1>
           <p className="mt-2 text-sm text-slate-500">请登录以继续</p>
-          <p className="mt-1 text-xs font-medium text-slate-400">系统版本 V2.0.0</p>
         </div>
 
         <div className="space-y-6">
@@ -64,10 +64,6 @@ export function LoginPage() {
             <div className="rounded-md border border-accent-500 bg-accent-50 p-3 text-sm leading-6 text-accent-700">
               当前缺少 Supabase 环境变量。复制 `.env.example` 为 `.env.local` 并填写公开 anon 配置后，登录会连接真实认证服务。
             </div>
-          ) : null}
-
-          {auth.error && auth.status !== 'config-missing' ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-700">{auth.error}</div>
           ) : null}
 
           {submitError ? (
@@ -133,6 +129,7 @@ export function LoginPage() {
           </button>
         </div>
       </form>
+      <p className="mt-5 text-xs text-white/65">{systemVersion}</p>
     </main>
   );
 }

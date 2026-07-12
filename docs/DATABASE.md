@@ -8,6 +8,12 @@ V2 阶段 2 新增 `arrival_reports`、`arrival_report_items`、`arrival_report_
 
 完整的表、索引、RPC、RLS、私有 Storage 和回滚说明见 `docs/V2_PHASE_2_DATABASE.md`。
 
+## StoreHub V2 任务模板
+
+阶段 5 使用 `v2_task_templates`、适用门店、分组、项目和版本五张独立表，不修改 V1 `tasks` 与 `task_items`。管理员通过安全定义者 RPC 保存、发布和归档；员工和店长只能读取当前门店已发布模板。发布版本保存完整 JSON 快照，供阶段 6 的任务实例固定引用。
+
+对应 migration 为 `0013_v2_task_templates.sql`、`0014_v2_task_template_privileges.sql` 和 `0015_v2_task_template_archive_audit.sql`，完整说明见 `docs/V2_PHASE_5_TASK_TEMPLATES.md`。
+
 ## 多门店账号
 
 - `profile_store_access` 保存账号可以访问的全部门店。

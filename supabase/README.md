@@ -1,6 +1,6 @@
-# Supabase 阶段 2 说明
+# Supabase 数据库说明
 
-本目录包含阶段 2 的数据库交付物：
+本目录包含 V1 基线以及 StoreHub V2 各阶段数据库交付物：
 
 - `migrations/0001_initial_schema.sql`：表结构、约束、索引、触发器、RLS helper function、RLS policy。
 - `seed.sql`：两家门店和少量脱敏商品测试数据。
@@ -13,6 +13,11 @@
 - `migrations/0012_arrival_report_returning_rls.sql`：修复创建草稿时 `INSERT ... RETURNING` 的行级读取策略。
 - `rollbacks/0012_arrival_report_returning_rls.sql`：恢复原到货主表读取策略。
 - `tests/0012_arrival_report_returning_rls.sql`：防止读取策略再次通过主表自查询判断新行。
+- `migrations/0013_v2_task_templates.sql`：阶段 5 模板、适用门店、分组、项目、不可变版本、RLS 和 RPC。
+- `migrations/0014_v2_task_template_privileges.sql`：显式撤销模板表直写权限，强制写操作经过 RPC。
+- `migrations/0015_v2_task_template_archive_audit.sql`：为模板归档补充逐门店审计日志。
+- `rollbacks/0013_v2_task_templates.sql` 至 `0015_v2_task_template_archive_audit.sql`：阶段 5 逆序回滚。
+- `tests/0013_v2_task_templates.sql`：模板 schema、RLS、RPC 和权限 smoke test。
 
 ## 本地/远程执行顺序
 
@@ -24,11 +29,14 @@
 6. 管理员账号如需管理门店，在 `public.admin_store_access` 添加授权行。
 7. 用不同用户 token 验证 RLS 越权访问失败。
 
-V2 到货模块在已有 `0001–0009` 的项目上按顺序执行：
+V2 增量在已有 `0001–0009` 的项目上按顺序执行：
 
 1. `0010_arrival_reports.sql`；
 2. `0011_save_arrival_draft.sql`；
-3. `0012_arrival_report_returning_rls.sql`。
+3. `0012_arrival_report_returning_rls.sql`；
+4. `0013_v2_task_templates.sql`；
+5. `0014_v2_task_template_privileges.sql`；
+6. `0015_v2_task_template_archive_audit.sql`。
 
 ## Bootstrap 管理员
 

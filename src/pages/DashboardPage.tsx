@@ -1,4 +1,4 @@
-import { Bell, CheckCheck, ClipboardList, History, LogOut, PackageCheck, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
+import { Bell, CheckCheck, ClipboardList, History, LayoutTemplate, ListTodo, LogOut, PackageCheck, PackagePlus, Settings, Store, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -33,6 +33,14 @@ const arrivalAction = {
   description: '拍摄面单和货品，登记本次到货',
   icon: PackageCheck,
   className: 'from-[#7b5a35] to-[#50381f]',
+};
+
+const taskCenterAction = {
+  to: '/app/tasks',
+  label: '任务中心',
+  description: '查看周清、月清和巡店任务',
+  icon: ListTodo,
+  className: 'from-[#6b4f8a] to-[#46325f]',
 };
 
 const taskTypeLabel: Record<TaskType, string> = {
@@ -71,9 +79,11 @@ function StaffDashboard() {
   const auth = useAuth();
   const [switchingStore, setSwitchingStore] = useState(false);
   const [storeMessage, setStoreMessage] = useState<string | null>(null);
-  const dashboardActions = featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role)
-    ? [...actions, arrivalAction]
-    : actions;
+  const dashboardActions = [
+    ...actions,
+    ...(featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role) ? [arrivalAction] : []),
+    ...(featureFlags.taskTemplates && canOperateV2Modules(auth.profile?.role) ? [taskCenterAction] : []),
+  ];
 
   const handleSignOut = () => {
     void auth.signOut();
@@ -129,7 +139,7 @@ function StaffDashboard() {
           ))}
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-4">
           <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/history">
             <History className="h-5 w-5 text-slate-500" aria-hidden="true" />
             我的记录
@@ -249,6 +259,10 @@ function AdminDashboard() {
             <Settings className="h-5 w-5 text-slate-500" aria-hidden="true" />
             商品与账号后台
           </Link>
+          {featureFlags.taskTemplates ? <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/task-templates">
+            <LayoutTemplate className="h-5 w-5 text-slate-500" aria-hidden="true" />
+            任务模板
+          </Link> : null}
           <button className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99] disabled:text-slate-300" disabled={messages.length === 0} onClick={() => void markAllSeen()} type="button">
             <CheckCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />
             点货/订货全部已读

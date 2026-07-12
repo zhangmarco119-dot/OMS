@@ -7,6 +7,7 @@ import { AdminPage } from './pages/AdminPage';
 import { AdminArrivalDetailPage } from './pages/AdminArrivalDetailPage';
 import { AdminArrivalsPage } from './pages/AdminArrivalsPage';
 import { AdminArrivalSummaryPage } from './pages/AdminArrivalSummaryPage';
+import { AdminTaskTemplatesPage } from './pages/AdminTaskTemplatesPage';
 import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
 import { ArrivalHistoryPage } from './pages/ArrivalHistoryPage';
 import { ArrivalSuccessPage } from './pages/ArrivalSuccessPage';
@@ -16,6 +17,7 @@ import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
+import { V2TaskCenterPage } from './pages/V2TaskCenterPage';
 
 export const router = createBrowserRouter([
   {
@@ -46,6 +48,7 @@ export const router = createBrowserRouter([
       { path: 'arrivals', element: <ArrivalEntryPage /> },
       { path: 'arrivals/history', element: <ArrivalHistoryPage /> },
       { path: 'arrivals/:reportId/success', element: <ArrivalSuccessPage /> },
+      { path: 'tasks', element: <V2TaskCenterPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'account', element: <AccountPage /> },
       {
@@ -67,6 +70,10 @@ export const router = createBrowserRouter([
       {
         path: 'admin/arrivals/:reportId',
         element: <ProtectedRoute requireAdmin><AdminArrivalDetailPage /></ProtectedRoute>,
+      },
+      {
+        path: 'admin/task-templates',
+        element: <ProtectedRoute requireAdmin><AdminTaskTemplatesPage /></ProtectedRoute>,
       },
     ],
   },

@@ -1,0 +1,133 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+import {
+  validateTaskTemplateDraft,
+  type TaskTemplateDraft,
+  type TaskTemplateGroupDraft,
+} from '../features/task-templates/templateForm';
+import type { Database, Json } from '../types/database';
+
+type Client = SupabaseClient<Database>;
+export type TaskTemplateRow = Database['public']['Tables']['v2_task_templates']['Row'];
+type TaskTemplateGroupRow = Database['public']['Tables']['v2_task_template_groups']['Row'];
+type TaskTemplateItemRow = Database['public']['Tables']['v2_task_template_items']['Row'];
+
+export interface TaskTemplateListItem extends TaskTemplateRow {
+  storeIds: string[];
+}
+
+const throwIfError = (error: { message: string } | null) => {
+  if (error) throw new Error(error.message);
+};
+
+export const loadTaskTemplates = async (client: Client): Promise<TaskTemplateListItem[]> => {
+  const [templates, stores] = await Promise.all([
+    client.from('v2_task_templates').select('*').order('updated_at', { ascending: false }),
+    client.from('v2_task_template_stores').select('*'),
+  ]);
+  throwIfError(templates.error);
+  throwIfError(stores.error);
+  const storesByTemplate = new Map<string, string[]>();
+  (stores.data ?? []).forEach((assignment) => {
+    storesByTemplate.set(assignment.template_id, [...(storesByTemplate.get(assignment.template_id) ?? []), assignment.store_id]);
+  });
+  return (templates.data ?? []).map((template) => ({ ...template, storeIds: storesByTemplate.get(template.id) ?? [] }));
+};
+
+const groupsToDraft = (groups: TaskTemplateGroupRow[], items: TaskTemplateItemRow[]): TaskTemplateGroupDraft[] =>
+  groups.map((group) => ({
+    description: group.description,
+    id: group.id,
+    items: items.filter((item) => item.group_id === group.id).map((item) => ({
+      fieldType: item.field_type,
+      guidance: item.guidance,
+      id: item.id,
+      imageRequirement: item.image_requirement,
+      isRequired: item.is_required,
+      label: item.label,
+      optionsText: Array.isArray(item.options) ? item.options.filter((entry): entry is string => typeof entry === 'string').join('\n') : '',
+    })),
+    title: group.title,
+  }));
+
+export const loadTaskTemplateDraft = async (client: Client, template: TaskTemplateListItem): Promise<TaskTemplateDraft> => {
+  const [groups, items] = await Promise.all([
+    client.from('v2_task_template_groups').select('*').eq('template_id', template.id).order('sort_order'),
+    client.from('v2_task_template_items').select('*').eq('template_id', template.id).order('sort_order'),
+  ]);
+  throwIfError(groups.error);
+  throwIfError(items.error);
+  return {
+    allowOverdue: template.allow_overdue,
+    category: template.category,
+    description: template.description,
+    dueTime: template.due_time?.slice(0, 5) ?? '',
+    groups: groupsToDraft(groups.data ?? [], items.data ?? []),
+    id: template.id,
+    name: template.name,
+    recurrence: template.recurrence,
+    requiresReview: template.requires_review,
+    storeIds: template.storeIds,
+  };
+};
+
+const serializeGroups = (groups: TaskTemplateGroupDraft[]): Json => groups.map((group, groupIndex) => ({
+  description: group.description,
+  id: group.id,
+  items: group.items.map((item, itemIndex) => ({
+    field_type: item.fieldType,
+    guidance: item.guidance,
+    id: item.id,
+    image_requirement: item.imageRequirement,
+    is_required: item.isRequired,
+    label: item.label,
+    options: item.optionsText.split('\n').map((option) => option.trim()).filter(Boolean),
+    sort_order: itemIndex,
+  })),
+  sort_order: groupIndex,
+  title: group.title,
+}));
+
+export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft) => {
+  const draft = validateTaskTemplateDraft(input);
+  const { data, error } = await client.rpc('save_v2_task_template', {
+    p_fields: {
+      allow_overdue: draft.allowOverdue,
+      category: draft.category,
+      description: draft.description,
+      due_time: draft.dueTime || null,
+      name: draft.name,
+      recurrence: draft.recurrence,
+      requires_review: draft.requiresReview,
+    },
+    p_groups: serializeGroups(draft.groups),
+    p_store_ids: draft.storeIds,
+    p_template_id: draft.id,
+  });
+  throwIfError(error);
+  return data;
+};
+
+export const publishTaskTemplate = async (client: Client, templateId: string) => {
+  const { data, error } = await client.rpc('publish_v2_task_template', { p_template_id: templateId });
+  throwIfError(error);
+  return data;
+};
+
+export const archiveTaskTemplate = async (client: Client, templateId: string) => {
+  const { data, error } = await client.rpc('archive_v2_task_template', { p_template_id: templateId });
+  throwIfError(error);
+  return data;
+};
+
+export const loadPublishedTemplatesForStore = async (client: Client, storeId: string) => {
+  const { data: assignments, error: assignmentError } = await client
+    .from('v2_task_template_stores').select('*').eq('store_id', storeId);
+  throwIfError(assignmentError);
+  const ids = (assignments ?? []).map((entry) => entry.template_id);
+  if (ids.length === 0) return [];
+  const { data, error } = await client
+    .from('v2_task_templates').select('*').in('id', ids).eq('status', 'published').order('updated_at', { ascending: false });
+  throwIfError(error);
+  return data ?? [];
+};

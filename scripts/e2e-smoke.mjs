@@ -58,6 +58,8 @@ const runViewport = async (browser, viewport, label) => {
     '/app/admin/arrivals',
     '/app/admin/arrivals/summary',
     '/app/admin/arrivals/00000000-0000-4000-8000-000000000001',
+    '/app/tasks',
+    '/app/admin/task-templates',
   ]) {
     await page.goto(`${baseUrl}${protectedPath}`, { waitUntil: 'domcontentloaded' });
     await assertText(page, '请登录以继续');

@@ -14,6 +14,11 @@ const arrivalDraftRollbackPath = join(root, 'supabase', 'rollbacks', '0011_save_
 const arrivalReturningMigrationPath = join(root, 'supabase', 'migrations', '0012_arrival_report_returning_rls.sql');
 const arrivalReturningRollbackPath = join(root, 'supabase', 'rollbacks', '0012_arrival_report_returning_rls.sql');
 const arrivalReturningTestPath = join(root, 'supabase', 'tests', '0012_arrival_report_returning_rls.sql');
+const taskTemplateMigrationPath = join(root, 'supabase', 'migrations', '0013_v2_task_templates.sql');
+const taskTemplateRollbackPath = join(root, 'supabase', 'rollbacks', '0013_v2_task_templates.sql');
+const taskTemplateTestPath = join(root, 'supabase', 'tests', '0013_v2_task_templates.sql');
+const taskTemplatePrivilegeMigrationPath = join(root, 'supabase', 'migrations', '0014_v2_task_template_privileges.sql');
+const taskTemplateArchiveAuditMigrationPath = join(root, 'supabase', 'migrations', '0015_v2_task_template_archive_audit.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -31,6 +36,11 @@ const arrivalDraftRollback = readFileSync(arrivalDraftRollbackPath, 'utf8');
 const arrivalReturningMigration = readFileSync(arrivalReturningMigrationPath, 'utf8');
 const arrivalReturningRollback = readFileSync(arrivalReturningRollbackPath, 'utf8');
 const arrivalReturningTest = readFileSync(arrivalReturningTestPath, 'utf8');
+const taskTemplateMigration = readFileSync(taskTemplateMigrationPath, 'utf8');
+const taskTemplateRollback = readFileSync(taskTemplateRollbackPath, 'utf8');
+const taskTemplateTest = readFileSync(taskTemplateTestPath, 'utf8');
+const taskTemplatePrivilegeMigration = readFileSync(taskTemplatePrivilegeMigrationPath, 'utf8');
+const taskTemplateArchiveAuditMigration = readFileSync(taskTemplateArchiveAuditMigrationPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -47,6 +57,11 @@ const requiredTables = [
   'arrival_report_items',
   'arrival_report_images',
   'notifications',
+  'v2_task_templates',
+  'v2_task_template_stores',
+  'v2_task_template_groups',
+  'v2_task_template_items',
+  'v2_task_template_versions',
 ];
 
 const storeScopedTables = [
@@ -93,6 +108,11 @@ const requiredPolicies = [
   'arrival_images_storage_select',
   'arrival_images_storage_insert',
   'arrival_images_storage_delete',
+  'v2_task_templates_select_allowed',
+  'v2_task_template_stores_select_allowed',
+  'v2_task_template_groups_select_allowed',
+  'v2_task_template_items_select_allowed',
+  'v2_task_template_versions_select_allowed',
 ];
 
 const requiredFunctions = [
@@ -123,6 +143,11 @@ const requiredFunctions = [
   'void_arrival_report',
   'can_read_arrival_image_object',
   'can_write_arrival_image_object',
+  'can_manage_v2_task_template',
+  'can_view_v2_task_template',
+  'save_v2_task_template',
+  'publish_v2_task_template',
+  'archive_v2_task_template',
 ];
 
 const failures = [];
@@ -277,6 +302,35 @@ if (!arrivalReturningTest.includes('StoreHub V2 arrival INSERT RETURNING RLS che
 
 if (!arrivalReturningRollback.includes('using (public.can_read_arrival_report(id))')) {
   failures.push('arrival INSERT RETURNING RLS rollback is missing');
+}
+
+if (!taskTemplateMigration.includes('v2_task_template_versions')
+  || !taskTemplateMigration.includes("'version', v_next_version")
+  || !taskTemplateMigration.includes("set status = 'published', current_version = v_next_version")) {
+  failures.push('V2 task templates require immutable published versions');
+}
+
+if (!taskTemplateMigration.includes('security definer\nset search_path = public')
+  || !taskTemplateMigration.includes('administrator store access required')) {
+  failures.push('V2 task template RPC must enforce hardened administrator store access');
+}
+
+if (!taskTemplateTest.includes('StoreHub V2 task template schema checks passed')) {
+  failures.push('V2 task template database smoke test is missing');
+}
+
+if (!taskTemplateRollback.includes('drop table if exists public.v2_task_templates')) {
+  failures.push('V2 task template rollback is missing');
+}
+
+for (const table of ['v2_task_templates', 'v2_task_template_stores', 'v2_task_template_groups', 'v2_task_template_items', 'v2_task_template_versions']) {
+  if (!taskTemplatePrivilegeMigration.includes(`revoke insert, update, delete on public.${table} from authenticated`)) {
+    failures.push(`V2 task template table ${table} must block direct writes`);
+  }
+}
+
+if (!taskTemplateArchiveAuditMigration.includes("'v2_task_template_archived'")) {
+  failures.push('V2 task template archive must write an audit log');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

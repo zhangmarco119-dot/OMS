@@ -517,6 +517,66 @@ export type Database = {
         };
         Relationships: [];
       };
+      v2_task_template_groups: {
+        Row: { description: string; id: string; sort_order: number; template_id: string; title: string };
+        Insert: { description?: string; id?: string; sort_order?: number; template_id: string; title: string };
+        Update: { description?: string; id?: string; sort_order?: number; template_id?: string; title?: string };
+        Relationships: [];
+      };
+      v2_task_template_items: {
+        Row: {
+          field_type: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
+          group_id: string; guidance: string; id: string;
+          image_requirement: 'none' | 'single' | 'multiple'; is_required: boolean;
+          label: string; options: Json; sort_order: number; template_id: string;
+        };
+        Insert: {
+          field_type: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
+          group_id: string; guidance?: string; id?: string;
+          image_requirement?: 'none' | 'single' | 'multiple'; is_required?: boolean;
+          label: string; options?: Json; sort_order?: number; template_id: string;
+        };
+        Update: {
+          field_type?: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
+          group_id?: string; guidance?: string; id?: string;
+          image_requirement?: 'none' | 'single' | 'multiple'; is_required?: boolean;
+          label?: string; options?: Json; sort_order?: number; template_id?: string;
+        };
+        Relationships: [];
+      };
+      v2_task_template_stores: {
+        Row: { created_at: string; store_id: string; template_id: string };
+        Insert: { created_at?: string; store_id: string; template_id: string };
+        Update: { created_at?: string; store_id?: string; template_id?: string };
+        Relationships: [];
+      };
+      v2_task_template_versions: {
+        Row: { id: string; published_at: string; published_by: string; snapshot: Json; template_id: string; version_number: number };
+        Insert: { id?: string; published_at?: string; published_by: string; snapshot: Json; template_id: string; version_number: number };
+        Update: { id?: string; published_at?: string; published_by?: string; snapshot?: Json; template_id?: string; version_number?: number };
+        Relationships: [];
+      };
+      v2_task_templates: {
+        Row: {
+          allow_overdue: boolean; category: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          created_at: string; created_by: string; current_version: number; description: string;
+          due_time: string | null; id: string; name: string; recurrence: 'none' | 'weekly' | 'monthly';
+          requires_review: boolean; status: 'draft' | 'published' | 'archived'; updated_at: string;
+        };
+        Insert: {
+          allow_overdue?: boolean; category: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          created_at?: string; created_by: string; current_version?: number; description?: string;
+          due_time?: string | null; id?: string; name: string; recurrence?: 'none' | 'weekly' | 'monthly';
+          requires_review?: boolean; status?: 'draft' | 'published' | 'archived'; updated_at?: string;
+        };
+        Update: {
+          allow_overdue?: boolean; category?: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          created_at?: string; created_by?: string; current_version?: number; description?: string;
+          due_time?: string | null; id?: string; name?: string; recurrence?: 'none' | 'weekly' | 'monthly';
+          requires_review?: boolean; status?: 'draft' | 'published' | 'archived'; updated_at?: string;
+        };
+        Relationships: [];
+      };
       tasks: {
         Row: {
           created_at: string;
@@ -594,6 +654,26 @@ export type Database = {
       };
     };
     Functions: {
+      archive_v2_task_template: {
+        Args: { p_template_id: string };
+        Returns: Json;
+      };
+      can_manage_v2_task_template: {
+        Args: { target_template_id: string };
+        Returns: boolean;
+      };
+      can_view_v2_task_template: {
+        Args: { target_template_id: string };
+        Returns: boolean;
+      };
+      publish_v2_task_template: {
+        Args: { p_template_id: string };
+        Returns: Json;
+      };
+      save_v2_task_template: {
+        Args: { p_fields: Json; p_groups: Json; p_store_ids: string[]; p_template_id: string | null };
+        Returns: Json;
+      };
       can_edit_arrival_report: {
         Args: { target_report_id: string };
         Returns: boolean;

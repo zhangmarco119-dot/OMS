@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { PageShell } from '../components/layout/PageShell';
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
-import { TaskImagePreview } from './V2TaskExecutionPage';
+import { TaskImagePreview } from '../features/v2-tasks/TaskImagePreview';
 import { asTaskItemSnapshot, loadV2TaskDetail, loadV2TaskImageUrls, reviewV2Task, type V2TaskDetail } from '../services/v2-tasks.service';
 
 export function AdminV2TaskReviewPage() {

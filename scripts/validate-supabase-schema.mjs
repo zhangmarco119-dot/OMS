@@ -23,6 +23,8 @@ const taskExecutionTestPath = join(root, 'supabase', 'tests', '0016_v2_task_exec
 const taskVisibilityScheduleMigrationPath = join(root, 'supabase', 'migrations', '0018_v2_task_visibility_schedule_and_images.sql');
 const taskVisibilityScheduleTestPath = join(root, 'supabase', 'tests', '0018_v2_task_visibility_schedule_and_images.sql');
 const taskSchedulePrivilegeMigrationPath = join(root, 'supabase', 'migrations', '0019_v2_task_schedule_helper_privileges.sql');
+const recurringTaskScheduleMigrationPath = join(root, 'supabase', 'migrations', '0020_v2_recurring_task_schedules.sql');
+const recurringTaskScheduleTestPath = join(root, 'supabase', 'tests', '0020_v2_recurring_task_schedules.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -49,6 +51,8 @@ const taskExecutionTest = readFileSync(taskExecutionTestPath, 'utf8');
 const taskVisibilityScheduleMigration = readFileSync(taskVisibilityScheduleMigrationPath, 'utf8');
 const taskVisibilityScheduleTest = readFileSync(taskVisibilityScheduleTestPath, 'utf8');
 const taskSchedulePrivilegeMigration = readFileSync(taskSchedulePrivilegeMigrationPath, 'utf8');
+const recurringTaskScheduleMigration = readFileSync(recurringTaskScheduleMigrationPath, 'utf8');
+const recurringTaskScheduleTest = readFileSync(recurringTaskScheduleTestPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -71,6 +75,7 @@ const requiredTables = [
   'v2_task_template_items',
   'v2_task_template_versions',
   'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews',
+  'v2_task_schedules',
 ];
 
 const storeScopedTables = [
@@ -127,6 +132,7 @@ const requiredPolicies = [
   'v2_tasks_select_allowed', 'v2_task_answers_select_allowed', 'v2_task_images_select_allowed',
   'v2_task_images_insert_allowed', 'v2_task_images_delete_allowed', 'v2_task_reviews_select_allowed',
   'v2_task_storage_select', 'v2_task_storage_insert', 'v2_task_storage_delete',
+  'v2_task_schedules_select_allowed',
 ];
 
 const requiredFunctions = [
@@ -163,6 +169,7 @@ const requiredFunctions = [
   'publish_v2_task_template',
   'archive_v2_task_template',
   'can_read_v2_task', 'can_edit_v2_task', 'publish_v2_tasks', 'save_v2_task_progress', 'submit_v2_task', 'review_v2_task',
+  'create_v2_task_schedule', 'dispatch_v2_task_schedules', 'pause_v2_task_schedule',
 ];
 
 const failures = [];
@@ -367,6 +374,15 @@ if (!taskVisibilityScheduleTest.includes('StoreHub V2 task visibility and schedu
 
 if (!taskSchedulePrivilegeMigration.includes('revoke all on function public.next_v2_task_template_due(uuid) from authenticated')) {
   failures.push('V2 schedule helper must not be directly callable by authenticated users');
+}
+
+if (!recurringTaskScheduleMigration.includes('create extension if not exists pg_cron')
+  || !recurringTaskScheduleMigration.includes("storehub-v2-task-schedule-dispatch")) {
+  failures.push('V2 recurring task dispatcher migration is missing');
+}
+
+if (!recurringTaskScheduleTest.includes('StoreHub V2 recurring task schedule checks passed')) {
+  failures.push('V2 recurring task schedule SQL smoke test is missing');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

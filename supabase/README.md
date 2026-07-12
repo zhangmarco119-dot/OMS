@@ -23,6 +23,7 @@
 - `migrations/0017_v2_task_submission_validation.sql`：按字段类型和图片元数据执行必填校验。
 - `migrations/0018_v2_task_visibility_schedule_and_images.sql`：模板管理员可见性、周期截止日和下一次截止时间计算。
 - `migrations/0019_v2_task_schedule_helper_privileges.sql`：禁止前端直接调用周期截止时间计算辅助函数。
+- `migrations/0020_v2_recurring_task_schedules.sql`：每 N 天 / 每周指定日期的周期任务计划、自动推送定时调度和暂停机制。
 
 ## 本地/远程执行顺序
 

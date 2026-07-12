@@ -9,6 +9,7 @@ export type V2TaskRow = Database['public']['Tables']['v2_tasks']['Row'];
 export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['Row'];
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
 export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
+export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
 export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
 
@@ -32,6 +33,15 @@ export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<
 };
 export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string | null) => {
   const { data, error } = await client.rpc('publish_v2_tasks', { p_due_at: dueAt, p_store_ids: storeIds, p_template_id: templateId }); fail(error); return data ?? [];
+};
+export const loadV2TaskSchedules = async (client: Client) => {
+  const { data, error } = await client.from('v2_task_schedules').select('*').order('next_due_at'); fail(error); return data ?? [];
+};
+export const createV2TaskSchedule = async (client: Client, input: { firstDueAt: string; intervalDays: number | null; scheduleType: 'interval_days' | 'weekly'; storeIds: string[]; templateId: string; weekdays: number[] }) => {
+  const { data, error } = await client.rpc('create_v2_task_schedule', { p_first_due_at: input.firstDueAt, p_interval_days: input.intervalDays, p_schedule_type: input.scheduleType, p_store_ids: input.storeIds, p_template_id: input.templateId, p_weekdays: input.weekdays }); fail(error); return data ?? [];
+};
+export const pauseV2TaskSchedule = async (client: Client, scheduleId: string) => {
+  const { data, error } = await client.rpc('pause_v2_task_schedule', { p_schedule_id: scheduleId }); fail(error); return data;
 };
 export const loadV2TaskImageUrls = async (client: Client, images: V2TaskImageRow[]) => {
   const results = await Promise.all(images.map(async (image) => {

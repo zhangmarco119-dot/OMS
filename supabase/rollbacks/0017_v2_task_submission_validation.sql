@@ -1,0 +1,2 @@
+-- Roll back stage 6 as a unit with 0016_v2_task_execution.sql.
+-- This file intentionally has no standalone downgrade because 0017 replaces validation inside the 0016 RPC.

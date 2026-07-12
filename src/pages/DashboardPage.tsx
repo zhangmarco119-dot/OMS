@@ -259,9 +259,9 @@ function AdminDashboard() {
             <Settings className="h-5 w-5 text-slate-500" aria-hidden="true" />
             商品与账号后台
           </Link>
-          {featureFlags.taskTemplates ? <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/task-templates">
+          {featureFlags.taskTemplates ? <Link className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99]" to="/app/admin/tasks">
             <LayoutTemplate className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            任务模板
+            任务管理
           </Link> : null}
           <button className="flex min-h-14 items-center gap-3 rounded-lg bg-white px-4 font-semibold text-slate-800 shadow-sm active:scale-[0.99] disabled:text-slate-300" disabled={messages.length === 0} onClick={() => void markAllSeen()} type="button">
             <CheckCheck className="h-5 w-5 text-slate-500" aria-hidden="true" />

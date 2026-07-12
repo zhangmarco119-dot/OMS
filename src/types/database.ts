@@ -517,6 +517,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      v2_task_answers: {
+        Row: { answer: Json | null; group_id: string; id: string; is_issue: boolean; item_id: string; item_snapshot: Json; note: string; task_id: string; updated_at: string; updated_by: string | null };
+        Insert: { answer?: Json | null; group_id: string; id?: string; is_issue?: boolean; item_id: string; item_snapshot: Json; note?: string; task_id: string; updated_at?: string; updated_by?: string | null };
+        Update: { answer?: Json | null; group_id?: string; id?: string; is_issue?: boolean; item_id?: string; item_snapshot?: Json; note?: string; task_id?: string; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
+      v2_task_images: {
+        Row: { bucket: string; created_at: string; file_name: string; id: string; item_id: string; mime_type: string; object_path: string; size_bytes: number; store_id: string; task_id: string; uploaded_by: string };
+        Insert: { bucket?: string; created_at?: string; file_name: string; id?: string; item_id: string; mime_type: string; object_path: string; size_bytes: number; store_id: string; task_id: string; uploaded_by: string };
+        Update: { bucket?: string; created_at?: string; file_name?: string; id?: string; item_id?: string; mime_type?: string; object_path?: string; size_bytes?: number; store_id?: string; task_id?: string; uploaded_by?: string };
+        Relationships: [];
+      };
+      v2_task_reviews: {
+        Row: { action: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id: string; correction_item_ids: string[]; created_at: string; id: string; note: string; task_id: string };
+        Insert: { action: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id: string; correction_item_ids?: string[]; created_at?: string; id?: string; note?: string; task_id: string };
+        Update: { action?: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id?: string; correction_item_ids?: string[]; created_at?: string; id?: string; note?: string; task_id?: string };
+        Relationships: [];
+      };
+      v2_tasks: {
+        Row: { allow_overdue: boolean; category: string; correction_item_ids: string[]; created_at: string; created_by: string; due_at: string; id: string; name: string; requires_review: boolean; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; snapshot: Json; started_at: string | null; started_by: string | null; status: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key: string | null; submitted_at: string | null; submitted_by: string | null; task_no: string; template_id: string; template_version_id: string; updated_at: string; version: number };
+        Insert: { allow_overdue?: boolean; category: string; correction_item_ids?: string[]; created_at?: string; created_by: string; due_at: string; id?: string; name: string; requires_review?: boolean; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; snapshot: Json; started_at?: string | null; started_by?: string | null; status?: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key?: string | null; submitted_at?: string | null; submitted_by?: string | null; task_no?: string; template_id: string; template_version_id: string; updated_at?: string; version?: number };
+        Update: Partial<Database['public']['Tables']['v2_tasks']['Insert']>;
+        Relationships: [];
+      };
       v2_task_template_groups: {
         Row: { description: string; id: string; sort_order: number; template_id: string; title: string };
         Insert: { description?: string; id?: string; sort_order?: number; template_id: string; title: string };
@@ -654,6 +678,12 @@ export type Database = {
       };
     };
     Functions: {
+      can_edit_v2_task: { Args: { p_task_id: string }; Returns: boolean };
+      can_read_v2_task: { Args: { p_task_id: string }; Returns: boolean };
+      publish_v2_tasks: { Args: { p_due_at: string; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
+      save_v2_task_progress: { Args: { p_answers: Json; p_expected_version: number; p_task_id: string }; Returns: Json };
+      submit_v2_task: { Args: { p_expected_version: number; p_key: string; p_task_id: string }; Returns: Json };
       archive_v2_task_template: {
         Args: { p_template_id: string };
         Returns: Json;

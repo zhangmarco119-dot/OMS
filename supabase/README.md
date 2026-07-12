@@ -18,6 +18,9 @@
 - `migrations/0015_v2_task_template_archive_audit.sql`：为模板归档补充逐门店审计日志。
 - `rollbacks/0013_v2_task_templates.sql` 至 `0015_v2_task_template_archive_audit.sql`：阶段 5 逆序回滚。
 - `tests/0013_v2_task_templates.sql`：模板 schema、RLS、RPC 和权限 smoke test。
+- `migrations/0016_v2_task_execution.sql`：任务实例、答案、私有图片、审核状态机及执行/审核 RPC。
+- `rollbacks/0016_v2_task_execution.sql`、`tests/0016_v2_task_execution.sql`：阶段 6 回滚与 smoke test。
+- `migrations/0017_v2_task_submission_validation.sql`：按字段类型和图片元数据执行必填校验。
 
 ## 本地/远程执行顺序
 
@@ -37,6 +40,8 @@ V2 增量在已有 `0001–0009` 的项目上按顺序执行：
 4. `0013_v2_task_templates.sql`；
 5. `0014_v2_task_template_privileges.sql`；
 6. `0015_v2_task_template_archive_audit.sql`。
+7. `0016_v2_task_execution.sql`。
+8. `0017_v2_task_submission_validation.sql`。
 
 ## Bootstrap 管理员
 

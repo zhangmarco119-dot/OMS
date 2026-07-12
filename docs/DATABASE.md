@@ -14,6 +14,8 @@ V2 阶段 2 新增 `arrival_reports`、`arrival_report_items`、`arrival_report_
 
 对应 migration 为 `0013_v2_task_templates.sql`、`0014_v2_task_template_privileges.sql` 和 `0015_v2_task_template_archive_audit.sql`，完整说明见 `docs/V2_PHASE_5_TASK_TEMPLATES.md`。
 
+阶段 6 的 `0016_v2_task_execution.sql` 新增任务实例、答案、图片元数据和审核记录，并使用模板版本 JSON 快照创建任务。核心状态写入只通过发布、保存、提交和审核 RPC，图片存放于私有 `v2-task-images` bucket。
+
 ## 多门店账号
 
 - `profile_store_access` 保存账号可以访问的全部门店。

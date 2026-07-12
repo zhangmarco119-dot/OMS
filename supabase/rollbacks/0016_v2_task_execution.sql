@@ -1,0 +1,4 @@
+drop policy if exists v2_task_storage_delete on storage.objects; drop policy if exists v2_task_storage_insert on storage.objects; drop policy if exists v2_task_storage_select on storage.objects;
+delete from storage.buckets where id='v2-task-images' and not exists(select 1 from storage.objects where bucket_id='v2-task-images');
+drop function if exists public.review_v2_task(uuid,text,text,uuid[]); drop function if exists public.submit_v2_task(uuid,integer,text); drop function if exists public.save_v2_task_progress(uuid,integer,jsonb); drop function if exists public.publish_v2_tasks(uuid,uuid[],timestamptz); drop function if exists public.can_edit_v2_task(uuid); drop function if exists public.can_read_v2_task(uuid);
+drop table if exists public.v2_task_reviews; drop table if exists public.v2_task_images; drop table if exists public.v2_task_answers; drop table if exists public.v2_tasks; drop sequence if exists public.v2_task_number_seq;

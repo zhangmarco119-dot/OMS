@@ -19,6 +19,7 @@ const taskTemplateRollbackPath = join(root, 'supabase', 'rollbacks', '0013_v2_ta
 const taskTemplateTestPath = join(root, 'supabase', 'tests', '0013_v2_task_templates.sql');
 const taskTemplatePrivilegeMigrationPath = join(root, 'supabase', 'migrations', '0014_v2_task_template_privileges.sql');
 const taskTemplateArchiveAuditMigrationPath = join(root, 'supabase', 'migrations', '0015_v2_task_template_archive_audit.sql');
+const taskExecutionTestPath = join(root, 'supabase', 'tests', '0016_v2_task_execution.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -41,6 +42,7 @@ const taskTemplateRollback = readFileSync(taskTemplateRollbackPath, 'utf8');
 const taskTemplateTest = readFileSync(taskTemplateTestPath, 'utf8');
 const taskTemplatePrivilegeMigration = readFileSync(taskTemplatePrivilegeMigrationPath, 'utf8');
 const taskTemplateArchiveAuditMigration = readFileSync(taskTemplateArchiveAuditMigrationPath, 'utf8');
+const taskExecutionTest = readFileSync(taskExecutionTestPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -62,6 +64,7 @@ const requiredTables = [
   'v2_task_template_groups',
   'v2_task_template_items',
   'v2_task_template_versions',
+  'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews',
 ];
 
 const storeScopedTables = [
@@ -73,6 +76,8 @@ const storeScopedTables = [
   'audit_logs',
   'arrival_reports',
   'arrival_report_images',
+  'v2_tasks',
+  'v2_task_images',
 ];
 
 const requiredPolicies = [
@@ -113,6 +118,9 @@ const requiredPolicies = [
   'v2_task_template_groups_select_allowed',
   'v2_task_template_items_select_allowed',
   'v2_task_template_versions_select_allowed',
+  'v2_tasks_select_allowed', 'v2_task_answers_select_allowed', 'v2_task_images_select_allowed',
+  'v2_task_images_insert_allowed', 'v2_task_images_delete_allowed', 'v2_task_reviews_select_allowed',
+  'v2_task_storage_select', 'v2_task_storage_insert', 'v2_task_storage_delete',
 ];
 
 const requiredFunctions = [
@@ -148,6 +156,7 @@ const requiredFunctions = [
   'save_v2_task_template',
   'publish_v2_task_template',
   'archive_v2_task_template',
+  'can_read_v2_task', 'can_edit_v2_task', 'publish_v2_tasks', 'save_v2_task_progress', 'submit_v2_task', 'review_v2_task',
 ];
 
 const failures = [];
@@ -331,6 +340,10 @@ for (const table of ['v2_task_templates', 'v2_task_template_stores', 'v2_task_te
 
 if (!taskTemplateArchiveAuditMigration.includes("'v2_task_template_archived'")) {
   failures.push('V2 task template archive must write an audit log');
+}
+
+if (!taskExecutionTest.includes('StoreHub V2 task execution schema checks passed')) {
+  failures.push('V2 task execution database smoke test is missing');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

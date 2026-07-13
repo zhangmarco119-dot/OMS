@@ -125,11 +125,22 @@ export function AdminTaskTemplatesPage() {
       if (!savedDraft.id) {
         const saved = await saveTaskTemplate(supabase, savedDraft);
         savedDraft = { ...savedDraft, id: saved.id };
+        setDraft(savedDraft);
+        await refresh();
       }
-      const uploaded = await uploadTaskTemplateReferenceImage(supabase, savedDraft.id!, itemId, file);
-      const uploadedDraft = {
+      const localPreviewUrl = URL.createObjectURL(file);
+      const previewDraft = {
         ...savedDraft,
         groups: savedDraft.groups.map((group) => ({
+          ...group,
+          items: group.items.map((item) => item.id === itemId ? { ...item, referenceImageUrl: localPreviewUrl } : item),
+        })),
+      };
+      setDraft(previewDraft);
+      const uploaded = await uploadTaskTemplateReferenceImage(supabase, savedDraft.id!, itemId, file);
+      const uploadedDraft = {
+        ...previewDraft,
+        groups: previewDraft.groups.map((group) => ({
           ...group,
           items: group.items.map((item) => item.id === itemId ? { ...item, referenceImagePath: uploaded.path, referenceImageUrl: uploaded.previewUrl } : item),
         })),

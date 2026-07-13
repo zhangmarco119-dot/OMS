@@ -103,7 +103,7 @@ const serializeGroups = (groups: TaskTemplateGroupDraft[]): Json => groups.map((
 
 export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft): Promise<SavedTaskTemplate> => {
   const draft = validateTaskTemplateDraft(input);
-  const { data, error } = await client.rpc('save_v2_task_template', {
+  const rpcInput = {
     p_fields: {
       allow_overdue: draft.allowOverdue,
       category: draft.category,
@@ -117,7 +117,17 @@ export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft)
     p_groups: serializeGroups(draft.groups),
     p_store_ids: draft.storeIds,
     p_template_id: draft.id,
-  });
+  };
+  let { data, error } = await client.rpc('save_v2_task_template', rpcInput);
+  if (error && !draft.id && error.message.includes('v2_task_template_groups_pkey')) {
+    const groupIds = draft.groups.map((group) => group.id);
+    const recovered = await client.from('v2_task_template_groups').select('template_id').in('id', groupIds);
+    throwIfError(recovered.error);
+    const templateIds = [...new Set((recovered.data ?? []).map((group) => group.template_id))];
+    if (templateIds.length === 1) {
+      ({ data, error } = await client.rpc('save_v2_task_template', { ...rpcInput, p_template_id: templateIds[0] }));
+    }
+  }
   throwIfError(error);
   return data as unknown as SavedTaskTemplate;
 };

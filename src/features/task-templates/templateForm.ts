@@ -22,6 +22,8 @@ export interface TaskTemplateItemDraft {
   optionsText: string;
   referenceImagePath: string | null;
   referenceImageUrl: string | null;
+  referenceImagePaths: string[];
+  referenceImageUrls: string[];
 }
 
 export interface TaskTemplateGroupDraft {
@@ -55,6 +57,8 @@ export const createEmptyTemplateItem = (): TaskTemplateItemDraft => ({
   optionsText: '',
   referenceImagePath: null,
   referenceImageUrl: null,
+  referenceImagePaths: [],
+  referenceImageUrls: [],
 });
 
 export const createEmptyTemplateGroup = (): TaskTemplateGroupDraft => ({
@@ -88,6 +92,8 @@ const itemSchema = z.object({
   optionsText: z.string(),
   referenceImagePath: z.string().nullable(),
   referenceImageUrl: z.string().nullable(),
+  referenceImagePaths: z.array(z.string()),
+  referenceImageUrls: z.array(z.string()),
 }).superRefine((item, context) => {
   if (['single_choice', 'multi_choice'].includes(item.fieldType)
     && item.optionsText.split('\n').map((option) => option.trim()).filter(Boolean).length === 0) {

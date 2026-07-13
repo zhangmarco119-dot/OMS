@@ -59,7 +59,9 @@ export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2Ta
   if (!taskId) return {};
   const { data, error } = await client.functions.invoke('task-template-images', { body: { action: 'task-references', taskId } });
   if (error || !data || typeof data !== 'object' || !('urls' in data) || typeof data.urls !== 'object' || data.urls === null) return {};
-  return Object.fromEntries(Object.entries(data.urls).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+  return Object.fromEntries(Object.entries(data.urls)
+    .map(([itemId, urls]) => [itemId, Array.isArray(urls) ? urls.filter((url): url is string => typeof url === 'string') : typeof urls === 'string' ? [urls] : []] as const)
+    .filter((entry) => entry[1].length > 0)) as Record<string, string[]>;
 };
 export const saveV2TaskProgress = async (client: Client, taskId: string, version: number, answers: V2TaskAnswerRow[]) => {
   const { data, error } = await client.rpc('save_v2_task_progress', { p_answers: answers.map((a) => ({ answer: a.answer, is_issue: a.is_issue, item_id: a.item_id, note: a.note })), p_expected_version: version, p_task_id: taskId }); fail(error); return data as unknown as V2TaskRow;
@@ -70,6 +72,9 @@ export const submitV2Task = async (client: Client, taskId: string, version: numb
 export const reviewV2Task = async (client: Client, taskId: string, action: 'approved' | 'rejected', note: string, correctionIds: string[]) => {
   const { data, error } = await client.rpc('review_v2_task', { p_action: action, p_correction_item_ids: correctionIds, p_note: note, p_task_id: taskId }); fail(error); return data;
 };
+export const withdrawV2Task = async (client: Client, taskId: string) => {
+  const { data, error } = await client.rpc('withdraw_v2_task', { p_task_id: taskId }); fail(error); return data;
+};
 
 export const uploadV2TaskImage = async (client: Client, task: V2TaskRow, itemId: string, profileId: string, file: File) => {
   const processed = await compressArrivalImage(file); const id = createUuid(); const ext = processed.mimeType === 'image/png' ? 'png' : processed.mimeType === 'image/webp' ? 'webp' : 'jpg';
@@ -78,6 +83,5 @@ export const uploadV2TaskImage = async (client: Client, task: V2TaskRow, itemId:
   const metadata = await client.from('v2_task_images').insert({ file_name: file.name || `${id}.${ext}`, item_id: itemId, mime_type: processed.mimeType, object_path: path, size_bytes: processed.blob.size, store_id: task.store_id, task_id: task.id, uploaded_by: profileId }).select('*').single();
   if (metadata.error) { await client.storage.from(bucket).remove([path]); throw new Error(metadata.error.message); }
   if (!metadata.data) { await client.storage.from(bucket).remove([path]); throw new Error('图片记录保存失败'); }
-  // This is available straight away, before private-storage signing has completed.
-  return { image: metadata.data, previewUrl: URL.createObjectURL(processed.blob) } satisfies UploadedV2TaskImage;
+  return metadata.data;
 };

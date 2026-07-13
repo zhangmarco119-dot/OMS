@@ -44,7 +44,7 @@ const restoreTemplateDraft = (value: string): TaskTemplateDraft | null => {
       ...parsed,
       groups: parsed.groups.map((group) => ({
         ...group,
-        items: group.items.map((item) => ({ ...item, referenceImagePath: item.referenceImagePath ?? null, referenceImageUrl: item.referenceImageUrl ?? null })),
+        items: group.items.map((item) => ({ ...item, referenceImagePath: item.referenceImagePath ?? null, referenceImageUrl: item.referenceImageUrl ?? null, referenceImagePaths: item.referenceImagePaths ?? (item.referenceImagePath ? [item.referenceImagePath] : []), referenceImageUrls: item.referenceImageUrls ?? (item.referenceImageUrl ? [item.referenceImageUrl] : []) })),
       })),
     };
   } catch { return null; }
@@ -126,14 +126,13 @@ export function AdminTaskTemplatesPage() {
         const saved = await saveTaskTemplate(supabase, savedDraft);
         savedDraft = { ...savedDraft, id: saved.id };
         setDraft(savedDraft);
-        await refresh();
       }
       const localPreviewUrl = URL.createObjectURL(file);
       const previewDraft = {
         ...savedDraft,
         groups: savedDraft.groups.map((group) => ({
           ...group,
-          items: group.items.map((item) => item.id === itemId ? { ...item, referenceImageUrl: localPreviewUrl } : item),
+          items: group.items.map((item) => item.id === itemId ? { ...item, referenceImageUrl: localPreviewUrl, referenceImageUrls: [...item.referenceImageUrls, localPreviewUrl] } : item),
         })),
       };
       setDraft(previewDraft);
@@ -142,13 +141,12 @@ export function AdminTaskTemplatesPage() {
         ...previewDraft,
         groups: previewDraft.groups.map((group) => ({
           ...group,
-          items: group.items.map((item) => item.id === itemId ? { ...item, referenceImagePath: uploaded.path, referenceImageUrl: uploaded.previewUrl } : item),
+          items: group.items.map((item) => item.id === itemId ? { ...item, referenceImagePath: item.referenceImagePath ?? uploaded.path, referenceImageUrl: item.referenceImageUrl ?? uploaded.previewUrl, referenceImagePaths: [...item.referenceImagePaths, uploaded.path], referenceImageUrls: item.referenceImageUrls.map((url) => url === localPreviewUrl ? uploaded.previewUrl : url) } : item),
         })),
       };
       // The upload endpoint has already linked the image to this item atomically.
       // Avoid rewriting the full template from a potentially stale browser draft.
       setDraft(uploadedDraft);
-      await refresh();
       setSuccessMessage('参考图片已上传并保存。若模板已发布，请发布新版本后再用于任务。');
       setMessage(null);
     } catch (error) { setMessage(error instanceof Error ? error.message : '上传参考图片失败。'); }
@@ -215,7 +213,18 @@ function GroupEditor({ busy, group, onChange, onRemove, onUploadReferenceImage }
   return <section className="rounded-lg bg-white p-4 shadow-sm"><div className="flex items-start gap-3"><div className="grid flex-1 gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">分组名称<input className="mt-1 min-h-11 w-full rounded-lg border p-3" onChange={(event) => onChange({ ...group, title: event.target.value })} value={group.title} /></label><label className="text-sm font-semibold">分组说明<input className="mt-1 min-h-11 w-full rounded-lg border p-3" onChange={(event) => onChange({ ...group, description: event.target.value })} value={group.description} /></label></div><button aria-label="删除分组" className="mt-5 h-11 w-11 text-red-600" onClick={onRemove} type="button"><Trash2 className="mx-auto h-5 w-5" /></button></div><div className="mt-4 space-y-3">{group.items.map((item, index) => <ItemEditor busy={busy} item={item} key={item.id} onChange={(value) => updateItem(index, value)} onRemove={() => onChange({ ...group, items: group.items.filter((_, current) => current !== index) })} onUploadReferenceImage={onUploadReferenceImage} />)}</div><button className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-sm font-bold" onClick={() => onChange({ ...group, items: [...group.items, createEmptyTemplateItem()] })} type="button"><Plus className="h-4 w-4" />添加项目</button></section>;
 }
 
-function ItemEditor({ busy, item, onChange, onRemove, onUploadReferenceImage }: { busy: boolean; item: TaskTemplateItemDraft; onChange: (item: TaskTemplateItemDraft) => void; onRemove: () => void; onUploadReferenceImage: (itemId: string, file: File | undefined) => void }) {
+function LegacyItemEditor({ busy, item, onChange, onRemove, onUploadReferenceImage }: { busy: boolean; item: TaskTemplateItemDraft; onChange: (item: TaskTemplateItemDraft) => void; onRemove: () => void; onUploadReferenceImage: (itemId: string, file: File | undefined) => void }) {
   const referenceImageInput = useRef<HTMLInputElement>(null);
   return <div className="rounded-lg border border-slate-200 p-3"><div className="flex items-start gap-2"><div className="grid flex-1 gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">项目名称<input className="mt-1 min-h-10 w-full rounded-lg border p-2" onChange={(event) => onChange({ ...item, label: event.target.value })} value={item.label} /></label><label className="text-sm font-semibold">字段类型<select className="mt-1 min-h-10 w-full rounded-lg border px-2" onChange={(event) => onChange({ ...item, fieldType: event.target.value as TaskTemplateItemDraft['fieldType'] })} value={item.fieldType}>{taskTemplateFieldTypes.map((type) => <option key={type} value={type}>{fieldTypeLabel[type]}</option>)}</select></label><label className="text-sm font-semibold sm:col-span-2">标准说明<input className="mt-1 min-h-10 w-full rounded-lg border p-2" onChange={(event) => onChange({ ...item, guidance: event.target.value })} value={item.guidance} /></label>{['single_choice', 'multi_choice'].includes(item.fieldType) ? <label className="text-sm font-semibold sm:col-span-2">选项（每行一个）<textarea className="mt-1 min-h-20 w-full rounded-lg border p-2" onChange={(event) => onChange({ ...item, optionsText: event.target.value })} value={item.optionsText} /></label> : null}<label className="text-sm font-semibold">图片要求<select className="mt-1 min-h-10 w-full rounded-lg border px-2" onChange={(event) => onChange({ ...item, imageRequirement: event.target.value as TaskTemplateItemDraft['imageRequirement'] })} value={item.imageRequirement}><option value="none">不要求</option><option value="single">至少一张</option><option value="multiple">多张图片</option></select></label><label className="flex items-end gap-2 pb-2 text-sm font-semibold"><input checked={item.isRequired} onChange={(event) => onChange({ ...item, isRequired: event.target.checked })} type="checkbox" />必填</label><div className="sm:col-span-2 rounded-lg bg-slate-50 p-2.5"><div className="flex flex-wrap items-center gap-3"><div className="min-w-0 flex-1"><b className="text-sm text-slate-800">参考图片（选填）</b><p className="mt-0.5 text-xs text-slate-500">供员工执行任务时查看；选择图片后会自动保存模板。</p></div>{item.referenceImageUrl ? <img alt={`${item.label || '任务项目'}参考图片`} className="h-14 w-14 rounded-lg border object-cover" src={item.referenceImageUrl} /> : null}<input accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => { void onUploadReferenceImage(item.id, event.target.files?.[0]); event.currentTarget.value = ''; }} ref={referenceImageInput} type="file" /><button className="inline-flex min-h-10 items-center gap-1 rounded-lg border bg-white px-3 text-sm font-bold text-brand-700 disabled:opacity-50" disabled={busy} onClick={() => referenceImageInput.current?.click()} type="button"><ImagePlus className="h-4 w-4" />上传</button></div></div></div><button aria-label="删除项目" className="h-10 w-10 text-red-600" onClick={onRemove} type="button"><Trash2 className="mx-auto h-4 w-4" /></button></div></div>;
+}
+
+function ItemEditor(props: { busy: boolean; item: TaskTemplateItemDraft; onChange: (item: TaskTemplateItemDraft) => void; onRemove: () => void; onUploadReferenceImage: (itemId: string, file: File | undefined) => void }) {
+  const { item, onChange } = props;
+  const removeReference = (index: number) => {
+    if (!window.confirm('删除这张参考图片吗？保存模板后将不再向员工展示。')) return;
+    const paths = item.referenceImagePaths.filter((_, current) => current !== index);
+    const urls = item.referenceImageUrls.filter((_, current) => current !== index);
+    onChange({ ...item, referenceImagePath: paths[0] ?? null, referenceImagePaths: paths, referenceImageUrl: urls[0] ?? null, referenceImageUrls: urls });
+  };
+  return <><LegacyItemEditor {...props} />{item.referenceImageUrls.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{item.referenceImageUrls.map((url, index) => <div className="relative" key={url}><img alt={`参考图片 ${index + 1}`} className="h-16 w-16 rounded-lg border object-cover" src={url} /><button aria-label={`删除参考图片 ${index + 1}`} className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-red-600 text-xs font-bold text-white" disabled={props.busy} onClick={() => removeReference(index)} type="button">×</button></div>)}</div> : null}</>;
 }

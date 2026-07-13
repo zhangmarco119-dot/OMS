@@ -59,16 +59,25 @@ Deno.serve(async (request) => {
 
     // Persist the link before reporting a successful upload.  The former browser-side
     // follow-up save could race with stale draft state and orphan the storage object.
+    const { data: existingItem, error: existingError } = await serviceClient
+      .from('v2_task_template_items')
+      .select('reference_image_path,reference_image_paths')
+      .eq('id', itemId)
+      .eq('template_id', templateId)
+      .maybeSingle();
+    const existingPaths = existingItem?.reference_image_paths?.length
+      ? existingItem.reference_image_paths
+      : existingItem?.reference_image_path ? [existingItem.reference_image_path] : [];
     const { data: attachedItem, error: attachError } = await serviceClient
       .from('v2_task_template_items')
-      .update({ reference_image_path: path })
+      .update({ reference_image_path: existingPaths[0] ?? path, reference_image_paths: [...existingPaths, path] })
       .eq('id', itemId)
       .eq('template_id', templateId)
       .select('id')
       .maybeSingle();
-    if (attachError || !attachedItem) {
+    if (existingError || attachError || !attachedItem) {
       await serviceClient.storage.from(bucket).remove([path]);
-      return json({ error: attachError?.message ?? '参考图片关联失败' }, 400);
+      return json({ error: existingError?.message ?? attachError?.message ?? '参考图片关联失败' }, 400);
     }
 
     const { data: signed, error: signError } = await serviceClient.storage.from(bucket).createSignedUrl(path, 60 * 60);
@@ -97,6 +106,24 @@ Deno.serve(async (request) => {
     return json({ signedUrl: signed.signedUrl });
   }
 
+  if (action === 'delete') {
+    const templateId = String(body?.templateId ?? '');
+    const itemId = String(body?.itemId ?? '');
+    const path = String(body?.path ?? '');
+    if (!isUuid(templateId) || !isUuid(itemId) || !isValidPath(path) || !path.startsWith(`${templateId}/${itemId}/`)) return json({ error: '参考图片参数无效' }, 400);
+    const { data: canManage, error: permissionError } = await userClient.rpc('can_manage_v2_task_template', { target_template_id: templateId });
+    if (permissionError || !canManage) return json({ error: '没有管理该任务模板的权限' }, 403);
+    const { data: item, error: itemError } = await serviceClient.from('v2_task_template_items').select('reference_image_path,reference_image_paths').eq('id', itemId).eq('template_id', templateId).maybeSingle();
+    const paths = item?.reference_image_paths?.length ? item.reference_image_paths : item?.reference_image_path ? [item.reference_image_path] : [];
+    if (itemError || !item || !paths.includes(path)) return json({ error: itemError?.message ?? '未找到该参考图片' }, 404);
+    const remainingPaths = paths.filter((entry) => entry !== path);
+    const { error: updateError } = await serviceClient.from('v2_task_template_items').update({ reference_image_path: remainingPaths[0] ?? null, reference_image_paths: remainingPaths }).eq('id', itemId).eq('template_id', templateId);
+    if (updateError) return json({ error: updateError.message }, 400);
+    const { error: removeError } = await serviceClient.storage.from(bucket).remove([path]);
+    if (removeError) return json({ error: removeError.message }, 400);
+    return json({ paths: remainingPaths });
+  }
+
   if (action === 'task-references') {
     const taskId = String(body?.taskId ?? '');
     if (!isUuid(taskId)) return json({ error: '任务编号无效' }, 400);
@@ -107,25 +134,28 @@ Deno.serve(async (request) => {
       serviceClient.from('v2_task_answers').select('item_id,item_snapshot').eq('task_id', taskId),
     ]);
     if (taskError || !task || answersError) return json({ error: taskError?.message ?? answersError?.message ?? '任务参考图片加载失败' }, 400);
-    const snapshotPaths = new Map((answers ?? []).flatMap((answer) => {
-      const path = (answer.item_snapshot as Record<string, unknown>).reference_image_path;
-      return typeof path === 'string' && isValidPath(path) ? [[answer.item_id, path] as const] : [];
-    }));
-    const missingItemIds = (answers ?? []).filter((answer) => !snapshotPaths.has(answer.item_id)).map((answer) => answer.item_id);
+    const pathsFromSnapshot = (snapshot: Record<string, unknown>) => {
+      const plural = Array.isArray(snapshot.reference_image_paths) ? snapshot.reference_image_paths.filter((path): path is string => typeof path === 'string' && isValidPath(path)) : [];
+      const legacy = typeof snapshot.reference_image_path === 'string' && isValidPath(snapshot.reference_image_path) ? [snapshot.reference_image_path] : [];
+      return [...new Set([...plural, ...legacy])];
+    };
+    const snapshotPaths = new Map((answers ?? []).map((answer) => [answer.item_id, pathsFromSnapshot(answer.item_snapshot as Record<string, unknown>)]));
+    const missingItemIds = (answers ?? []).filter((answer) => !(snapshotPaths.get(answer.item_id)?.length)).map((answer) => answer.item_id);
     if (missingItemIds.length > 0) {
       const { data: templateItems, error: templateItemsError } = await serviceClient
         .from('v2_task_template_items')
-        .select('id,reference_image_path')
+        .select('id,reference_image_path,reference_image_paths')
         .eq('template_id', task.template_id)
         .in('id', missingItemIds);
       if (templateItemsError) return json({ error: templateItemsError.message }, 400);
       (templateItems ?? []).forEach((item) => {
-        if (item.reference_image_path && isValidPath(item.reference_image_path)) snapshotPaths.set(item.id, item.reference_image_path);
+        const paths = [...new Set([...(item.reference_image_paths ?? []).filter(isValidPath), ...(item.reference_image_path && isValidPath(item.reference_image_path) ? [item.reference_image_path] : [])])];
+        if (paths.length > 0) snapshotPaths.set(item.id, paths);
       });
     }
-    const signedEntries = await Promise.all([...snapshotPaths.entries()].map(async ([itemId, path]) => {
-      const { data: signed } = await serviceClient.storage.from(bucket).createSignedUrl(path, 60 * 60);
-      return signed?.signedUrl ? [itemId, signed.signedUrl] as const : null;
+    const signedEntries = await Promise.all([...snapshotPaths.entries()].map(async ([itemId, paths]) => {
+      const urls = (await Promise.all(paths.map(async (path) => (await serviceClient.storage.from(bucket).createSignedUrl(path, 60 * 60)).data?.signedUrl))).filter((url): url is string => Boolean(url));
+      return urls.length > 0 ? [itemId, urls] as const : null;
     }));
     return json({ urls: Object.fromEntries(signedEntries.filter((entry): entry is readonly [string, string] => entry !== null)) });
   }

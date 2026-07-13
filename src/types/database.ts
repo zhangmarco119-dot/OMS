@@ -618,19 +618,19 @@ export type Database = {
           field_type: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id: string; guidance: string; id: string;
           image_requirement: 'none' | 'single' | 'multiple'; is_required: boolean;
-          label: string; options: Json; reference_image_path: string | null; sort_order: number; template_id: string;
+          label: string; options: Json; reference_image_path: string | null; reference_image_paths: string[]; sort_order: number; template_id: string;
         };
         Insert: {
           field_type: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id: string; guidance?: string; id?: string;
           image_requirement?: 'none' | 'single' | 'multiple'; is_required?: boolean;
-          label: string; options?: Json; reference_image_path?: string | null; sort_order?: number; template_id: string;
+          label: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number; template_id: string;
         };
         Update: {
           field_type?: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id?: string; guidance?: string; id?: string;
           image_requirement?: 'none' | 'single' | 'multiple'; is_required?: boolean;
-          label?: string; options?: Json; reference_image_path?: string | null; sort_order?: number; template_id?: string;
+          label?: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number; template_id?: string;
         };
         Relationships: [];
       };
@@ -766,6 +766,7 @@ export type Database = {
       publish_v2_tasks: { Args: { p_due_at: string | null; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       resume_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
+      withdraw_v2_task: { Args: { p_task_id: string }; Returns: Json };
       retract_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       save_v2_notice: { Args: { p_fields: Json; p_notice_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_sop: { Args: { p_fields: Json; p_roles: string[]; p_sop_id: string | null; p_store_ids: string[] }; Returns: Json };

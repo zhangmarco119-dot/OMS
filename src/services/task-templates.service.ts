@@ -44,21 +44,31 @@ const getReferenceImageUrl = async (client: Client, templateId: string, path: st
   return data.signedUrl;
 };
 
+const referencePaths = (item: TaskTemplateItemRow) => item.reference_image_paths.length > 0
+  ? item.reference_image_paths
+  : item.reference_image_path ? [item.reference_image_path] : [];
+
 const groupsToDraft = async (client: Client, groups: TaskTemplateGroupRow[], items: TaskTemplateItemRow[]): Promise<TaskTemplateGroupDraft[]> =>
   Promise.all(groups.map(async (group) => ({
     description: group.description,
     id: group.id,
-    items: await Promise.all(items.filter((item) => item.group_id === group.id).map(async (item) => ({
-      fieldType: item.field_type,
-      guidance: item.guidance,
-      id: item.id,
-      imageRequirement: item.image_requirement,
-      isRequired: item.is_required,
-      label: item.label,
-      optionsText: Array.isArray(item.options) ? item.options.filter((entry): entry is string => typeof entry === 'string').join('\n') : '',
-      referenceImagePath: item.reference_image_path,
-      referenceImageUrl: await getReferenceImageUrl(client, item.template_id, item.reference_image_path),
-    }))),
+    items: await Promise.all(items.filter((item) => item.group_id === group.id).map(async (item) => {
+      const paths = referencePaths(item);
+      const urls = await Promise.all(paths.map((path) => getReferenceImageUrl(client, item.template_id, path)));
+      return {
+        fieldType: item.field_type,
+        guidance: item.guidance,
+        id: item.id,
+        imageRequirement: item.image_requirement,
+        isRequired: item.is_required,
+        label: item.label,
+        optionsText: Array.isArray(item.options) ? item.options.filter((entry): entry is string => typeof entry === 'string').join('\n') : '',
+        referenceImagePath: paths[0] ?? null,
+        referenceImageUrl: urls[0] ?? null,
+        referenceImagePaths: paths,
+        referenceImageUrls: urls.filter((url): url is string => url !== null),
+      };
+    })),
     title: group.title,
   })));
 
@@ -95,7 +105,8 @@ const serializeGroups = (groups: TaskTemplateGroupDraft[]): Json => groups.map((
     is_required: item.isRequired,
     label: item.label,
     options: item.optionsText.split('\n').map((option) => option.trim()).filter(Boolean),
-    reference_image_path: item.referenceImagePath,
+    reference_image_path: item.referenceImagePaths[0] ?? item.referenceImagePath,
+    reference_image_paths: item.referenceImagePaths,
     sort_order: itemIndex,
   })),
   sort_order: groupIndex,
@@ -148,10 +159,10 @@ export const archiveTaskTemplate = async (client: Client, templateId: string) =>
 export const deleteArchivedTaskTemplate = async (client: Client, templateId: string) => {
   const { data: items, error: itemsError } = await client
     .from('v2_task_template_items')
-    .select('reference_image_path')
+    .select('reference_image_path,reference_image_paths')
     .eq('template_id', templateId);
   throwIfError(itemsError);
-  const paths = (items ?? []).flatMap((item) => item.reference_image_path ? [item.reference_image_path] : []);
+  const paths = [...new Set((items ?? []).flatMap((item) => item.reference_image_paths.length > 0 ? item.reference_image_paths : item.reference_image_path ? [item.reference_image_path] : []))];
   if (paths.length > 0) {
     const { error } = await client.storage.from('v2-task-template-reference-images').remove(paths);
     throwIfError(error);
@@ -172,4 +183,11 @@ export const uploadTaskTemplateReferenceImage = async (client: Client, templateI
   if (error) throw new Error(error.message);
   if (!data || typeof data !== 'object' || !('path' in data) || !('signedUrl' in data) || typeof data.path !== 'string' || typeof data.signedUrl !== 'string') throw new Error('参考图片上传返回内容无效。');
   return { path: data.path, previewUrl: data.signedUrl };
+};
+
+export const deleteTaskTemplateReferenceImage = async (client: Client, templateId: string, itemId: string, path: string) => {
+  const { data, error } = await client.functions.invoke('task-template-images', { body: { action: 'delete', itemId, path, templateId } });
+  if (error) throw new Error(error.message);
+  if (!data || typeof data !== 'object' || !('paths' in data) || !Array.isArray(data.paths) || !data.paths.every((entry: unknown) => typeof entry === 'string')) throw new Error('参考图片删除返回内容无效。');
+  return data.paths;
 };

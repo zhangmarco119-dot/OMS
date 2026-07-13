@@ -39,8 +39,8 @@ export const parseV2Analytics = (raw: Json | null): V2Analytics => {
   };
 };
 
-export const loadV2Analytics = async (client: SupabaseClient<Database>, days = 7) => {
-  const { data, error } = await client.rpc('admin_v2_analytics', { p_days: days });
+export const loadV2Analytics = async (client: SupabaseClient<Database>, range: { dateFrom: string; dateTo: string }) => {
+  const { data, error } = await client.rpc('admin_v2_analytics', { p_end_date: range.dateTo, p_start_date: range.dateFrom });
   if (error) throw new Error(error.message);
   return parseV2Analytics(data);
 };

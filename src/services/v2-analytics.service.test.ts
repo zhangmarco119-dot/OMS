@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { describe, expect, it, vi } from 'vitest';
 
-import { parseV2Analytics } from './v2-analytics.service';
+import type { Database } from '../types/database';
+import { loadV2Analytics, parseV2Analytics } from './v2-analytics.service';
 
 describe('v2 analytics parser', () => {
   it('uses safe defaults for an empty aggregate response', () => {
@@ -25,5 +27,12 @@ describe('v2 analytics parser', () => {
       tasks: { completion_rate: 88.5, store_rates: [{ rate: 80, total: 10 }] },
       v1: { order_submissions: 6 },
     });
+  });
+
+  it('requests analytics with the selected date range', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { arrival: { today: 1 } }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await loadV2Analytics(client, { dateFrom: '2026-07-01', dateTo: '2026-07-13' });
+    expect(rpc).toHaveBeenCalledWith('admin_v2_analytics', { p_end_date: '2026-07-13', p_start_date: '2026-07-01' });
   });
 });

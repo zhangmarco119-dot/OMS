@@ -1,5 +1,6 @@
 import { Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, Save, Trash2, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import {
@@ -52,7 +53,10 @@ const productToDraft = (product: ProductRow): ProductDraft => ({
 
 export function AdminPage() {
   const auth = useAuth();
-  const [tab, setTab] = useState<AdminTab>('products');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState<AdminTab>(() => searchParams.get('tab') === 'users' ? 'users' : 'products');
+  useEffect(() => { setTab(searchParams.get('tab') === 'users' ? 'users' : 'products'); }, [searchParams]);
+  const changeTab = (nextTab: AdminTab) => { setTab(nextTab); setSearchParams({ tab: nextTab }); };
   const [productTab, setProductTab] = useState<ProductTab>('catalog');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
@@ -288,7 +292,7 @@ export function AdminPage() {
   };
 
   return (
-    <PageShell eyebrow="管理员" title="后台管理" backTo="/app">
+    <PageShell eyebrow="管理员" title={tab === 'products' ? '商品管理' : '账号管理'} backTo="/app">
       <div className="rounded-2xl bg-white p-4 shadow-sm">
         <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 text-sm">
           {[
@@ -301,7 +305,7 @@ export function AdminPage() {
                 tab === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600',
               ].join(' ')}
               key={value}
-              onClick={() => setTab(value as AdminTab)}
+              onClick={() => changeTab(value as AdminTab)}
               type="button"
             >
               {label}

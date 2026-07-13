@@ -113,6 +113,17 @@ export const retractNotice = async (client: Client, noticeId: string) => {
   return data;
 };
 
+export const deleteNotice = async (client: Client, notice: Pick<NoticeListItem, 'assetUrls' | 'id'>) => {
+  const objectPaths = notice.assetUrls.map((asset) => asset.object_path);
+  if (objectPaths.length) {
+    const { error } = await client.storage.from('v2-notice-assets').remove(objectPaths);
+    throwIfError(error);
+  }
+  const { data, error } = await client.rpc('delete_v2_notice', { p_notice_id: notice.id });
+  throwIfError(error);
+  return data;
+};
+
 export const markNoticeRead = async (client: Client, noticeId: string) => {
   const { error } = await client.rpc('mark_v2_notice_read', { p_notice_id: noticeId });
   throwIfError(error);

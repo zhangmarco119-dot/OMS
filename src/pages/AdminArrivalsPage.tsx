@@ -94,7 +94,7 @@ export function AdminArrivalsPage() {
             <div><h2 className="font-bold text-slate-900">未读到货消息</h2><p className="text-sm text-slate-500">{messages.length} 条待查看</p></div>
           </div>
           <Link className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-50 px-3 text-sm font-bold text-brand-700" to="/app/admin/arrivals/summary">
-            <CalendarDays className="h-4 w-4" aria-hidden="true" />每日汇总
+            <CalendarDays className="h-4 w-4" aria-hidden="true" />到货中心汇总
           </Link>
         </div>
         {messages.length > 0 ? (

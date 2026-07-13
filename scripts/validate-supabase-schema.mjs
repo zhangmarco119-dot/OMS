@@ -33,6 +33,8 @@ const navigationPermissionsMigrationPath = join(root, 'supabase', 'migrations', 
 const noticeAssetsMigrationPath = join(root, 'supabase', 'migrations', '0027_notice_assets_expiry_and_notifications.sql');
 const pausedScheduleVisibilityMigrationPath = join(root, 'supabase', 'migrations', '0028_sync_paused_task_schedule_visibility.sql');
 const adminTodoCleanupMigrationPath = join(root, 'supabase', 'migrations', '0029_clear_admin_test_todos.sql');
+const contentDeleteAnalyticsRangeMigrationPath = join(root, 'supabase', 'migrations', '0030_content_delete_and_analytics_range.sql');
+const noticeAssetAdminDeleteMigrationPath = join(root, 'supabase', 'migrations', '0031_notice_asset_admin_delete.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -69,6 +71,8 @@ const navigationPermissionsMigration = readFileSync(navigationPermissionsMigrati
 const noticeAssetsMigration = readFileSync(noticeAssetsMigrationPath, 'utf8');
 const pausedScheduleVisibilityMigration = readFileSync(pausedScheduleVisibilityMigrationPath, 'utf8');
 const adminTodoCleanupMigration = readFileSync(adminTodoCleanupMigrationPath, 'utf8');
+const contentDeleteAnalyticsRangeMigration = readFileSync(contentDeleteAnalyticsRangeMigrationPath, 'utf8');
+const noticeAssetAdminDeleteMigration = readFileSync(noticeAssetAdminDeleteMigrationPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -192,6 +196,7 @@ const requiredFunctions = [
   'admin_operation_overview',
   'can_request_product_feedback', 'admin_set_product_permissions', 'resume_v2_task_schedule',
   'acknowledge_v2_notice',
+  'delete_v2_notice', 'admin_v2_analytics',
 ];
 
 const failures = [];
@@ -443,6 +448,21 @@ if (!pausedScheduleVisibilityMigration.includes("status in ('pending','in_progre
 if (!adminTodoCleanupMigration.includes("status in ('submitted', 'resubmitted')")
   || !adminTodoCleanupMigration.includes("status = 'ignored'")) {
   failures.push('administrator test todo cleanup migration is incomplete');
+}
+
+if (!contentDeleteAnalyticsRangeMigration.includes('function public.delete_v2_notice')
+  || !contentDeleteAnalyticsRangeMigration.includes("entity_type = 'v2_notice'")) {
+  failures.push('notice deletion migration is missing protected notification cleanup');
+}
+
+if (!contentDeleteAnalyticsRangeMigration.includes('p_start_date date')
+  || !contentDeleteAnalyticsRangeMigration.includes('p_end_date date')
+  || !contentDeleteAnalyticsRangeMigration.includes('start date must not be after end date')) {
+  failures.push('analytics date-range migration is incomplete');
+}
+
+if (!noticeAssetAdminDeleteMigration.includes('can_manage_v2_notice(asset.notice_id)')) {
+  failures.push('notice asset deletion must allow every authorized administrator');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

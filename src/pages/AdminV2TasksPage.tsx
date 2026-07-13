@@ -100,7 +100,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const toggleWeekday = (weekday: number) => setWeekdays((current) => current.includes(weekday) ? current.filter((entry) => entry !== weekday) : [...current, weekday].sort((left, right) => left - right));
 
   return <PageShell eyebrow="门店运营系统 · 管理员" title={publisherOnly ? '任务发布' : '任务管理'} backTo="/app/workbench">
-    {!publisherOnly ? <section className="grid grid-cols-2 gap-2"><Link className="flex min-h-12 items-center justify-center rounded-lg border bg-white font-bold text-brand-700" to="/app/admin/task-templates">管理任务模板</Link><Link className="flex min-h-12 items-center justify-center rounded-lg bg-brand-600 font-bold text-white" to="/app/admin/tasks/publish">任务发布</Link></section> : null}
+    {!publisherOnly ? <section className="grid grid-cols-2 gap-2"><Link className="flex min-h-12 items-center justify-center rounded-lg bg-brand-600 font-bold text-white" to="/app/admin/task-templates">管理任务模板</Link><Link className="flex min-h-12 items-center justify-center rounded-lg bg-brand-600 font-bold text-white" to="/app/admin/tasks/publish">任务发布</Link></section> : null}
     {creatorOpen ? <section className="rounded-lg bg-white p-4 shadow-sm">
       <h2 className="font-bold">从已发布模板创建任务</h2>
       <p className="mt-1 text-sm leading-6 text-slate-500">模板仅供管理员配置。单次任务发布后立即推送；周期任务会自动向员工和店长持续推送，无需重复手工发布。</p>

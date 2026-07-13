@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { describe, expect, it, vi } from 'vitest';
 
-import { createEmptyNoticeDraft, createEmptySopDraft } from './v2-content.service';
+import type { Database } from '../types/database';
+import { createEmptyNoticeDraft, createEmptySopDraft, deleteNotice } from './v2-content.service';
 
 describe('v2 content drafts', () => {
   it('starts an announcement as an unpinned draft for selected stores', () => {
@@ -13,5 +15,14 @@ describe('v2 content drafts', () => {
     expect(createEmptySopDraft(['store-1'])).toMatchObject({
       category: '通用', id: null, roles: ['staff', 'manager'], storeIds: ['store-1'],
     });
+  });
+
+  it('removes private notice assets before deleting the protected notice record', async () => {
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    const rpc = vi.fn().mockResolvedValue({ data: { deleted: true }, error: null });
+    const client = { rpc, storage: { from: vi.fn().mockReturnValue({ remove }) } } as unknown as SupabaseClient<Database>;
+    await deleteNotice(client, { assetUrls: [{ object_path: 'notice-1/file.png' }] as never, id: 'notice-1' });
+    expect(remove).toHaveBeenCalledWith(['notice-1/file.png']);
+    expect(rpc).toHaveBeenCalledWith('delete_v2_notice', { p_notice_id: 'notice-1' });
   });
 });

@@ -746,7 +746,8 @@ export type Database = {
     Functions: {
       admin_set_product_permissions: { Args: { p_can_request_discontinued: boolean; p_can_request_incorrect: boolean; p_can_request_new: boolean; p_profile_id: string }; Returns: Json };
       acknowledge_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
-      admin_v2_analytics: { Args: { p_days?: number }; Returns: Json };
+      admin_v2_analytics: { Args: { p_days?: number; p_end_date?: string; p_start_date?: string }; Returns: Json };
+      delete_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       archive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       can_manage_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };
       can_manage_v2_sop: { Args: { p_sop_id: string }; Returns: boolean };

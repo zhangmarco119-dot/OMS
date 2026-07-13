@@ -220,18 +220,20 @@ export const voidAdminArrival = async (client: Client, reportId: string, reason:
 
 export const loadAdminArrivalSummary = async (
   client: Client,
-  date: string,
+  range: { dateFrom: string; dateTo: string },
   storeId = '',
 ): Promise<AdminArrivalSummary> => {
   let detailQuery = client
     .from('arrival_daily_detail_view')
     .select('*')
-    .eq('arrival_date', date)
+    .gte('arrival_date', range.dateFrom)
+    .lte('arrival_date', range.dateTo)
     .order('arrival_time', { ascending: true });
   let productQuery = client
     .from('arrival_daily_product_summary_view')
     .select('*')
-    .eq('arrival_date', date)
+    .gte('arrival_date', range.dateFrom)
+    .lte('arrival_date', range.dateTo)
     .order('store_name_snapshot')
     .order('product_name_snapshot');
   if (storeId) {
@@ -241,5 +243,16 @@ export const loadAdminArrivalSummary = async (
   const [details, products] = await Promise.all([detailQuery, productQuery]);
   throwIfError(details.error);
   throwIfError(products.error);
-  return { details: details.data ?? [], products: products.data ?? [] };
+  const productRows = products.data ?? [];
+  const mergedProducts = [...productRows.reduce((merged, row) => {
+    const key = `${row.store_id ?? ''}:${row.product_name_snapshot ?? ''}:${row.unit ?? ''}`;
+    const current = merged.get(key);
+    merged.set(key, current ? {
+      ...current,
+      report_count: (current.report_count ?? 0) + (row.report_count ?? 0),
+      total_quantity: (current.total_quantity ?? 0) + (row.total_quantity ?? 0),
+    } : row);
+    return merged;
+  }, new Map<string, ArrivalProductSummaryRow>()).values()];
+  return { details: details.data ?? [], products: mergedProducts };
 };

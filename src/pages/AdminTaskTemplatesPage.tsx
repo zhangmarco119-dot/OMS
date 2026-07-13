@@ -145,7 +145,8 @@ export function AdminTaskTemplatesPage() {
           items: group.items.map((item) => item.id === itemId ? { ...item, referenceImagePath: uploaded.path, referenceImageUrl: uploaded.previewUrl } : item),
         })),
       };
-      await saveTaskTemplate(supabase, uploadedDraft);
+      // The upload endpoint has already linked the image to this item atomically.
+      // Avoid rewriting the full template from a potentially stale browser draft.
       setDraft(uploadedDraft);
       await refresh();
       setSuccessMessage('参考图片已上传并保存。若模板已发布，请发布新版本后再用于任务。');

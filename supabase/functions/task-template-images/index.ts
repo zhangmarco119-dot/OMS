@@ -56,6 +56,21 @@ Deno.serve(async (request) => {
     const path = `${templateId}/${itemId}/${crypto.randomUUID()}.${extension}`;
     const { error: uploadError } = await serviceClient.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
     if (uploadError) return json({ error: uploadError.message }, 400);
+
+    // Persist the link before reporting a successful upload.  The former browser-side
+    // follow-up save could race with stale draft state and orphan the storage object.
+    const { data: attachedItem, error: attachError } = await serviceClient
+      .from('v2_task_template_items')
+      .update({ reference_image_path: path })
+      .eq('id', itemId)
+      .eq('template_id', templateId)
+      .select('id')
+      .maybeSingle();
+    if (attachError || !attachedItem) {
+      await serviceClient.storage.from(bucket).remove([path]);
+      return json({ error: attachError?.message ?? '参考图片关联失败' }, 400);
+    }
+
     const { data: signed, error: signError } = await serviceClient.storage.from(bucket).createSignedUrl(path, 60 * 60);
     if (signError || !signed?.signedUrl) return json({ error: signError?.message ?? '图片上传成功但预览生成失败' }, 400);
     return json({ path, signedUrl: signed.signedUrl });

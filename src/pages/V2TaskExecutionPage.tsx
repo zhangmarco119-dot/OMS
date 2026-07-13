@@ -83,9 +83,11 @@ export function V2TaskExecutionPage() {
     setBusy(true);
     try {
       const uploaded = await uploadV2TaskImage(supabase, detail.task, itemId, auth.profile.id, file);
-      const uploadedImageUrls = await loadV2TaskImageUrls(supabase, [uploaded]);
-      setDetail((current) => current ? { ...current, images: [...current.images, uploaded] } : current);
-      setImageUrls((current) => ({ ...current, ...uploadedImageUrls }));
+      setDetail((current) => current ? {
+        ...current,
+        images: current.images.some((image) => image.id === uploaded.image.id) ? current.images : [...current.images, uploaded.image],
+      } : current);
+      setImageUrls((current) => ({ ...current, [uploaded.image.id]: uploaded.previewUrl }));
       setSuccessMessage('图片已上传，可点击预览');
     }
     catch (error) { setMessage(error instanceof Error ? error.message : '图片上传失败'); }

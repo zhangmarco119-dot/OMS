@@ -12,6 +12,7 @@ export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row
 export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
 export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
+export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
 
 const fail = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 export const asTaskItemSnapshot = (value: Json): TaskItemSnapshot => value as unknown as TaskItemSnapshot;
@@ -76,5 +77,7 @@ export const uploadV2TaskImage = async (client: Client, task: V2TaskRow, itemId:
   const uploaded = await client.storage.from(bucket).upload(path, processed.blob, { contentType: processed.mimeType }); fail(uploaded.error);
   const metadata = await client.from('v2_task_images').insert({ file_name: file.name || `${id}.${ext}`, item_id: itemId, mime_type: processed.mimeType, object_path: path, size_bytes: processed.blob.size, store_id: task.store_id, task_id: task.id, uploaded_by: profileId }).select('*').single();
   if (metadata.error) { await client.storage.from(bucket).remove([path]); throw new Error(metadata.error.message); }
-  return metadata.data;
+  if (!metadata.data) { await client.storage.from(bucket).remove([path]); throw new Error('图片记录保存失败'); }
+  // This is available straight away, before private-storage signing has completed.
+  return { image: metadata.data, previewUrl: URL.createObjectURL(processed.blob) } satisfies UploadedV2TaskImage;
 };

@@ -54,14 +54,11 @@ export const loadV2TaskImageUrls = async (client: Client, images: V2TaskImageRow
   return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
 };
 export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2TaskAnswerRow[]) => {
-  const results = await Promise.all(answers.map(async (answer) => {
-    const path = asTaskItemSnapshot(answer.item_snapshot).reference_image_path;
-    if (!path) return null;
-    const { data, error } = await client.functions.invoke('task-template-images', { body: { action: 'sign', path, scope: 'task', taskId: answer.task_id } });
-    if (error || !data || typeof data !== 'object' || !('signedUrl' in data) || typeof data.signedUrl !== 'string') return null;
-    return [answer.item_id, data.signedUrl] as const;
-  }));
-  return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
+  const taskId = answers[0]?.task_id;
+  if (!taskId) return {};
+  const { data, error } = await client.functions.invoke('task-template-images', { body: { action: 'task-references', taskId } });
+  if (error || !data || typeof data !== 'object' || !('urls' in data) || typeof data.urls !== 'object' || data.urls === null) return {};
+  return Object.fromEntries(Object.entries(data.urls).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
 };
 export const saveV2TaskProgress = async (client: Client, taskId: string, version: number, answers: V2TaskAnswerRow[]) => {
   const { data, error } = await client.rpc('save_v2_task_progress', { p_answers: answers.map((a) => ({ answer: a.answer, is_issue: a.is_issue, item_id: a.item_id, note: a.note })), p_expected_version: version, p_task_id: taskId }); fail(error); return data as unknown as V2TaskRow;

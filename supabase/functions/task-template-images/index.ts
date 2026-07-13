@@ -82,5 +82,38 @@ Deno.serve(async (request) => {
     return json({ signedUrl: signed.signedUrl });
   }
 
+  if (action === 'task-references') {
+    const taskId = String(body?.taskId ?? '');
+    if (!isUuid(taskId)) return json({ error: '任务编号无效' }, 400);
+    const { data: canRead, error: permissionError } = await userClient.rpc('can_read_v2_task', { p_task_id: taskId });
+    if (permissionError || !canRead) return json({ error: '没有查看该任务的权限' }, 403);
+    const [{ data: task, error: taskError }, { data: answers, error: answersError }] = await Promise.all([
+      serviceClient.from('v2_tasks').select('template_id').eq('id', taskId).single(),
+      serviceClient.from('v2_task_answers').select('item_id,item_snapshot').eq('task_id', taskId),
+    ]);
+    if (taskError || !task || answersError) return json({ error: taskError?.message ?? answersError?.message ?? '任务参考图片加载失败' }, 400);
+    const snapshotPaths = new Map((answers ?? []).flatMap((answer) => {
+      const path = (answer.item_snapshot as Record<string, unknown>).reference_image_path;
+      return typeof path === 'string' && isValidPath(path) ? [[answer.item_id, path] as const] : [];
+    }));
+    const missingItemIds = (answers ?? []).filter((answer) => !snapshotPaths.has(answer.item_id)).map((answer) => answer.item_id);
+    if (missingItemIds.length > 0) {
+      const { data: templateItems, error: templateItemsError } = await serviceClient
+        .from('v2_task_template_items')
+        .select('id,reference_image_path')
+        .eq('template_id', task.template_id)
+        .in('id', missingItemIds);
+      if (templateItemsError) return json({ error: templateItemsError.message }, 400);
+      (templateItems ?? []).forEach((item) => {
+        if (item.reference_image_path && isValidPath(item.reference_image_path)) snapshotPaths.set(item.id, item.reference_image_path);
+      });
+    }
+    const signedEntries = await Promise.all([...snapshotPaths.entries()].map(async ([itemId, path]) => {
+      const { data: signed } = await serviceClient.storage.from(bucket).createSignedUrl(path, 60 * 60);
+      return signed?.signedUrl ? [itemId, signed.signedUrl] as const : null;
+    }));
+    return json({ urls: Object.fromEntries(signedEntries.filter((entry): entry is readonly [string, string] => entry !== null)) });
+  }
+
   return json({ error: 'Unknown action' }, 400);
 });

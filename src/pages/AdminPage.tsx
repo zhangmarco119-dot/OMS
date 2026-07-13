@@ -1,4 +1,4 @@
-import { Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, Save, Trash2, UserPlus } from 'lucide-react';
+import { CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, Save, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -18,6 +18,7 @@ import {
 import {
   createAuthUserWithProfile,
   deleteManagedUser,
+  findInitialAdminId,
   loadAdminUsers,
   updateManagedUser,
   updateProfileAdminFields,
@@ -69,7 +70,6 @@ export function AdminPage() {
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
   const [importFile, setImportFile] = useState<File | null>(null);
   const [newUser, setNewUser] = useState<CreateUserInput>({
-    email: '',
     password: '',
     username: '',
     displayName: '',
@@ -77,6 +77,8 @@ export function AdminPage() {
     storeIds: [],
   });
   const [passwordDrafts, setPasswordDrafts] = useState<Record<string, string>>({});
+  const [savedAccountName, setSavedAccountName] = useState<string | null>(null);
+  const initialAdminId = findInitialAdminId(users);
 
   const refresh = async (storeId = selectedStoreId) => {
     setLoading(true);
@@ -194,10 +196,6 @@ export function AdminPage() {
       setMessage('请填写账号名、姓名、初始密码并至少选择一个门店。');
       return;
     }
-    if (newUser.email && !/^\S+@\S+\.\S+$/.test(newUser.email.trim())) {
-      setMessage('选填邮箱格式不正确。');
-      return;
-    }
     if (users.some((user) => user.username.trim().toLocaleLowerCase() === newUser.username.trim().toLocaleLowerCase())) {
       setMessage('账号名已存在，请使用其他账号名。');
       return;
@@ -205,7 +203,7 @@ export function AdminPage() {
     try {
       await createAuthUserWithProfile(newUser);
       setMessage('账号已创建。');
-      setNewUser({ email: '', password: '', username: '', displayName: '', role: 'staff', storeIds: stores[0]?.id ? [stores[0].id] : [] });
+      setNewUser({ password: '', username: '', displayName: '', role: 'staff', storeIds: stores[0]?.id ? [stores[0].id] : [] });
       await refresh(selectedStoreId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建账号失败');
@@ -222,7 +220,7 @@ export function AdminPage() {
       setMessage('账号名和姓名不能为空。');
       return;
     }
-    if (user.email && !/^\S+@\S+\.\S+$/.test(user.email.trim())) {
+    if (user.id === initialAdminId && user.email && !/^\S+@\S+\.\S+$/.test(user.email.trim())) {
       setMessage('邮箱格式不正确。');
       return;
     }
@@ -232,7 +230,13 @@ export function AdminPage() {
       return;
     }
     try {
-      await updateManagedUser({ displayName: user.display_name, email: user.email, password, userId: user.id, username: user.username });
+      await updateManagedUser({
+        displayName: user.display_name,
+        email: user.id === initialAdminId ? user.email : undefined,
+        password,
+        userId: user.id,
+        username: user.username,
+      });
       await updateProfileAdminFields(user.id, {
         role: user.role,
         is_active: user.is_active,
@@ -240,8 +244,8 @@ export function AdminPage() {
       });
       if (user.role !== 'admin') await updateProductPermissions(user.id, user.productPermissions);
       setPasswordDrafts((current) => ({ ...current, [user.id]: '' }));
-      setMessage('账号资料已更新。');
       await refresh(selectedStoreId);
+      setSavedAccountName(user.display_name);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存账号失败');
     }
@@ -423,18 +427,17 @@ export function AdminPage() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-slate-900">创建账号</h2>
-                <p className="mt-1 text-xs text-slate-500">账号名或姓名登录，邮箱选填。</p>
+                <p className="mt-1 text-xs text-slate-500">账号名或姓名登录，系统会自动配置登录信息。</p>
               </div>
               <button className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold" onClick={() => setShowPassword((current) => !current)} type="button">
                 {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                 {showPassword ? '隐藏' : '显示'}
               </button>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))} placeholder="账号名" value={newUser.username} />
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} placeholder="姓名" value={newUser.displayName} />
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} placeholder="初始密码" type={showPassword ? 'text' : 'password'} value={newUser.password} />
-              <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" inputMode="email" onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} placeholder="联系邮箱（选填）" type="email" value={newUser.email ?? ''} />
               <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as CreateUserInput['role'] }))} value={newUser.role}>
                 <option value="staff">员工</option>
                 <option value="manager">店长</option>
@@ -470,7 +473,7 @@ export function AdminPage() {
                 <div className="grid gap-2 sm:grid-cols-3">
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, username: event.target.value } : entry))} placeholder="账号名" value={user.username} />
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, display_name: event.target.value } : entry))} placeholder="姓名" value={user.display_name} />
-                  <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" inputMode="email" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, email: event.target.value } : entry))} placeholder="邮箱（选填）" type="email" value={user.email} />
+                  {user.id === initialAdminId ? <input aria-label="初始管理员邮箱" className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" inputMode="email" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, email: event.target.value } : entry))} placeholder="初始管理员邮箱" type="email" value={user.email} /> : null}
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setPasswordDrafts((current) => ({ ...current, [user.id]: event.target.value }))} placeholder="新密码（留空不修改）" type={showPassword ? 'text' : 'password'} value={passwordDrafts[user.id] ?? ''} />
                   <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, role: event.target.value as AdminUserRow['role'] } : entry))} value={user.role}>
                     <option value="staff">员工</option>
@@ -504,6 +507,7 @@ export function AdminPage() {
           </div>
         </section>
       ) : null}
+      {savedAccountName ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/45 p-3 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="account-save-success-title"><section className="w-full max-w-sm rounded-2xl border border-emerald-100 bg-white p-5 shadow-dialog"><div className="flex items-start justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 className="h-7 w-7" aria-hidden="true" /></div><button aria-label="关闭保存成功提示" className="ui-icon-button" onClick={() => setSavedAccountName(null)} type="button"><X className="h-5 w-5" /></button></div><h2 className="mt-4 text-xl font-bold text-slate-900" id="account-save-success-title">账号修改已保存</h2><p className="mt-2 text-sm leading-6 text-slate-600">“{savedAccountName}”的账号资料已更新并生效。</p><button className="ui-button-primary mt-5 w-full" onClick={() => setSavedAccountName(null)} type="button">我知道了</button></section></div> : null}
     </PageShell>
   );
 }

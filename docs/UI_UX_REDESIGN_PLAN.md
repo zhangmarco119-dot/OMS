@@ -42,7 +42,7 @@
 | SOP 手册 `/app/sops` | 员工/店长 | 展开式长正文挤在列表卡片内 | 图片优先展示成品与关键步骤，正文和 PDF 分层，全屏查看图片 | FilterTabs、ImageGrid、EmptyState、AttachmentLink | VERIFIED | 多图展示、正文和附件状态通过 |
 | 点货订货历史 `/app/history` | 全部 | 筛选、明细、申请处理和加载状态复杂 | 统一分段控件、记录卡、详情和申请操作 | SegmentedControl、RecordCard、Dialog、LoadingState | VERIFIED | 筛选、明细和商品反馈服务通过 |
 | 运营历史 `/app/operations-history` | 全部 | 入口卡片语义和数据层级较弱 | 统一历史模块入口与数字摘要 | FeatureCard、MetricCard | VERIFIED | 角色入口和摘要查询通过 |
-| 管理后台 `/app/admin` | 管理员 | 商品/账号两大面板样式密集且重复 | 统一工具栏、列表、导入导出、编辑弹窗和反馈 | SectionHeader、RecordCard、Dialog、FormField | VERIFIED | 商品、账号与导入导出测试通过 |
+| 管理后台 `/app/admin` | 管理员 | 商品/账号两大面板样式密集且重复 | 统一工具栏、列表、导入导出和编辑反馈；普通账号隐藏内部认证邮箱，保存修改使用成功弹窗 | SectionHeader、RecordCard、Dialog、FormField | VERIFIED | 商品、账号、邮箱边界与导入导出测试通过 |
 | 管理员到货中心 `/app/admin/arrivals` | 管理员 | 筛选与列表卡片信息重复 | 统一筛选栏、状态、时间和操作入口 | FilterTabs、RecordCard、StatusBadge | VERIFIED | 筛选、分页、消息和详情入口通过 |
 | 到货汇总 `/app/admin/arrivals/summary` | 管理员 | 日期筛选和汇总表视觉层级不足 | 统一日期筛选、指标与可滚动表格 | FormField、MetricCard、DataTable | VERIFIED | 单日/区间、表格和导出测试通过 |
 | 到货详情 `/app/admin/arrivals/:id` | 管理员 | 图片、明细、审计和危险操作分散 | 统一详情元数据、图片区、审计时间线和作废弹窗 | DetailMeta、ImageGrid、Timeline、ConfirmDialog | VERIFIED | 图片、日志、导出和作废确认通过 |
@@ -76,6 +76,6 @@
 - Playwright E2E：320×720、390×844、768×1024、1280×720 四种视口通过；无横向溢出、无页面运行错误，保护路由均正确返回登录页。
 - 视觉截图：四种视口登录页截图已人工检查；测试产物位于 `test-results/ui-review/`，不纳入版本控制。
 - Supabase 契约：27 张表、52 条策略校验通过；本轮未修改 migration 或 RLS。
-- 安全审计：221 个文件扫描通过。
+- 安全审计：223 个文件扫描通过。
 - 生产构建：Vite 构建通过。
-- 版本：`StoreHub v2.1.2`。
+- 版本：`StoreHub v2.1.3`。

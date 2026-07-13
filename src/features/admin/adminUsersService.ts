@@ -12,13 +12,21 @@ export interface AdminUserRow extends ProfileRow {
 }
 
 export interface CreateUserInput {
-  email?: string;
   password: string;
   username: string;
   displayName: string;
   role: ProfileRow['role'];
   storeIds: string[];
 }
+
+export const findInitialAdminId = (users: AdminUserRow[]) => users
+  .filter((user) => user.role === 'admin')
+  .reduce<AdminUserRow | null>((oldest, user) => {
+    if (!oldest) return user;
+    if (user.created_at < oldest.created_at) return user;
+    if (user.created_at === oldest.created_at && user.id < oldest.id) return user;
+    return oldest;
+  }, null)?.id ?? null;
 
 const requireClient = () => {
   if (!supabase) {
@@ -139,7 +147,6 @@ const invokeAdminUsers = async (body: Record<string, unknown>) => {
 export const createAuthUserWithProfile = (input: CreateUserInput) =>
   invokeAdminUsers({
     action: 'create-user',
-    email: input.email?.trim() || undefined,
     password: input.password,
     username: input.username,
     displayName: input.displayName,
@@ -154,11 +161,11 @@ export const setUserTemporaryPassword = (userId: string, password: string) =>
     password,
   });
 
-export const updateManagedUser = (input: { displayName: string; email: string; password?: string; userId: string; username: string }) =>
+export const updateManagedUser = (input: { displayName: string; email?: string; password?: string; userId: string; username: string }) =>
   invokeAdminUsers({
     action: 'update-user',
     displayName: input.displayName,
-    email: input.email.trim() || undefined,
+    email: input.email?.trim() || undefined,
     password: input.password?.trim() || undefined,
     userId: input.userId,
     username: input.username,

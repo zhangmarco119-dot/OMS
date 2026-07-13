@@ -85,3 +85,10 @@ export const uploadV2TaskImage = async (client: Client, task: V2TaskRow, itemId:
   if (!metadata.data) { await client.storage.from(bucket).remove([path]); throw new Error('图片记录保存失败'); }
   return metadata.data;
 };
+
+export const deleteV2TaskImage = async (client: Client, image: V2TaskImageRow) => {
+  const metadata = await client.from('v2_task_images').delete().eq('id', image.id);
+  fail(metadata.error);
+  const storage = await client.storage.from(image.bucket).remove([image.object_path]);
+  return { storageCleanupFailed: Boolean(storage.error) };
+};

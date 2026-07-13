@@ -62,6 +62,10 @@ describe('AdminTaskTemplatesPage reference images', () => {
     expect(screen.getByAltText('本地参考图待上传预览')).toHaveAttribute('src', 'blob:reference-preview');
     await waitFor(() => expect(uploadTaskTemplateReferenceImage).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByAltText('参考图片 1')).toHaveAttribute('src', 'https://signed.example/reference.jpg'));
+    fireEvent.click(screen.getByRole('button', { name: '全屏查看参考图片 1' }));
+    expect(screen.getByRole('dialog', { name: '管理员参考图片全屏预览' })).toBeInTheDocument();
+    fireEvent.click(screen.getByAltText('管理员参考图片大图'));
+    expect(screen.queryByRole('dialog', { name: '管理员参考图片全屏预览' })).not.toBeInTheDocument();
   });
 
   it('saves an existing browser draft before uploading so newly added items exist on the server', async () => {

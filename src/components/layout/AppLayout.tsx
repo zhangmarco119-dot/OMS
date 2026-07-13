@@ -1,6 +1,6 @@
 import { ClipboardList, Home, ListTodo, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../features/auth/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -22,6 +22,7 @@ const adminNavItems = [
 
 export function AppLayout() {
   const auth = useAuth();
+  const location = useLocation();
   const [todoCount, setTodoCount] = useState(0);
   const navItems = auth.profile?.role === 'admin'
     ? adminNavItems
@@ -31,12 +32,27 @@ export function AppLayout() {
     try { const summary = await loadTodoSummary(supabase, { isAdmin: auth.profile.role === 'admin', profileId: auth.profile.id, storeId: auth.store?.id }); setTodoCount(summary.count); }
     catch { setTodoCount(0); }
   }, [auth.profile, auth.store?.id]);
-  useEffect(() => { void refreshTodoCount(); }, [refreshTodoCount]);
+  useEffect(() => { void refreshTodoCount(); }, [location.key, refreshTodoCount]);
   useEffect(() => {
     const onFocus = () => { void refreshTodoCount(); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [refreshTodoCount]);
+  useEffect(() => {
+    const onTodoChanged = () => { void refreshTodoCount(); };
+    window.addEventListener('storehub:todos-changed', onTodoChanged);
+    return () => window.removeEventListener('storehub:todos-changed', onTodoChanged);
+  }, [refreshTodoCount]);
+  useEffect(() => {
+    const client = supabase;
+    if (!client || !auth.profile) return undefined;
+    const channel = client.channel(`todo-badge:${auth.profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'v2_tasks' }, () => void refreshTodoCount())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_feedback' }, () => void refreshTodoCount())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'v2_notice_recipients' }, () => void refreshTodoCount())
+      .subscribe();
+    return () => { void client.removeChannel(channel); };
+  }, [auth.profile, refreshTodoCount]);
 
   return (
     <div className="min-h-screen bg-[#f4f7f3]">

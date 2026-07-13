@@ -70,6 +70,7 @@ export function V2TaskExecutionPage() {
     try {
       const saved = await save();
       await submitV2Task(supabase, detail.task.id, saved?.version ?? detail.task.version);
+      window.dispatchEvent(new Event('storehub:todos-changed'));
       setSuccessMessage('任务已提交，等待管理员审核');
       window.setTimeout(() => navigate('/app/tasks'), 900);
     } catch (error) { setMessage(error instanceof Error ? error.message : '提交失败'); }

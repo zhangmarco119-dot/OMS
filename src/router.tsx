@@ -11,7 +11,7 @@ import { AdminArrivalsPage } from './pages/AdminArrivalsPage';
 import { AdminArrivalSummaryPage } from './pages/AdminArrivalSummaryPage';
 import { AdminTaskTemplatesPage } from './pages/AdminTaskTemplatesPage';
 import { AdminV2TaskReviewPage } from './pages/AdminV2TaskReviewPage';
-import { AdminV2TasksPage } from './pages/AdminV2TasksPage';
+import { AdminV2TaskPublishPage, AdminV2TasksPage } from './pages/AdminV2TasksPage';
 import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
 import { ArrivalHistoryPage } from './pages/ArrivalHistoryPage';
 import { ArrivalSuccessPage } from './pages/ArrivalSuccessPage';
@@ -95,6 +95,7 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute requireAdmin><AdminTaskTemplatesPage /></ProtectedRoute>,
       },
       { path: 'admin/tasks', element: <ProtectedRoute requireAdmin><AdminV2TasksPage /></ProtectedRoute> },
+      { path: 'admin/tasks/publish', element: <ProtectedRoute requireAdmin><AdminV2TaskPublishPage /></ProtectedRoute> },
       { path: 'admin/tasks/:taskId', element: <ProtectedRoute requireAdmin><AdminV2TaskReviewPage /></ProtectedRoute> },
       { path: 'admin/content', element: <ProtectedRoute requireAdmin><AdminContentPage /></ProtectedRoute> },
       { path: 'admin/analytics', element: <ProtectedRoute requireAdmin><AdminAnalyticsPage /></ProtectedRoute> },

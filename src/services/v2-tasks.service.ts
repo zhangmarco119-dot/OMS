@@ -17,7 +17,7 @@ const fail = (error: { message: string } | null) => { if (error) throw new Error
 export const asTaskItemSnapshot = (value: Json): TaskItemSnapshot => value as unknown as TaskItemSnapshot;
 
 export const loadV2Tasks = async (client: Client, storeId?: string) => {
-  let query = client.from('v2_tasks').select('*').order('due_at', { ascending: true });
+  let query = client.from('v2_tasks').select('*').neq('status', 'cancelled').order('due_at', { ascending: true });
   if (storeId) query = query.eq('store_id', storeId);
   const { data, error } = await query; fail(error); return data ?? [];
 };

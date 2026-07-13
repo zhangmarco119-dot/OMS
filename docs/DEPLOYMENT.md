@@ -37,6 +37,7 @@ STOREHUB_DEVELOPMENT_SUPABASE_REF
 ./scripts/supabase-environment.ps1 -Environment Development -Action Link
 ./scripts/supabase-environment.ps1 -Environment Development -Action DryRun
 ./scripts/supabase-environment.ps1 -Environment Development -Action Push
+./scripts/supabase-environment.ps1 -Environment Development -Action PushAuthConfig -AuthSiteUrl https://oms-store-development.pages.dev -AuthRedirectUrl https://oms-store-development.pages.dev
 ./scripts/supabase-environment.ps1 -Environment Development -Action DeployFunctions
 pnpm release:check
 ```

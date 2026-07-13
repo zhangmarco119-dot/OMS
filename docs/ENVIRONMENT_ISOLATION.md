@@ -25,6 +25,8 @@
 | `VITE_SUPABASE_ANON_KEY` | 开发项目 Anon/Publishable Key | 正式项目 Anon/Publishable Key |
 | `STOREHUB_DEVELOPMENT_SUPABASE_REF` | 开发项目 Ref | 同一个开发项目 Ref |
 | `STOREHUB_PRODUCTION_SUPABASE_REF` | 正式项目 Ref | 同一个正式项目 Ref |
+| `STOREHUB_AUTH_SITE_URL` | 开发站点 HTTPS Origin | 正式站点 HTTPS Origin |
+| `STOREHUB_AUTH_REDIRECT_URL` | 开发站点 HTTPS Origin | 正式站点 HTTPS Origin |
 
 不要在前端或 Git 中保存数据库密码、Access Token、Service Role/Secret Key。Edge Function 的服务端 Secret 分别保存在各自 Supabase 项目中。
 
@@ -91,7 +93,7 @@ node scripts/verify-environment.mjs --print-anon-key-fingerprint
 3. 把真实 URL/Key 写入未跟踪的 `.env.development.local`，把两个 Ref 写入该文件的 `STOREHUB_*_REF`。
 4. 生成开发 Key 指纹，把开发 Ref 与指纹提交到 `config/environment-policy.json`；真实 Key 不提交。
 5. 在 `v2-development` 执行安全 Link、Migration Dry Run 和 Push。
-6. 在开发项目分别配置 Auth Site URL/Redirect URL，并通过安全脚本部署 `account-login`、`admin-users`、`task-template-images`；Supabase 标准服务端变量由各项目独立提供，Storage bucket 与 policy 由 Migration 创建。
+6. 通过 `PushAuthConfig` 配置 Auth Site URL/Redirect URL 并关闭公开自助注册，再通过安全脚本部署 `account-login`、`admin-users`、`task-template-images`；Supabase 标准服务端变量由各项目独立提供，Storage bucket 与 policy 由 Migration 创建。
 7. 创建虚构测试账号，并按需显式执行开发 Seed。
 
 Cloudflare 推荐使用两个 Pages 项目：

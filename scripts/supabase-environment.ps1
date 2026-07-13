@@ -4,11 +4,14 @@ param(
   [string]$Environment,
 
   [Parameter(Mandatory = $true)]
-  [ValidateSet('Link', 'MigrationList', 'DryRun', 'Push', 'SeedDevelopment', 'DeployFunctions')]
+  [ValidateSet('Link', 'MigrationList', 'DryRun', 'Push', 'SeedDevelopment', 'DeployFunctions', 'PushAuthConfig')]
   [string]$Action,
 
   [string]$ProductionConfirmation = '',
   [string]$ProductionFunctionConfirmation = '',
+  [string]$ProductionAuthConfirmation = '',
+  [string]$AuthSiteUrl = '',
+  [string]$AuthRedirectUrl = '',
   [string]$DevelopmentSeedConfirmation = ''
 )
 
@@ -90,6 +93,24 @@ try {
       Invoke-Pnpm dlx supabase@latest functions deploy account-login --project-ref $TargetRef --no-verify-jwt --agent no
       Invoke-Pnpm dlx supabase@latest functions deploy admin-users --project-ref $TargetRef --agent no
       Invoke-Pnpm dlx supabase@latest functions deploy task-template-images --project-ref $TargetRef --agent no
+    }
+    'PushAuthConfig' {
+      if ($AuthSiteUrl -notmatch '^https://[^/]+/?$' -or $AuthRedirectUrl -notmatch '^https://[^/]+/?$') {
+        throw 'AuthSiteUrl and AuthRedirectUrl must be HTTPS origins without a path.'
+      }
+      if ($Environment -eq 'Production' -and $ProductionAuthConfirmation -ne 'APPLY-PRODUCTION-AUTH-CONFIG') {
+        throw 'Production Auth config requires -ProductionAuthConfirmation APPLY-PRODUCTION-AUTH-CONFIG.'
+      }
+      $PreviousSiteUrl = $env:STOREHUB_AUTH_SITE_URL
+      $PreviousRedirectUrl = $env:STOREHUB_AUTH_REDIRECT_URL
+      try {
+        $env:STOREHUB_AUTH_SITE_URL = $AuthSiteUrl.TrimEnd('/')
+        $env:STOREHUB_AUTH_REDIRECT_URL = $AuthRedirectUrl.TrimEnd('/')
+        Invoke-Pnpm dlx supabase@latest config push --project-ref $TargetRef --yes --agent no
+      } finally {
+        $env:STOREHUB_AUTH_SITE_URL = $PreviousSiteUrl
+        $env:STOREHUB_AUTH_REDIRECT_URL = $PreviousRedirectUrl
+      }
     }
   }
 } finally {

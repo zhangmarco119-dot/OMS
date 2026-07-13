@@ -225,3 +225,10 @@ export const uploadSopAsset = async (client: Client, input: { file: File; profil
   }
   return data;
 };
+
+export const deleteSopAsset = async (client: Client, asset: Pick<SopAssetRow, 'id' | 'object_path'>) => {
+  const storage = await client.storage.from('v2-sop-assets').remove([asset.object_path]);
+  throwIfError(storage.error);
+  const { error } = await client.from('v2_sop_assets').delete().eq('id', asset.id);
+  throwIfError(error);
+};

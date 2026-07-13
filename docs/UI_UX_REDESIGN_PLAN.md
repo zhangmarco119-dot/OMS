@@ -39,7 +39,7 @@
 | 任务执行 `/app/tasks/:id` | 员工/店长 | 多种字段、图片与底部操作样式不统一 | 统一任务信息、项目字段、图片预览和提交反馈 | FormField、ImageGrid、StatusBadge、MobileActionBar、Dialog | VERIFIED | 必填、上传、预览和提交测试通过 |
 | 公告中心 `/app/notices` | 员工/店长 | 列表层级和未读标识偏弱 | 统一公告列表、置顶/未读、时间和点击反馈 | NoticeItem、StatusBadge、EmptyState | VERIFIED | 未读、置顶、跳转与空态通过 |
 | 公告详情 `/app/notices/:id` | 员工/店长 | 正文、元数据和确认操作层级不统一 | 长文排版、附件、确认操作和安全区统一 | DetailMeta、MobileActionBar、FeedbackBanner | VERIFIED | 内容、附件和已读动作回归通过 |
-| SOP 手册 `/app/sops` | 员工/店长 | 展开式长正文挤在列表卡片内 | 统一筛选、摘要和展开内容层级 | FilterTabs、EmptyState、AttachmentLink | VERIFIED | 筛选、正文和附件状态通过 |
+| SOP 手册 `/app/sops` | 员工/店长 | 展开式长正文挤在列表卡片内 | 图片优先展示成品与关键步骤，正文和 PDF 分层，全屏查看图片 | FilterTabs、ImageGrid、EmptyState、AttachmentLink | VERIFIED | 多图展示、正文和附件状态通过 |
 | 点货订货历史 `/app/history` | 全部 | 筛选、明细、申请处理和加载状态复杂 | 统一分段控件、记录卡、详情和申请操作 | SegmentedControl、RecordCard、Dialog、LoadingState | VERIFIED | 筛选、明细和商品反馈服务通过 |
 | 运营历史 `/app/operations-history` | 全部 | 入口卡片语义和数据层级较弱 | 统一历史模块入口与数字摘要 | FeatureCard、MetricCard | VERIFIED | 角色入口和摘要查询通过 |
 | 管理后台 `/app/admin` | 管理员 | 商品/账号两大面板样式密集且重复 | 统一工具栏、列表、导入导出、编辑弹窗和反馈 | SectionHeader、RecordCard、Dialog、FormField | VERIFIED | 商品、账号与导入导出测试通过 |
@@ -50,7 +50,7 @@
 | 任务发布 `/app/admin/tasks/publish` | 管理员 | 大量单选/多选控件样式分散 | 统一表单、周期规则、门店选择和提交反馈 | FormField、ChoiceCard、FeedbackBanner | VERIFIED | 单次/周期规则与发布服务通过 |
 | 任务审核 `/app/admin/tasks/:id` | 管理员 | 审核项目、图片和操作区层级不清 | 统一任务元数据、整改选择和审核操作栏 | StatusBadge、ImageGrid、MobileActionBar、ConfirmDialog | VERIFIED | 参考图、提交图、通过/退回/撤回通过 |
 | 任务模板 `/app/admin/task-templates` | 管理员 | 编辑器信息密集、按钮和上传状态不统一 | 统一模板列表/归档、分组项目、图片上传和固定操作栏 | SegmentedControl、FormField、ImageGrid、MobileActionBar | VERIFIED | 草稿、归档、删除和多参考图测试通过 |
-| 公告与 SOP 管理 `/app/admin/content` | 管理员 | 两类内容表单与列表混排 | 统一分段导航、编辑区、列表和危险操作 | SegmentedControl、FormField、RecordCard、ConfirmDialog | VERIFIED | 发布、撤回、删除、归档和附件通过 |
+| 公告与 SOP 管理 `/app/admin/content` | 管理员 | 两类内容表单与列表混排 | SOP 改为食品制作图片优先编辑器，支持未保存多图即时预览、安全区操作栏和图片管理 | FormField、ImageGrid、MobileActionBar、ConfirmDialog | VERIFIED | 保存、发布、多图上传、删除和底栏安全区通过 |
 | 运营统计 `/app/admin/analytics` | 管理员 | 指标卡与趋势图颜色较多、空态不统一 | 收敛色彩、统一指标卡、日期筛选和图表说明 | MetricCard、FormField、EmptyState | VERIFIED | 日期范围、指标跳转和统计服务通过 |
 | 路由错误页 | 全部 | 与业务页面视觉断层 | 统一错误状态、重试和返回动作 | ErrorState | VERIFIED | 错误反馈与操作入口通过 |
 | 404 页面 | 全部 | 视觉层级简单但不统一 | 统一空状态和返回入口 | EmptyState | VERIFIED | 空态与返回入口通过 |
@@ -78,4 +78,4 @@
 - Supabase 契约：27 张表、52 条策略校验通过；本轮未修改 migration 或 RLS。
 - 安全审计：221 个文件扫描通过。
 - 生产构建：Vite 构建通过。
-- 版本：`StoreHub v2.1.0`。
+- 版本：`StoreHub v2.1.1`。

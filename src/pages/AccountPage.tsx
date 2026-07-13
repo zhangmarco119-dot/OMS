@@ -1,8 +1,10 @@
-import { Bell, ChevronRight, Eye, EyeOff, History, KeyRound, LogOut, Settings, Store, UserRound } from 'lucide-react';
+import { Bell, ChevronRight, Eye, EyeOff, History, KeyRound, LogOut, Store, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { FeedbackBanner } from '../components/ui/Feedback';
+import { FormField } from '../components/ui/FormField';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
@@ -57,9 +59,9 @@ export function AccountPage() {
 
   if (view === 'profile') {
     return (
-      <PageShell eyebrow="账户" title="账户信息">
-        {notices.length ? <Link className="notice-ticker flex min-h-12 items-center gap-2 overflow-hidden rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white shadow-sm" to={`/app/notices?notice=${notices[0].id}`}><Bell className="h-4 w-4 shrink-0" /><span className="notice-ticker-text">最新公告：{notices.map((notice) => notice.title).join('　·　')}</span><ChevronRight className="ml-auto h-4 w-4 shrink-0" /></Link> : null}
-        <section className="overflow-hidden rounded-lg border border-line bg-white shadow-panel">
+      <PageShell eyebrow="账户" title="我的" contentGapClassName="gap-3">
+        {notices.length ? <Link className="notice-ticker ui-interactive flex min-h-11 items-center gap-2 overflow-hidden rounded-xl border border-brand-700 bg-brand-700 px-3 text-sm font-semibold text-white" to={`/app/notices?notice=${notices[0].id}`}><Bell className="h-4 w-4 shrink-0" /><span className="notice-ticker-text">未读公告：{notices.map((notice) => notice.title).join('　·　')}</span><ChevronRight className="ml-auto h-4 w-4 shrink-0" /></Link> : null}
+        <section className="ui-card overflow-hidden">
           <div className="flex items-center gap-3 border-b border-line p-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
               <UserRound className="h-6 w-6" aria-hidden="true" />
@@ -76,15 +78,11 @@ export function AccountPage() {
           </dl>
         </section>
 
-        <section className="overflow-hidden rounded-lg border border-line bg-white shadow-panel">
+        <section className="ui-card overflow-hidden">
           <Link className="flex min-h-14 items-center gap-3 border-b border-line px-4 text-left" to="/app/operations-history">
             <History className="h-5 w-5 text-slate-500" aria-hidden="true" />
             <span className="flex-1 font-semibold text-ink">个人历史与运营记录</span><ChevronRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
           </Link>
-          <div className="flex min-h-14 items-center gap-3 border-b border-line px-4">
-            <Settings className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            <span className="flex-1 font-semibold text-ink">设置</span><span className="text-sm text-slate-500">通知与账号设置</span>
-          </div>
           <button className="flex min-h-14 w-full items-center gap-3 px-4 text-left" onClick={() => { setMessage(null); setView('password'); }} type="button">
             <KeyRound className="h-5 w-5 text-slate-500" aria-hidden="true" />
             <span className="flex-1 font-semibold text-ink">修改密码</span>
@@ -96,7 +94,7 @@ export function AccountPage() {
           </div>
         </section>
 
-        <button className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white font-bold text-red-700" onClick={() => void auth.signOut()} type="button">
+        <button className="ui-button-secondary w-full border-red-200 text-red-700 hover:bg-red-50" onClick={() => void auth.signOut()} type="button">
           <LogOut className="h-5 w-5" aria-hidden="true" />
           退出登录
         </button>
@@ -106,22 +104,22 @@ export function AccountPage() {
 
   return (
     <PageShell eyebrow="账户安全" title="修改密码" onBack={() => setView('profile')}>
-      <div className="rounded-lg border border-line bg-white p-5 shadow-panel">
+      <div className="ui-card p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-brand-600" aria-hidden="true" />
             <h2 className="text-lg font-semibold text-ink">设置新密码</h2>
           </div>
-          <button className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line px-4 text-sm font-semibold" onClick={() => setShowPassword((current) => !current)} type="button">
+          <button className="ui-button-secondary" onClick={() => setShowPassword((current) => !current)} type="button">
             {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
             {showPassword ? '隐藏' : '显示'}
           </button>
         </div>
-        {message ? <p className="mb-4 rounded-md bg-accent-50 p-3 text-sm leading-6 text-accent-700">{message}</p> : null}
+        {message ? <FeedbackBanner className="mb-4" tone={message === '密码已修改。' ? 'success' : 'warning'}>{message}</FeedbackBanner> : null}
         <div className="grid gap-3">
-          <input className="min-h-12 rounded-md border border-line px-3" onChange={(event) => setPassword(event.target.value)} placeholder="新密码" type={showPassword ? 'text' : 'password'} value={password} />
-          <input className="min-h-12 rounded-md border border-line px-3" onChange={(event) => setConfirmPassword(event.target.value)} placeholder="确认新密码" type={showPassword ? 'text' : 'password'} value={confirmPassword} />
-          <button className="min-h-12 rounded-md bg-brand-600 px-4 font-semibold text-white" onClick={() => void updatePassword()} type="button">
+          <FormField hint="至少 8 位，请避免使用容易猜测的密码。" label="新密码" required><input autoComplete="new-password" className="ui-input" onChange={(event) => setPassword(event.target.value)} placeholder="请输入新密码" type={showPassword ? 'text' : 'password'} value={password} /></FormField>
+          <FormField label="确认新密码" required><input autoComplete="new-password" className="ui-input" onChange={(event) => setConfirmPassword(event.target.value)} placeholder="再次输入新密码" type={showPassword ? 'text' : 'password'} value={confirmPassword} /></FormField>
+          <button className="ui-button-primary mt-1" onClick={() => void updatePassword()} type="button">
             修改密码
           </button>
         </div>

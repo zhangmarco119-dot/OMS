@@ -7,6 +7,8 @@ const config: Config = {
       colors: {
         ink: '#16212f',
         line: '#d7dde7',
+        canvas: '#f5f7f5',
+        surface: '#ffffff',
         brand: {
           50: '#eef8f3',
           100: '#d7f0e3',
@@ -21,7 +23,10 @@ const config: Config = {
         },
       },
       boxShadow: {
-        panel: '0 18px 50px rgba(22, 33, 47, 0.12)',
+        card: '0 1px 2px rgba(15, 23, 42, 0.04)',
+        floating: '0 10px 30px rgba(15, 23, 42, 0.10)',
+        dialog: '0 24px 64px rgba(15, 23, 42, 0.20)',
+        panel: '0 10px 30px rgba(22, 33, 47, 0.08)',
       },
     },
   },

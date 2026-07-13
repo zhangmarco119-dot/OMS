@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { cn } from '../../lib/cn';
+
 interface PageShellProps {
   eyebrow?: string;
   title: string;
@@ -19,17 +21,17 @@ export function PageShell({ eyebrow, title, children, backTo, contentGapClassNam
     if (backTo) navigate(backTo);
   };
   return (
-    <section className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
-      <div className={`mx-auto flex max-w-5xl flex-col ${contentGapClassName}`}>
-        <header className="relative flex min-h-16 items-center justify-center border-b border-line pb-4 text-center">
+    <section className="min-h-screen px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8">
+      <div className={cn('mx-auto flex max-w-5xl flex-col', contentGapClassName)}>
+        <header className="relative flex min-h-14 items-center justify-center border-b border-slate-200 pb-3 text-center">
           {onBack || backTo ? (
-            <button aria-label="返回" className="absolute left-0 flex h-11 w-11 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm" onClick={goBack} type="button">
+            <button aria-label="返回" className="ui-icon-button absolute left-0 border-transparent bg-transparent" onClick={goBack} type="button">
               <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </button>
           ) : null}
           <div className="min-w-0 px-14">
-            {eyebrow ? <p className="text-xs font-semibold text-brand-700">{eyebrow}</p> : null}
-            <h1 className="mt-1 text-xl font-bold leading-tight text-ink sm:text-2xl">{title}</h1>
+            {eyebrow ? <p className="truncate text-xs font-semibold text-brand-700">{eyebrow}</p> : null}
+            <h1 className="mt-0.5 text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{title}</h1>
           </div>
         </header>
         {children}

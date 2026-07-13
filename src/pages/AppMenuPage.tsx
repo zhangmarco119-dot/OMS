@@ -1,7 +1,6 @@
 import { BarChart3, Bell, BookOpenCheck, ClipboardList, History, PackageCheck, PackagePlus, ShoppingBag, Users } from 'lucide-react';
-import { Link } from 'react-router-dom';
-
 import { PageShell } from '../components/layout/PageShell';
+import { FeatureCard } from '../components/ui/Surface';
 import { featureFlags } from '../config/featureFlags';
 import { canOperateV2Modules } from '../features/access/roleCapabilities';
 import { useAuth } from '../features/auth/AuthContext';
@@ -27,5 +26,5 @@ export function AppMenuPage() {
     ...(featureFlags.noticesAndSops && canUseV2 ? [{ icon: Bell, label: '门店公告', note: '查看公告和已读状态', to: '/app/notices' }, { icon: BookOpenCheck, label: 'SOP 手册', note: '查看标准作业流程', to: '/app/sops' }] : []),
     { icon: History, label: '运营历史', note: '点货、订货、到货和任务记录', to: '/app/operations-history' },
   ];
-  return <PageShell eyebrow="门店运营系统" title="工作台"><section className="grid grid-cols-3 gap-2 sm:gap-3">{items.map(({ icon: Icon, label, note, to }) => <Link className="flex aspect-square min-h-28 flex-col rounded-xl bg-brand-700 p-2.5 text-white shadow-sm ring-1 ring-brand-800 transition hover:bg-brand-800 active:scale-[0.98] sm:min-h-32 sm:p-3" key={to} to={to}><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 text-emerald-100 sm:h-10 sm:w-10"><Icon className="h-4 w-4 sm:h-5 sm:w-5" /></span><div className="mt-auto min-h-[3.25rem]"><b className="block text-sm leading-5 text-white sm:text-base">{label}</b><span className="mt-0.5 block min-h-8 text-[10px] leading-4 text-emerald-50/85 sm:text-xs">{note}</span></div></Link>)}</section></PageShell>;
+  return <PageShell eyebrow="门店运营系统" title="工作台" contentGapClassName="gap-3"><section className="grid grid-cols-3 gap-2 sm:gap-3">{items.map((item) => <FeatureCard {...item} key={item.to} />)}</section></PageShell>;
 }

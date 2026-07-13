@@ -1,6 +1,6 @@
 import { ClipboardList, Home, ListTodo, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../features/auth/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -19,6 +19,15 @@ const adminNavItems = [
   { to: '/app/todos', label: '待办', icon: ListTodo },
   { to: '/app/account', label: '我的', icon: UserRound },
 ];
+
+const isItemActive = (pathname: string, to: string) => {
+  if (to === '/app') return pathname === '/app' || pathname === '/app/messages';
+  if (to === '/app/todos') return pathname.startsWith('/app/todos');
+  if (to === '/app/account') return pathname.startsWith('/app/account');
+  return !['/app', '/app/messages'].includes(pathname)
+    && !pathname.startsWith('/app/todos')
+    && !pathname.startsWith('/app/account');
+};
 
 export function AppLayout() {
   const auth = useAuth();
@@ -55,31 +64,28 @@ export function AppLayout() {
   }, [auth.profile, refreshTodoCount]);
 
   return (
-    <div className="min-h-screen bg-[#f4f7f3]">
-      <main className="mx-auto min-h-screen w-full max-w-5xl pb-24">
+    <div className="min-h-screen bg-canvas">
+      <main className="mx-auto min-h-screen w-full max-w-5xl pb-[calc(5.25rem+env(safe-area-inset-bottom))]">
         <Outlet />
       </main>
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 border-t border-line bg-white/95 px-3 pt-2 shadow-panel backdrop-blur">
+      <nav aria-label="主导航" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pt-1.5 shadow-[0_-6px_24px_rgba(15,23,42,0.06)] backdrop-blur">
         <div
           className="mx-auto grid max-w-md gap-1"
           style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
         >
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
+          {navItems.map(({ to, label, icon: Icon }) => {
+            const active = isItemActive(location.pathname, to);
+            return (
+            <Link
+              aria-current={active ? 'page' : undefined}
               key={to}
               to={to}
-              end
-              className={({ isActive }) =>
-                [
-                  'flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium',
-                  isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600',
-                ].join(' ')
-              }
+              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-semibold transition ${active ? 'text-brand-700' : 'text-slate-500'}`}
             >
-              <span className="relative"><Icon aria-hidden="true" className="h-5 w-5" />{to === '/app/todos' && todoCount > 0 ? <span aria-label={`${todoCount} 条待办`} className="absolute -right-3 -top-2 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] leading-4 text-white">{todoCount > 99 ? '99+' : todoCount}</span> : null}</span>
+              <span className={`relative flex h-7 min-w-11 items-center justify-center rounded-full transition ${active ? 'bg-brand-50' : ''}`}><Icon aria-hidden="true" className="h-5 w-5" />{to === '/app/todos' && todoCount > 0 ? <span aria-label={`${todoCount} 条待办`} className="absolute -right-0.5 -top-1 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] font-bold leading-4 text-white ring-2 ring-white">{todoCount > 99 ? '99+' : todoCount}</span> : null}</span>
               <span>{label}</span>
-            </NavLink>
-          ))}
+            </Link>
+          );})}
         </div>
       </nav>
     </div>

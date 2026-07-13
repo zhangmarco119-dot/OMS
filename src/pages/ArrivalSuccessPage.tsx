@@ -28,15 +28,15 @@ export function ArrivalSuccessPage() {
 
   return (
     <PageShell eyebrow="门店运营系统" title="提交结果" backTo="/app">
-      <section className="rounded-lg bg-white p-6 text-center shadow-sm">
-        <CheckCircle2 className="mx-auto h-16 w-16 text-brand-600" aria-hidden="true" />
-        <h2 className="mt-4 text-2xl font-bold text-slate-900">到货上报已提交</h2>
+      <section className="ui-card p-6 text-center">
+        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50"><CheckCircle2 className="h-9 w-9 text-emerald-600" aria-hidden="true" /></span>
+        <h2 className="mt-4 text-xl font-bold text-slate-900">到货上报已提交</h2>
         {report ? <><p className="mt-3 text-sm font-semibold text-brand-700">{report.report_no}</p><p className="mt-3 text-sm leading-7 text-slate-600">{report.generated_summary}</p></> : <p className="mt-3 text-sm text-slate-500">{message ?? '正在读取提交结果…'}</p>}
       </section>
       <div className="grid gap-3">
-        <Link className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white" to="/app/arrivals/history"><History className="h-5 w-5" aria-hidden="true" />查看记录</Link>
-        <Link className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 font-bold text-brand-700" to="/app/arrivals"><PackagePlus className="h-5 w-5" aria-hidden="true" />继续上报下一批</Link>
-        <Link className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 font-bold text-slate-700" to="/app"><Home className="h-5 w-5" aria-hidden="true" />返回工作台</Link>
+        <Link className="ui-button-primary" to="/app/arrivals/history"><History className="h-5 w-5" aria-hidden="true" />查看记录</Link>
+        <Link className="ui-button-secondary border-brand-200 text-brand-700" to="/app/arrivals"><PackagePlus className="h-5 w-5" aria-hidden="true" />继续上报下一批</Link>
+        <Link className="ui-button-secondary" to="/app"><Home className="h-5 w-5" aria-hidden="true" />返回首页</Link>
       </div>
     </PageShell>
   );

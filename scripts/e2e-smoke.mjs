@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
-import { access } from 'node:fs/promises';
+import { access, mkdir } from 'node:fs/promises';
 
 const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:5173';
 const chromeCandidates = [
@@ -37,6 +37,8 @@ const checkServer = (url) => new Promise((resolve, reject) => {
 
 const runViewport = async (browser, viewport, label) => {
   const page = await browser.newPage({ viewport });
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForURL(`${baseUrl}/login`, { timeout: 10000 });
@@ -49,6 +51,10 @@ const runViewport = async (browser, viewport, label) => {
   await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });
   await assertText(page, '门店运营系统');
   await page.getByPlaceholder('请输入账号名或姓名').waitFor({ state: 'visible', timeout: 10000 });
+  await page.screenshot({ fullPage: true, path: `test-results/ui-review/login-${label}.png` });
+
+  const hasHorizontalOverflow = await page.evaluate('document.documentElement.scrollWidth > document.documentElement.clientWidth + 1');
+  if (hasHorizontalOverflow) throw new Error(`unexpected horizontal overflow at ${label}`);
 
   for (const protectedPath of [
     '/app/history',
@@ -66,8 +72,11 @@ const runViewport = async (browser, viewport, label) => {
     '/app/admin/tasks/00000000-0000-4000-8000-000000000001',
   ]) {
     await page.goto(`${baseUrl}${protectedPath}`, { waitUntil: 'domcontentloaded' });
-    await assertText(page, '请登录以继续');
+    await page.waitForURL(`${baseUrl}/login`, { timeout: 10000 });
+    await assertText(page, '门店运营系统');
   }
+
+  if (pageErrors.length) throw new Error(`page errors at ${label}: ${pageErrors.join('; ')}`);
 
   await page.close();
   console.log(`E2E smoke passed: ${label}`);
@@ -94,14 +103,17 @@ try {
 }
 
 const executablePath = await findChrome();
+await mkdir('test-results/ui-review', { recursive: true });
 const browser = await chromium.launch({
   executablePath,
   headless: true,
 });
 
 try {
-  await runViewport(browser, { width: 1280, height: 720 }, 'desktop');
+  await runViewport(browser, { width: 320, height: 720, isMobile: true }, 'small-mobile');
   await runViewport(browser, { width: 390, height: 844, isMobile: true }, 'mobile');
+  await runViewport(browser, { width: 768, height: 1024, isMobile: true }, 'tablet');
+  await runViewport(browser, { width: 1280, height: 720 }, 'desktop');
 } finally {
   await browser.close();
 }

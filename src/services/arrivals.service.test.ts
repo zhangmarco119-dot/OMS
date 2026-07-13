@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ArrivalDraftItem } from '../features/arrivals/arrivalForm';
 import type { Database } from '../types/database';
-import { saveArrivalDraft } from './arrivals.service';
+import { localArrivalDate, localArrivalTime, saveArrivalDraft } from './arrivals.service';
 
 const report = {
   arrival_date: '2026-07-12',
@@ -44,6 +44,12 @@ const completeItem: ArrivalDraftItem = {
 };
 
 describe('arrivals service', () => {
+  it('uses the device local date and time for a new arrival draft', () => {
+    const now = new Date(2026, 6, 13, 9, 5, 0);
+    expect(localArrivalDate(now)).toBe('2026-07-13');
+    expect(localArrivalTime(now)).toBe('09:05');
+  });
+
   it('saves complete items through the atomic draft RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: report, error: null });
     const client = { rpc } as unknown as SupabaseClient<Database>;

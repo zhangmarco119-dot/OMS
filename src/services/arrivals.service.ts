@@ -52,17 +52,15 @@ export interface SaveArrivalDraftInput {
   trackingNo: string;
 }
 
-const localDate = () => {
-  const now = new Date();
+export const localArrivalDate = (now = new Date()) => {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
-const localTime = () => new Intl.DateTimeFormat('en-GB', {
-  hour: '2-digit',
-  hour12: false,
-  minute: '2-digit',
-}).format(new Date());
+export const localArrivalTime = (now = new Date()) => {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+};
 
 const toDraftItem = (
   row: Database['public']['Tables']['arrival_report_items']['Row'],
@@ -103,8 +101,8 @@ export const loadOrCreateArrivalDraft = async (
     const { data: created, error: createError } = await client
       .from('arrival_reports')
       .insert({
-        arrival_date: localDate(),
-        arrival_time: localTime(),
+        arrival_date: localArrivalDate(),
+        arrival_time: localArrivalTime(),
         reported_by: profileId,
         store_id: storeId,
       })

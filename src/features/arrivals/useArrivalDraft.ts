@@ -5,6 +5,8 @@ import { createUuid } from '../../lib/uuid';
 import { supabase } from '../../lib/supabase';
 import {
   loadOrCreateArrivalDraft,
+  localArrivalDate,
+  localArrivalTime,
   saveArrivalDraft,
   submitArrivalReport,
   type ArrivalReportRow,
@@ -123,15 +125,21 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
         const loadedImages = await loadArrivalImages(supabase, draft.report.id);
         if (cancelled) return;
 
+        const hasSavedContent = draft.items.length > 0
+          || loadedImages.length > 0
+          || Boolean(draft.report.carrier_name || draft.report.tracking_no || draft.report.note)
+          || draft.report.updated_at !== draft.report.created_at;
         const databaseForm: ArrivalDraftFormState = {
-          arrivalDate: draft.report.arrival_date,
-          arrivalTime: draft.report.arrival_time?.slice(0, 5) ?? '',
+          arrivalDate: hasSavedContent ? draft.report.arrival_date : localArrivalDate(),
+          arrivalTime: hasSavedContent ? draft.report.arrival_time?.slice(0, 5) ?? '' : localArrivalTime(),
           carrierName: draft.report.carrier_name ?? '',
           items: draft.items.length > 0 ? draft.items : [createEmptyArrivalItem()],
           note: draft.report.note ?? '',
           trackingNo: draft.report.tracking_no ?? '',
         };
-        const restored = readCachedForm(profileId, storeId, draft.report.id, draft.report.version) ?? databaseForm;
+        const restored = hasSavedContent
+          ? readCachedForm(profileId, storeId, draft.report.id, draft.report.version) ?? databaseForm
+          : databaseForm;
         reportRef.current = draft.report;
         formRef.current = restored;
         setReport(draft.report);

@@ -1,1 +1,1 @@
-export const systemVersion = 'StoreHub v2.0.11';
+export const systemVersion = 'StoreHub v2.0.12';

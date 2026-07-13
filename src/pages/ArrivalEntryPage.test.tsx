@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -75,7 +75,13 @@ describe('ArrivalEntryPage role boundary', () => {
 
     expect(screen.getByRole('heading', { name: '到货上报' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '保存草稿' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '提交上报' })).toBeDisabled();
+    const submitButton = screen.getByRole('button', { name: '提交上报' });
+    expect(submitButton).toBeEnabled();
+    expect(screen.queryByText(/提交前还需完成/)).not.toBeInTheDocument();
+
+    fireEvent.click(submitButton);
+
+    expect(screen.getByRole('dialog', { name: '请先完善到货信息' })).toBeInTheDocument();
     expect(screen.getByText(/至少上传一张面单照片/)).toBeInTheDocument();
   });
 

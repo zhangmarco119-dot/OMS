@@ -2,7 +2,7 @@ import { Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { ProductRow } from '../../services/arrivals.service';
-import type { ArrivalDraftItem } from './arrivalForm';
+import { isProhibitedArrivalUnit, type ArrivalDraftItem } from './arrivalForm';
 
 interface ArrivalItemCardProps {
   canRemove: boolean;
@@ -47,7 +47,7 @@ export function ArrivalItemCard({
       productId: product.id,
       productName: product.name,
       spec: product.spec,
-      unit: product.count_unit,
+      unit: isProhibitedArrivalUnit(product.count_unit) ? '' : product.count_unit,
     });
     setSearchOpen(false);
   };
@@ -64,15 +64,15 @@ export function ArrivalItemCard({
   };
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-brand-700">产品 {index + 1}</p>
-          <h3 className="mt-1 font-bold text-slate-900">{item.productName || '请选择或填写产品'}</h3>
+          <h3 className="mt-0.5 font-bold text-slate-900">{item.productName || '请选择或填写产品'}</h3>
         </div>
         <button
           aria-label={`删除产品 ${index + 1}`}
-          className="flex h-11 w-11 items-center justify-center rounded-lg bg-red-50 text-red-700 disabled:opacity-40"
+          className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-700 disabled:opacity-40"
           disabled={!canRemove}
           onClick={onRemove}
           type="button"
@@ -81,13 +81,13 @@ export function ArrivalItemCard({
         </button>
       </div>
 
-      <div className="relative mt-4">
+      <div className="relative mt-3">
         <label className="text-sm font-semibold text-slate-700" htmlFor={`arrival-product-${item.id}`}>产品名称</label>
-        <div className="relative mt-2">
-          <Search className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-slate-400" aria-hidden="true" />
+        <div className="relative mt-1">
+          <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
           <input
             autoComplete="off"
-            className="min-h-12 w-full rounded-lg border border-slate-200 pl-10 pr-3 outline-none focus:border-brand-500"
+            className="min-h-11 w-full rounded-lg border border-slate-200 pl-10 pr-3 outline-none focus:border-brand-500"
             id={`arrival-product-${item.id}`}
             onChange={(event) => updateProductName(event.target.value)}
             onFocus={() => setSearchOpen(true)}
@@ -120,16 +120,16 @@ export function ArrivalItemCard({
       </div>
 
       {item.productId ? (
-        <p className="mt-3 rounded-md bg-brand-50 px-3 py-2 text-sm text-brand-700">已匹配本店商品 · {item.spec || '无规格'}</p>
+        <p className="mt-2 rounded-md bg-brand-50 px-3 py-1.5 text-sm text-brand-700">已匹配本店商品 · {item.spec || '无规格'}</p>
       ) : item.productName.trim() ? (
-        <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">未匹配正式商品，仅用于本次到货记录。</p>
+        <p className="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800">未匹配正式商品，仅用于本次到货记录。</p>
       ) : null}
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <label className="text-sm font-semibold text-slate-700">
           数量
           <input
-            className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 text-lg font-semibold outline-none focus:border-brand-500"
+            className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 px-3 text-lg font-semibold outline-none focus:border-brand-500"
             inputMode="decimal"
             min="0"
             onChange={(event) => onChange({ ...item, quantity: event.target.value })}
@@ -142,18 +142,22 @@ export function ArrivalItemCard({
         <label className="text-sm font-semibold text-slate-700">
           单位
           <input
-            className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500"
+            className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500"
             onChange={(event) => onChange({ ...item, unit: event.target.value })}
-            placeholder="箱 / 个 / 瓶"
+            placeholder="瓶 / 袋 / 盒 / 个"
             value={item.unit}
           />
         </label>
       </div>
 
-      <label className="mt-4 block text-sm font-semibold text-slate-700">
+      <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium leading-5 text-amber-900">
+        请按货品最小单位计数，例如瓶、袋、盒、个、杯、克或毫升；禁止填写箱、整箱、件、整件。
+      </p>
+
+      <label className="mt-3 block text-sm font-semibold text-slate-700">
         产品备注（选填）
         <input
-          className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500"
+          className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500"
           onChange={(event) => onChange({ ...item, note: event.target.value })}
           placeholder="例如：其中一箱外包装轻微破损"
           value={item.note}

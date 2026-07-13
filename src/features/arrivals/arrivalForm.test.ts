@@ -15,13 +15,13 @@ const item = (overrides: Partial<ArrivalDraftItem> = {}): ArrivalDraftItem => ({
   quantity: '12.000',
   sortOrder: 0,
   spec: '120g/杯',
-  unit: '箱',
+  unit: '杯',
   ...overrides,
 });
 
 describe('arrival form', () => {
   it('generates a single-product summary', () => {
-    expect(generateArrivalSummary([item()])).toBe('OMEGA 原味酸奶到货 12 箱。');
+    expect(generateArrivalSummary([item()])).toBe('OMEGA 原味酸奶到货 12 杯。');
   });
 
   it('generates a multi-product summary in item order', () => {
@@ -36,7 +36,7 @@ describe('arrival form', () => {
         sortOrder: 1,
         unit: '个',
       }),
-    ])).toBe('本次到货：OMEGA 原味酸奶 12 箱，酸奶杯 200 个。');
+    ])).toBe('本次到货：OMEGA 原味酸奶 12 杯，酸奶杯 200 个。');
   });
 
   it('returns an empty summary for incomplete items', () => {
@@ -54,6 +54,17 @@ describe('arrival form', () => {
       '至少上传一张拆包货品照片。',
       '还有 1 张图片正在上传。',
       '产品 1：数量必须大于 0。',
+    ]);
+  });
+
+  it.each(['箱', '整箱', '箱装', '件', '整件', '一件'])('rejects bulk packaging unit %s', (unit) => {
+    expect(getArrivalValidationIssues({
+      goodsImageCount: 1,
+      items: [item({ unit })],
+      uploadCount: 0,
+      waybillImageCount: 1,
+    })).toEqual([
+      '产品 1：禁止使用箱、整箱、件或整件作为单位，请按瓶、袋、盒、个、杯、克或毫升等最小单位计数。',
     ]);
   });
 });

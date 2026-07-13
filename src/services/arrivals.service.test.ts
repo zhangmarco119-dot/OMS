@@ -10,7 +10,7 @@ const report = {
   arrival_time: '12:00:00',
   carrier_name: null,
   created_at: '2026-07-12T04:00:00.000Z',
-  generated_summary: '原味酸奶到货 2 箱。',
+  generated_summary: '原味酸奶到货 2 杯。',
   id: '00000000-0000-4000-8000-000000000001',
   note: null,
   report_no: 'ARR-20260712-00000001',
@@ -40,7 +40,7 @@ const completeItem: ArrivalDraftItem = {
   quantity: '2',
   sortOrder: 0,
   spec: '',
-  unit: '箱',
+  unit: '杯',
 };
 
 describe('arrivals service', () => {

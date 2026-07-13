@@ -21,6 +21,11 @@ export interface ArrivalValidationInput {
   waybillImageCount: number;
 }
 
+export const isProhibitedArrivalUnit = (unit: string) => {
+  const normalized = unit.trim();
+  return normalized.includes('箱') || normalized.includes('件');
+};
+
 const quantitySchema = z.string().trim().refine((value) => {
   const quantity = Number(value);
   return value.length > 0 && Number.isFinite(quantity) && quantity > 0;
@@ -42,6 +47,14 @@ export const arrivalDraftItemSchema = z.object({
   spec: z.string(),
   unit: z.string().trim().min(1, '请填写单位。'),
 }).superRefine((item, context) => {
+  if (isProhibitedArrivalUnit(item.unit)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: '禁止使用箱、整箱、件或整件作为单位，请按瓶、袋、盒、个、杯、克或毫升等最小单位计数。',
+      path: ['unit'],
+    });
+  }
+
   if ((item.productId === null) !== item.isUnmatchedProduct) {
     context.addIssue({
       code: z.ZodIssueCode.custom,

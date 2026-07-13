@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, History, PackagePlus, Plus, Save, Send } from 'lucide-react';
+import { AlertCircle, History, PackagePlus, Plus, Save, Send } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -24,6 +24,7 @@ export function ArrivalEntryPage() {
   const canOperate = featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role);
   const draft = useArrivalDraft(canOperate ? auth.profile?.id : undefined, canOperate ? auth.store?.id : undefined);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -100,8 +101,16 @@ export function ArrivalEntryPage() {
     }
   };
 
+  const requestSubmit = () => {
+    if (validationIssues.length > 0) {
+      setShowValidationDialog(true);
+      return;
+    }
+    setShowConfirm(true);
+  };
+
   return (
-    <PageShell eyebrow="门店运营系统 · 门店执行" title="到货上报" backTo="/app">
+    <PageShell eyebrow="门店运营系统 · 门店执行" title="到货上报" backTo="/app" contentGapClassName="gap-3">
       <section className="rounded-lg bg-white p-3 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -113,7 +122,7 @@ export function ArrivalEntryPage() {
             {saveStatusLabel[draft.saveStatus]}
           </span>
         </div>
-        <Link className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700" to="/app/arrivals/history">
+        <Link className="mt-2 inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700" to="/app/arrivals/history">
           <History className="h-4 w-4" aria-hidden="true" />
           查看到货历史
         </Link>
@@ -124,20 +133,20 @@ export function ArrivalEntryPage() {
           <PackagePlus className="h-5 w-5 text-brand-700" aria-hidden="true" />
           <h2 className="text-lg font-bold text-slate-900">到货信息</h2>
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <label className="text-sm font-semibold text-slate-700">到货日期<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('arrivalDate', event.target.value)} type="date" value={draft.form.arrivalDate} /></label>
           <label className="text-sm font-semibold text-slate-700">到货时间<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('arrivalTime', event.target.value)} type="time" value={draft.form.arrivalTime} /></label>
         </div>
-        <label className="mt-3 block text-sm font-semibold text-slate-700">快递公司或配送方式（选填）<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('carrierName', event.target.value)} placeholder="例如：顺丰 / 门店配送" value={draft.form.carrierName} /></label>
-        <label className="mt-3 block text-sm font-semibold text-slate-700">快递单号（选填）<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('trackingNo', event.target.value)} placeholder="扫描或填写快递单号" value={draft.form.trackingNo} /></label>
+        <label className="mt-2 block text-sm font-semibold text-slate-700">快递公司或配送方式（选填）<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('carrierName', event.target.value)} placeholder="例如：顺丰 / 门店配送" value={draft.form.carrierName} /></label>
+        <label className="mt-2 block text-sm font-semibold text-slate-700">快递单号（选填）<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('trackingNo', event.target.value)} placeholder="扫描或填写快递单号" value={draft.form.trackingNo} /></label>
       </section>
 
       <ArrivalImageSection imageType="waybill" images={waybillImages} onDelete={draft.deleteImage} onUpload={draft.addImage} prompt="请拍摄完整的快递面单或配送标签，确保关键信息清晰可见。" title="快递面单照片" />
       <ArrivalImageSection imageType="goods" images={goodsImages} onDelete={draft.deleteImage} onUpload={draft.addImage} prompt="请拆开包装后拍摄内部实际货品，确保货品和数量尽量清晰。" title="拆包货品照片" />
 
-      <section className="space-y-3">
+      <section className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <div><p className="text-xs font-semibold text-brand-700">结构化明细</p><h2 className="mt-1 text-lg font-bold text-slate-900">产品明细</h2></div>
+          <div><p className="text-xs font-semibold text-brand-700">结构化明细</p><h2 className="mt-0.5 text-lg font-bold text-slate-900">产品明细</h2></div>
           <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 shadow-sm">{draft.form.items.length} 个产品</span>
         </div>
         {draft.form.items.map((item, index) => (
@@ -151,34 +160,41 @@ export function ArrivalEntryPage() {
             products={draft.products}
           />
         ))}
-        <button className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 font-bold text-brand-700" onClick={draft.addItem} type="button"><Plus className="h-5 w-5" aria-hidden="true" />添加产品</button>
+        <button className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 font-bold text-brand-700" onClick={draft.addItem} type="button"><Plus className="h-5 w-5" aria-hidden="true" />添加产品</button>
       </section>
 
       <section className="rounded-lg bg-brand-50 p-3">
         <p className="text-xs font-semibold text-brand-700">系统自动生成</p>
         <h2 className="mt-1 font-bold text-slate-900">规范到货描述</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-700">{summary || '完整填写产品名称、数量和单位后，系统会自动生成描述。'}</p>
+        <p className="mt-1 text-sm leading-5 text-slate-700">{summary || '完整填写产品名称、数量和最小计数单位后，系统会自动生成描述。'}</p>
       </section>
 
       <section className="rounded-lg bg-white p-3 shadow-sm">
-        <label className="block text-sm font-semibold text-slate-700">补充备注（选填）<textarea className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('note', event.target.value)} placeholder="记录包装、数量或其他需要管理员注意的信息" value={draft.form.note} /></label>
+        <label className="block text-sm font-semibold text-slate-700">补充备注（选填）<textarea className="mt-1 min-h-16 w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('note', event.target.value)} placeholder="记录包装、数量或其他需要管理员注意的信息" value={draft.form.note} /></label>
       </section>
 
       {draft.message || actionMessage ? <p className="rounded-lg bg-red-50 p-4 text-sm leading-6 text-red-700">{actionMessage ?? draft.message}</p> : null}
 
-      {validationIssues.length > 0 ? (
-        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-center gap-2"><AlertCircle className="h-5 w-5 text-amber-700" aria-hidden="true" /><h2 className="font-bold text-amber-950">提交前还需完成</h2></div>
-          <ul className="mt-3 space-y-1 text-sm leading-6 text-amber-900">{validationIssues.map((issue) => <li key={issue}>• {issue}</li>)}</ul>
-        </section>
-      ) : (
-        <p className="flex items-center gap-2 rounded-lg bg-brand-50 p-4 text-sm font-semibold text-brand-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" />信息完整，可以提交。</p>
-      )}
-
-      <div className="safe-bottom sticky bottom-20 z-10 grid grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
-        <button className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 font-bold text-slate-800 disabled:opacity-50" disabled={draft.saveStatus === 'saving'} onClick={() => void saveManually()} type="button"><Save className="h-5 w-5" aria-hidden="true" />保存草稿</button>
-        <button className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 font-bold text-white disabled:bg-slate-300" disabled={validationIssues.length > 0 || submitting || draft.saveStatus === 'saving'} onClick={() => setShowConfirm(true)} type="button"><Send className="h-5 w-5" aria-hidden="true" />提交上报</button>
+      <div className="safe-bottom sticky bottom-20 z-10 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white/95 p-2 shadow-xl backdrop-blur">
+        <button className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 font-bold text-slate-800 disabled:opacity-50" disabled={draft.saveStatus === 'saving'} onClick={() => void saveManually()} type="button"><Save className="h-5 w-5" aria-hidden="true" />保存草稿</button>
+        <button className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 font-bold disabled:opacity-50 ${validationIssues.length > 0 ? 'bg-slate-300 text-slate-700' : 'bg-brand-600 text-white'}`} disabled={submitting || draft.saveStatus === 'saving'} onClick={requestSubmit} type="button"><Send className="h-5 w-5" aria-hidden="true" />提交上报</button>
       </div>
+
+      {showValidationDialog ? (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/45 p-4 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="arrival-validation-title">
+          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertCircle className="h-6 w-6 shrink-0" aria-hidden="true" />
+              <h2 className="text-xl font-bold text-slate-900" id="arrival-validation-title">请先完善到货信息</h2>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">以下内容尚未完成，完成后才能提交上报：</p>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-950">
+              {validationIssues.map((issue) => <li className="rounded-md bg-amber-50 px-3 py-2" key={issue}>• {issue}</li>)}
+            </ul>
+            <button className="mt-5 min-h-12 w-full rounded-lg bg-brand-600 font-bold text-white" onClick={() => setShowValidationDialog(false)} type="button">我知道了</button>
+          </div>
+        </div>
+      ) : null}
 
       {showConfirm ? (
         <div className="fixed inset-0 z-40 flex items-end bg-black/45 p-4 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="arrival-confirm-title">

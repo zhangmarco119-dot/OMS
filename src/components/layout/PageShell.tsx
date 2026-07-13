@@ -7,10 +7,11 @@ interface PageShellProps {
   title: string;
   children: ReactNode;
   backTo?: string;
+  contentGapClassName?: string;
   onBack?: () => void;
 }
 
-export function PageShell({ eyebrow, title, children, backTo, onBack }: PageShellProps) {
+export function PageShell({ eyebrow, title, children, backTo, contentGapClassName = 'gap-5', onBack }: PageShellProps) {
   const navigate = useNavigate();
   const goBack = () => {
     if (onBack) { onBack(); return; }
@@ -19,7 +20,7 @@ export function PageShell({ eyebrow, title, children, backTo, onBack }: PageShel
   };
   return (
     <section className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-5xl flex-col gap-5">
+      <div className={`mx-auto flex max-w-5xl flex-col ${contentGapClassName}`}>
         <header className="relative flex min-h-16 items-center justify-center border-b border-line pb-4 text-center">
           {onBack || backTo ? (
             <button aria-label="返回" className="absolute left-0 flex h-11 w-11 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm" onClick={goBack} type="button">

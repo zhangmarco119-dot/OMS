@@ -10,6 +10,7 @@ export const routePlan: RoutePlanItem[] = [
   { path: '/app/arrivals/:reportId/success', phase: 3, purpose: 'V2 到货提交成功页' },
   { path: '/app/history', phase: 7, purpose: '历史单据和重新导出' },
   { path: '/app/account', phase: 8, purpose: '本人修改密码' },
+  { path: '/app/account/about', phase: 9, purpose: '管理员查看系统版本与更新记录' },
   { path: '/app/admin', phase: 8, purpose: '商品、Excel 导入和用户维护' },
 ];
 

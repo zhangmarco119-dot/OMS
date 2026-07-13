@@ -5,6 +5,8 @@ import { useForm } from 'react-hook-form';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../features/auth/AuthContext';
+import { FeedbackBanner } from '../components/ui/Feedback';
+import { FormField } from '../components/ui/FormField';
 import { loginSchema, type LoginFormValues } from '../features/auth/loginSchema';
 import { hasSupabaseConfig } from '../lib/env';
 import { systemVersion } from '../config/version';
@@ -49,52 +51,49 @@ export function LoginPage() {
   const isDisabled = !hasSupabaseConfig || isSubmitting || auth.status === 'loading';
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-brand-500 to-brand-700 px-6 py-8">
-      <form className="w-full max-w-md rounded-2xl bg-white p-8 text-slate-800 shadow-2xl" onSubmit={handleSubmit(onSubmit)}>
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 rounded-full bg-brand-100 p-3">
-            <Store className="h-10 w-10 text-brand-600" aria-hidden="true" />
+    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-5 py-8">
+      <form className="ui-card w-full max-w-md p-6 text-slate-800 sm:p-8" onSubmit={handleSubmit(onSubmit)}>
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-brand-50 ring-1 ring-brand-100">
+            <Store className="h-7 w-7 text-brand-700" aria-hidden="true" />
           </div>
-          <h1 className="text-2xl font-bold">门店运营系统</h1>
-          <p className="mt-2 text-sm text-slate-500">请登录以继续</p>
+          <h1 className="text-2xl font-bold tracking-tight">门店运营系统</h1>
+          <p className="mt-1 text-sm text-slate-500">使用门店账号安全登录</p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {!hasSupabaseConfig ? (
-            <div className="rounded-md border border-accent-500 bg-accent-50 p-3 text-sm leading-6 text-accent-700">
+            <FeedbackBanner tone="warning">
               当前缺少 Supabase 环境变量。复制 `.env.example` 为 `.env.local` 并填写公开 anon 配置后，登录会连接真实认证服务。
-            </div>
+            </FeedbackBanner>
           ) : null}
 
           {submitError ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-700">{submitError}</div>
+            <FeedbackBanner tone="danger">{submitError}</FeedbackBanner>
           ) : null}
 
-          <label className="block">
-            <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <FormField error={errors.identifier?.message} label={<span className="flex items-center gap-2">
               <User className="h-4 w-4" aria-hidden="true" />
               账号名或姓名
-            </span>
+            </span>} required>
             <input
               autoComplete="username"
-              className="min-h-12 w-full rounded-lg border border-slate-300 px-4 text-base outline-none transition focus:border-transparent focus:ring-2 focus:ring-brand-500"
+              className="ui-input"
               disabled={isDisabled}
               placeholder="请输入账号名或姓名"
               type="text"
               {...register('identifier')}
             />
-            {errors.identifier ? <p className="mt-2 text-sm text-red-700">{errors.identifier.message}</p> : null}
-          </label>
+          </FormField>
 
-          <label className="block">
-            <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <FormField error={errors.password?.message} label={<span className="flex items-center gap-2">
               <Lock className="h-4 w-4" aria-hidden="true" />
               密码
-            </span>
-            <div className="flex min-h-12 items-center rounded-lg border border-slate-300 px-3 transition focus-within:border-transparent focus-within:ring-2 focus-within:ring-brand-500">
+            </span>} required>
+            <div className="flex min-h-11 items-center rounded-lg border border-slate-300 bg-white pl-3 transition focus-within:border-brand-600 focus-within:ring-2 focus-within:ring-brand-100">
               <input
                 autoComplete="current-password"
-                className="min-w-0 flex-1 text-base outline-none"
+                className="min-w-0 flex-1 bg-transparent text-base outline-none"
                 disabled={isDisabled}
                 placeholder="请输入密码"
                 type={showPassword ? 'text' : 'password'}
@@ -102,7 +101,7 @@ export function LoginPage() {
               />
               <button
                 aria-label={showPassword ? '隐藏密码' : '显示密码'}
-                className="flex min-h-11 min-w-11 items-center justify-center text-slate-500"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-500"
                 disabled={isDisabled}
                 onClick={() => setShowPassword((current) => !current)}
                 type="button"
@@ -110,11 +109,10 @@ export function LoginPage() {
                 {showPassword ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
               </button>
             </div>
-            {errors.password ? <p className="mt-2 text-sm text-red-700">{errors.password.message}</p> : null}
-          </label>
+          </FormField>
 
           <button
-            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 text-base font-bold text-white shadow-lg shadow-brand-100 transition active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="ui-button-primary min-h-12 w-full text-base"
             disabled={isDisabled}
             type="submit"
           >
@@ -129,7 +127,7 @@ export function LoginPage() {
           </button>
         </div>
       </form>
-      <p className="mt-5 text-xs text-white/65">{systemVersion}</p>
+      <p className="mt-4 text-xs font-medium text-slate-500">{systemVersion}</p>
     </main>
   );
 }

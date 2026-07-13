@@ -3,6 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { EmptyState, ErrorState, FeedbackBanner, LoadingState, StatusBadge } from '../components/ui/Feedback';
+import { SegmentedControl } from '../components/ui/FormField';
+import { SectionCard } from '../components/ui/Surface';
 import { ProductFeedbackRecords } from '../features/admin/ProductFeedbackRecords';
 import { useAuth } from '../features/auth/AuthContext';
 import { loadSubmittedTaskDetail, loadSubmittedTasks, type HistoryTask } from '../features/history/historyService';
@@ -109,61 +112,36 @@ export function HistoryPage() {
   return (
     <PageShell eyebrow={isAdmin ? '管理员记录' : '我的记录'} title={isAdmin ? '全部提交记录' : '提交记录'} backTo="/app">
       {isAdmin ? (
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
-          <button className={`min-h-11 rounded-md text-sm font-bold ${adminView === 'tasks' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setAdminView('tasks')} type="button">点货与订货</button>
-          <button className={`min-h-11 rounded-md text-sm font-bold ${adminView === 'feedback' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setAdminView('feedback')} type="button">商品反馈</button>
-        </div>
+        <SegmentedControl className="grid-cols-2" items={[{ active: adminView === 'tasks', label: '点货与订货', onClick: () => setAdminView('tasks') }, { active: adminView === 'feedback', label: '商品反馈', onClick: () => setAdminView('feedback') }]} />
       ) : null}
 
       {isAdmin && adminView === 'feedback' ? <ProductFeedbackRecords /> : (
         <>
-      <div className="rounded-lg bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-3 gap-2 rounded-lg bg-slate-100 p-1">
-          {[
-            ['all', '全部'],
-            ['inventory', '点货'],
-            ['order', '订货'],
-          ].map(([value, label]) => (
-            <button
-              className={[
-                'min-h-10 rounded-md text-sm font-bold transition',
-                filter === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600',
-              ].join(' ')}
-              key={value}
-              onClick={() => setFilter(value as TaskType | 'all')}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <SectionCard>
+        <SegmentedControl className="grid-cols-3" items={[{ active: filter === 'all', label: '全部', onClick: () => setFilter('all') }, { active: filter === 'inventory', label: '点货', onClick: () => setFilter('inventory') }, { active: filter === 'order', label: '订货', onClick: () => setFilter('order') }]} />
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-sm leading-6 text-slate-500">
             {isAdmin ? '显示所有授权门店已提交记录，可查看每次点货和订货结果。' : '显示你已提交的点货和订货记录。'}
           </p>
-          <button aria-label="刷新记录" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600" onClick={() => void loadHistory()} type="button">
+          <button aria-label="刷新记录" className="ui-icon-button" onClick={() => void loadHistory()} type="button">
             <RefreshCw className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
-      </div>
+      </SectionCard>
 
-      {message ? <p className="rounded-lg bg-white p-4 text-sm leading-6 text-slate-700 shadow-sm">{message}</p> : null}
+      {message && status !== 'error' ? <FeedbackBanner>{message}</FeedbackBanner> : null}
 
       {status === 'loading' ? (
-        <div className="rounded-lg bg-white p-5 text-sm font-semibold text-slate-700 shadow-sm">正在加载提交记录</div>
+        <LoadingState label="正在加载提交记录" />
       ) : null}
 
       {status === 'error' ? (
-        <div className="rounded-lg bg-white p-5 text-sm leading-6 text-red-700 shadow-sm">{message ?? '记录加载失败。'}</div>
+        <ErrorState message={message ?? '记录加载失败。'} onRetry={() => void loadHistory()} />
       ) : null}
 
       {status === 'ready' && items.length === 0 ? (
-        <div className="rounded-lg bg-white p-8 text-center shadow-sm">
-          <FileSpreadsheet className="mx-auto h-12 w-12 text-slate-300" aria-hidden="true" />
-          <p className="mt-4 font-bold text-slate-900">暂无已提交记录</p>
-          <p className="mt-2 text-sm leading-6 text-slate-500">员工点击提交后，这里会保留数据库记录和商品快照。</p>
-        </div>
+        <EmptyState icon={FileSpreadsheet} title="暂无已提交记录" description="员工点击提交后，这里会保留数据库记录和商品快照。" />
       ) : null}
 
       {status === 'ready' && items.length > 0 ? (
@@ -171,7 +149,7 @@ export function HistoryPage() {
           {items.map((summary) => {
             const { itemCount, storeName, submitterName, task } = summary;
             return (
-            <article className="rounded-lg bg-white p-4 shadow-sm" key={task.id}>
+            <article className="ui-card p-4" key={task.id}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-brand-700">{taskTypeLabel[task.task_type]}</p>
@@ -180,10 +158,10 @@ export function HistoryPage() {
                     {isAdmin ? `${storeName} · ` : ''}{submitterName} · {itemCount} 个商品 · 单号 {task.id.slice(0, 8)}
                   </p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">已提交</span>
+                <StatusBadge tone="success">已提交</StatusBadge>
               </div>
               <button
-                className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:bg-slate-300"
+                className="ui-button-primary mt-4 w-full"
                 disabled={loadingDetailId === task.id}
                 onClick={() => void openDetail(summary)}
                 type="button"
@@ -198,8 +176,8 @@ export function HistoryPage() {
       ) : null}
 
       {selected ? (
-        <div className="fixed inset-0 z-30 flex items-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-lg bg-white shadow-2xl">
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-label="点货订货明细">
+          <div className="ui-dialog-panel max-w-3xl overflow-hidden">
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4">
               <div>
                 <p className="text-sm font-semibold text-brand-700">{taskTypeLabel[selected.task.task_type]}</p>

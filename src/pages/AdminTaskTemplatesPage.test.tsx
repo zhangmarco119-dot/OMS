@@ -52,6 +52,8 @@ describe('AdminTaskTemplatesPage reference images', () => {
 
     await screen.findByRole('button', { name: '新建模板' });
     fireEvent.click(screen.getByRole('button', { name: '新建模板' }));
+    expect(screen.getByRole('dialog', { name: '未命名模板' })).toHaveClass('h-[100dvh]', 'z-50');
+    expect(screen.getByRole('button', { name: '保存并发布' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
     const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
     expect(fileInput).not.toBeNull();
 

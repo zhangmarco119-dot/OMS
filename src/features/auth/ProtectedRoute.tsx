@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
+import { FeedbackBanner, LoadingState } from '../../components/ui/Feedback';
 import { useAuth } from './AuthContext';
 
 interface ProtectedRouteProps {
@@ -14,10 +15,8 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
 
   if (auth.status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f4f7f3] px-4">
-        <div className="rounded-lg border border-line bg-white p-5 text-sm font-semibold text-slate-700 shadow-panel">
-          正在加载账号和门店信息
-        </div>
+      <main className="flex min-h-screen items-center justify-center bg-canvas px-4">
+        <div className="w-full max-w-sm"><LoadingState label="正在加载账号和门店信息" /></div>
       </main>
     );
   }
@@ -28,11 +27,8 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
 
   if (requireAdmin && auth.profile?.role !== 'admin') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f4f7f3] px-4">
-        <div className="rounded-lg border border-line bg-white p-6 shadow-panel">
-          <h1 className="text-xl font-bold text-ink">无权访问后台</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-700">当前账号没有管理员权限。</p>
-        </div>
+      <main className="flex min-h-screen items-center justify-center bg-canvas px-4">
+        <div className="ui-card w-full max-w-sm p-5"><FeedbackBanner title="无权访问后台" tone="warning">当前账号没有管理员权限。</FeedbackBanner></div>
       </main>
     );
   }

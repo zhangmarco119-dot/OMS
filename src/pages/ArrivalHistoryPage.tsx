@@ -2,6 +2,9 @@ import { PackageCheck, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
+import { IconButton } from '../components/ui/Actions';
+import { EmptyState, ErrorState, FeedbackBanner, LoadingState, StatusBadge } from '../components/ui/Feedback';
+import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { canOperateV2Modules } from '../features/access/roleCapabilities';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -48,15 +51,12 @@ export function ArrivalHistoryPage() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <PageShell eyebrow="门店运营系统" title="到货历史" backTo="/app/arrivals">
-      <div className="flex items-center justify-between gap-3 rounded-lg bg-white p-4 shadow-sm">
-        <div><p className="text-sm text-slate-500">当前门店</p><p className="mt-1 font-bold text-slate-900">{auth.store?.name}</p></div>
-        <button aria-label="刷新到货历史" className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100 text-slate-700" onClick={() => void load()} type="button"><RefreshCw className="h-5 w-5" aria-hidden="true" /></button>
-      </div>
-      {status === 'loading' ? <div className="h-28 animate-pulse rounded-lg bg-white shadow-sm" /> : null}
-      {status === 'error' ? <div className="rounded-lg bg-white p-5 text-sm leading-6 text-red-700 shadow-sm">{message}<button className="mt-4 min-h-11 w-full rounded-lg bg-brand-600 font-bold text-white" onClick={() => void load()} type="button">重试</button></div> : null}
-      {status === 'ready' && items.length === 0 ? <div className="rounded-lg bg-white p-8 text-center shadow-sm"><PackageCheck className="mx-auto h-12 w-12 text-slate-300" aria-hidden="true" /><p className="mt-4 font-bold text-slate-900">暂无到货记录</p><p className="mt-2 text-sm text-slate-500">提交后的到货上报会显示在这里。</p></div> : null}
-      {status === 'ready' ? <div className="space-y-3">{items.map((report) => <article className="rounded-lg bg-white p-4 shadow-sm" key={report.id}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-brand-700">{report.report_no}</p><h2 className="mt-1 font-bold text-slate-900">{report.generated_summary}</h2></div><span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${report.status === 'voided' ? 'bg-red-50 text-red-700' : 'bg-brand-50 text-brand-700'}`}>{statusLabel[report.status]}</span></div><p className="mt-3 text-sm text-slate-500">{report.reporter_name_snapshot} · 到货 {report.arrival_date} {report.arrival_time?.slice(0, 5) ?? ''}</p><p className="mt-1 text-xs text-slate-400">提交时间：{formatDateTime(report.submitted_at)}</p>{report.status === 'voided' ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">作废原因：{report.void_reason}</p> : null}</article>)}</div> : null}
+    <PageShell eyebrow="门店运营系统" title="到货历史" backTo="/app/arrivals" contentGapClassName="gap-3">
+      <SectionCard><SectionHeader action={<IconButton aria-label="刷新到货历史" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={auth.store?.name ?? '未绑定门店'} icon={PackageCheck} title="本店上报记录" /></SectionCard>
+      {status === 'loading' ? <LoadingState label="正在加载到货历史" /> : null}
+      {status === 'error' ? <ErrorState message={message ?? '加载到货历史失败。'} onRetry={() => void load()} /> : null}
+      {status === 'ready' && items.length === 0 ? <EmptyState description="提交后的到货上报会显示在这里。" icon={PackageCheck} title="暂无到货记录" /> : null}
+      {status === 'ready' ? <div className="space-y-2.5">{items.map((report) => <article className="ui-card p-4" key={report.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold text-brand-700">{report.report_no}</p><h2 className="mt-1 line-clamp-2 font-bold leading-6 text-slate-900">{report.generated_summary}</h2></div><StatusBadge tone={report.status === 'voided' ? 'danger' : report.status === 'draft' ? 'neutral' : 'success'}>{statusLabel[report.status]}</StatusBadge></div><p className="mt-2 text-sm text-slate-500">{report.reporter_name_snapshot} · 到货 {report.arrival_date} {report.arrival_time?.slice(0, 5) ?? ''}</p><p className="mt-1 text-xs text-slate-400">提交时间：{formatDateTime(report.submitted_at)}</p>{report.status === 'voided' ? <FeedbackBanner className="mt-3" title="作废原因" tone="danger">{report.void_reason}</FeedbackBanner> : null}</article>)}</div> : null}
     </PageShell>
   );
 }

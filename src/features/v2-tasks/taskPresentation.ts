@@ -14,12 +14,12 @@ export const v2TaskStatusLabel: Record<TaskStatus, string> = {
 };
 
 export const v2TaskStatusClass: Record<TaskStatus, string> = {
-  approved: 'bg-brand-50 text-brand-700',
-  cancelled: 'bg-slate-100 text-slate-600',
-  in_progress: 'bg-sky-50 text-sky-700',
-  overdue: 'bg-red-50 text-red-700',
-  pending: 'bg-amber-50 text-amber-800',
-  rejected: 'bg-red-50 text-red-700',
-  resubmitted: 'bg-violet-50 text-violet-700',
-  submitted: 'bg-blue-50 text-blue-700',
+  approved: 'border border-emerald-200 bg-emerald-50 text-emerald-800',
+  cancelled: 'border border-slate-200 bg-slate-100 text-slate-600',
+  in_progress: 'border border-sky-200 bg-sky-50 text-sky-800',
+  overdue: 'border border-red-200 bg-red-50 text-red-800',
+  pending: 'border border-amber-200 bg-amber-50 text-amber-900',
+  rejected: 'border border-red-200 bg-red-50 text-red-800',
+  resubmitted: 'border border-violet-200 bg-violet-50 text-violet-800',
+  submitted: 'border border-blue-200 bg-blue-50 text-blue-800',
 };

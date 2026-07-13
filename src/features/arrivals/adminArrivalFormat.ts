@@ -8,10 +8,10 @@ export const arrivalStatusLabel: Record<AdminArrivalReport['status'], string> = 
 };
 
 export const arrivalStatusClass: Record<AdminArrivalReport['status'], string> = {
-  draft: 'bg-slate-100 text-slate-700',
-  submitted: 'bg-amber-100 text-amber-800',
-  viewed: 'bg-brand-50 text-brand-700',
-  voided: 'bg-red-50 text-red-700',
+  draft: 'border border-slate-200 bg-slate-100 text-slate-700',
+  submitted: 'border border-amber-200 bg-amber-50 text-amber-900',
+  viewed: 'border border-emerald-200 bg-emerald-50 text-emerald-800',
+  voided: 'border border-red-200 bg-red-50 text-red-800',
 };
 
 export const formatArrivalDateTime = (date: string, time: string | null) =>

@@ -23,4 +23,8 @@ describe('routePlan', () => {
       '/app/arrivals/:reportId/success',
     ]));
   });
+
+  it('registers the system version history page', () => {
+    expect(routePlan.map((item) => item.path)).toContain('/app/account/about');
+  });
 });

@@ -64,7 +64,7 @@ export function ArrivalItemCard({
   };
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+    <article className="ui-card p-3.5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-brand-700">产品 {index + 1}</p>
@@ -87,7 +87,7 @@ export function ArrivalItemCard({
           <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
           <input
             autoComplete="off"
-            className="min-h-11 w-full rounded-lg border border-slate-200 pl-10 pr-3 outline-none focus:border-brand-500"
+            className="ui-input pl-10"
             id={`arrival-product-${item.id}`}
             onChange={(event) => updateProductName(event.target.value)}
             onFocus={() => setSearchOpen(true)}
@@ -129,7 +129,7 @@ export function ArrivalItemCard({
         <label className="text-sm font-semibold text-slate-700">
           数量
           <input
-            className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 px-3 text-lg font-semibold outline-none focus:border-brand-500"
+            className="ui-input mt-1 text-lg font-semibold"
             inputMode="decimal"
             min="0"
             onChange={(event) => onChange({ ...item, quantity: event.target.value })}
@@ -142,7 +142,7 @@ export function ArrivalItemCard({
         <label className="text-sm font-semibold text-slate-700">
           单位
           <input
-            className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500"
+            className="ui-input mt-1"
             onChange={(event) => onChange({ ...item, unit: event.target.value })}
             placeholder="瓶 / 袋 / 盒 / 个"
             value={item.unit}
@@ -157,7 +157,7 @@ export function ArrivalItemCard({
       <label className="mt-3 block text-sm font-semibold text-slate-700">
         产品备注（选填）
         <input
-          className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500"
+          className="ui-input mt-1"
           onChange={(event) => onChange({ ...item, note: event.target.value })}
           placeholder="例如：其中一箱外包装轻微破损"
           value={item.note}

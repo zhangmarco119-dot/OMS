@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { AccountPage } from './pages/AccountPage';
+import { AboutSystemPage } from './pages/AboutSystemPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminPage } from './pages/AdminPage';
 import { AdminContentPage } from './pages/AdminContentPage';
@@ -67,6 +68,7 @@ export const router = createBrowserRouter([
       { path: 'history', element: <HistoryPage /> },
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'account', element: <AccountPage /> },
+      { path: 'account/about', element: <AboutSystemPage /> },
       { path: 'menu', element: <AppMenuPage /> },
       { path: 'workbench', element: <AppMenuPage /> },
       { path: 'todos', element: <TodoPage /> },

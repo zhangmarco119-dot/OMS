@@ -61,6 +61,7 @@ export function AdminTaskTemplatesPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pendingReferenceFiles, setPendingReferenceFiles] = useState<Array<{ file: File; itemId: string; localUrl: string }>>([]);
   const draftStorageKey = auth.profile ? `storehub:v2-task-template-draft:${auth.profile.id}` : null;
 
   const refresh = useCallback(async () => {
@@ -99,16 +100,31 @@ export function AdminTaskTemplatesPage() {
     finally { setBusy(false); }
   };
 
+  const uploadPendingReferenceFiles = async (templateId: string, source: TaskTemplateDraft) => {
+    let next = { ...source, id: templateId };
+    const pending = pendingReferenceFiles;
+    for (const pendingFile of pending) {
+      const uploaded = await uploadTaskTemplateReferenceImage(supabase!, templateId, pendingFile.itemId, pendingFile.file);
+      next = {
+        ...next,
+        groups: next.groups.map((group) => ({ ...group, items: group.items.map((item) => item.id === pendingFile.itemId ? { ...item, referenceImagePath: item.referenceImagePath ?? uploaded.path, referenceImageUrl: item.referenceImageUrl ?? uploaded.previewUrl, referenceImagePaths: [...item.referenceImagePaths, uploaded.path], referenceImageUrls: item.referenceImageUrls.map((url) => url === pendingFile.localUrl ? uploaded.previewUrl : url) } : item) })),
+      };
+    }
+    if (pending.length > 0) setPendingReferenceFiles([]);
+    return next;
+  };
+
   const save = async (publishAfterSave = false) => {
     if (!supabase || !draft) return;
     setBusy(true);
     try {
       const saved = await saveTaskTemplate(supabase, draft);
+      const savedDraft = await uploadPendingReferenceFiles(saved.id, { ...draft, id: saved.id });
       if (publishAfterSave) {
         await publishTaskTemplate(supabase, saved.id);
         setDraft(null);
       } else {
-        setDraft({ ...draft, id: saved.id });
+        setDraft(savedDraft);
       }
       await refresh();
       setMessage(null);
@@ -119,24 +135,23 @@ export function AdminTaskTemplatesPage() {
 
   const uploadReferenceImage = async (itemId: string, file: File | undefined) => {
     if (!supabase || !draft || !file) return;
+    const localPreviewUrl = URL.createObjectURL(file);
+    const previewDraft = {
+      ...draft,
+      groups: draft.groups.map((group) => ({
+        ...group,
+        items: group.items.map((item) => item.id === itemId ? { ...item, referenceImageUrl: item.referenceImageUrl ?? localPreviewUrl, referenceImageUrls: [...item.referenceImageUrls, localPreviewUrl] } : item),
+      })),
+    };
+    setDraft(previewDraft);
+    if (!draft.id) {
+      setPendingReferenceFiles((current) => [...current, { file, itemId, localUrl: localPreviewUrl }]);
+      setSuccessMessage('参考图片预览已添加。填写模板必填信息后点击“保存草稿”，系统会自动完成上传。');
+      return;
+    }
     setBusy(true);
     try {
-      let savedDraft = draft;
-      if (!savedDraft.id) {
-        const saved = await saveTaskTemplate(supabase, savedDraft);
-        savedDraft = { ...savedDraft, id: saved.id };
-        setDraft(savedDraft);
-      }
-      const localPreviewUrl = URL.createObjectURL(file);
-      const previewDraft = {
-        ...savedDraft,
-        groups: savedDraft.groups.map((group) => ({
-          ...group,
-          items: group.items.map((item) => item.id === itemId ? { ...item, referenceImageUrl: localPreviewUrl, referenceImageUrls: [...item.referenceImageUrls, localPreviewUrl] } : item),
-        })),
-      };
-      setDraft(previewDraft);
-      const uploaded = await uploadTaskTemplateReferenceImage(supabase, savedDraft.id!, itemId, file);
+      const uploaded = await uploadTaskTemplateReferenceImage(supabase, draft.id, itemId, file);
       const uploadedDraft = {
         ...previewDraft,
         groups: previewDraft.groups.map((group) => ({

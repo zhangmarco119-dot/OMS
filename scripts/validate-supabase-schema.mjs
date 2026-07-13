@@ -32,6 +32,7 @@ const monthlyTaskScheduleTestPath = join(root, 'supabase', 'tests', '0022_v2_mon
 const navigationPermissionsMigrationPath = join(root, 'supabase', 'migrations', '0026_navigation_notifications_permissions.sql');
 const noticeAssetsMigrationPath = join(root, 'supabase', 'migrations', '0027_notice_assets_expiry_and_notifications.sql');
 const pausedScheduleVisibilityMigrationPath = join(root, 'supabase', 'migrations', '0028_sync_paused_task_schedule_visibility.sql');
+const adminTodoCleanupMigrationPath = join(root, 'supabase', 'migrations', '0029_clear_admin_test_todos.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -67,6 +68,7 @@ const monthlyTaskScheduleTest = readFileSync(monthlyTaskScheduleTestPath, 'utf8'
 const navigationPermissionsMigration = readFileSync(navigationPermissionsMigrationPath, 'utf8');
 const noticeAssetsMigration = readFileSync(noticeAssetsMigrationPath, 'utf8');
 const pausedScheduleVisibilityMigration = readFileSync(pausedScheduleVisibilityMigrationPath, 'utf8');
+const adminTodoCleanupMigration = readFileSync(adminTodoCleanupMigrationPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -436,6 +438,11 @@ if (!pausedScheduleVisibilityMigration.includes("status in ('pending','in_progre
   || !pausedScheduleVisibilityMigration.includes("status = 'cancelled'")
   || !pausedScheduleVisibilityMigration.includes('replacement_task_id')) {
   failures.push('paused schedule visibility and resume replacement task handling are missing');
+}
+
+if (!adminTodoCleanupMigration.includes("status in ('submitted', 'resubmitted')")
+  || !adminTodoCleanupMigration.includes("status = 'ignored'")) {
+  failures.push('administrator test todo cleanup migration is incomplete');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

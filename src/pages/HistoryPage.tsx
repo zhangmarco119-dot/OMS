@@ -1,5 +1,6 @@
 import { Eye, FileSpreadsheet, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ProductFeedbackRecords } from '../features/admin/ProductFeedbackRecords';
@@ -41,6 +42,7 @@ const formatDateTime = (value: string | null) => {
 
 export function HistoryPage() {
   const auth = useAuth();
+  const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState<TaskType | 'all'>('all');
   const [adminView, setAdminView] = useState<'tasks' | 'feedback'>('tasks');
   const [items, setItems] = useState<HistoryTask[]>([]);
@@ -51,6 +53,8 @@ export function HistoryPage() {
   const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
   const detailRequestRef = useRef(0);
   const isAdmin = auth.profile?.role === 'admin';
+
+  useEffect(() => { if (searchParams.get('view') === 'feedback') setAdminView('feedback'); }, [searchParams]);
 
   const loadHistory = useCallback(async () => {
     if (!supabase || !auth.profile) {

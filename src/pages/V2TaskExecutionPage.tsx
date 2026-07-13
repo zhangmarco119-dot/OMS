@@ -7,6 +7,7 @@ import { SuccessToast } from '../components/feedback/SuccessToast';
 import { useAuth } from '../features/auth/AuthContext';
 import { TaskImagePreview } from '../features/v2-tasks/TaskImagePreview';
 import { TaskReferenceImagePreview } from '../features/v2-tasks/TaskReferenceImagePreview';
+import { getTaskSubmissionIssues, type TaskSubmissionIssue } from '../features/v2-tasks/taskCompletion';
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
 import type { Json } from '../types/database';
@@ -21,7 +22,7 @@ export function V2TaskExecutionPage() {
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [referenceImageUrls, setReferenceImageUrls] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState<string | null>(null);
-  const [requiredImageLabels, setRequiredImageLabels] = useState<string[]>([]);
+  const [submissionIssues, setSubmissionIssues] = useState<TaskSubmissionIssue[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [activeUploadCount, setActiveUploadCount] = useState(0);
@@ -48,6 +49,10 @@ export function V2TaskExecutionPage() {
 
   const editable = detail ? ['pending', 'in_progress', 'rejected', 'overdue'].includes(detail.task.status) : false;
   const progress = useMemo(() => answers.length ? Math.round(answers.filter((answer) => answer.answer !== null).length / answers.length * 100) : 0, [answers]);
+  const currentSubmissionIssues = useMemo(() => getTaskSubmissionIssues(
+    answers,
+    (detail?.images ?? []).filter((image) => !image.id.startsWith('local-')).map((image) => image.item_id),
+  ), [answers, detail?.images]);
   const update = (id: string, answer: Json) => { dirty.current = true; setAnswers((current) => current.map((entry) => entry.item_id === id ? { ...entry, answer } : entry)); };
   const save = async (manual = false) => {
     if (!supabase || !detail) return detail?.task;
@@ -84,12 +89,8 @@ export function V2TaskExecutionPage() {
       // transient detail refresh failure must not force the user to reload the page.
     }
     const availableImageItemIds = new Set([...validationImages.map((image) => image.item_id), ...uploadedItemIds.current]);
-    const missingImages = answers.filter((answer) => {
-      const item = asTaskItemSnapshot(answer.item_snapshot);
-      return item.is_required && (['image', 'multi_image'].includes(item.field_type) || item.image_requirement === 'single' || item.image_requirement === 'multiple')
-        && !availableImageItemIds.has(answer.item_id);
-    }).map((answer) => asTaskItemSnapshot(answer.item_snapshot).label);
-    if (missingImages.length > 0) { setRequiredImageLabels(missingImages); setBusy(false); return; }
+    const issues = getTaskSubmissionIssues(answers, availableImageItemIds);
+    if (issues.length > 0) { setSubmissionIssues(issues); setBusy(false); return; }
     try {
       const saved = await save();
       await submitV2Task(supabase, detail.task.id, saved?.version ?? detail.task.version);
@@ -114,7 +115,6 @@ export function V2TaskExecutionPage() {
         images: current.images.map((image) => image.id === temporaryImage.id ? uploaded : image),
       } : current);
       setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return { ...next, [uploaded.id]: localPreviewUrl }; });
-      setRequiredImageLabels((current) => current.filter((label) => label !== asTaskItemSnapshot(answers.find((answer) => answer.item_id === itemId)?.item_snapshot ?? {}).label));
       setSuccessMessage('图片已上传，可点击预览');
     }
     catch (error) { setDetail((current) => current ? { ...current, images: current.images.filter((image) => image.id !== temporaryImage.id) } : current); setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return next; }); setMessage(error instanceof Error ? error.message : '图片上传失败'); }
@@ -164,8 +164,8 @@ export function V2TaskExecutionPage() {
     {detail ? <><section className="rounded-lg bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3 text-sm"><span>截止：{new Date(detail.task.due_at).toLocaleString('zh-CN')}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${v2TaskStatusClass[detail.task.status]}`}>{v2TaskStatusLabel[detail.task.status]}</span></div><div className="mt-3 flex justify-between text-sm"><span>填写进度</span><b>{progress}%</b></div><div className="mt-2 h-2 rounded bg-slate-100"><div className="h-2 rounded bg-brand-600" style={{ width: `${progress}%` }} /></div>{detail.task.status === 'rejected' ? <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800"><b>任务已退回整改</b><p className="mt-1">整改原因：{detail.task.review_note?.trim() || '管理员未填写原因，请联系管理员确认。'}</p><p className="mt-1">请优先修改标有“需整改”的项目后重新提交。</p></div> : null}</section>
     {message ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{message}</p> : null}
     <div className="space-y-3">{answers.map((answer) => <AnswerCard answer={answer} deletingImageIds={deletingImageIds} editable={editable} imageUrls={imageUrls} images={detail.images.filter((image) => image.item_id === answer.item_id)} key={answer.id} needsCorrection={detail.task.status === 'rejected' && detail.task.correction_item_ids.includes(answer.item_id)} onChange={(value) => update(answer.item_id, value)} onDeleteImage={deleteImage} onUpload={(file) => queueUpload(answer.item_id, file)} referenceImageUrls={referenceImageUrls[answer.item_id] ?? []} uploaderId={auth.profile?.id ?? ''} />)}</div>
-    {editable ? <div className="grid grid-cols-2 gap-3 rounded-lg bg-white p-4 shadow-sm"><button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border font-bold" disabled={busy || activeUploadCount > 0} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-brand-600 font-bold text-white disabled:opacity-60" disabled={busy || activeUploadCount > 0} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />{activeUploadCount > 0 ? '图片上传中…' : '提交检查'}</button></div> : null}</> : <p className="rounded-lg bg-white p-5">正在加载任务</p>}
-    {requiredImageLabels.length > 0 ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-label="缺少必传图片"><section className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"><h2 className="text-lg font-bold text-slate-900">请先上传必传图片</h2><p className="mt-2 text-sm leading-6 text-slate-600">以下项目至少需要一张图片，上传后才能提交：</p><ul className="mt-3 list-disc space-y-1 pl-5 text-sm font-semibold text-slate-800">{requiredImageLabels.map((label) => <li key={label}>{label}</li>)}</ul><button className="mt-5 min-h-11 w-full rounded-lg bg-brand-600 font-bold text-white" onClick={() => setRequiredImageLabels([])} type="button">我知道了</button></section></div> : null}
+    {editable ? <div className="grid grid-cols-2 gap-3 rounded-lg bg-white p-4 shadow-sm"><button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border font-bold" disabled={busy || activeUploadCount > 0} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-lg font-bold disabled:opacity-60 ${currentSubmissionIssues.length > 0 ? 'bg-slate-300 text-slate-600' : 'bg-brand-600 text-white'}`} disabled={busy || activeUploadCount > 0} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />{activeUploadCount > 0 ? '图片上传中…' : '提交检查'}</button></div> : null}</> : <p className="rounded-lg bg-white p-5">正在加载任务</p>}
+    {submissionIssues.length > 0 ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-label="必填项目未完成"><section className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"><h2 className="text-lg font-bold text-slate-900">请先完成必填项目</h2><p className="mt-2 text-sm leading-6 text-slate-600">以下内容尚未完成，完成后才能提交检查：</p><ul className="mt-3 space-y-2">{submissionIssues.map((issue) => <li className="rounded-lg bg-amber-50 p-3 text-sm" key={issue.itemId}><b className="block text-slate-900">{issue.label}</b><span className="mt-1 block text-amber-800">{issue.reason}</span></li>)}</ul><button className="mt-5 min-h-11 w-full rounded-lg bg-brand-600 font-bold text-white" onClick={() => setSubmissionIssues([])} type="button">我知道了</button></section></div> : null}
     <SuccessToast message={successMessage} onClose={() => setSuccessMessage(null)} />
   </PageShell>;
 }

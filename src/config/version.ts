@@ -10,6 +10,16 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-07-14',
     highlights: [
+      '建立开发测试与正式 Supabase 的分支级强制隔离，配置错误时阻止构建和部署。',
+      '新增 Migration、RLS、远端版本、测试与构建的一体化发布门禁。',
+      '将测试 Seed 限定为开发环境专用，并规范开发先迁移、正式后发布的顺序。',
+    ],
+    title: '建立双数据库环境隔离流程',
+    version: 'StoreHub v2.1.7',
+  },
+  {
+    date: '2026-07-14',
+    highlights: [
       '将“关于系统”入口调整为仅管理员账号可见。',
       '为关于系统页面增加管理员路由保护，员工和店长无法访问。',
     ],

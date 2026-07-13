@@ -153,8 +153,8 @@ erDiagram
 
 阶段 2 已补充：
 
-- `supabase/seed.sql`：两家门店和脱敏商品测试数据。
+- `supabase/seeds/development.sql`：仅供独立开发测试 Supabase 使用的脱敏数据，正式环境禁止执行。
 - `src/types/database.ts`：前端使用的 Supabase 数据库类型。
 - `scripts/validate-supabase-schema.mjs`：静态检查表结构、RLS、策略和 seed。
 
-真实 Supabase 项目创建后仍需要执行迁移，并用不同 Auth 用户 token 补充 RLS 集成测试。
+所有数据库改动只通过 `supabase/migrations` 管理，并先应用到开发测试项目。双环境发布顺序与安全门禁见 `docs/ENVIRONMENT_ISOLATION.md`。

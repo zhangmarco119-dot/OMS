@@ -1,3 +1,7 @@
+-- DEVELOPMENT ONLY.
+-- 只能通过 scripts/supabase-environment.ps1 的 SeedDevelopment 操作执行。
+-- 禁止在正式 Supabase 项目中执行此文件。
+
 insert into public.stores (id, name, short_name)
 values
   ('00000000-0000-4000-8000-000000000001', '宝珠奶酪（五道口店）', '宝珠奶酪'),

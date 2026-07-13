@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 const migrationDirectory = join(root, 'supabase', 'migrations');
-const seedPath = join(root, 'supabase', 'seed.sql');
+const seedPath = join(root, 'supabase', 'seeds', 'development.sql');
 const envExamplePath = join(root, '.env.example');
 const arrivalRollbackPath = join(root, 'supabase', 'rollbacks', '0010_arrival_reports.sql');
 const arrivalTestPath = join(root, 'supabase', 'tests', '0010_arrival_schema.sql');

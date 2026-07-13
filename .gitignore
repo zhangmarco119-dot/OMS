@@ -9,6 +9,8 @@ supabase/.temp/
 ~$*.xlsx
 .env
 .env.local
+.env.development
+.env.production
 .env.*.local
 *.tsbuildinfo
 playwright-report/

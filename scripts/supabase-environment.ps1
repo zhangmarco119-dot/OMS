@@ -4,10 +4,11 @@ param(
   [string]$Environment,
 
   [Parameter(Mandatory = $true)]
-  [ValidateSet('Link', 'MigrationList', 'DryRun', 'Push', 'SeedDevelopment')]
+  [ValidateSet('Link', 'MigrationList', 'DryRun', 'Push', 'SeedDevelopment', 'DeployFunctions')]
   [string]$Action,
 
   [string]$ProductionConfirmation = '',
+  [string]$ProductionFunctionConfirmation = '',
   [string]$DevelopmentSeedConfirmation = ''
 )
 
@@ -24,7 +25,7 @@ if ($NodeCommand) {
   $Node = $BundledNode
   $env:Path = "$BundledNodeDirectory;$env:Path"
 } else {
-  throw '未找到 Node.js，请先安装 Node.js 22 LTS。'
+  throw 'Node.js was not found. Install Node.js 22 LTS first.'
 }
 
 $PnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
@@ -35,9 +36,9 @@ function Invoke-Pnpm {
   } elseif (Test-Path -LiteralPath $BundledPnpm) {
     & $Node $BundledPnpm @Arguments
   } else {
-    throw '未找到 pnpm，请先执行 corepack enable。'
+    throw 'pnpm was not found. Run corepack enable first.'
   }
-  if ($LASTEXITCODE -ne 0) { throw "pnpm 命令执行失败，退出码 $LASTEXITCODE。" }
+  if ($LASTEXITCODE -ne 0) { throw "pnpm failed with exit code $LASTEXITCODE." }
 }
 
 Push-Location $Root
@@ -45,21 +46,21 @@ try {
   $Branch = (& git branch --show-current).Trim()
   $RequiredBranch = if ($Environment -eq 'Development') { 'v2-development' } else { 'manage-system' }
   if ($Branch -ne $RequiredBranch) {
-    throw "$Environment 数据库操作只能在 $RequiredBranch 分支执行；当前分支为 $Branch。"
+    throw "$Environment database actions require branch $RequiredBranch; current branch is $Branch."
   }
 
   $TargetRef = (& $Node scripts/verify-environment.mjs --print-project-ref).Trim()
-  if ($LASTEXITCODE -ne 0 -or -not $TargetRef) { throw '分支与 Supabase 环境校验未通过。' }
+  if ($LASTEXITCODE -ne 0 -or -not $TargetRef) { throw 'Branch and Supabase environment validation failed.' }
 
   if ($Action -eq 'Link') {
     Invoke-Pnpm dlx supabase@latest link --project-ref $TargetRef --agent no
     & $Node scripts/verify-environment.mjs --require-linked
-    if ($LASTEXITCODE -ne 0) { throw 'Link 后复核失败。' }
+    if ($LASTEXITCODE -ne 0) { throw 'Post-link environment validation failed.' }
     return
   }
 
   & $Node scripts/verify-environment.mjs --require-linked
-  if ($LASTEXITCODE -ne 0) { throw '当前 Supabase CLI Link 与分支环境不一致。' }
+  if ($LASTEXITCODE -ne 0) { throw 'The linked Supabase project does not match the current branch.' }
 
   switch ($Action) {
     'MigrationList' {
@@ -70,17 +71,25 @@ try {
     }
     'Push' {
       if ($Environment -eq 'Production' -and $ProductionConfirmation -ne 'APPLY-PRODUCTION-MIGRATIONS') {
-        throw '正式库 Push 必须显式传入 -ProductionConfirmation APPLY-PRODUCTION-MIGRATIONS。'
+        throw 'Production Push requires -ProductionConfirmation APPLY-PRODUCTION-MIGRATIONS.'
       }
       Invoke-Pnpm dlx supabase@latest db push --linked --dry-run --agent no
       Invoke-Pnpm dlx supabase@latest db push --linked --agent no
     }
     'SeedDevelopment' {
-      if ($Environment -ne 'Development') { throw 'SeedDevelopment 禁止用于正式环境。' }
+      if ($Environment -ne 'Development') { throw 'SeedDevelopment is forbidden in production.' }
       if ($DevelopmentSeedConfirmation -ne 'APPLY-DEVELOPMENT-SEED') {
-        throw '开发 Seed 必须显式传入 -DevelopmentSeedConfirmation APPLY-DEVELOPMENT-SEED。'
+        throw 'Development Seed requires -DevelopmentSeedConfirmation APPLY-DEVELOPMENT-SEED.'
       }
       Invoke-Pnpm dlx supabase@latest db query --linked --file supabase/seeds/development.sql --agent no
+    }
+    'DeployFunctions' {
+      if ($Environment -eq 'Production' -and $ProductionFunctionConfirmation -ne 'DEPLOY-PRODUCTION-FUNCTIONS') {
+        throw 'Production function deployment requires -ProductionFunctionConfirmation DEPLOY-PRODUCTION-FUNCTIONS.'
+      }
+      Invoke-Pnpm dlx supabase@latest functions deploy account-login --project-ref $TargetRef --no-verify-jwt --agent no
+      Invoke-Pnpm dlx supabase@latest functions deploy admin-users --project-ref $TargetRef --agent no
+      Invoke-Pnpm dlx supabase@latest functions deploy task-template-images --project-ref $TargetRef --agent no
     }
   }
 } finally {

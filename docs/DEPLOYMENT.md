@@ -37,6 +37,7 @@ STOREHUB_DEVELOPMENT_SUPABASE_REF
 ./scripts/supabase-environment.ps1 -Environment Development -Action Link
 ./scripts/supabase-environment.ps1 -Environment Development -Action DryRun
 ./scripts/supabase-environment.ps1 -Environment Development -Action Push
+./scripts/supabase-environment.ps1 -Environment Development -Action DeployFunctions
 pnpm release:check
 ```
 
@@ -63,7 +64,14 @@ Seed 只允许位于 `supabase/seeds/development.sql`，发布正式环境时绝
 pnpm release:check
 ```
 
-6. 若 Edge Function 有变化，确认项目编号后分别部署到正式项目；`account-login` 必须使用 `--no-verify-jwt`。
+6. 若 Edge Function 有变化，使用安全脚本部署 `account-login`、`admin-users` 和 `task-template-images`：
+
+```powershell
+./scripts/supabase-environment.ps1 -Environment Production -Action DeployFunctions -ProductionFunctionConfirmation DEPLOY-PRODUCTION-FUNCTIONS
+```
+
+脚本会对 `account-login` 使用 `--no-verify-jwt`，并在部署前复核分支、项目编号和 CLI Link。
+
 7. 正式库 Migration 和全部门禁通过后，才推送 `manage-system`，触发正式前端部署。
 
 禁止在正式项目执行 `db reset`、Seed、DROP、TRUNCATE、测试清理或批量删除业务数据。

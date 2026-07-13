@@ -3,7 +3,16 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createEmptyTaskTemplate } from '../features/task-templates/templateForm';
 import type { Database } from '../types/database';
-import { publishTaskTemplate, saveTaskTemplate } from './task-templates.service';
+import { publishTaskTemplate, saveTaskTemplate, uploadTaskTemplateReferenceImage } from './task-templates.service';
+
+vi.mock('./arrival-images.service', () => ({
+  compressArrivalImage: vi.fn().mockResolvedValue({
+    blob: new Blob(['image'], { type: 'image/jpeg' }),
+    height: 100,
+    mimeType: 'image/jpeg',
+    width: 100,
+  }),
+}));
 
 const storeId = '00000000-0000-4000-8000-000000000001';
 
@@ -30,5 +39,39 @@ describe('task templates service', () => {
     expect(rpc).toHaveBeenCalledWith('publish_v2_task_template', {
       p_template_id: '00000000-0000-4000-8000-000000000099',
     });
+  });
+
+  it('uploads a reference image directly to storage and atomically attaches it', async () => {
+    const upload = vi.fn().mockResolvedValue({ error: null });
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    const createSignedUrl = vi.fn().mockResolvedValue({ data: { signedUrl: 'https://signed.example/reference.jpg' }, error: null });
+    const from = vi.fn().mockReturnValue({ createSignedUrl, remove, upload });
+    const rpc = vi.fn().mockResolvedValue({ data: ['path'], error: null });
+    const client = { rpc, storage: { from } } as unknown as SupabaseClient<Database>;
+    const templateId = '00000000-0000-4000-8000-000000000010';
+    const itemId = '00000000-0000-4000-8000-000000000020';
+
+    const result = await uploadTaskTemplateReferenceImage(
+      client,
+      templateId,
+      itemId,
+      new File(['image'], 'reference.jpg', { type: 'image/jpeg' }),
+    );
+
+    expect(from).toHaveBeenCalledWith('v2-task-template-reference-images');
+    expect(upload).toHaveBeenCalledWith(
+      expect.stringMatching(new RegExp(`^${templateId}/${itemId}/[0-9a-f-]+\\.jpg$`)),
+      expect.any(Blob),
+      expect.objectContaining({ contentType: 'image/jpeg', upsert: false }),
+    );
+    const uploadedPath = upload.mock.calls[0][0] as string;
+    expect(rpc).toHaveBeenCalledWith('attach_v2_task_template_reference_image', {
+      p_item_id: itemId,
+      p_path: uploadedPath,
+      p_template_id: templateId,
+    });
+    expect(createSignedUrl).toHaveBeenCalledWith(uploadedPath, 3600);
+    expect(result).toEqual({ path: uploadedPath, previewUrl: 'https://signed.example/reference.jpg' });
+    expect(remove).not.toHaveBeenCalled();
   });
 });

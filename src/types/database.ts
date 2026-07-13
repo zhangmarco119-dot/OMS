@@ -744,6 +744,7 @@ export type Database = {
       };
     };
     Functions: {
+      attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };
       admin_set_product_permissions: { Args: { p_can_request_discontinued: boolean; p_can_request_incorrect: boolean; p_can_request_new: boolean; p_profile_id: string }; Returns: Json };
       acknowledge_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       admin_v2_analytics: { Args: { p_days?: number; p_end_date?: string; p_start_date?: string }; Returns: Json };

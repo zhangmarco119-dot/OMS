@@ -190,6 +190,7 @@ const requiredFunctions = [
   'can_write_arrival_image_object',
   'can_manage_v2_task_template',
   'can_view_v2_task_template',
+  'attach_v2_task_template_reference_image',
   'save_v2_task_template',
   'publish_v2_task_template',
   'archive_v2_task_template',
@@ -271,7 +272,7 @@ if ((migration.match(/with \(security_invoker = true\)/g) ?? []).length < 2) {
   failures.push('arrival views must use security_invoker');
 }
 
-if (!migration.includes("'arrival-report-images',\n  'arrival-report-images',\n  false")) {
+if (!/'arrival-report-images'\s*,\s*'arrival-report-images'\s*,\s*false/.test(migration)) {
   failures.push('missing private arrival-report-images bucket');
 }
 
@@ -361,7 +362,7 @@ if (!taskTemplateMigration.includes('v2_task_template_versions')
   failures.push('V2 task templates require immutable published versions');
 }
 
-if (!taskTemplateMigration.includes('security definer\nset search_path = public')
+if (!/security definer\s+set search_path = public/.test(taskTemplateMigration)
   || !taskTemplateMigration.includes('administrator store access required')) {
   failures.push('V2 task template RPC must enforce hardened administrator store access');
 }

@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createEmptySopDraft } from '../services/v2-content.service';
-import { SopEditor } from './AdminContentPage';
+import { createEmptyNoticeDraft, createEmptySopDraft } from '../services/v2-content.service';
+import { NoticeEditor, SopEditor } from './AdminContentPage';
 
 describe('SopEditor image-first workflow', () => {
   const createObjectUrl = vi.fn(() => 'blob:sop-preview');
@@ -46,5 +46,22 @@ describe('SopEditor image-first workflow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith([file]));
+  });
+
+  it('keeps the announcement editor and action bar above the app navigation', () => {
+    render(<NoticeEditor
+      busy={false}
+      draft={createEmptyNoticeDraft(['store-1'])}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onPublish={vi.fn()}
+      onSave={vi.fn()}
+      onUpload={vi.fn().mockResolvedValue(undefined)}
+      recipients={[]}
+      stores={[{ id: 'store-1', name: '测试门店' }]}
+    />);
+
+    expect(screen.getByRole('dialog', { name: '新建公告' })).toHaveClass('h-[100dvh]', 'z-50');
+    expect(screen.getByRole('button', { name: '发布公告' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
   });
 });

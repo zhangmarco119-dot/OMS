@@ -49,8 +49,8 @@
 | 任务管理 `/app/admin/tasks` | 管理员 | 周期任务与任务清单缺少分区层级 | 统一入口、计划卡、任务卡和状态 | SectionHeader、TaskCard、StatusBadge | VERIFIED | 周期、清单、暂停和撤回入口通过 |
 | 任务发布 `/app/admin/tasks/publish` | 管理员 | 大量单选/多选控件样式分散 | 统一表单、周期规则、门店选择和提交反馈 | FormField、ChoiceCard、FeedbackBanner | VERIFIED | 单次/周期规则与发布服务通过 |
 | 任务审核 `/app/admin/tasks/:id` | 管理员 | 审核项目、图片和操作区层级不清 | 统一任务元数据、整改选择和审核操作栏 | StatusBadge、ImageGrid、MobileActionBar、ConfirmDialog | VERIFIED | 参考图、提交图、通过/退回/撤回通过 |
-| 任务模板 `/app/admin/task-templates` | 管理员 | 编辑器信息密集、按钮和上传状态不统一 | 统一模板列表/归档、分组项目、图片上传和固定操作栏 | SegmentedControl、FormField、ImageGrid、MobileActionBar | VERIFIED | 草稿、归档、删除和多参考图测试通过 |
-| 公告与 SOP 管理 `/app/admin/content` | 管理员 | 两类内容表单与列表混排 | SOP 改为食品制作图片优先编辑器，支持未保存多图即时预览、安全区操作栏和图片管理 | FormField、ImageGrid、MobileActionBar、ConfirmDialog | VERIFIED | 保存、发布、多图上传、删除和底栏安全区通过 |
+| 任务模板 `/app/admin/task-templates` | 管理员 | 编辑器信息密集、按钮和上传状态不统一 | 统一模板列表/归档、分组项目、图片上传和高层级安全区操作栏 | SegmentedControl、FormField、ImageGrid、MobileActionBar | VERIFIED | 草稿、归档、删除、多参考图和底栏遮挡测试通过 |
+| 公告与 SOP 管理 `/app/admin/content` | 管理员 | 两类内容表单与列表混排 | 公告与 SOP 使用独立全屏滚动容器、高层级安全区操作栏；SOP 采用食品制作图片优先编辑器 | FormField、ImageGrid、MobileActionBar、ConfirmDialog | VERIFIED | 保存、发布、多图上传、删除和底栏遮挡测试通过 |
 | 运营统计 `/app/admin/analytics` | 管理员 | 指标卡与趋势图颜色较多、空态不统一 | 收敛色彩、统一指标卡、日期筛选和图表说明 | MetricCard、FormField、EmptyState | VERIFIED | 日期范围、指标跳转和统计服务通过 |
 | 路由错误页 | 全部 | 与业务页面视觉断层 | 统一错误状态、重试和返回动作 | ErrorState | VERIFIED | 错误反馈与操作入口通过 |
 | 404 页面 | 全部 | 视觉层级简单但不统一 | 统一空状态和返回入口 | EmptyState | VERIFIED | 空态与返回入口通过 |
@@ -78,4 +78,4 @@
 - Supabase 契约：27 张表、52 条策略校验通过；本轮未修改 migration 或 RLS。
 - 安全审计：221 个文件扫描通过。
 - 生产构建：Vite 构建通过。
-- 版本：`StoreHub v2.1.1`。
+- 版本：`StoreHub v2.1.2`。

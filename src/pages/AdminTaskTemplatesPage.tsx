@@ -33,6 +33,13 @@ import {
 type Filter = 'all' | typeof taskTemplateCategories[number];
 type TemplateScope = 'active' | 'archived';
 
+const readImagePreview = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('参考图片预览生成失败。'));
+  reader.onerror = () => reject(new Error('参考图片预览生成失败。'));
+  reader.readAsDataURL(file);
+});
+
 const statusLabel = { archived: '已归档', draft: '草稿', published: '已发布' } as const;
 const statusClass = { archived: 'bg-slate-100 text-slate-600', draft: 'bg-amber-50 text-amber-800', published: 'bg-brand-50 text-brand-700' } as const;
 
@@ -80,7 +87,10 @@ export function AdminTaskTemplatesPage() {
   }, [draftStorageKey, restoredDraftKey]);
   useEffect(() => {
     if (!draftStorageKey || restoredDraftKey !== draftStorageKey) return;
-    if (draft) window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+    if (draft) {
+      const persistedDraft = { ...draft, groups: draft.groups.map((group) => ({ ...group, items: group.items.map((item) => ({ ...item, referenceImageUrl: item.referenceImageUrl?.startsWith('data:') ? null : item.referenceImageUrl, referenceImageUrls: item.referenceImageUrls.filter((url) => !url.startsWith('data:')) })) })) };
+      window.localStorage.setItem(draftStorageKey, JSON.stringify(persistedDraft));
+    }
     else window.localStorage.removeItem(draftStorageKey);
   }, [draft, draftStorageKey, restoredDraftKey]);
   const visibleTemplates = useMemo(() => templates.filter((template) => (scope === 'archived' ? template.status === 'archived' : template.status !== 'archived') && (filter === 'all' || template.category === filter)), [filter, scope, templates]);
@@ -135,7 +145,7 @@ export function AdminTaskTemplatesPage() {
 
   const uploadReferenceImage = async (itemId: string, file: File | undefined) => {
     if (!supabase || !draft || !file) return;
-    const localPreviewUrl = URL.createObjectURL(file);
+    const localPreviewUrl = await readImagePreview(file);
     const previewDraft = {
       ...draft,
       groups: draft.groups.map((group) => ({

@@ -24,12 +24,14 @@ export function V2TaskExecutionPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const dirty = useRef(false);
+  const uploadedItemIds = useRef(new Set<string>());
 
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
       const next = await loadV2TaskDetail(supabase, taskId);
       setDetail(next);
+      uploadedItemIds.current = new Set(next.images.map((image) => image.item_id));
       setAnswers(next.answers);
       setImageUrls(await loadV2TaskImageUrls(supabase, next.images));
       setReferenceImageUrls(await loadV2TaskReferenceImageUrls(supabase, next.answers));
@@ -62,13 +64,24 @@ export function V2TaskExecutionPage() {
   useEffect(() => { if (!editable || !dirty.current) return; const timer = setTimeout(() => void save(), 800); return () => clearTimeout(timer); }, [answers, editable]);
   const submit = async () => {
     if (!supabase || !detail) return;
+    setBusy(true);
+    let validationImages = detail.images.filter((image) => !image.id.startsWith('local-'));
+    try {
+      const latest = await loadV2TaskDetail(supabase, detail.task.id);
+      validationImages = latest.images;
+      setDetail((current) => current ? { ...current, images: latest.images } : current);
+      latest.images.forEach((image) => uploadedItemIds.current.add(image.item_id));
+    } catch {
+      // The upload callback also records successful item ids synchronously, so a
+      // transient detail refresh failure must not force the user to reload the page.
+    }
+    const availableImageItemIds = new Set([...validationImages.map((image) => image.item_id), ...uploadedItemIds.current]);
     const missingImages = answers.filter((answer) => {
       const item = asTaskItemSnapshot(answer.item_snapshot);
       return item.is_required && (['image', 'multi_image'].includes(item.field_type) || item.image_requirement === 'single' || item.image_requirement === 'multiple')
-        && !detail.images.some((image) => image.item_id === answer.item_id);
+        && !availableImageItemIds.has(answer.item_id);
     }).map((answer) => asTaskItemSnapshot(answer.item_snapshot).label);
-    if (missingImages.length > 0) { setRequiredImageLabels(missingImages); return; }
-    setBusy(true);
+    if (missingImages.length > 0) { setRequiredImageLabels(missingImages); setBusy(false); return; }
     try {
       const saved = await save();
       await submitV2Task(supabase, detail.task.id, saved?.version ?? detail.task.version);
@@ -87,11 +100,13 @@ export function V2TaskExecutionPage() {
     setBusy(true);
     try {
       const uploaded = await uploadV2TaskImage(supabase, detail.task, itemId, auth.profile.id, file);
+      uploadedItemIds.current.add(itemId);
       setDetail((current) => current ? {
         ...current,
         images: current.images.map((image) => image.id === temporaryImage.id ? uploaded : image),
       } : current);
       setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return { ...next, [uploaded.id]: localPreviewUrl }; });
+      setRequiredImageLabels((current) => current.filter((label) => label !== asTaskItemSnapshot(answers.find((answer) => answer.item_id === itemId)?.item_snapshot ?? {}).label));
       setSuccessMessage('图片已上传，可点击预览');
     }
     catch (error) { setDetail((current) => current ? { ...current, images: current.images.filter((image) => image.id !== temporaryImage.id) } : current); setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return next; }); setMessage(error instanceof Error ? error.message : '图片上传失败'); }

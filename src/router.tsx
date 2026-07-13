@@ -68,7 +68,7 @@ export const router = createBrowserRouter([
       { path: 'history', element: <HistoryPage /> },
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'account', element: <AccountPage /> },
-      { path: 'account/about', element: <AboutSystemPage /> },
+      { path: 'account/about', element: <ProtectedRoute requireAdmin><AboutSystemPage /></ProtectedRoute> },
       { path: 'menu', element: <AppMenuPage /> },
       { path: 'workbench', element: <AppMenuPage /> },
       { path: 'todos', element: <TodoPage /> },

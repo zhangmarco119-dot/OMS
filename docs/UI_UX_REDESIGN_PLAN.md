@@ -30,8 +30,8 @@
 | 首页 `/app` | 管理员 | 概览卡片密度和状态表达不统一 | 紧凑运营指标、异常优先、统一跳转反馈 | MetricCard、SectionHeader | VERIFIED | 管理入口与统计服务回归通过 |
 | 工作台 `/app/workbench` | 全部 | 深色方块面积过大、说明文字拥挤 | 轻量功能卡、统一图标容器与文字对齐 | FeatureCard | VERIFIED | 三列响应式卡片与权限过滤通过 |
 | 待办 `/app/todos` | 全部 | 不同类型卡片视觉体系不一致 | 类型分组、截止/动作/整改原因与空态统一 | TodoItem、StatusBadge、EmptyState | VERIFIED | 分组、跳转及角标服务回归通过 |
-| 我的 `/app/account` | 全部 | 卡片阴影偏重、菜单与表单样式不统一 | 轻量资料区、菜单列表、密码表单与反馈统一，增加关于系统入口 | SectionCard、FormField、FeedbackBanner | VERIFIED | 改密、退出、历史与关于系统入口保留 |
-| 关于系统 `/app/account/about` | 全部 | 缺少面向用户的版本更新说明 | 展示当前版本、发布日期及每次更新的中文摘要 | PageShell、ReleaseCard、StatusBadge | VERIFIED | 当前版本从最新更新记录自动派生 |
+| 我的 `/app/account` | 全部 | 卡片阴影偏重、菜单与表单样式不统一 | 轻量资料区、菜单列表、密码表单与反馈统一，管理员增加关于系统入口 | SectionCard、FormField、FeedbackBanner | VERIFIED | 改密、退出、历史保留；关于系统仅管理员可见 |
+| 关于系统 `/app/account/about` | 管理员 | 缺少面向管理员的版本更新说明 | 展示当前版本、发布日期及每次更新的中文摘要 | PageShell、ReleaseCard、StatusBadge | VERIFIED | 当前版本从最新更新记录自动派生并受管理员路由保护 |
 | 点货 `/app/inventory` | 员工/店长 | 超长单文件内各阶段样式不一致 | 统一步骤头、产品列表、汇总、确认和底部操作 | StatusBadge、EmptyState、MobileActionBar、Dialog | VERIFIED | V1 流程、计算与权限回归通过 |
 | 订货 `/app/order` | 员工/店长 | 同点货，操作说明和状态密度不一致 | 沿用点货统一结构，保留角色权限和商品申请 | 同上 | VERIFIED | V1 流程、申请和权限回归通过 |
 | 到货上报 `/app/arrivals` | 员工/店长 | 子卡片边框/提示/操作条风格分散 | 统一上传、产品卡片、校验弹窗和操作栏；确认窗口避让底部导航 | SectionCard、FeedbackBanner、Dialog、MobileActionBar | VERIFIED | 表单、时间、图片、角色与弹窗遮挡测试通过 |
@@ -74,10 +74,10 @@
 
 - TypeScript：通过。
 - ESLint：通过。
-- Unit / component / service：34 个测试文件、94 项测试全部通过。
+- Unit / component / service：34 个测试文件、96 项测试全部通过。
 - Playwright E2E：320×720、390×844、768×1024、1280×720 四种视口通过；无横向溢出、无页面运行错误，保护路由均正确返回登录页。
 - 视觉截图：四种视口登录页截图已人工检查；测试产物位于 `test-results/ui-review/`，不纳入版本控制。
 - Supabase 契约：27 张表、52 条策略校验通过；本轮未修改 migration 或 RLS。
 - 安全审计：228 个文件扫描通过。
 - 生产构建：Vite 构建通过。
-- 版本：`StoreHub v2.1.5`。
+- 版本：`StoreHub v2.1.6`。

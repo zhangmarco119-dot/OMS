@@ -88,11 +88,11 @@ export function AccountPage() {
             <span className="flex-1 font-semibold text-ink">修改密码</span>
             <ChevronRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
           </button>
-          <Link className="flex min-h-14 items-center gap-3 border-t border-line px-4 text-left" to="/app/account/about">
+          {auth.profile?.role === 'admin' ? <Link className="flex min-h-14 items-center gap-3 border-t border-line px-4 text-left" to="/app/account/about">
             <CircleHelp className="h-5 w-5 text-slate-500" aria-hidden="true" />
             <span className="flex-1 font-semibold text-ink">关于系统</span>
             <ChevronRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
-          </Link>
+          </Link> : null}
           <div className="border-t border-line px-4 py-3 text-sm text-slate-500">
             <Store className="mr-2 inline h-4 w-4" aria-hidden="true" />
             当前登录：{auth.profile?.display_name ?? auth.user?.email ?? '未知账号'}

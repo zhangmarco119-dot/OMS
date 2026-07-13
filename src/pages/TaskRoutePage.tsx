@@ -1,6 +1,6 @@
-import { ArrowLeft, ArrowRight, Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, FileDown, Flag, ListChecks, PackagePlus, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, FileDown, ListChecks, PackagePlus, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { canManageV1ProductsFromTask } from '../features/access/roleCapabilities';
@@ -88,6 +88,7 @@ export function TaskRoutePage({ mode }: TaskRoutePageProps) {
 
 function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const auth = useAuth();
+  const navigate = useNavigate();
   const text = copy[mode];
   const task = useTaskSession(mode);
   const [showSummary, setShowSummary] = useState(false);
@@ -109,8 +110,10 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const [inventoryImportStatus, setInventoryImportStatus] = useState<'idle' | 'loading' | 'importing' | 'error'>('idle');
   const [inventoryImportMessage, setInventoryImportMessage] = useState<string | null>(null);
   const [extraForm, setExtraForm] = useState({ name: '', spec: '', countUnit: '', productCode: '', quantity: '', note: '' });
-  const [productPermissions, setProductPermissions] = useState({ discontinued: true, incorrect: true, new: true });
+  const [productPermissions, setProductPermissions] = useState({ discontinued: false, incorrect: false, new: false });
   const isManager = canManageV1ProductsFromTask(auth.profile?.role);
+  const canCorrectProduct = productPermissions.incorrect;
+  const canRequestProductDeletion = productPermissions.discontinued;
   const snapshot = task.currentItem ? asProductSnapshot(task.currentItem.product_snapshot) : null;
   const progressStyle = { width: `${task.stats.percent}%` };
   const canGoPrevious = task.currentIndex > 0;
@@ -129,12 +132,12 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
 
   useEffect(() => {
     const client = supabase;
-    if (isManager || !client) return;
+    if (!client) return;
     void Promise.all(['discontinued', 'incorrect', 'new'].map(async (feedbackType) => {
       const { data } = await client.rpc('can_request_product_feedback', { p_feedback_type: feedbackType });
       return [feedbackType, Boolean(data)] as const;
     })).then((entries) => setProductPermissions({ discontinued: entries.find(([type]) => type === 'discontinued')?.[1] ?? false, incorrect: entries.find(([type]) => type === 'incorrect')?.[1] ?? false, new: entries.find(([type]) => type === 'new')?.[1] ?? false }));
-  }, [isManager]);
+  }, []);
 
   const updateQuantity = (delta: number) => {
     const current = task.quantityInput.trim() === '' ? 0 : Number(task.quantityInput);
@@ -174,23 +177,6 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
     } catch (error) {
       setInventoryImportStatus('error');
       setInventoryImportMessage(error instanceof Error ? error.message : '导入历史盘点单失败');
-    }
-  };
-
-  const submitFeedback = async (feedbackType: 'discontinued' | 'incorrect') => {
-    setFeedbackBusy(true);
-    setFeedbackActionMessage(null);
-    try {
-      await task.reportFeedback({
-        feedbackType,
-        note: feedbackNote || undefined,
-      });
-      setFeedbackNote('');
-      setFeedbackActionMessage('商品反馈已提交。');
-    } catch (error) {
-      setFeedbackActionMessage(error instanceof Error ? error.message : '提交商品反馈失败');
-    } finally {
-      setFeedbackBusy(false);
     }
   };
 
@@ -321,6 +307,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <header className="rounded-2xl bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-4">
+            <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={() => window.history.state?.idx > 0 ? navigate(-1) : navigate('/app/workbench')} type="button"><ArrowLeft className="h-5 w-5" /></button>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-slate-500">{auth.store?.name ?? '当前门店'}</p>
               <h1 className="mt-1 text-xl font-bold text-slate-900">{text.title}</h1>
@@ -498,16 +485,14 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   </button>
                 ) : null}
 
-                {mode === 'inventory' || isManager ? (
+                {task.currentItem?.product_id ? (
                   <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-                    {!isManager ? (
-                      <textarea
-                        className="min-h-20 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-brand-500"
-                        onChange={(event) => setFeedbackNote(event.target.value)}
-                        placeholder="商品反馈备注，可选"
-                        value={feedbackNote}
-                      />
-                    ) : null}
+                    <textarea
+                      className="min-h-20 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-brand-500"
+                      onChange={(event) => setFeedbackNote(event.target.value)}
+                      placeholder="商品操作说明，可选"
+                      value={feedbackNote}
+                    />
                     {feedbackActionMessage ? (
                       <p className="mt-3 rounded-xl bg-white p-3 text-sm leading-6 text-slate-700">{feedbackActionMessage}</p>
                     ) : null}
@@ -517,28 +502,24 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                       </p>
                     ) : null}
                     <div className="mt-3 grid grid-cols-2 gap-3">
-                      {isManager || productPermissions.discontinued ? (
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
                         disabled={feedbackBusy || deletionActionLocked}
-                        onClick={() => isManager ? setShowDeletionConfirm(true) : void submitFeedback('discontinued')}
+                        onClick={() => { if (!canRequestProductDeletion) { setFeedbackActionMessage('当前账号没有商品删除权限，请联系管理员授权。'); return; } setShowDeletionConfirm(true); }}
                         type="button"
                       >
-                        {isManager ? <Trash2 className="h-4 w-4" aria-hidden="true" /> : <Flag className="h-4 w-4" aria-hidden="true" />}
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                         不再使用
                       </button>
-                      ) : null}
-                      {isManager || productPermissions.incorrect ? (
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
                         disabled={feedbackBusy || !task.currentItem?.product_id}
-                        onClick={() => isManager ? openCorrectionForm() : void submitFeedback('incorrect')}
+                        onClick={() => { if (!canCorrectProduct) { setFeedbackActionMessage('当前账号没有商品修订权限，请联系管理员授权。'); return; } openCorrectionForm(); }}
                         type="button"
                       >
-                        {isManager ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Flag className="h-4 w-4" aria-hidden="true" />}
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
                         信息有误
                       </button>
-                      ) : null}
                     </div>
                   </div>
                 ) : null}

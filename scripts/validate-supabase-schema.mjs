@@ -35,6 +35,7 @@ const pausedScheduleVisibilityMigrationPath = join(root, 'supabase', 'migrations
 const adminTodoCleanupMigrationPath = join(root, 'supabase', 'migrations', '0029_clear_admin_test_todos.sql');
 const contentDeleteAnalyticsRangeMigrationPath = join(root, 'supabase', 'migrations', '0030_content_delete_and_analytics_range.sql');
 const noticeAssetAdminDeleteMigrationPath = join(root, 'supabase', 'migrations', '0031_notice_asset_admin_delete.sql');
+const unifiedProductPermissionsMigrationPath = join(root, 'supabase', 'migrations', '0032_unified_product_permissions_and_notice_republish.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -73,6 +74,7 @@ const pausedScheduleVisibilityMigration = readFileSync(pausedScheduleVisibilityM
 const adminTodoCleanupMigration = readFileSync(adminTodoCleanupMigrationPath, 'utf8');
 const contentDeleteAnalyticsRangeMigration = readFileSync(contentDeleteAnalyticsRangeMigrationPath, 'utf8');
 const noticeAssetAdminDeleteMigration = readFileSync(noticeAssetAdminDeleteMigrationPath, 'utf8');
+const unifiedProductPermissionsMigration = readFileSync(unifiedProductPermissionsMigrationPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -463,6 +465,17 @@ if (!contentDeleteAnalyticsRangeMigration.includes('p_start_date date')
 
 if (!noticeAssetAdminDeleteMigration.includes('can_manage_v2_notice(asset.notice_id)')) {
   failures.push('notice asset deletion must allow every authorized administrator');
+}
+
+if (!unifiedProductPermissionsMigration.includes("role in ('staff', 'manager')")
+  || !unifiedProductPermissionsMigration.includes("can_request_product_feedback('incorrect')")
+  || !unifiedProductPermissionsMigration.includes("can_request_product_feedback('discontinued')")) {
+  failures.push('staff and manager product permissions must use the same protected workflow');
+}
+
+if (!unifiedProductPermissionsMigration.includes("v_previous_status = 'retracted'")
+  || !unifiedProductPermissionsMigration.includes('set first_read_at = null')) {
+  failures.push('republished notices must reset recipient read state');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

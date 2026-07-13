@@ -5,6 +5,7 @@ export type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 export type StoreRow = Database['public']['Tables']['stores']['Row'];
 
 export interface AdminUserRow extends ProfileRow {
+  email: string;
   productPermissions: { can_request_discontinued: boolean; can_request_incorrect: boolean; can_request_new: boolean };
   storeName: string;
   storeIds: string[];
@@ -29,11 +30,12 @@ const requireClient = () => {
 export const loadAdminUsers = async () => {
   const client = requireClient();
 
-  const [{ data: profiles, error: profilesError }, { data: stores, error: storesError }, accessResult, permissionsResult] = await Promise.all([
+  const [{ data: profiles, error: profilesError }, { data: stores, error: storesError }, accessResult, permissionsResult, authUsers] = await Promise.all([
     client.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
     client.from('stores').select('*').order('name', { ascending: true }),
     client.from('profile_store_access').select('*'),
     client.from('profile_product_permissions').select('*'),
+    invokeAdminUsers({ action: 'list-users' }) as Promise<{ users?: Array<{ id: string; email: string }> }>,
   ]);
 
   if (profilesError) {
@@ -46,6 +48,7 @@ export const loadAdminUsers = async () => {
     throw new Error(accessResult.error.message);
   }
   if (permissionsResult.error) throw new Error(permissionsResult.error.message);
+  const emailByProfileId = new Map((authUsers.users ?? []).map((user) => [user.id, user.email]));
 
   const storeMap = new Map((stores ?? []).map((store) => [store.id, store.name]));
   const permissions = new Map((permissionsResult.data ?? []).map((item) => [item.profile_id, item]));
@@ -55,6 +58,7 @@ export const loadAdminUsers = async () => {
   }
   const users: AdminUserRow[] = (profiles ?? []).map((profile) => ({
     ...profile,
+    email: emailByProfileId.get(profile.id) ?? '',
     productPermissions: permissions.get(profile.id) ?? { can_request_discontinued: true, can_request_incorrect: true, can_request_new: true },
     storeIds: storeIdsByProfile.get(profile.id) ?? [profile.store_id],
     storeName: (storeIdsByProfile.get(profile.id) ?? [profile.store_id])
@@ -148,6 +152,16 @@ export const setUserTemporaryPassword = (userId: string, password: string) =>
     action: 'set-password',
     userId,
     password,
+  });
+
+export const updateManagedUser = (input: { displayName: string; email: string; password?: string; userId: string; username: string }) =>
+  invokeAdminUsers({
+    action: 'update-user',
+    displayName: input.displayName,
+    email: input.email.trim() || undefined,
+    password: input.password?.trim() || undefined,
+    userId: input.userId,
+    username: input.username,
   });
 
 export const deleteManagedUser = (userId: string) =>

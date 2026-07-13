@@ -134,6 +134,22 @@ export const archiveTaskTemplate = async (client: Client, templateId: string) =>
   return data;
 };
 
+export const deleteArchivedTaskTemplate = async (client: Client, templateId: string) => {
+  const { data: items, error: itemsError } = await client
+    .from('v2_task_template_items')
+    .select('reference_image_path')
+    .eq('template_id', templateId);
+  throwIfError(itemsError);
+  const paths = (items ?? []).flatMap((item) => item.reference_image_path ? [item.reference_image_path] : []);
+  if (paths.length > 0) {
+    const { error } = await client.storage.from('v2-task-template-reference-images').remove(paths);
+    throwIfError(error);
+  }
+  const { data, error } = await client.rpc('delete_archived_v2_task_template', { p_template_id: templateId });
+  throwIfError(error);
+  return data;
+};
+
 export const uploadTaskTemplateReferenceImage = async (client: Client, templateId: string, itemId: string, file: File) => {
   const processed = await compressArrivalImage(file);
   const id = createUuid();

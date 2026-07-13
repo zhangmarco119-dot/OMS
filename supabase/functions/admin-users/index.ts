@@ -16,6 +16,17 @@ type AdminAction =
       password: string;
     }
   | {
+      action: 'list-users';
+    }
+  | {
+      action: 'update-user';
+      userId: string;
+      username: string;
+      displayName: string;
+      email?: string;
+      password?: string;
+    }
+  | {
       action: 'delete-user';
       userId: string;
     };
@@ -84,6 +95,12 @@ Deno.serve(async (request) => {
   }
 
   const payload = (await request.json()) as AdminAction;
+
+  if (payload.action === 'list-users') {
+    const { data, error } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+    if (error) return json({ error: error.message }, 400);
+    return json({ users: data.users.map((user) => ({ id: user.id, email: user.email ?? '' })) });
+  }
 
   if (payload.action === 'create-user') {
     const email = payload.email?.trim() || `internal-${crypto.randomUUID()}@accounts.invalid`;
@@ -170,6 +187,46 @@ Deno.serve(async (request) => {
       return json({ error: error.message }, 400);
     }
 
+    return json({ ok: true });
+  }
+
+  if (payload.action === 'update-user') {
+    const username = payload.username.trim();
+    const displayName = payload.displayName.trim();
+    const email = payload.email?.trim();
+    if (!username || !displayName) return json({ error: '账号名和姓名不能为空' }, 400);
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) return json({ error: '邮箱格式不正确' }, 400);
+    if (payload.password !== undefined && payload.password.length > 0 && payload.password.length < 6) return json({ error: '密码至少需要 6 位' }, 400);
+
+    const { data: target, error: targetError } = await adminClient
+      .from('profiles')
+      .select('id, username, deleted_at')
+      .eq('id', payload.userId)
+      .single();
+    if (targetError || !target || target.deleted_at) return json({ error: targetError?.message ?? '账号不存在' }, 404);
+
+    const { data: nameConflict, error: nameConflictError } = await adminClient
+      .from('profiles')
+      .select('id')
+      .eq('username', username)
+      .neq('id', payload.userId)
+      .maybeSingle();
+    if (nameConflictError) return json({ error: nameConflictError.message }, 400);
+    if (nameConflict) return json({ error: '账号名已存在，请使用其他账号名。' }, 409);
+
+    const authUpdate: { email?: string; email_confirm?: boolean; password?: string; user_metadata: { display_name: string } } = {
+      user_metadata: { display_name: displayName },
+    };
+    if (email) { authUpdate.email = email; authUpdate.email_confirm = true; }
+    if (payload.password) authUpdate.password = payload.password;
+    const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(payload.userId, authUpdate);
+    if (authUpdateError) return json({ error: authUpdateError.message }, 400);
+
+    const { error: profileUpdateError } = await adminClient
+      .from('profiles')
+      .update({ username, display_name: displayName })
+      .eq('id', payload.userId);
+    if (profileUpdateError) return json({ error: profileUpdateError.message }, 400);
     return json({ ok: true });
   }
 

@@ -19,7 +19,7 @@ import {
   createAuthUserWithProfile,
   deleteManagedUser,
   loadAdminUsers,
-  setUserTemporaryPassword,
+  updateManagedUser,
   updateProfileAdminFields,
   updateProductPermissions,
   type AdminUserRow,
@@ -218,13 +218,28 @@ export function AdminPage() {
       setMessage('每个账号至少需要选择一个门店。');
       return;
     }
+    if (!user.username.trim() || !user.display_name.trim()) {
+      setMessage('账号名和姓名不能为空。');
+      return;
+    }
+    if (user.email && !/^\S+@\S+\.\S+$/.test(user.email.trim())) {
+      setMessage('邮箱格式不正确。');
+      return;
+    }
+    const password = passwordDrafts[user.id]?.trim();
+    if (password && password.length < 6) {
+      setMessage('新密码至少需要 6 位。');
+      return;
+    }
     try {
+      await updateManagedUser({ displayName: user.display_name, email: user.email, password, userId: user.id, username: user.username });
       await updateProfileAdminFields(user.id, {
         role: user.role,
         is_active: user.is_active,
         storeIds: user.storeIds,
       });
       if (user.role !== 'admin') await updateProductPermissions(user.id, user.productPermissions);
+      setPasswordDrafts((current) => ({ ...current, [user.id]: '' }));
       setMessage('账号资料已更新。');
       await refresh(selectedStoreId);
     } catch (error) {
@@ -272,23 +287,6 @@ export function AdminPage() {
             : [...user.storeIds, storeId],
         }
       : user));
-  };
-
-  const setTemporaryPassword = async (userId: string) => {
-    const password = passwordDrafts[userId];
-    if (!password) {
-      setMessage('请输入新的临时密码。');
-      return;
-    }
-
-    setMessage(null);
-    try {
-      await setUserTemporaryPassword(userId, password);
-      setPasswordDrafts((current) => ({ ...current, [userId]: '' }));
-      setMessage('临时密码已设置，请通知该账号登录后自行修改。');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '设置密码失败');
-    }
   };
 
   return (
@@ -469,7 +467,11 @@ export function AdminPage() {
                   <div>{user.storeName}</div>
                   <div>{user.is_active ? '启用' : '禁用'}</div>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-4">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, username: event.target.value } : entry))} placeholder="账号名" value={user.username} />
+                  <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, display_name: event.target.value } : entry))} placeholder="姓名" value={user.display_name} />
+                  <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" inputMode="email" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, email: event.target.value } : entry))} placeholder="邮箱（选填）" type="email" value={user.email} />
+                  <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setPasswordDrafts((current) => ({ ...current, [user.id]: event.target.value }))} placeholder="新密码（留空不修改）" type={showPassword ? 'text' : 'password'} value={passwordDrafts[user.id] ?? ''} />
                   <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, role: event.target.value as AdminUserRow['role'] } : entry))} value={user.role}>
                     <option value="staff">员工</option>
                     <option value="manager">店长</option>
@@ -479,10 +481,6 @@ export function AdminPage() {
                     <option value="true">启用</option>
                     <option value="false">禁用</option>
                   </select>
-                  <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-bold" onClick={() => void saveProfile(user)} type="button">
-                    <Save className="h-4 w-4" aria-hidden="true" />
-                    保存
-                  </button>
                   <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-red-200 px-4 text-sm font-bold text-red-700 disabled:border-slate-200 disabled:text-slate-300" disabled={user.id === auth.profile?.id} onClick={() => void removeUser(user)} type="button">
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                     删除账号
@@ -500,12 +498,7 @@ export function AdminPage() {
                   </div>
                 </fieldset>
                 {user.role !== 'admin' ? <fieldset className="mt-3 rounded-lg bg-slate-50 p-3"><legend className="px-1 text-xs font-bold text-slate-500">员工商品申请权限</legend><div className="mt-1 flex flex-wrap gap-3 text-sm"><label><input checked={user.productPermissions.can_request_new} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_new: event.target.checked } } : entry))} type="checkbox" /> 新增申请</label><label><input checked={user.productPermissions.can_request_incorrect} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_incorrect: event.target.checked } } : entry))} type="checkbox" /> 修订申请</label><label><input checked={user.productPermissions.can_request_discontinued} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_discontinued: event.target.checked } } : entry))} type="checkbox" /> 删除申请</label></div></fieldset> : null}
-                <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setPasswordDrafts((current) => ({ ...current, [user.id]: event.target.value }))} placeholder="设置新的临时密码" type={showPassword ? 'text' : 'password'} value={passwordDrafts[user.id] ?? ''} />
-                  <button className="min-h-10 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void setTemporaryPassword(user.id)} type="button">
-                    设置临时密码
-                  </button>
-                </div>
+                <button className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void saveProfile(user)} type="button"><Save className="h-4 w-4" aria-hidden="true" />保存账号修改</button>
               </div>
             ))}
           </div>

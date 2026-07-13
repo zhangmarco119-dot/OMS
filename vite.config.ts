@@ -1,19 +1,32 @@
 /// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react';
-import { execFileSync } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
-const root = path.dirname(fileURLToPath(import.meta.url));
+// The guard owns environment-file selection because Git branches and Vite modes
+// are intentionally different concepts in this project.
+// @ts-expect-error The executable ESM guard is plain JavaScript by design.
+import { verifyCurrentEnvironment } from './scripts/verify-environment.mjs';
 
 export default defineConfig(({ mode }) => {
   if (mode !== 'test') {
-    execFileSync(process.execPath, [path.join(root, 'scripts', 'verify-environment.mjs')], {
-      cwd: root,
-      env: process.env,
-      stdio: 'inherit',
-    });
+    const result = verifyCurrentEnvironment();
+    if (result.errors.length) {
+      console.error('StoreHub 环境校验失败：');
+      result.errors.forEach((error: string) => console.error(`- ${error}`));
+      throw new Error('StoreHub environment validation failed.');
+    }
+
+    for (const key of [
+      'VITE_APP_ENV',
+      'VITE_SUPABASE_URL',
+      'VITE_SUPABASE_ANON_KEY',
+      'VITE_ENABLE_V2_ARRIVAL_ENTRY',
+      'VITE_ENABLE_V2_TASK_TEMPLATES',
+    ]) {
+      const value = result.env[key];
+      if (value !== undefined) process.env[key] = value;
+    }
+    console.log(`StoreHub 环境校验通过：${result.branch} -> ${result.expectedEnvironment} (${result.expectedProjectRef})`);
   }
 
   return {

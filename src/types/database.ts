@@ -618,19 +618,19 @@ export type Database = {
           field_type: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id: string; guidance: string; id: string;
           image_requirement: 'none' | 'single' | 'multiple'; is_required: boolean;
-          label: string; options: Json; sort_order: number; template_id: string;
+          label: string; options: Json; reference_image_path: string | null; sort_order: number; template_id: string;
         };
         Insert: {
           field_type: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id: string; guidance?: string; id?: string;
           image_requirement?: 'none' | 'single' | 'multiple'; is_required?: boolean;
-          label: string; options?: Json; sort_order?: number; template_id: string;
+          label: string; options?: Json; reference_image_path?: string | null; sort_order?: number; template_id: string;
         };
         Update: {
           field_type?: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id?: string; guidance?: string; id?: string;
           image_requirement?: 'none' | 'single' | 'multiple'; is_required?: boolean;
-          label?: string; options?: Json; sort_order?: number; template_id?: string;
+          label?: string; options?: Json; reference_image_path?: string | null; sort_order?: number; template_id?: string;
         };
         Relationships: [];
       };

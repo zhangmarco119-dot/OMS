@@ -1,11 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { createUuid } from '../lib/uuid';
 import {
   validateTaskTemplateDraft,
   type TaskTemplateDraft,
   type TaskTemplateGroupDraft,
 } from '../features/task-templates/templateForm';
 import type { Database, Json } from '../types/database';
+import { compressArrivalImage } from './arrival-images.service';
 
 type Client = SupabaseClient<Database>;
 export type TaskTemplateRow = Database['public']['Tables']['v2_task_templates']['Row'];
@@ -35,11 +37,17 @@ export const loadTaskTemplates = async (client: Client): Promise<TaskTemplateLis
   return (templates.data ?? []).map((template) => ({ ...template, storeIds: storesByTemplate.get(template.id) ?? [] }));
 };
 
-const groupsToDraft = (groups: TaskTemplateGroupRow[], items: TaskTemplateItemRow[]): TaskTemplateGroupDraft[] =>
-  groups.map((group) => ({
+const getReferenceImageUrl = async (client: Client, path: string | null) => {
+  if (!path) return null;
+  const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
+  return error || !data?.signedUrl ? null : data.signedUrl;
+};
+
+const groupsToDraft = async (client: Client, groups: TaskTemplateGroupRow[], items: TaskTemplateItemRow[]): Promise<TaskTemplateGroupDraft[]> =>
+  Promise.all(groups.map(async (group) => ({
     description: group.description,
     id: group.id,
-    items: items.filter((item) => item.group_id === group.id).map((item) => ({
+    items: await Promise.all(items.filter((item) => item.group_id === group.id).map(async (item) => ({
       fieldType: item.field_type,
       guidance: item.guidance,
       id: item.id,
@@ -47,9 +55,11 @@ const groupsToDraft = (groups: TaskTemplateGroupRow[], items: TaskTemplateItemRo
       isRequired: item.is_required,
       label: item.label,
       optionsText: Array.isArray(item.options) ? item.options.filter((entry): entry is string => typeof entry === 'string').join('\n') : '',
-    })),
+      referenceImagePath: item.reference_image_path,
+      referenceImageUrl: await getReferenceImageUrl(client, item.reference_image_path),
+    }))),
     title: group.title,
-  }));
+  })));
 
 export const loadTaskTemplateDraft = async (client: Client, template: TaskTemplateListItem): Promise<TaskTemplateDraft> => {
   const [groups, items] = await Promise.all([
@@ -63,7 +73,7 @@ export const loadTaskTemplateDraft = async (client: Client, template: TaskTempla
     category: template.category,
     description: template.description,
     dueTime: template.due_time?.slice(0, 5) ?? '',
-    groups: groupsToDraft(groups.data ?? [], items.data ?? []),
+    groups: await groupsToDraft(client, groups.data ?? [], items.data ?? []),
     id: template.id,
     name: template.name,
     recurrence: template.recurrence,
@@ -84,6 +94,7 @@ const serializeGroups = (groups: TaskTemplateGroupDraft[]): Json => groups.map((
     is_required: item.isRequired,
     label: item.label,
     options: item.optionsText.split('\n').map((option) => option.trim()).filter(Boolean),
+    reference_image_path: item.referenceImagePath,
     sort_order: itemIndex,
   })),
   sort_order: groupIndex,
@@ -121,4 +132,14 @@ export const archiveTaskTemplate = async (client: Client, templateId: string) =>
   const { data, error } = await client.rpc('archive_v2_task_template', { p_template_id: templateId });
   throwIfError(error);
   return data;
+};
+
+export const uploadTaskTemplateReferenceImage = async (client: Client, templateId: string, itemId: string, file: File) => {
+  const processed = await compressArrivalImage(file);
+  const id = createUuid();
+  const ext = processed.mimeType === 'image/png' ? 'png' : processed.mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const path = `${templateId}/${itemId}/${id}.${ext}`;
+  const { error } = await client.storage.from('v2-task-template-reference-images').upload(path, processed.blob, { contentType: processed.mimeType });
+  throwIfError(error);
+  return { path, previewUrl: URL.createObjectURL(processed.blob) };
 };

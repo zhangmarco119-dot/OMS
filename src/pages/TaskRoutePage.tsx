@@ -100,7 +100,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [showDeletionConfirm, setShowDeletionConfirm] = useState(false);
-  const [correctionForm, setCorrectionForm] = useState({ name: '', spec: '', countUnit: '', productCode: '' });
+  const [correctionForm, setCorrectionForm] = useState({ name: '', spec: '', countUnit: '' });
   const [extraFormMessage, setExtraFormMessage] = useState<string | null>(null);
   const [extraFormBusy, setExtraFormBusy] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
@@ -188,7 +188,6 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       name: snapshot.name,
       spec: snapshot.spec,
       countUnit: snapshot.count_unit,
-      productCode: snapshot.product_code ?? '',
     });
     setFeedbackActionMessage(null);
     setShowCorrectionForm(true);
@@ -207,7 +206,6 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
         name: correctionForm.name.trim(),
         spec: correctionForm.spec.trim(),
         countUnit: correctionForm.countUnit.trim(),
-        productCode: correctionForm.productCode.trim(),
         note: feedbackNote || undefined,
       });
       setFeedbackNote('');
@@ -622,7 +620,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
 
       {showExtraForm ? (
         <div className="fixed inset-0 z-30 flex items-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <PackagePlus className="h-5 w-5 text-brand-600" aria-hidden="true" />
@@ -680,10 +678,6 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                 单位
                 <input className="min-h-11 rounded-xl border border-slate-200 px-3 font-normal outline-none focus:border-brand-500" onChange={(event) => setCorrectionForm((current) => ({ ...current, countUnit: event.target.value }))} value={correctionForm.countUnit} />
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                商品编码（选填）
-                <input className="min-h-11 rounded-xl border border-slate-200 px-3 font-normal outline-none focus:border-brand-500" onChange={(event) => setCorrectionForm((current) => ({ ...current, productCode: event.target.value }))} value={correctionForm.productCode} />
-              </label>
               <textarea className="min-h-20 rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-brand-500" onChange={(event) => setFeedbackNote(event.target.value)} placeholder="修改说明，可选" value={feedbackNote} />
             </div>
             {feedbackActionMessage ? <p className="mt-3 rounded-xl bg-accent-50 p-3 text-sm text-accent-700">{feedbackActionMessage}</p> : null}
@@ -699,7 +693,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
 
       {showDeletionConfirm && snapshot ? (
         <div className="fixed inset-0 z-40 flex items-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-red-50 p-3 text-red-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></div>
               <div>

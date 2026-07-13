@@ -10,7 +10,7 @@ export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['R
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
 export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
 export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
-export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json }
+export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
 
 const fail = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
@@ -50,6 +50,15 @@ export const loadV2TaskImageUrls = async (client: Client, images: V2TaskImageRow
   const results = await Promise.all(images.map(async (image) => {
     const { data, error } = await client.storage.from(image.bucket).createSignedUrl(image.object_path, 60 * 60);
     return error || !data?.signedUrl ? null : [image.id, data.signedUrl] as const;
+  }));
+  return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
+};
+export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2TaskAnswerRow[]) => {
+  const results = await Promise.all(answers.map(async (answer) => {
+    const path = asTaskItemSnapshot(answer.item_snapshot).reference_image_path;
+    if (!path) return null;
+    const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
+    return error || !data?.signedUrl ? null : [answer.item_id, data.signedUrl] as const;
   }));
   return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
 };

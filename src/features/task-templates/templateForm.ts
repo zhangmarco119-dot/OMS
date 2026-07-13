@@ -20,6 +20,8 @@ export interface TaskTemplateItemDraft {
   isRequired: boolean;
   label: string;
   optionsText: string;
+  referenceImagePath: string | null;
+  referenceImageUrl: string | null;
 }
 
 export interface TaskTemplateGroupDraft {
@@ -51,6 +53,8 @@ export const createEmptyTemplateItem = (): TaskTemplateItemDraft => ({
   isRequired: true,
   label: '',
   optionsText: '',
+  referenceImagePath: null,
+  referenceImageUrl: null,
 });
 
 export const createEmptyTemplateGroup = (): TaskTemplateGroupDraft => ({
@@ -82,6 +86,8 @@ const itemSchema = z.object({
   isRequired: z.boolean(),
   label: z.string().trim().min(1, '每个项目都需要填写名称。'),
   optionsText: z.string(),
+  referenceImagePath: z.string().nullable(),
+  referenceImageUrl: z.string().nullable(),
 }).superRefine((item, context) => {
   if (['single_choice', 'multi_choice'].includes(item.fieldType)
     && item.optionsText.split('\n').map((option) => option.trim()).filter(Boolean).length === 0) {

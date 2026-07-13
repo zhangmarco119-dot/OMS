@@ -57,7 +57,7 @@ export function AccountPage() {
 
   if (view === 'profile') {
     return (
-      <PageShell eyebrow="账户" title="账户信息" backTo="/app">
+      <PageShell eyebrow="账户" title="账户信息">
         {notices.length ? <Link className="notice-ticker flex min-h-12 items-center gap-2 overflow-hidden rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white shadow-sm" to={`/app/notices?notice=${notices[0].id}`}><Bell className="h-4 w-4 shrink-0" /><span className="notice-ticker-text">最新公告：{notices.map((notice) => notice.title).join('　·　')}</span><ChevronRight className="ml-auto h-4 w-4 shrink-0" /></Link> : null}
         <section className="overflow-hidden rounded-lg border border-line bg-white shadow-panel">
           <div className="flex items-center gap-3 border-b border-line p-4">

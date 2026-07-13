@@ -102,34 +102,34 @@ export function ArrivalEntryPage() {
 
   return (
     <PageShell eyebrow="门店运营系统 · 门店执行" title="到货上报" backTo="/app">
-      <section className="rounded-lg bg-white p-4 shadow-sm">
+      <section className="rounded-lg bg-white p-3 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm text-slate-500">当前门店</p>
             <h2 className="mt-1 font-bold text-slate-900">{auth.store?.name}</h2>
-            <p className="mt-2 text-xs text-slate-500">到货编号：{draft.report.report_no}</p>
+            <p className="mt-1 text-xs text-slate-500">到货编号：{draft.report.report_no}</p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-bold ${draft.saveStatus === 'error' ? 'bg-red-50 text-red-700' : draft.saveStatus === 'saved' ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-600'}`}>
             {saveStatusLabel[draft.saveStatus]}
           </span>
         </div>
-        <Link className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 font-bold text-slate-700" to="/app/arrivals/history">
-          <History className="h-5 w-5" aria-hidden="true" />
+        <Link className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700" to="/app/arrivals/history">
+          <History className="h-4 w-4" aria-hidden="true" />
           查看到货历史
         </Link>
       </section>
 
-      <section className="rounded-lg bg-white p-4 shadow-sm">
+      <section className="rounded-lg bg-white p-3 shadow-sm">
         <div className="flex items-center gap-3">
           <PackagePlus className="h-5 w-5 text-brand-700" aria-hidden="true" />
           <h2 className="text-lg font-bold text-slate-900">到货信息</h2>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm font-semibold text-slate-700">到货日期<input className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('arrivalDate', event.target.value)} type="date" value={draft.form.arrivalDate} /></label>
-          <label className="text-sm font-semibold text-slate-700">到货时间<input className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('arrivalTime', event.target.value)} type="time" value={draft.form.arrivalTime} /></label>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label className="text-sm font-semibold text-slate-700">到货日期<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('arrivalDate', event.target.value)} type="date" value={draft.form.arrivalDate} /></label>
+          <label className="text-sm font-semibold text-slate-700">到货时间<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('arrivalTime', event.target.value)} type="time" value={draft.form.arrivalTime} /></label>
         </div>
-        <label className="mt-4 block text-sm font-semibold text-slate-700">快递公司或配送方式（选填）<input className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('carrierName', event.target.value)} placeholder="例如：顺丰 / 门店配送" value={draft.form.carrierName} /></label>
-        <label className="mt-4 block text-sm font-semibold text-slate-700">快递单号（选填）<input className="mt-2 min-h-12 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('trackingNo', event.target.value)} placeholder="扫描或填写快递单号" value={draft.form.trackingNo} /></label>
+        <label className="mt-3 block text-sm font-semibold text-slate-700">快递公司或配送方式（选填）<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('carrierName', event.target.value)} placeholder="例如：顺丰 / 门店配送" value={draft.form.carrierName} /></label>
+        <label className="mt-3 block text-sm font-semibold text-slate-700">快递单号（选填）<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('trackingNo', event.target.value)} placeholder="扫描或填写快递单号" value={draft.form.trackingNo} /></label>
       </section>
 
       <ArrivalImageSection imageType="waybill" images={waybillImages} onDelete={draft.deleteImage} onUpload={draft.addImage} prompt="请拍摄完整的快递面单或配送标签，确保关键信息清晰可见。" title="快递面单照片" />
@@ -154,14 +154,14 @@ export function ArrivalEntryPage() {
         <button className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 font-bold text-brand-700" onClick={draft.addItem} type="button"><Plus className="h-5 w-5" aria-hidden="true" />添加产品</button>
       </section>
 
-      <section className="rounded-lg bg-brand-50 p-4">
+      <section className="rounded-lg bg-brand-50 p-3">
         <p className="text-xs font-semibold text-brand-700">系统自动生成</p>
         <h2 className="mt-1 font-bold text-slate-900">规范到货描述</h2>
-        <p className="mt-3 text-sm leading-7 text-slate-700">{summary || '完整填写产品名称、数量和单位后，系统会自动生成描述。'}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-700">{summary || '完整填写产品名称、数量和单位后，系统会自动生成描述。'}</p>
       </section>
 
-      <section className="rounded-lg bg-white p-4 shadow-sm">
-        <label className="block text-sm font-semibold text-slate-700">补充备注（选填）<textarea className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 p-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('note', event.target.value)} placeholder="记录包装、数量或其他需要管理员注意的信息" value={draft.form.note} /></label>
+      <section className="rounded-lg bg-white p-3 shadow-sm">
+        <label className="block text-sm font-semibold text-slate-700">补充备注（选填）<textarea className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('note', event.target.value)} placeholder="记录包装、数量或其他需要管理员注意的信息" value={draft.form.note} /></label>
       </section>
 
       {draft.message || actionMessage ? <p className="rounded-lg bg-red-50 p-4 text-sm leading-6 text-red-700">{actionMessage ?? draft.message}</p> : null}

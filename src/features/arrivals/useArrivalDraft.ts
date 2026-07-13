@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createUuid } from '../../lib/uuid';
 import { supabase } from '../../lib/supabase';
 import {
+  applyArrivalOpenedAt,
   loadOrCreateArrivalDraft,
   localArrivalDate,
   localArrivalTime,
@@ -118,6 +119,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     setLoadStatus('loading');
     setMessage(null);
     setSaveStatus('idle');
+    const openedAt = new Date();
 
     void (async () => {
       try {
@@ -137,9 +139,12 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
           note: draft.report.note ?? '',
           trackingNo: draft.report.tracking_no ?? '',
         };
-        const restored = hasSavedContent
+        const restoredDraft = hasSavedContent
           ? readCachedForm(profileId, storeId, draft.report.id, draft.report.version) ?? databaseForm
           : databaseForm;
+        // Always show the actual device-local moment captured when this page was
+        // opened. Existing draft products, images and notes remain untouched.
+        const restored = applyArrivalOpenedAt(restoredDraft, openedAt);
         reportRef.current = draft.report;
         formRef.current = restored;
         setReport(draft.report);

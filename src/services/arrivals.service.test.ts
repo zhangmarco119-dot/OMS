@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ArrivalDraftItem } from '../features/arrivals/arrivalForm';
 import type { Database } from '../types/database';
-import { localArrivalDate, localArrivalTime, saveArrivalDraft } from './arrivals.service';
+import { applyArrivalOpenedAt, localArrivalDate, localArrivalTime, saveArrivalDraft } from './arrivals.service';
 
 const report = {
   arrival_date: '2026-07-12',
@@ -48,6 +48,20 @@ describe('arrivals service', () => {
     const now = new Date(2026, 6, 13, 9, 5, 0);
     expect(localArrivalDate(now)).toBe('2026-07-13');
     expect(localArrivalTime(now)).toBe('09:05');
+  });
+
+  it('refreshes a restored draft to the moment the arrival page is opened', () => {
+    const restored = applyArrivalOpenedAt({
+      arrivalDate: '2026-07-10',
+      arrivalTime: '08:30',
+      carrierName: '顺丰',
+    }, new Date(2026, 6, 13, 17, 58, 45));
+
+    expect(restored).toEqual({
+      arrivalDate: '2026-07-13',
+      arrivalTime: '17:58',
+      carrierName: '顺丰',
+    });
   });
 
   it('saves complete items through the atomic draft RPC', async () => {

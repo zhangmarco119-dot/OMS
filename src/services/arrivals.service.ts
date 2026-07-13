@@ -62,6 +62,12 @@ export const localArrivalTime = (now = new Date()) => {
   return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 };
 
+export const applyArrivalOpenedAt = <Form extends { arrivalDate: string; arrivalTime: string }>(form: Form, openedAt = new Date()): Form => ({
+  ...form,
+  arrivalDate: localArrivalDate(openedAt),
+  arrivalTime: localArrivalTime(openedAt),
+});
+
 const toDraftItem = (
   row: Database['public']['Tables']['arrival_report_items']['Row'],
   productById: Map<string, ProductRow>,

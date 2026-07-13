@@ -37,10 +37,11 @@ export const loadTaskTemplates = async (client: Client): Promise<TaskTemplateLis
   return (templates.data ?? []).map((template) => ({ ...template, storeIds: storesByTemplate.get(template.id) ?? [] }));
 };
 
-const getReferenceImageUrl = async (client: Client, path: string | null) => {
+const getReferenceImageUrl = async (client: Client, templateId: string, path: string | null) => {
   if (!path) return null;
-  const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
-  return error || !data?.signedUrl ? null : data.signedUrl;
+  const { data, error } = await client.functions.invoke('task-template-images', { body: { action: 'sign', path, scope: 'template', templateId } });
+  if (error || !data || typeof data !== 'object' || !('signedUrl' in data) || typeof data.signedUrl !== 'string') return null;
+  return data.signedUrl;
 };
 
 const groupsToDraft = async (client: Client, groups: TaskTemplateGroupRow[], items: TaskTemplateItemRow[]): Promise<TaskTemplateGroupDraft[]> =>
@@ -56,7 +57,7 @@ const groupsToDraft = async (client: Client, groups: TaskTemplateGroupRow[], ite
       label: item.label,
       optionsText: Array.isArray(item.options) ? item.options.filter((entry): entry is string => typeof entry === 'string').join('\n') : '',
       referenceImagePath: item.reference_image_path,
-      referenceImageUrl: await getReferenceImageUrl(client, item.reference_image_path),
+      referenceImageUrl: await getReferenceImageUrl(client, item.template_id, item.reference_image_path),
     }))),
     title: group.title,
   })));
@@ -162,10 +163,13 @@ export const deleteArchivedTaskTemplate = async (client: Client, templateId: str
 
 export const uploadTaskTemplateReferenceImage = async (client: Client, templateId: string, itemId: string, file: File) => {
   const processed = await compressArrivalImage(file);
-  const id = createUuid();
-  const ext = processed.mimeType === 'image/png' ? 'png' : processed.mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const path = `${templateId}/${itemId}/${id}.${ext}`;
-  const { error } = await client.storage.from('v2-task-template-reference-images').upload(path, processed.blob, { contentType: processed.mimeType });
-  throwIfError(error);
-  return { path, previewUrl: URL.createObjectURL(processed.blob) };
+  const body = new FormData();
+  body.append('action', 'upload');
+  body.append('templateId', templateId);
+  body.append('itemId', itemId);
+  body.append('file', processed.blob, file.name || `${createUuid()}.jpg`);
+  const { data, error } = await client.functions.invoke('task-template-images', { body });
+  if (error) throw new Error(error.message);
+  if (!data || typeof data !== 'object' || !('path' in data) || !('signedUrl' in data) || typeof data.path !== 'string' || typeof data.signedUrl !== 'string') throw new Error('参考图片上传返回内容无效。');
+  return { path: data.path, previewUrl: data.signedUrl };
 };

@@ -57,8 +57,9 @@ export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2Ta
   const results = await Promise.all(answers.map(async (answer) => {
     const path = asTaskItemSnapshot(answer.item_snapshot).reference_image_path;
     if (!path) return null;
-    const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
-    return error || !data?.signedUrl ? null : [answer.item_id, data.signedUrl] as const;
+    const { data, error } = await client.functions.invoke('task-template-images', { body: { action: 'sign', path, scope: 'task', taskId: answer.task_id } });
+    if (error || !data || typeof data !== 'object' || !('signedUrl' in data) || typeof data.signedUrl !== 'string') return null;
+    return [answer.item_id, data.signedUrl] as const;
   }));
   return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
 };

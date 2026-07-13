@@ -41,6 +41,37 @@ describe('task templates service', () => {
     });
   });
 
+  it('preserves server reference images when a restored mobile draft is stale', async () => {
+    const templateId = '00000000-0000-4000-8000-000000000010';
+    const draft = createEmptyTaskTemplate([storeId]);
+    draft.id = templateId;
+    draft.name = '带参考图模板';
+    draft.groups[0].title = '检查区';
+    draft.groups[0].items[0].label = '检查陈列';
+    const itemId = draft.groups[0].items[0].id;
+    const path = `${templateId}/${itemId}/00000000-0000-4000-8000-000000000099.jpg`;
+    const inItems = vi.fn().mockResolvedValue({
+      data: [{ id: itemId, reference_image_path: path, reference_image_paths: [path] }],
+      error: null,
+    });
+    const eqTemplate = vi.fn().mockReturnValue({ in: inItems });
+    const selectItems = vi.fn().mockReturnValue({ eq: eqTemplate });
+    const from = vi.fn().mockReturnValue({ select: selectItems });
+    const rpc = vi.fn().mockResolvedValue({ data: { id: templateId, status: 'draft' }, error: null });
+    const client = { from, rpc } as unknown as SupabaseClient<Database>;
+
+    await saveTaskTemplate(client, draft);
+
+    expect(rpc).toHaveBeenCalledWith('save_v2_task_template', expect.objectContaining({
+      p_groups: [expect.objectContaining({
+        items: [expect.objectContaining({
+          reference_image_path: path,
+          reference_image_paths: [path],
+        })],
+      })],
+    }));
+  });
+
   it('uploads a reference image directly to storage and atomically attaches it', async () => {
     const upload = vi.fn().mockResolvedValue({ error: null });
     const remove = vi.fn().mockResolvedValue({ error: null });

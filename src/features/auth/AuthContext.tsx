@@ -1,6 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js';
 import type { ReactNode } from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { hasSupabaseConfig } from '../../lib/env';
 import { supabase } from '../../lib/supabase';
@@ -98,6 +98,11 @@ const readProfileAndStore = async (userId: string) => {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(initialState);
+  const stateRef = useRef<AuthState>(initialState);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const applySession = useCallback(async (session: Session | null) => {
     if (!supabase) {
@@ -118,13 +123,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setState((current) => ({
-      ...current,
-      status: 'loading',
-      session,
-      user: session.user,
-      error: null,
-    }));
+    setState((current) => {
+      const canKeepCurrentScreen = current.status === 'authenticated'
+        && current.user?.id === session.user.id
+        && Boolean(current.profile && current.store);
+      return {
+        ...current,
+        status: canKeepCurrentScreen ? 'authenticated' : 'loading',
+        session,
+        user: session.user,
+        error: null,
+      };
+    });
 
     try {
       const { profile, store, availableStores } = await readProfileAndStore(session.user.id);
@@ -178,6 +188,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const current = stateRef.current;
+      if (session?.user
+        && current.status === 'authenticated'
+        && current.user?.id === session.user.id
+        && current.profile
+        && current.store) {
+        // Mobile browsers pause the page while the camera or photo picker is open.
+        // Supabase commonly emits SIGNED_IN/TOKEN_REFRESHED when the page resumes.
+        // Keep protected routes mounted so file-input change events, previews and
+        // in-flight uploads are not discarded merely because the token changed.
+        setState((latest) => ({ ...latest, session, user: session.user, error: null }));
+        return;
+      }
       void applySession(session);
     });
 

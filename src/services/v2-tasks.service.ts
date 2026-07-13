@@ -10,7 +10,7 @@ export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['R
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
 export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
 export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
-export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null }
+export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[] }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
 export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
 

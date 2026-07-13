@@ -123,8 +123,45 @@ const serializeGroups = (groups: TaskTemplateGroupDraft[]): Json => groups.map((
   title: group.title,
 }));
 
+const mergePersistedReferenceImages = async (client: Client, input: TaskTemplateDraft): Promise<TaskTemplateDraft> => {
+  if (!input.id) return input;
+  const itemIds = input.groups.flatMap((group) => group.items.map((item) => item.id));
+  if (itemIds.length === 0) return input;
+  const { data, error } = await client
+    .from('v2_task_template_items')
+    .select('id,reference_image_path,reference_image_paths')
+    .eq('template_id', input.id)
+    .in('id', itemIds);
+  throwIfError(error);
+  const pathsByItem = new Map((data ?? []).map((item) => [item.id, item.reference_image_paths.length > 0
+    ? item.reference_image_paths
+    : item.reference_image_path ? [item.reference_image_path] : []]));
+  return {
+    ...input,
+    groups: input.groups.map((group) => ({
+      ...group,
+      items: group.items.map((item) => {
+        const localPaths = item.referenceImagePaths.length > 0
+          ? item.referenceImagePaths
+          : item.referenceImagePath ? [item.referenceImagePath] : [];
+        // Existing server items are authoritative. Upload and deletion both update
+        // their image links immediately, while a restored local draft may be stale.
+        const paths = pathsByItem.has(item.id) ? (pathsByItem.get(item.id) ?? []) : localPaths;
+        return {
+          ...item,
+          referenceImagePath: paths[0] ?? null,
+          referenceImagePaths: paths,
+        };
+      }),
+    })),
+  };
+};
+
 export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft): Promise<SavedTaskTemplate> => {
-  const draft = validateTaskTemplateDraft(input);
+  // A mobile photo picker may briefly suspend the page. Preserve any image link
+  // that already reached the server even if a restored browser draft is stale.
+  // Explicit image removal updates the server immediately, so it is not restored.
+  const draft = validateTaskTemplateDraft(await mergePersistedReferenceImages(client, input));
   const rpcInput = {
     p_fields: {
       allow_overdue: draft.allowOverdue,

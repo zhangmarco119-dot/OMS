@@ -51,11 +51,13 @@ describe('task templates service', () => {
     const templateId = '00000000-0000-4000-8000-000000000010';
     const itemId = '00000000-0000-4000-8000-000000000020';
 
+    const onProgress = vi.fn();
     const result = await uploadTaskTemplateReferenceImage(
       client,
       templateId,
       itemId,
       new File(['image'], 'reference.jpg', { type: 'image/jpeg' }),
+      onProgress,
     );
 
     expect(from).toHaveBeenCalledWith('v2-task-template-reference-images');
@@ -72,6 +74,7 @@ describe('task templates service', () => {
     });
     expect(createSignedUrl).toHaveBeenCalledWith(uploadedPath, 3600);
     expect(result).toEqual({ path: uploadedPath, previewUrl: 'https://signed.example/reference.jpg' });
+    expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([5, 35, 70, 85, 100]);
     expect(remove).not.toHaveBeenCalled();
   });
 });

@@ -3,7 +3,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
+import { createEmptyTaskTemplate } from '../features/task-templates/templateForm';
 import {
+  loadTaskTemplateDraft,
   loadTaskTemplates,
   saveTaskTemplate,
   uploadTaskTemplateReferenceImage,
@@ -16,6 +18,7 @@ vi.mock('../services/task-templates.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/task-templates.service')>();
   return {
     ...original,
+    loadTaskTemplateDraft: vi.fn(),
     loadTaskTemplates: vi.fn(),
     saveTaskTemplate: vi.fn(),
     uploadTaskTemplateReferenceImage: vi.fn(),
@@ -25,6 +28,7 @@ vi.mock('../services/task-templates.service', async (importOriginal) => {
 describe('AdminTaskTemplatesPage reference images', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     vi.mocked(useAuth).mockReturnValue({
       availableStores: [{ id: '00000000-0000-4000-8000-000000000001', name: '测试门店', short_name: '测试门店' }],
       profile: { id: '00000000-0000-4000-8000-000000000002', role: 'admin' },
@@ -55,10 +59,54 @@ describe('AdminTaskTemplatesPage reference images', () => {
       target: { files: [new File(['image'], 'reference.jpg', { type: 'image/jpeg' })] },
     });
 
-    expect(screen.getByAltText('任务项目参考图片')).toHaveAttribute('src', 'blob:reference-preview');
-    expect(screen.getByText('正在保存模板并上传参考图片…')).toBeInTheDocument();
+    expect(screen.getByAltText('本地参考图待上传预览')).toHaveAttribute('src', 'blob:reference-preview');
     await waitFor(() => expect(uploadTaskTemplateReferenceImage).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByAltText('任务项目参考图片')).toHaveAttribute('src', 'https://signed.example/reference.jpg'));
-    expect(screen.getByText('参考图片已上传并保存')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByAltText('参考图片 1')).toHaveAttribute('src', 'https://signed.example/reference.jpg'));
+  });
+
+  it('saves an existing browser draft before uploading so newly added items exist on the server', async () => {
+    const templateId = '00000000-0000-4000-8000-000000000030';
+    const existing = {
+      allow_overdue: false,
+      category: 'weekly_clean',
+      created_at: '2026-07-13T00:00:00Z',
+      created_by: '00000000-0000-4000-8000-000000000002',
+      current_version: 0,
+      description: '',
+      due_time: '20:00:00',
+      id: templateId,
+      name: '已有模板',
+      recurrence: 'weekly',
+      recurrence_day: 1,
+      requires_review: true,
+      status: 'draft',
+      storeIds: ['00000000-0000-4000-8000-000000000001'],
+      updated_at: '2026-07-13T00:00:00Z',
+    } as Awaited<ReturnType<typeof loadTaskTemplates>>[number];
+    const draft = createEmptyTaskTemplate(existing.storeIds);
+    draft.id = templateId;
+    draft.name = existing.name;
+    draft.groups[0].title = '已有分组';
+    draft.groups[0].items[0].label = '新增项目';
+    vi.mocked(loadTaskTemplates).mockResolvedValue([existing]);
+    vi.mocked(loadTaskTemplateDraft).mockResolvedValue(draft);
+    vi.mocked(saveTaskTemplate).mockResolvedValue({ id: templateId, status: 'draft' });
+
+    render(
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <AdminTaskTemplatesPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+    await screen.findByDisplayValue('新增项目');
+    const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
+    fireEvent.change(fileInput!, {
+      target: { files: [new File(['image'], 'reference.jpg', { type: 'image/jpeg' })] },
+    });
+
+    await waitFor(() => expect(saveTaskTemplate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: templateId })));
+    await waitFor(() => expect(uploadTaskTemplateReferenceImage).toHaveBeenCalled());
+    expect(vi.mocked(saveTaskTemplate).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(uploadTaskTemplateReferenceImage).mock.invocationCallOrder[0]);
   });
 });

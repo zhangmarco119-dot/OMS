@@ -37,11 +37,21 @@ export const loadTaskTemplates = async (client: Client): Promise<TaskTemplateLis
   return (templates.data ?? []).map((template) => ({ ...template, storeIds: storesByTemplate.get(template.id) ?? [] }));
 };
 
-const getReferenceImageUrl = async (client: Client, path: string | null) => {
+const getReferenceImageUrl = async (client: Client, templateId: string, path: string | null) => {
   if (!path) return null;
   const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  if (!error && data?.signedUrl) return data.signedUrl;
+
+  // Signing is a JSON-only Edge Function operation and is safe as a fallback on
+  // WebViews where the direct Storage signing request occasionally loses auth.
+  const fallback = await client.functions.invoke('task-template-images', {
+    body: { action: 'sign', path, scope: 'template', templateId },
+  });
+  if (!fallback.error && fallback.data && typeof fallback.data === 'object'
+    && 'signedUrl' in fallback.data && typeof fallback.data.signedUrl === 'string') {
+    return fallback.data.signedUrl;
+  }
+  throw new Error(`参考图片预览地址生成失败：${error?.message ?? fallback.error?.message ?? '未知错误'}`);
 };
 
 const referencePaths = (item: TaskTemplateItemRow) => item.reference_image_paths.length > 0
@@ -54,7 +64,7 @@ const groupsToDraft = async (client: Client, groups: TaskTemplateGroupRow[], ite
     id: group.id,
     items: await Promise.all(items.filter((item) => item.group_id === group.id).map(async (item) => {
       const paths = referencePaths(item);
-      const urls = await Promise.all(paths.map((path) => getReferenceImageUrl(client, path)));
+      const urls = await Promise.all(paths.map((path) => getReferenceImageUrl(client, item.template_id, path)));
       return {
         fieldType: item.field_type,
         guidance: item.guidance,
@@ -172,8 +182,15 @@ export const deleteArchivedTaskTemplate = async (client: Client, templateId: str
   return data;
 };
 
-export const uploadTaskTemplateReferenceImage = async (client: Client, templateId: string, itemId: string, file: File) => {
-  const processed = await compressArrivalImage(file);
+export const uploadTaskTemplateReferenceImage = async (client: Client, templateId: string, itemId: string, file: File, onProgress?: (progress: number) => void) => {
+  onProgress?.(5);
+  let processed: Awaited<ReturnType<typeof compressArrivalImage>>;
+  try {
+    processed = await compressArrivalImage(file);
+  } catch (error) {
+    throw new Error(`图片处理失败：${error instanceof Error ? error.message : '无法读取所选图片。'}`);
+  }
+  onProgress?.(35);
   const objectId = createUuid();
   const extension = processed.mimeType === 'image/png' ? 'png' : processed.mimeType === 'image/webp' ? 'webp' : 'jpg';
   const path = `${templateId}/${itemId}/${objectId}.${extension}`;
@@ -183,7 +200,8 @@ export const uploadTaskTemplateReferenceImage = async (client: Client, templateI
     contentType: processed.mimeType,
     upsert: false,
   });
-  if (uploadError) throw new Error(uploadError.message);
+  if (uploadError) throw new Error(`Storage 上传失败：${uploadError.message}`);
+  onProgress?.(70);
 
   const { error: attachError } = await client.rpc('attach_v2_task_template_reference_image', {
     p_item_id: itemId,
@@ -192,12 +210,14 @@ export const uploadTaskTemplateReferenceImage = async (client: Client, templateI
   });
   if (attachError) {
     await bucket.remove([path]);
-    throw new Error(attachError.message);
+    throw new Error(`模板项目关联失败：${attachError.message}`);
   }
+  onProgress?.(85);
 
-  const { data: signed, error: signError } = await bucket.createSignedUrl(path, 60 * 60);
-  if (signError || !signed?.signedUrl) throw new Error(signError?.message ?? '参考图片已上传，但生成预览失败。');
-  return { path, previewUrl: signed.signedUrl };
+  const previewUrl = await getReferenceImageUrl(client, templateId, path);
+  if (!previewUrl) throw new Error('预览生成失败：参考图片已上传，但无法生成预览地址。');
+  onProgress?.(100);
+  return { path, previewUrl };
 };
 
 export const deleteTaskTemplateReferenceImage = async (client: Client, templateId: string, itemId: string, path: string) => {

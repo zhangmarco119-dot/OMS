@@ -176,8 +176,8 @@ export function HistoryPage() {
       ) : null}
 
       {selected ? (
-        <div className="fixed inset-0 z-30 flex items-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-lg bg-white shadow-2xl">
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-label="点货订货明细">
+          <div className="ui-dialog-panel max-w-3xl overflow-hidden">
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4">
               <div>
                 <p className="text-sm font-semibold text-brand-700">{taskTypeLabel[selected.task.task_type]}</p>

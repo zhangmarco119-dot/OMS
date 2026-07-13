@@ -182,8 +182,8 @@ export function ArrivalEntryPage() {
       </MobileActionBar>
 
       {showValidationDialog ? (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/45 p-4 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="arrival-validation-title">
-          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="arrival-validation-title">
+          <div className="ui-dialog-panel max-w-lg p-5">
             <div className="flex items-center gap-2 text-amber-800">
               <AlertCircle className="h-6 w-6 shrink-0" aria-hidden="true" />
               <h2 className="text-xl font-bold text-slate-900" id="arrival-validation-title">请先完善到货信息</h2>
@@ -198,8 +198,8 @@ export function ArrivalEntryPage() {
       ) : null}
 
       {showConfirm ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/45 p-4 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="arrival-confirm-title">
-          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="arrival-confirm-title">
+          <div className="ui-dialog-panel max-w-lg p-5">
             <h2 className="text-xl font-bold text-slate-900" id="arrival-confirm-title">确认提交到货上报</h2>
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between gap-4"><dt className="text-slate-500">门店</dt><dd className="text-right font-semibold text-slate-900">{auth.store?.name}</dd></div>

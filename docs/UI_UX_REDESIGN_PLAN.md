@@ -19,6 +19,7 @@
 | 图标与触控 | 图标按钮大小不一 | 统一 Lucide 图标和至少 44×44px 触控区 | VERIFIED |
 | 状态与反馈 | 空态、加载、错误和提示各页面自绘 | 抽取 StatusBadge、EmptyState、LoadingState、ErrorState、Toast、Dialog | VERIFIED |
 | 页面框架 | 标题、返回、内容间距和底部操作不统一 | 统一 PageShell、BottomNavigation、MobileActionBar | VERIFIED |
+| 浮层与底栏 | 旧弹窗、抽屉与底部导航存在同层竞争和遮挡 | 统一 z-80 弹窗层、导航避让、安全区和可滚动高度；成功提示与粘性操作栏同步避让 | VERIFIED |
 
 ## 3. 全页面审计清单
 
@@ -32,7 +33,7 @@
 | 我的 `/app/account` | 全部 | 卡片阴影偏重、菜单与表单样式不统一 | 轻量资料区、菜单列表、密码表单与反馈统一 | SectionCard、FormField、FeedbackBanner | VERIFIED | 改密、退出和历史入口保留 |
 | 点货 `/app/inventory` | 员工/店长 | 超长单文件内各阶段样式不一致 | 统一步骤头、产品列表、汇总、确认和底部操作 | StatusBadge、EmptyState、MobileActionBar、Dialog | VERIFIED | V1 流程、计算与权限回归通过 |
 | 订货 `/app/order` | 员工/店长 | 同点货，操作说明和状态密度不一致 | 沿用点货统一结构，保留角色权限和商品申请 | 同上 | VERIFIED | V1 流程、申请和权限回归通过 |
-| 到货上报 `/app/arrivals` | 员工/店长 | 子卡片边框/提示/操作条风格分散 | 统一上传、产品卡片、校验弹窗和操作栏 | SectionCard、FeedbackBanner、Dialog、MobileActionBar | VERIFIED | 表单、时间、图片与角色测试通过 |
+| 到货上报 `/app/arrivals` | 员工/店长 | 子卡片边框/提示/操作条风格分散 | 统一上传、产品卡片、校验弹窗和操作栏；确认窗口避让底部导航 | SectionCard、FeedbackBanner、Dialog、MobileActionBar | VERIFIED | 表单、时间、图片、角色与弹窗遮挡测试通过 |
 | 到货历史 `/app/arrivals/history` | 员工/店长 | 列表、加载、空态均为页面自绘 | 统一列表卡片、刷新、状态和空态 | RecordCard、StatusBadge、LoadingState、EmptyState | VERIFIED | 服务、状态与空态回归通过 |
 | 到货成功 `/app/arrivals/:id/success` | 员工/店长 | 成功页卡片偏厚重 | 轻量结果反馈与明确后续操作 | ResultState、ActionButton | VERIFIED | 保护路由与后续入口通过 |
 | 任务中心 `/app/tasks` | 员工/店长 | 说明卡偏大、状态卡缺少统一元数据结构 | 统一任务列表、整改提示、截止时间和空态 | TaskCard、StatusBadge、EmptyState | VERIFIED | 列表、状态和整改信息回归通过 |
@@ -72,10 +73,10 @@
 
 - TypeScript：通过。
 - ESLint：通过。
-- Unit / component / service：28 个测试文件、80 项测试全部通过。
+- Unit / component / service：31 个测试文件、89 项测试全部通过。
 - Playwright E2E：320×720、390×844、768×1024、1280×720 四种视口通过；无横向溢出、无页面运行错误，保护路由均正确返回登录页。
 - 视觉截图：四种视口登录页截图已人工检查；测试产物位于 `test-results/ui-review/`，不纳入版本控制。
 - Supabase 契约：27 张表、52 条策略校验通过；本轮未修改 migration 或 RLS。
-- 安全审计：223 个文件扫描通过。
+- 安全审计：224 个文件扫描通过。
 - 生产构建：Vite 构建通过。
-- 版本：`StoreHub v2.1.3`。
+- 版本：`StoreHub v2.1.4`。

@@ -164,6 +164,27 @@ textarea:focus-visible {
   .ui-icon-button {
     @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 active:scale-95 disabled:opacity-50;
   }
+
+  .ui-dialog-overlay {
+    @apply fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-3;
+    padding-bottom: calc(6.25rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  .ui-dialog-panel {
+    @apply w-full overflow-y-auto overscroll-contain rounded-2xl bg-white shadow-dialog;
+    max-height: calc(100dvh - 7.5rem - env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (min-width: 640px) {
+  .ui-dialog-overlay {
+    align-items: center;
+    padding: 1rem !important;
+  }
+
+  .ui-dialog-panel {
+    max-height: calc(100dvh - 2rem) !important;
+  }
 }
 
 .safe-bottom {

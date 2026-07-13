@@ -569,13 +569,13 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       />
 
       {showInventoryImport ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="flex max-h-[86vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="inventory-import-title">
+          <div className="ui-dialog-panel flex max-w-2xl flex-col p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
                   <FileDown className="h-5 w-5 text-brand-600" aria-hidden="true" />
-                  <h2 className="text-lg font-semibold text-slate-900">导入历史盘点单</h2>
+                  <h2 className="text-lg font-semibold text-slate-900" id="inventory-import-title">导入历史盘点单</h2>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-600">显示本门店所有账号提交的盘点单。导入会覆盖当前草稿中匹配商品的盘点状态和数量。</p>
               </div>
@@ -619,12 +619,12 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       ) : null}
 
       {showExtraForm ? (
-        <div className="fixed inset-0 z-30 flex items-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="extra-product-title">
+          <div className="ui-dialog-panel max-w-sm p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <PackagePlus className="h-5 w-5 text-brand-600" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-900">新增商品</h2>
+                <h2 className="text-lg font-semibold text-slate-900" id="extra-product-title">新增商品</h2>
               </div>
               <button aria-label="关闭" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100" onClick={() => setShowExtraForm(false)} type="button">
                 <X className="h-5 w-5" aria-hidden="true" />
@@ -653,12 +653,12 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       ) : null}
 
       {showCorrectionForm && snapshot ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="product-correction-title">
+          <div className="ui-dialog-panel max-w-md p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Pencil className="h-5 w-5 text-brand-600" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-900">更正商品信息</h2>
+                <h2 className="text-lg font-semibold text-slate-900" id="product-correction-title">更正商品信息</h2>
               </div>
               <button aria-label="关闭更正商品信息" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100" onClick={() => setShowCorrectionForm(false)} type="button">
                 <X className="h-5 w-5" aria-hidden="true" />
@@ -692,12 +692,12 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       ) : null}
 
       {showDeletionConfirm && snapshot ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="product-deletion-title">
+          <div className="ui-dialog-panel max-w-sm p-4">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-red-50 p-3 text-red-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></div>
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">确认提交删除申请？</h2>
+                <h2 className="text-lg font-semibold text-slate-900" id="product-deletion-title">确认提交删除申请？</h2>
                 <p className="mt-1 text-sm text-slate-600">{snapshot.name} · {snapshot.spec}</p>
               </div>
             </div>
@@ -749,8 +749,8 @@ function TaskDrawer({ currentId, items, onClose, onSelect, open, sourceItems, ti
   }
 
   return (
-    <div className="fixed inset-0 z-20 bg-black/40 lg:hidden">
-      <div className="absolute inset-y-0 right-0 flex w-80 max-w-[88vw] flex-col bg-white p-4 shadow-2xl">
+    <div className="fixed inset-0 z-[80] bg-black/40 lg:hidden" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="safe-bottom absolute inset-y-0 right-0 flex w-80 max-w-[88vw] flex-col bg-white p-4 shadow-2xl">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ListChecks className="h-5 w-5 text-brand-600" aria-hidden="true" />

@@ -123,8 +123,8 @@ export function AdminArrivalsPage() {
       </SectionCard>
 
       {showFilters ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" role="dialog" aria-modal="true" aria-label="筛选到货记录">
-          <div className="w-full rounded-t-2xl bg-white p-5">
+        <div className="ui-dialog-overlay md:hidden" role="dialog" aria-modal="true" aria-label="筛选到货记录">
+          <div className="ui-dialog-panel max-w-lg p-5">
             <div className="flex items-center justify-between"><h2 className="text-lg font-bold">筛选</h2><button aria-label="关闭筛选" className="h-10 w-10" onClick={() => setShowFilters(false)} type="button"><X className="mx-auto h-5 w-5" /></button></div>
             <ArrivalFilters filters={filters} onChange={setFilters} stores={storeOptions} className="mt-4 grid" />
             <button className="mt-4 min-h-11 w-full rounded-lg bg-brand-600 font-bold text-white" onClick={() => setShowFilters(false)} type="button">查看结果</button>

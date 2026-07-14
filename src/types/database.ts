@@ -362,9 +362,9 @@ export type Database = {
         Relationships: [];
       };
       v2_sop_assets: {
-        Row: { asset_kind: 'step' | 'cover' | 'attachment'; bucket: 'v2-sop-assets'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; sort_order: number; step_text: string; uploaded_by: string; };
-        Insert: { asset_kind?: 'step' | 'cover' | 'attachment'; bucket?: 'v2-sop-assets'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; sort_order?: number; step_text?: string; uploaded_by: string; };
-        Update: { asset_kind?: 'step' | 'cover' | 'attachment'; bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path?: string; size_bytes?: number; sop_id?: string; sort_order?: number; step_text?: string; uploaded_by?: string; };
+        Row: { asset_kind: 'step' | 'cover' | 'attachment'; bucket: 'v2-sop-assets'; created_at: string; file_name: string | null; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' | null; object_path: string | null; size_bytes: number; sop_id: string; sort_order: number; step_text: string; uploaded_by: string; };
+        Insert: { asset_kind?: 'step' | 'cover' | 'attachment'; bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string | null; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' | null; object_path?: string | null; size_bytes?: number; sop_id: string; sort_order?: number; step_text?: string; uploaded_by: string; };
+        Update: { asset_kind?: 'step' | 'cover' | 'attachment'; bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string | null; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' | null; object_path?: string | null; size_bytes?: number; sop_id?: string; sort_order?: number; step_text?: string; uploaded_by?: string; };
         Relationships: [];
       };
       product_feedback: {
@@ -775,6 +775,7 @@ export type Database = {
       can_read_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       admin_operation_overview: { Args: Record<PropertyKey, never>; Returns: { arrival_pending: number; arrival_today: number; inventory_completed_today: number; inventory_pending: number; v2_task_active: number; v2_task_completed: number }[] };
       create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_month_day: number | null; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      create_v2_sop_text_step: { Args: { p_sop_id: string; p_sort_order: number; p_step_text: string }; Returns: Json };
       pause_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       mark_v2_notice_read: { Args: { p_notice_id: string }; Returns: Json };
       publish_v2_notice: { Args: { p_notice_id: string }; Returns: Json };

@@ -59,6 +59,64 @@ describe('SopEditor image-first workflow', () => {
     })));
   });
 
+  it('stages and saves a pure-text step without requiring an image', async () => {
+    const onSave = vi.fn().mockResolvedValue(true);
+    render(<SopEditor
+      busy={false}
+      categories={['通用']}
+      draft={{ ...createEmptySopDraft(['store-1']), category: '通用', title: '纯文字流程' }}
+      errorMessage={null}
+      existingAssets={[]}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
+      onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
+      onSave={onSave}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
+      onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      status="new"
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加纯文字步骤' }));
+    fireEvent.change(screen.getByPlaceholderText('无图片时必须填写；有图片时可留空'), { target: { value: '静置十分钟后检查状态。' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      pendingAssets: [expect.objectContaining({ assetKind: 'step', file: null, stepText: '静置十分钟后检查状态。' })],
+    })));
+  });
+
+  it('publishes a mixed pure-text and pure-image SOP without inventing missing content', async () => {
+    const onPublish = vi.fn().mockResolvedValue(true);
+    const base = { asset_kind: 'step', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', size_bytes: 0, sop_id: 'sop-1', uploaded_by: 'admin-1' };
+    const textStep = { ...base, file_name: null, id: 'text-step', mime_type: null, object_path: null, signedUrl: null, sort_order: 0, step_text: '纯文字说明' };
+    const imageStep = { ...base, file_name: 'only-image.jpg', id: 'image-step', mime_type: 'image/jpeg', object_path: 'sop-1/only-image.jpg', signedUrl: 'https://example.test/only-image.jpg', size_bytes: 100, sort_order: 1, step_text: '' };
+    render(<SopEditor
+      busy={false}
+      categories={['通用']}
+      draft={{ ...createEmptySopDraft(['store-1']), category: '通用', id: 'sop-1', title: '混合步骤流程' }}
+      errorMessage={null}
+      existingAssets={[textStep, imageStep] as never}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
+      onPublish={onPublish}
+      onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
+      onSave={vi.fn().mockResolvedValue(true)}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
+      onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      status="draft"
+    />);
+
+    expect(screen.getByText('纯文字步骤')).toBeInTheDocument();
+    expect(screen.getByAltText('only-image.jpg')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '保存并预览' }));
+    await waitFor(() => expect(onPublish).toHaveBeenCalled());
+  });
+
   it('allows images and attachments before required fields, then validates in a Chinese dialog on save', async () => {
     const onSave = vi.fn().mockResolvedValue(true);
     const onUploadImage = vi.fn().mockResolvedValue(undefined);
@@ -329,5 +387,16 @@ describe('SOP batch operations', () => {
     await waitFor(() => expect(onImport).toHaveBeenCalledWith(workbook, images, expect.any(Function)));
     expect(screen.getByRole('progressbar', { name: 'SOP 批量导入进度' })).toHaveAttribute('aria-valuenow', '62');
     expect(screen.getByText('正在上传 3/5：step-03.jpg')).toBeInTheDocument();
+  });
+
+  it('allows a pure-text workbook to continue without selecting an image folder', async () => {
+    const onImport = vi.fn().mockResolvedValue(true);
+    const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
+    const workbook = new File(['excel'], 'text-only-sops.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [workbook] } });
+    fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));
+
+    await waitFor(() => expect(onImport).toHaveBeenCalledWith(workbook, [], expect.any(Function)));
   });
 });

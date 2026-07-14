@@ -21,6 +21,7 @@ import {
   createEmptyNoticeDraft,
   createEmptySopDraft,
   createSopCategory,
+  createSopTextStep,
   deleteArchivedSop,
   deleteSopCategory,
   deleteSopAsset,
@@ -158,7 +159,11 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       updateSopDraft({ ...sopDraft, id: saved.id });
       stage = 'uploading';
       await updateSopAssetSteps(supabase, changes.existingSteps);
-      for (const asset of changes.pendingAssets) await uploadSopAsset(supabase, { assetKind: asset.assetKind, file: asset.file, profileId: auth.profile.id, sopId: saved.id, sortOrder: asset.sortOrder, stepText: asset.stepText });
+      for (const asset of changes.pendingAssets) {
+        if (asset.file) await uploadSopAsset(supabase, { assetKind: asset.assetKind, file: asset.file, profileId: auth.profile.id, sopId: saved.id, sortOrder: asset.sortOrder, stepText: asset.stepText });
+        else if (asset.assetKind === 'step') await createSopTextStep(supabase, { sopId: saved.id, sortOrder: asset.sortOrder, stepText: asset.stepText });
+        else throw new Error('SOP 封面或附件缺少待上传文件。');
+      }
       await refresh();
       setSuccess(`SOP 草稿已保存${changes.pendingAssets.length ? `，已上传 ${changes.pendingAssets.length} 个步骤或附件。` : '。'}`);
       return true;
@@ -199,7 +204,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       await reorderSopAssets(client, owner.id, remainingIds);
       if (deletion.storageCleanupFailed) setMessage('记录已删除，但存储文件清理失败，请联系管理员处理。');
       setSuccess(asset.asset_kind === 'step'
-        ? 'SOP 图片已删除，步骤序号已自动更新。'
+        ? 'SOP 步骤已删除，后续步骤序号已自动更新。'
         : asset.asset_kind === 'cover'
           ? 'SOP 产品图已删除，列表将自动使用最后一个步骤图。'
           : 'SOP 附件已删除。');
@@ -367,7 +372,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       const result = await importSopBatch(supabase, { imageFiles, onProgress, profileId: auth.profile.id, stores: auth.availableStores, workbookFile });
       await refresh();
       setShowSopBatchImport(false);
-      setSuccess(`批量导入完成：${result.imported} 个 SOP 草稿，${result.steps} 个图片步骤。`);
+      setSuccess(`批量导入完成：${result.imported} 个 SOP 草稿，${result.steps} 个制作步骤。`);
       return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'SOP 批量导入失败。');
@@ -504,7 +509,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         return <article aria-label={`${sopSelectionMode ? '选择' : '预览'} SOP ${sop.title}`} className={`ui-card p-3 transition ${sopSelectionMode ? batchEligible ? 'cursor-pointer' : 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-brand-200 hover:shadow-md'} ${selectedSopIds.includes(sop.id) ? 'border-brand-400 ring-2 ring-brand-100' : ''}`} key={sop.id} onClick={(event) => { if ((event.target as HTMLElement).closest('button,a,input,select,textarea')) return; if (sopSelectionMode) toggleSelectedSop(); else openPreview(); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); if (sopSelectionMode) toggleSelectedSop(); else openPreview(); } }} role={sopSelectionMode ? undefined : 'link'} tabIndex={batchEligible ? 0 : -1}>
           {sopSelectionMode ? <label className="mb-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-brand-50 px-3 text-sm font-bold text-brand-900" onClick={(event) => event.stopPropagation()}><input aria-label={`选择${sopExportMode ? '导出' : sopBatchLifecycleCopy[sopBatchAction!].success} ${sop.title}`} checked={selectedSopIds.includes(sop.id)} disabled={!batchEligible} onChange={toggleSelectedSop} type="checkbox" />{batchEligible ? '选择此 SOP' : `当前状态不可${sopBatchLifecycleCopy[sopBatchAction!].success}`}</label> : null}
           <div className="flex gap-3">
-            {preview ? <img alt={`${sop.title} 产品预览`} className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover" src={preview.signedUrl} /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400"><ImageIcon className="h-7 w-7" /></div>}
+            {preview?.signedUrl ? <img alt={`${sop.title} 产品预览`} className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover" src={preview.signedUrl} /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400"><ImageIcon className="h-7 w-7" /></div>}
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2"><p className="min-w-0 truncate text-xs font-bold text-brand-700">{sop.category}</p><div className="shrink-0 text-right text-[11px] leading-4 text-slate-500"><p className="font-bold text-slate-700">{sopStatus[sop.status]}</p><p>{sop.effective_at ? `${new Date(sop.effective_at).toLocaleDateString('zh-CN')} 生效` : '尚未设置生效时间'}</p></div></div>
               <h2 className="mt-1 truncate text-base font-bold text-slate-900">{sop.title}</h2>
@@ -604,7 +609,7 @@ function SopArchiveManager({ busy, onClose, onDelete, sops }: {
       {sops.length ? <section className="space-y-2">{sops.map((sop) => {
         const preview = getSopPreviewAsset(sop);
         return <article className="ui-card flex items-center gap-3 p-3" key={sop.id}>
-          {preview ? <img alt={`${sop.title} 归档预览`} className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover" src={preview.signedUrl} /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></div>}
+          {preview?.signedUrl ? <img alt={`${sop.title} 归档预览`} className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover" src={preview.signedUrl} /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></div>}
           <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-brand-700">{sop.category}</p><h3 className="mt-1 truncate font-bold text-slate-900">{sop.title}</h3><p className="mt-1 text-xs text-slate-500">已归档 · 步骤 {sop.assetUrls.filter((asset) => asset.asset_kind === 'step').length}</p></div>
           <button aria-label={`永久删除 ${sop.title}`} className="ui-icon-button h-10 w-10 shrink-0 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => void onDelete(sop)} type="button"><Trash2 className="h-4 w-4" /></button>
         </article>;
@@ -657,9 +662,9 @@ export function NoticeEditor({ busy, draft, onCancel, onChange, onPublish, onSav
   </div>;
 }
 
-type PendingSopAsset = { assetKind: 'attachment' | 'cover' | 'step'; file: File; key: string; previewUrl: string | null; sortOrder: number; stepText: string };
+type PendingSopAsset = { assetKind: 'attachment' | 'cover' | 'step'; file: File | null; key: string; previewUrl: string | null; sortOrder: number; stepText: string };
 type ExistingSopStep = OrderedSopStep;
-type SopEditorChanges = { existingSteps: ExistingSopStep[]; pendingAssets: Array<{ assetKind: 'attachment' | 'cover' | 'step'; file: File; sortOrder: number; stepText: string }> };
+type SopEditorChanges = { existingSteps: ExistingSopStep[]; pendingAssets: Array<{ assetKind: 'attachment' | 'cover' | 'step'; file: File | null; sortOrder: number; stepText: string }> };
 
 export function SopEditor({ busy, categories, draft, errorMessage, existingAssets, onCancel, onChange, onDeleteAsset, onPublish, onReorderImages, onReplaceImage, onSave, onUploadCover, onUploadImage, status }: {
   busy: boolean;
@@ -719,6 +724,16 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
     onProgress(100);
   };
 
+  const stageTextStep = () => {
+    const key = `text-step-${Date.now()}-${Math.random()}`;
+    setPendingAssets((current) => {
+      const steps = current.filter((asset) => asset.assetKind === 'step').sort((left, right) => left.sortOrder - right.sortOrder);
+      steps.push({ assetKind: 'step', file: null, key, previewUrl: null, sortOrder: existingSteps.length + steps.length, stepText: '' });
+      return [...current.filter((asset) => asset.assetKind !== 'step'), ...steps];
+    });
+    setValidationMessage(null);
+  };
+
   const stageCover = async (file: File, onProgress: (progress: number) => void) => {
     onProgress(10);
     const previewUrl = URL.createObjectURL(file);
@@ -752,9 +767,14 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
     if (!draft.roles.length) { stop('请至少选择一个适用角色。'); return; }
     if (uploadStatus.isUploading) { stop('图片仍在上传，请等待上传完成后再保存或发布。'); return; }
     if (uploadStatus.hasErrors) { stop('仍有图片上传失败，请重试或移除失败图片后再继续。'); return; }
-    if (publish && existingSteps.length + pendingImages.length === 0) { stop('发布 SOP 前请至少添加一个图片步骤。'); return; }
+    if (publish && existingSteps.length + pendingSteps.length === 0) { stop('发布 SOP 前请至少添加一个制作步骤。'); return; }
     const normalizedSteps = normalizeSopSteps(existingSteps);
-    if (publish && [...normalizedSteps.map((step) => step.stepText), ...pendingImages.map((asset) => asset.stepText)].some((text) => !text.trim())) { stop('每一张步骤图片都需要填写对应的步骤说明。'); return; }
+    const invalidExistingStep = normalizedSteps.some((step) => {
+      const asset = existingAssets.find((entry) => entry.id === step.id);
+      return !asset?.object_path && !step.stepText.trim();
+    });
+    const invalidPendingStep = pendingSteps.some((step) => !step.file && !step.stepText.trim());
+    if (invalidExistingStep || invalidPendingStep) { stop('每个制作步骤至少需要图片或文字说明中的一项。'); return; }
     setValidationMessage(null);
     const succeeded = await action({ existingSteps: normalizedSteps, pendingAssets: pendingAssets.map((asset) => ({ assetKind: asset.assetKind, file: asset.file, sortOrder: asset.sortOrder, stepText: asset.stepText })) });
     if (!succeeded) return;
@@ -768,9 +788,9 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
   const existingCovers = existingAssets.filter((asset) => asset.asset_kind === 'cover').sort((left, right) => right.created_at.localeCompare(left.created_at));
   const existingCover = existingCovers[0] ?? null;
   const pendingCover = pendingAssets.find((asset) => asset.assetKind === 'cover') ?? null;
-  const pendingImages = pendingAssets.filter((asset) => asset.assetKind === 'step').sort((left, right) => left.sortOrder - right.sortOrder);
+  const pendingSteps = pendingAssets.filter((asset) => asset.assetKind === 'step').sort((left, right) => left.sortOrder - right.sortOrder);
   const existingDocuments = existingAssets.filter((asset) => asset.asset_kind === 'attachment');
-  const pendingDocuments = pendingAssets.filter((asset) => asset.assetKind === 'attachment');
+  const pendingDocuments = pendingAssets.filter((asset): asset is PendingSopAsset & { file: File } => asset.assetKind === 'attachment' && Boolean(asset.file));
 
   const changeStepPosition = async (stepId: string, targetIndex: number) => {
     const previous = existingSteps;
@@ -848,38 +868,38 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
         <label className="text-sm font-semibold text-slate-700">制作分类<select className="ui-input mt-1.5" onChange={(event) => onChange({ ...draft, category: event.target.value })} value={draft.category}><option value="">请选择分类</option>{!categories.includes(draft.category) && draft.category ? <option value={draft.category}>{draft.category}</option> : null}{categories.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
           <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">产品预览图（选填）</p><p className="mt-1 text-xs leading-5 text-slate-500">用于管理员 SOP 列表的小图预览；未上传时自动使用最后一个制作步骤图片。</p></div><TaskTemplateReferenceImageUpload disabled={busy} multiple={false} onUpload={draft.id ? onUploadCover : stageCover} /></div>
-          {pendingCover?.previewUrl ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看待上传 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: pendingCover.file.name, url: pendingCover.previewUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 待上传产品图`} className="h-20 w-20 rounded-lg object-cover" src={pendingCover.previewUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{pendingCover.file.name}</p><p className="mt-1 text-xs text-brand-700">将在保存时上传</p></div><button aria-label="移除待上传 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => removePending(pendingCover.key)} type="button"><Trash2 className="h-4 w-4" /></button></div> : existingCover ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: existingCover.file_name, url: existingCover.signedUrl })} type="button"><img alt={`${draft.title || 'SOP'} 产品图`} className="h-20 w-20 rounded-lg object-cover" src={existingCover.signedUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{existingCover.file_name}</p><p className="mt-1 text-xs text-brand-700">当前列表预览图</p></div><button aria-label="删除 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => { if (window.confirm('确定删除当前产品预览图吗？删除后将自动使用最后一个步骤图。')) void onDeleteAsset(existingCover); }} type="button"><Trash2 className="h-4 w-4" /></button></div> : null}
+          {pendingCover?.previewUrl && pendingCover.file ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看待上传 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: pendingCover.file!.name, url: pendingCover.previewUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 待上传产品图`} className="h-20 w-20 rounded-lg object-cover" src={pendingCover.previewUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{pendingCover.file.name}</p><p className="mt-1 text-xs text-brand-700">将在保存时上传</p></div><button aria-label="移除待上传 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => removePending(pendingCover.key)} type="button"><Trash2 className="h-4 w-4" /></button></div> : existingCover?.signedUrl ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: existingCover.file_name ?? 'SOP 产品图', url: existingCover.signedUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 产品图`} className="h-20 w-20 rounded-lg object-cover" src={existingCover.signedUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{existingCover.file_name}</p><p className="mt-1 text-xs text-brand-700">当前列表预览图</p></div><button aria-label="删除 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => { if (window.confirm('确定删除当前产品预览图吗？删除后将自动使用最后一个步骤图。')) void onDeleteAsset(existingCover); }} type="button"><Trash2 className="h-4 w-4" /></button></div> : null}
         </div>
       </section>
 
       <section className="ui-card p-4">
-        <div><p className="text-xs font-bold text-brand-700">02 · 图片步骤</p><h3 className="mt-1 font-bold text-slate-900">每一步都是一张图片加一段文字</h3><p className="mt-1 text-sm leading-6 text-slate-500">按制作顺序选择图片，然后在每张图片下填写用量、操作和合格标准。员工端会将全部步骤连续拼成一个页面。</p></div>
+        <div><p className="text-xs font-bold text-brand-700">02 · 制作步骤</p><h3 className="mt-1 font-bold text-slate-900">图片与文字可按实际需要组合</h3><p className="mt-1 text-sm leading-6 text-slate-500">每个步骤至少需要图片或文字说明中的一项：可以是纯文字、纯图片，也可以图文同时展示。员工端会按序号连续排列全部步骤。</p></div>
         {!draft.id ? <p className="mt-3 rounded-lg bg-brand-50 p-3 text-sm leading-6 text-brand-800">可以先选择制作图片并填写步骤说明；图片会保留在当前页面，保存草稿或进入发布预览时再统一检查必填项并上传。</p> : null}
-        <SopImageUpload disabled={busy} onStatusChange={setUploadStatus} onUpload={draft.id ? onUploadImage : stageStepImage} stepCount={existingImages.length + pendingImages.length} />
-        {existingImages.length + pendingImages.length ? <div className="mt-3 grid grid-cols-2 gap-2" data-testid="sop-step-grid">
+        <div className="mt-3 grid grid-cols-2 gap-2"><SopImageUpload disabled={busy} onStatusChange={setUploadStatus} onUpload={draft.id ? onUploadImage : stageStepImage} stepCount={existingImages.length + pendingSteps.length} /><button className="ui-button-secondary min-h-11" disabled={busy} onClick={stageTextStep} type="button"><FileText className="h-4 w-4" />添加纯文字步骤</button></div>
+        {existingImages.length + pendingSteps.length ? <div className="mt-3 grid grid-cols-2 gap-2" data-testid="sop-step-grid">
           {existingImages.map((asset, index) => {
             const step = existingSteps.find((entry) => entry.id === asset.id) ?? { id: asset.id, sortOrder: index, stepText: asset.step_text };
             const replacement = replacementPreviews[asset.id];
             return <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white" key={asset.id}>
-              <label className="block p-2 text-xs font-semibold">步骤说明<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setExistingSteps((current) => current.map((entry) => entry.id === asset.id ? { ...entry, stepText: event.target.value } : entry))} placeholder="用量、操作和标准" value={step.stepText} /></label>
-              <button aria-label={`放大查看制作图片 ${index + 1}`} className="relative block w-full" disabled={Boolean(replacement)} onClick={() => setActiveImage({ alt: asset.file_name, url: asset.signedUrl })} type="button"><img alt={replacement ? `${asset.file_name} 替换预览` : asset.file_name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={replacement?.url ?? asset.signedUrl} />{replacement ? <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-xs font-bold text-white">正在替换 {replacement.progress}%</span> : null}</button>
+              <label className="block p-2 text-xs font-semibold">步骤说明（可选）<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setExistingSteps((current) => current.map((entry) => entry.id === asset.id ? { ...entry, stepText: event.target.value } : entry))} placeholder="无图片时必须填写；有图片时可留空" value={step.stepText} /></label>
+              {replacement || asset.signedUrl ? <button aria-label={`放大查看制作图片 ${index + 1}`} className="relative block w-full" disabled={Boolean(replacement)} onClick={() => asset.signedUrl && setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: asset.signedUrl })} type="button"><img alt={replacement ? `${asset.file_name ?? '步骤图片'} 替换预览` : asset.file_name ?? `步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={replacement?.url ?? asset.signedUrl ?? ''} />{replacement ? <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-xs font-bold text-white">正在替换 {replacement.progress}%</span> : null}</button> : <div className="flex aspect-[4/3] flex-col items-center justify-center bg-brand-50 px-3 text-center text-brand-800"><FileText className="h-7 w-7" /><span className="mt-2 text-xs font-bold">纯文字步骤</span></div>}
               <div className="space-y-1.5 p-2">
                 <select aria-label={`调整 ${asset.file_name} 的步骤序号`} className="ui-input min-h-8 w-full px-2 py-1 text-xs font-semibold" disabled={busy} onChange={(event) => void changeStepPosition(asset.id, Number(event.target.value))} value={step.sortOrder}>{existingImages.map((_, position) => <option key={position} value={position}>第 {position + 1} 步</option>)}</select>
                 <div className="grid grid-cols-2 gap-1.5">
-                  <label className={`ui-button-secondary min-h-8 cursor-pointer px-1.5 py-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-3.5 w-3.5" />替换<input accept="image/jpeg,image/png,image/webp" aria-label={`替换 ${asset.file_name}`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void replaceImage(asset, file, step.stepText); event.currentTarget.value = ''; }} type="file" /></label>
-                  <button aria-label={`删除 ${asset.file_name}`} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-red-50 px-1.5 py-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => { if (window.confirm(`确定删除制作图片“${asset.file_name}”吗？`)) void onDeleteAsset(asset); }} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
+                  <label className={`ui-button-secondary min-h-8 cursor-pointer px-1.5 py-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-3.5 w-3.5" />{asset.signedUrl ? '替换' : '添加图片'}<input accept="image/jpeg,image/png,image/webp" aria-label={asset.signedUrl ? `替换 ${asset.file_name}` : `添加步骤 ${index + 1} 图片`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void replaceImage(asset, file, step.stepText); event.currentTarget.value = ''; }} type="file" /></label>
+                  <button aria-label={`删除 ${asset.file_name ?? `步骤 ${index + 1}`}`} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-red-50 px-1.5 py-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => { if (window.confirm(`确定删除第 ${index + 1} 个制作步骤吗？`)) void onDeleteAsset(asset); }} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
                 </div>
               </div>
             </div>;
           })}
-          {pendingImages.map((asset, index) => <div className="min-w-0 overflow-hidden rounded-xl border border-brand-200 bg-white" key={asset.key}>
-            <label className="block p-2 text-xs font-semibold">步骤说明<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setPendingAssets((current) => current.map((entry) => entry.key === asset.key ? { ...entry, stepText: event.target.value } : entry))} placeholder="用量、操作和标准" value={asset.stepText} /></label>
-            <button aria-label={`放大查看待上传制作图片 ${index + 1}`} className="relative block w-full" onClick={() => asset.previewUrl && setActiveImage({ alt: asset.file.name, url: asset.previewUrl })} type="button"><img alt={asset.file.name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={asset.previewUrl ?? ''} /><span className="absolute inset-x-2 bottom-2 rounded-md bg-brand-700/90 px-2 py-1 text-xs font-bold text-white">将在保存时上传</span></button>
+          {pendingSteps.map((asset, index) => <div className="min-w-0 overflow-hidden rounded-xl border border-brand-200 bg-white" key={asset.key}>
+            <label className="block p-2 text-xs font-semibold">步骤说明（可选）<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setPendingAssets((current) => current.map((entry) => entry.key === asset.key ? { ...entry, stepText: event.target.value } : entry))} placeholder="无图片时必须填写；有图片时可留空" value={asset.stepText} /></label>
+            {asset.previewUrl && asset.file ? <button aria-label={`放大查看待上传制作图片 ${index + 1}`} className="relative block w-full" onClick={() => setActiveImage({ alt: asset.file!.name, url: asset.previewUrl! })} type="button"><img alt={asset.file.name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={asset.previewUrl} /><span className="absolute inset-x-2 bottom-2 rounded-md bg-brand-700/90 px-2 py-1 text-xs font-bold text-white">将在保存时上传</span></button> : <div className="flex aspect-[4/3] flex-col items-center justify-center bg-brand-50 px-3 text-center text-brand-800"><FileText className="h-7 w-7" /><span className="mt-2 text-xs font-bold">纯文字步骤</span><span className="mt-1 text-[11px]">保存前请填写上方说明</span></div>}
             <div className="space-y-1.5 p-2">
-              <select aria-label={`调整待上传 ${asset.file.name} 的步骤序号`} className="ui-input min-h-8 w-full px-2 py-1 text-xs font-semibold" disabled={busy} onChange={(event) => changePendingStepPosition(asset.key, Number(event.target.value))} value={index}>{pendingImages.map((_, position) => <option key={position} value={position}>第 {existingImages.length + position + 1} 步</option>)}</select>
+              <select aria-label={`调整待保存步骤 ${index + 1} 的步骤序号`} className="ui-input min-h-8 w-full px-2 py-1 text-xs font-semibold" disabled={busy} onChange={(event) => changePendingStepPosition(asset.key, Number(event.target.value))} value={index}>{pendingSteps.map((_, position) => <option key={position} value={position}>第 {existingImages.length + position + 1} 步</option>)}</select>
               <div className="grid grid-cols-2 gap-1.5">
-                <label className={`ui-button-secondary min-h-8 cursor-pointer px-1.5 py-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-3.5 w-3.5" />替换<input accept="image/jpeg,image/png,image/webp" aria-label={`替换待上传 ${asset.file.name}`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) replacePendingImage(asset.key, file); event.currentTarget.value = ''; }} type="file" /></label>
-                <button aria-label={`删除待上传 ${asset.file.name}`} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-red-50 px-1.5 py-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => removePending(asset.key)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
+                <label className={`ui-button-secondary min-h-8 cursor-pointer px-1.5 py-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-3.5 w-3.5" />{asset.file ? '替换' : '添加图片'}<input accept="image/jpeg,image/png,image/webp" aria-label={`${asset.file ? '替换' : '添加'}待保存步骤 ${index + 1} 图片`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) replacePendingImage(asset.key, file); event.currentTarget.value = ''; }} type="file" /></label>
+                <button aria-label={`删除待保存步骤 ${index + 1}`} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-red-50 px-1.5 py-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => removePending(asset.key)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
               </div>
             </div>
           </div>)}
@@ -931,12 +951,11 @@ export function SopBatchImporter({ busy, errorMessage, onCancel, onImport }: { b
   };
   const submit = async () => {
     if (!workbookFile) { setLocalError('请先选择 SOP Excel 清单。'); return; }
-    if (!imageFiles.length) { setLocalError('请选择存放 SOP 步骤图片的文件夹。'); return; }
     setLocalError(null);
     setProgress({ completed: 0, detail: '正在准备批量导入', percent: 0, phase: 'validating', total: imageFiles.length });
     await onImport(workbookFile, imageFiles, setProgress);
   };
-  return <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto bg-canvas px-3 pt-3" role="dialog" aria-modal="true" aria-labelledby="sop-batch-title"><div className="mx-auto max-w-2xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><header className="ui-card sticky top-0 z-20 flex items-center justify-between p-4"><div><p className="text-xs font-bold text-brand-700">SOP 批量操作 · 批量导入</p><h2 className="text-xl font-bold" id="sop-batch-title">Excel 清单＋图片文件夹</h2></div><button aria-label="关闭 SOP 批量导入" className="ui-icon-button" disabled={busy} onClick={onCancel} type="button"><X className="h-5 w-5" /></button></header>{localError || errorMessage ? <FeedbackBanner title="无法完成导入" tone="danger">{localError ?? errorMessage}</FeedbackBanner> : null}<section className="ui-card space-y-4 p-4"><p className="text-sm leading-7 text-slate-600">模板中每一行代表一个“图片＋文字”步骤，同一产品的多行会合并为一个 SOP。系统会按 Excel 中的图片文件名在所选文件夹内自动匹配；Excel 中不存在的分类会自动新建。导入结果统一保存为草稿。</p><button className="ui-button-secondary w-full" disabled={busy} onClick={downloadTemplate} type="button"><Download className="h-4 w-4" />下载 Excel 模板</button><label className="block text-sm font-semibold">1. 选择已填写的 Excel<input accept=".xlsx,.xls" className="ui-input mt-2 py-2" disabled={busy} onChange={(event) => setWorkbookFile(event.target.files?.[0] ?? null)} type="file" /></label>{workbookFile ? <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800">已选：{workbookFile.name}</p> : null}<label className="block text-sm font-semibold">2. 选择步骤图片所在文件夹<input {...directoryInputProps} accept="image/jpeg,image/png,image/webp" className="ui-input mt-2 py-2" disabled={busy} multiple onChange={(event) => { const files = Array.from(event.target.files ?? []).filter((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)); setImageFiles(files); setLocalError(files.length ? null : '所选文件夹中没有 JPG、PNG 或 WEBP 图片。'); }} type="file" /></label><p className="rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">已从文件夹读取 {imageFiles.length} 张图片。系统仅按文件名匹配，文件夹可以包含 Excel 未使用的其他图片。</p>{progress ? <div aria-label="SOP 批量导入进度" aria-valuemax={100} aria-valuemin={0} aria-valuenow={progress.percent} className="rounded-xl border border-brand-200 bg-brand-50 p-3" role="progressbar"><div className="flex items-center justify-between gap-3 text-sm font-bold text-brand-900"><span>{progress.detail}</span><span>{progress.percent}%</span></div><div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${progress.percent}%` }} /></div>{progress.phase === 'uploading' ? <p className="mt-2 text-xs text-brand-800">已完成图片 {progress.completed}/{progress.total}</p> : null}</div> : null}</section></div><div className="safe-bottom fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 px-3 pt-2.5"><div className="mx-auto grid max-w-2xl grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={busy} onClick={onCancel} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void submit()} type="button"><Upload className="h-4 w-4" />{busy ? `正在导入 ${progress?.percent ?? 0}%` : '开始导入草稿'}</button></div></div></div>;
+  return <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto bg-canvas px-3 pt-3" role="dialog" aria-modal="true" aria-labelledby="sop-batch-title"><div className="mx-auto max-w-2xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><header className="ui-card sticky top-0 z-20 flex items-center justify-between p-4"><div><p className="text-xs font-bold text-brand-700">SOP 批量操作 · 批量导入</p><h2 className="text-xl font-bold" id="sop-batch-title">Excel 清单＋可选图片文件夹</h2></div><button aria-label="关闭 SOP 批量导入" className="ui-icon-button" disabled={busy} onClick={onCancel} type="button"><X className="h-5 w-5" /></button></header>{localError || errorMessage ? <FeedbackBanner title="无法完成导入" tone="danger">{localError ?? errorMessage}</FeedbackBanner> : null}<section className="ui-card space-y-4 p-4"><p className="text-sm leading-7 text-slate-600">模板中每一行代表一个制作步骤。图片文件名和步骤说明至少填写一项，因此可以导入纯文字步骤、纯图片步骤或图文步骤。同一产品的多行会合并为一个 SOP；Excel 中不存在的分类会自动新建，结果统一保存为草稿。</p><button className="ui-button-secondary w-full" disabled={busy} onClick={downloadTemplate} type="button"><Download className="h-4 w-4" />下载 Excel 模板</button><label className="block text-sm font-semibold">1. 选择已填写的 Excel<input accept=".xlsx,.xls" className="ui-input mt-2 py-2" disabled={busy} onChange={(event) => setWorkbookFile(event.target.files?.[0] ?? null)} type="file" /></label>{workbookFile ? <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800">已选：{workbookFile.name}</p> : null}<label className="block text-sm font-semibold">2. 选择步骤图片所在文件夹（纯文字 SOP 可跳过）<input {...directoryInputProps} accept="image/jpeg,image/png,image/webp" className="ui-input mt-2 py-2" disabled={busy} multiple onChange={(event) => { const files = Array.from(event.target.files ?? []).filter((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)); setImageFiles(files); setLocalError(null); }} type="file" /></label><p className="rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">已从文件夹读取 {imageFiles.length} 张图片。只有 Excel 填写了图片文件名时才要求匹配图片；纯文字步骤无需选择图片文件夹。</p>{progress ? <div aria-label="SOP 批量导入进度" aria-valuemax={100} aria-valuemin={0} aria-valuenow={progress.percent} className="rounded-xl border border-brand-200 bg-brand-50 p-3" role="progressbar"><div className="flex items-center justify-between gap-3 text-sm font-bold text-brand-900"><span>{progress.detail}</span><span>{progress.percent}%</span></div><div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${progress.percent}%` }} /></div>{progress.phase === 'uploading' ? <p className="mt-2 text-xs text-brand-800">已完成步骤 {progress.completed}/{progress.total}</p> : null}</div> : null}</section></div><div className="safe-bottom fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 px-3 pt-2.5"><div className="mx-auto grid max-w-2xl grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={busy} onClick={onCancel} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void submit()} type="button"><Upload className="h-4 w-4" />{busy ? `正在导入 ${progress?.percent ?? 0}%` : '开始导入草稿'}</button></div></div></div>;
 }
 
 function EditorActions({ busy, onCancel, onPublish, onSave, publishLabel = '保存并发布', saveLabel = '保存草稿' }: { busy: boolean; onCancel: () => void; onPublish?: () => void; onSave: () => void; publishLabel?: string; saveLabel?: string }) {

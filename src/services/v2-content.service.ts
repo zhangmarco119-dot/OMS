@@ -24,7 +24,7 @@ export interface NoticeListItem extends NoticeRow {
 }
 
 export interface SopListItem extends SopRow {
-  assetUrls: Array<SopAssetRow & { signedUrl: string }>;
+  assetUrls: Array<SopAssetRow & { signedUrl: string | null }>;
   roles: Array<'staff' | 'manager'>;
   storeIds: string[];
   taskTemplateId: string | null;
@@ -172,6 +172,7 @@ export const loadSops = async (client: Client): Promise<SopListItem[]> => {
   return Promise.all((sops.data ?? []).map(async (sop) => ({
     ...sop,
     assetUrls: await Promise.all((assetMap.get(sop.id) ?? []).map(async (asset) => {
+      if (!asset.object_path) return { ...asset, signedUrl: null };
       const signed = await client.storage.from('v2-sop-assets').createSignedUrl(asset.object_path, 3600);
       throwIfError(signed.error);
       if (!signed.data) throw new Error('无法生成 SOP 附件访问链接。');
@@ -201,6 +202,7 @@ export const loadSopLibraryEntries = async (client: Client): Promise<SopLibraryE
     const candidates = bySop.get(sop.id) ?? [];
     const preview = selectSopPreviewAsset(candidates);
     if (!preview) return { ...sop, previewUrl: null };
+    if (!preview.object_path) return { ...sop, previewUrl: null };
     const signed = await client.storage.from('v2-sop-assets').createSignedUrl(preview.object_path, 3600);
     throwIfError(signed.error);
     return { ...sop, previewUrl: signed.data?.signedUrl ?? null };
@@ -220,6 +222,7 @@ export const loadSopDetail = async (client: Client, sopId: string): Promise<SopL
   throwIfError(assets.error);
   if (!sop.data) return null;
   const assetUrls = await Promise.all((assets.data ?? []).map(async (asset) => {
+    if (!asset.object_path) return { ...asset, signedUrl: null };
     const signed = await client.storage.from('v2-sop-assets').createSignedUrl(asset.object_path, 3600);
     throwIfError(signed.error);
     if (!signed.data) throw new Error('无法生成 SOP 附件访问链接。');
@@ -312,7 +315,7 @@ export const uploadSopAsset = async (
   if (input.file.size <= 0) throw new Error('所选文件为空，请重新选择。');
   onProgress?.(5);
   let body: Blob = input.file;
-  let mimeType = input.file.type as SopAssetRow['mime_type'];
+  let mimeType = input.file.type as Exclude<SopAssetRow['mime_type'], null>;
   if (input.file.type.startsWith('image/')) {
     try {
       const processed = await compressArrivalImage(input.file);
@@ -357,8 +360,20 @@ export const uploadSopAsset = async (
   return { ...data, signedUrl: signed.data.signedUrl };
 };
 
+export const createSopTextStep = async (client: Client, input: { sopId: string; sortOrder: number; stepText: string }) => {
+  const stepText = input.stepText.trim();
+  if (!stepText) throw new Error('纯文字步骤必须填写步骤说明。');
+  const { data, error } = await client.rpc('create_v2_sop_text_step', {
+    p_sop_id: input.sopId,
+    p_sort_order: input.sortOrder,
+    p_step_text: stepText,
+  });
+  throwIfError(error);
+  return { ...(data as unknown as SopAssetRow), signedUrl: null };
+};
+
 export const deleteArchivedSop = async (client: Client, sop: Pick<SopListItem, 'assetUrls' | 'id'>) => {
-  const objectPaths = sop.assetUrls.map((asset) => asset.object_path);
+  const objectPaths = sop.assetUrls.map((asset) => asset.object_path).filter((path): path is string => Boolean(path));
   if (objectPaths.length) {
     const storage = await client.storage.from('v2-sop-assets').remove(objectPaths);
     throwIfError(storage.error);
@@ -384,6 +399,7 @@ export const reorderSopAssets = async (client: Client, sopId: string, orderedAss
 export const deleteSopAsset = async (client: Client, asset: Pick<SopAssetRow, 'id' | 'object_path'>) => {
   const { error } = await client.from('v2_sop_assets').delete().eq('id', asset.id);
   throwIfError(error);
+  if (!asset.object_path) return { storageCleanupFailed: false };
   const storage = await client.storage.from('v2-sop-assets').remove([asset.object_path]);
   return { storageCleanupFailed: Boolean(storage.error) };
 };

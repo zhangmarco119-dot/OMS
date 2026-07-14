@@ -52,8 +52,8 @@ const renderSop = (sop: SopListItem, assets: EmbeddedAsset[], index: number, sto
       <div><p class="category">${escapeHtml(sop.category)}</p><h1>${escapeHtml(sop.title)}</h1><p class="meta">${statusText[sop.status]} · ${escapeHtml(stores)} · ${escapeHtml(roles)}</p><p class="meta">生效时间：${escapeHtml(formatDate(sop.effective_at))}</p></div>
     </header>
     ${sop.body ? `<section class="summary"><h2>整体说明</h2><p>${escapeHtml(sop.body).split('\n').join('<br>')}</p></section>` : ''}
-    <section><h2>制作步骤（${steps.length}）</h2><div class="step-grid">${steps.map((asset, stepIndex) => `<figure class="step-card"><div class="step-number">步骤 ${stepIndex + 1}</div>${asset.dataUrl ? `<img src="${asset.dataUrl}" alt="步骤${stepIndex + 1}">` : '<div class="missing-image">图片未能写入导出文件</div>'}<figcaption>${escapeHtml(asset.step_text || `请按图示完成第 ${stepIndex + 1} 步。`).split('\n').join('<br>')}</figcaption></figure>`).join('')}</div></section>
-    ${attachments.length ? `<section class="attachments"><h2>附件（${attachments.length}）</h2>${attachments.map((asset) => asset.dataUrl ? `<a href="${asset.dataUrl}" download="${escapeHtml(asset.file_name)}">${escapeHtml(asset.file_name)}</a>` : `<span>${escapeHtml(asset.file_name)}（未能写入）</span>`).join('')}</section>` : ''}
+    <section><h2>制作步骤（${steps.length}）</h2><div class="step-grid">${steps.map((asset, stepIndex) => `<figure class="step-card"><div class="step-number">步骤 ${stepIndex + 1}</div>${asset.dataUrl ? `<img src="${asset.dataUrl}" alt="步骤${stepIndex + 1}">` : asset.object_path ? '<div class="missing-image">图片未能写入导出文件</div>' : ''}${asset.step_text ? `<figcaption>${escapeHtml(asset.step_text).split('\n').join('<br>')}</figcaption>` : ''}</figure>`).join('')}</div></section>
+    ${attachments.length ? `<section class="attachments"><h2>附件（${attachments.length}）</h2>${attachments.map((asset) => asset.dataUrl ? `<a href="${asset.dataUrl}" download="${escapeHtml(asset.file_name ?? 'SOP附件')}">${escapeHtml(asset.file_name ?? 'SOP附件')}</a>` : `<span>${escapeHtml(asset.file_name ?? 'SOP附件')}（未能写入）</span>`).join('')}</section>` : ''}
   </article>`;
 };
 
@@ -64,8 +64,8 @@ export const buildSopCollectionHtml = async (sops: SopListItem[], storeName: (id
   for (const sop of ordered) {
     const assets: EmbeddedAsset[] = [];
     for (const asset of sop.assetUrls) {
-      const dataUrl = await loadEmbeddedAsset(asset.signedUrl);
-      if (!dataUrl) missingAssetCount += 1;
+      const dataUrl = asset.signedUrl ? await loadEmbeddedAsset(asset.signedUrl) : null;
+      if (asset.signedUrl && !dataUrl) missingAssetCount += 1;
       assets.push({ ...asset, dataUrl });
     }
     embedded.push({ assets, sop });

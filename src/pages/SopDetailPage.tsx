@@ -64,7 +64,7 @@ export function SopDetailPage() {
   }, [auth.profile?.role, sopId]);
   useEffect(() => { void load(); }, [load]);
 
-  const images = sop?.assetUrls.filter((asset) => asset.asset_kind === 'step').sort((left, right) => left.sort_order - right.sort_order) ?? [];
+  const steps = sop?.assetUrls.filter((asset) => asset.asset_kind === 'step').sort((left, right) => left.sort_order - right.sort_order) ?? [];
   const documents = sop?.assetUrls.filter((asset) => asset.asset_kind === 'attachment') ?? [];
   const canPublish = auth.profile?.role === 'admin' && sop?.status === 'draft';
   const toggleRole = (role: 'staff' | 'manager') => setPublishSettings((current) => ({
@@ -78,8 +78,8 @@ export function SopDetailPage() {
   const confirmPublish = async () => {
     const client = supabase;
     if (!client || !sop || !canPublish) return;
-    if (!images.length) { setMessage('发布 SOP 前请至少添加一个图片步骤。'); return; }
-    if (images.some((asset) => !asset.step_text.trim())) { setMessage('每一张步骤图片都需要填写对应的步骤说明。'); return; }
+    if (!steps.length) { setMessage('发布 SOP 前请至少添加一个制作步骤。'); return; }
+    if (steps.some((step) => !step.object_path && !step.step_text.trim())) { setMessage('每个制作步骤至少需要图片或文字说明中的一项。'); return; }
     if (!publishSettings.roles.length || !publishSettings.storeIds.length) { setMessage('请至少选择一个适用角色和门店。'); return; }
     setBusy(true); setMessage(null);
     try {
@@ -107,8 +107,8 @@ export function SopDetailPage() {
     {status === 'ready' && !sop ? <EmptyState description="该 SOP 可能尚未发布、已归档，或不适用于当前门店。" icon={BookOpenCheck} title="无法查看 SOP" /> : null}
     {sop ? <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {sop.body ? <section className="border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-900">整体说明</h2><p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{sop.body}</p></section> : null}
-      {images.length ? <div className="grid grid-cols-2 gap-px bg-slate-200" data-testid="sop-detail-step-grid">{images.map((asset, index) => <section className="min-w-0 bg-white" key={asset.id}><div className="bg-slate-50 px-2 py-1.5 text-xs font-bold text-brand-700">步骤 {index + 1}</div><p className="min-h-12 whitespace-pre-wrap px-2 py-2 text-xs leading-5 text-slate-800 sm:text-sm">{asset.step_text || `请按图示完成第 ${index + 1} 步。`}</p><button aria-label={`放大查看步骤 ${index + 1} 图片`} className="block w-full bg-white" onClick={() => setActiveImage({ alt: asset.file_name, url: asset.signedUrl })} type="button"><img alt={`${sop.title} 步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-contain" src={asset.signedUrl} /></button></section>)}</div> : <section className="p-5"><p className="text-sm text-slate-500">该 SOP 暂无分步图片，请按整体说明执行。</p></section>}
-      {documents.length ? <section className="border-t border-slate-100 p-4"><h2 className="text-sm font-bold">附件</h2><div className="mt-2 flex flex-wrap gap-2">{documents.map((asset) => <a className="ui-button-secondary" href={asset.signedUrl} key={asset.id} rel="noreferrer" target="_blank"><ExternalLink className="h-4 w-4" />{asset.file_name}</a>)}</div></section> : null}
+      {steps.length ? <div className="grid grid-cols-2 gap-px bg-slate-200" data-testid="sop-detail-step-grid">{steps.map((asset, index) => <section className="min-w-0 bg-white" key={asset.id}><div className="bg-slate-50 px-2 py-1.5 text-xs font-bold text-brand-700">步骤 {index + 1}</div>{asset.step_text ? <p className="min-h-12 whitespace-pre-wrap px-2 py-2 text-xs leading-5 text-slate-800 sm:text-sm">{asset.step_text}</p> : null}{asset.signedUrl ? <button aria-label={`放大查看步骤 ${index + 1} 图片`} className="block w-full bg-white" onClick={() => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: asset.signedUrl! })} type="button"><img alt={`${sop.title} 步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-contain" src={asset.signedUrl} /></button> : null}</section>)}</div> : <section className="p-5"><p className="text-sm text-slate-500">该 SOP 暂无制作步骤。</p></section>}
+      {documents.length ? <section className="border-t border-slate-100 p-4"><h2 className="text-sm font-bold">附件</h2><div className="mt-2 flex flex-wrap gap-2">{documents.map((asset) => asset.signedUrl ? <a className="ui-button-secondary" href={asset.signedUrl} key={asset.id} rel="noreferrer" target="_blank"><ExternalLink className="h-4 w-4" />{asset.file_name}</a> : null)}</div></section> : null}
     </article> : null}
     {canPublish ? <section className="ui-card space-y-4 p-4" id="sop-publish-settings">
       <div><p className="text-xs font-bold text-brand-700">发布前最后一步</p><h2 className="mt-1 text-lg font-bold text-slate-900">发布基本设置</h2><p className="mt-1 text-sm leading-6 text-slate-500">上方内容就是员工看到的 SOP。确认预览无误后，再设置生效时间和可见范围。</p></div>

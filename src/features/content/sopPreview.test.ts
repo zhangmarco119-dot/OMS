@@ -37,4 +37,11 @@ describe('getSopPreviewAsset', () => {
 
     expect(preview?.id).toBe('step-last');
   });
+
+  it('ignores a later text-only step when choosing the preview image', () => {
+    const textOnly = { ...asset('text-only', 'step', 3, '2026-07-14T13:00:00Z'), file_name: null, mime_type: null, object_path: null, signedUrl: null, size_bytes: 0, step_text: '纯文字步骤' };
+    const preview = getSopPreviewAsset({ assetUrls: [asset('image-step', 'step', 1, '2026-07-14T10:00:00Z'), textOnly] });
+
+    expect(preview?.id).toBe('image-step');
+  });
 });

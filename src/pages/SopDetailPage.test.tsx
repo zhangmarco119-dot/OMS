@@ -52,6 +52,21 @@ describe('SopDetailPage compact employee preview', () => {
     expect(screen.getAllByRole('img')).toHaveLength(6);
   });
 
+  it('renders a pure-text step and a pure-image step without placeholder copy', async () => {
+    mocks.role = 'staff';
+    const mixed = detail('published');
+    mixed.assetUrls = [
+      { asset_kind: 'step', file_name: null, id: 'text-step', mime_type: null, object_path: null, signedUrl: null, sort_order: 0, step_text: '静置十分钟。' },
+      { asset_kind: 'step', file_name: 'only-image.jpg', id: 'image-step', mime_type: 'image/jpeg', object_path: 'sop-1/only-image.jpg', signedUrl: 'https://example.test/only-image.jpg', sort_order: 1, step_text: '' },
+    ] as never;
+    mocks.loadSopDetail.mockResolvedValue(mixed);
+    renderPage();
+
+    expect(await screen.findByText('静置十分钟。')).toBeInTheDocument();
+    expect(screen.getByAltText(/步骤 2$/)).toBeInTheDocument();
+    expect(screen.queryByText(/请按图示/)).not.toBeInTheDocument();
+  });
+
   it('publishes a draft from the basic settings below the administrator preview', async () => {
     mocks.loadSopDetail.mockResolvedValueOnce(detail('draft')).mockResolvedValueOnce(detail('published'));
     mocks.saveSop.mockResolvedValue({ id: 'sop-1' });

@@ -5,6 +5,7 @@ import { PageShell } from '../components/layout/PageShell';
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { FeedbackBanner } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
+import { formatSopActionError, type SopSaveStage } from '../features/content/sopFeedback';
 import { supabase } from '../lib/supabase';
 import { loadTaskTemplates, type TaskTemplateListItem } from '../services/task-templates.service';
 import {
@@ -69,16 +70,21 @@ export function AdminContentPage() {
     if (!supabase || !sopDraft || !auth.profile) return false;
     setBusy(true);
     setMessage(null);
+    let stage: SopSaveStage = 'saving';
     try {
       const saved = await saveSop(supabase, sopDraft);
       setSopDraft({ ...sopDraft, id: saved.id });
+      stage = 'uploading';
       for (const file of pendingFiles) await uploadSopAsset(supabase, { file, profileId: auth.profile.id, sopId: saved.id });
-      if (publishAfterSave) await publishSop(supabase, saved.id);
+      if (publishAfterSave) {
+        stage = 'publishing';
+        await publishSop(supabase, saved.id);
+      }
       await refresh();
       setSuccess(publishAfterSave ? `SOP 已发布，${pendingFiles.length ? `并上传 ${pendingFiles.length} 张制作图片。` : '员工端将按生效时间展示。'}` : `SOP 草稿已保存${pendingFiles.length ? `，已上传 ${pendingFiles.length} 张制作图片。` : '。'}`);
       return true;
     }
-    catch (error) { setMessage(error instanceof Error ? error.message : '保存 SOP 失败。'); return false; }
+    catch (error) { setMessage(formatSopActionError(stage, error)); return false; }
     finally { setBusy(false); }
   };
   const run = async (action: () => Promise<unknown>, successText: string) => {
@@ -195,7 +201,7 @@ export function SopEditor({ busy, draft, errorMessage, existingAssets, onCancel,
         <button aria-label="关闭 SOP 编辑" className="ui-icon-button" onClick={onCancel} type="button"><X className="h-5 w-5" /></button>
       </header>
 
-      {errorMessage ? <FeedbackBanner title="暂时无法保存" tone="danger">{errorMessage}</FeedbackBanner> : null}
+      {errorMessage ? <FeedbackBanner title="SOP 操作未完成" tone="danger">{errorMessage}</FeedbackBanner> : null}
 
       <section className="ui-card grid gap-3 p-4 sm:grid-cols-2">
         <div className="sm:col-span-2"><p className="text-xs font-bold text-brand-700">01 · 基本信息</p><h3 className="mt-1 font-bold text-slate-900">这份 SOP 制作什么？</h3></div>

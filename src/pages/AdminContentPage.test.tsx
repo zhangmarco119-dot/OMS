@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { formatSopActionError } from '../features/content/sopFeedback';
 import { createEmptyNoticeDraft, createEmptySopDraft } from '../services/v2-content.service';
 import { NoticeEditor, SopEditor } from './AdminContentPage';
 
@@ -63,5 +64,12 @@ describe('SopEditor image-first workflow', () => {
 
     expect(screen.getByRole('dialog', { name: '新建公告' })).toHaveClass('h-[100dvh]', 'z-50');
     expect(screen.getByRole('button', { name: '发布公告' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
+  });
+
+  it('distinguishes a publish failure from a draft save failure', () => {
+    expect(formatSopActionError('publishing', new Error('database rejected publish')))
+      .toBe('SOP 草稿已保存，但发布失败：database rejected publish');
+    expect(formatSopActionError('saving', new Error('network unavailable')))
+      .toBe('SOP 保存失败：network unavailable');
   });
 });

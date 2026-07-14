@@ -10,6 +10,16 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-07-14',
     highlights: [
+      '修复 SOP 未填生效时间时无法立即发布的数据库约束冲突。',
+      '修复已发布 SOP 再编辑和归档时的同类生命周期问题。',
+      '前端错误反馈现在会明确区分保存、图片上传和发布失败。',
+    ],
+    title: '修复 SOP 保存与发布流程',
+    version: 'StoreHub v2.1.8',
+  },
+  {
+    date: '2026-07-14',
+    highlights: [
       '建立开发测试与正式 Supabase 的分支级强制隔离，配置错误时阻止构建和部署。',
       '新增 Migration、RLS、远端版本、测试与构建的一体化发布门禁。',
       '将测试 Seed 限定为开发环境专用，并规范开发先迁移、正式后发布的顺序。',

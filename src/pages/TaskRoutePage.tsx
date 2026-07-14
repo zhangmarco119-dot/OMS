@@ -109,7 +109,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const [inventoryTemplates, setInventoryTemplates] = useState<InventoryTemplate[]>([]);
   const [inventoryImportStatus, setInventoryImportStatus] = useState<'idle' | 'loading' | 'importing' | 'error'>('idle');
   const [inventoryImportMessage, setInventoryImportMessage] = useState<string | null>(null);
-  const [extraForm, setExtraForm] = useState({ name: '', spec: '', countUnit: '', productCode: '', quantity: '', note: '' });
+  const [extraForm, setExtraForm] = useState({ name: '', spec: '', countUnit: '', quantity: '', note: '' });
   const [productPermissions, setProductPermissions] = useState({ discontinued: false, incorrect: false, new: false });
   const isManager = canManageV1ProductsFromTask(auth.profile?.role);
   const canCorrectProduct = productPermissions.incorrect;
@@ -255,11 +255,11 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
         note: extraForm.note.trim() || undefined,
       };
       if (isManager) {
-        await task.addManagerProduct({ ...input, productCode: extraForm.productCode.trim() || undefined });
+        await task.addManagerProduct(input);
       } else {
         await task.addExtraItem(input);
       }
-      setExtraForm({ name: '', spec: '', countUnit: '', productCode: '', quantity: '', note: '' });
+      setExtraForm({ name: '', spec: '', countUnit: '', quantity: '', note: '' });
       setShowExtraForm(false);
       setShowSummary(false);
     } catch (error) {
@@ -633,15 +633,12 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
             <p className="mb-4 text-sm leading-6 text-slate-600">
               {isManager ? '保存后会同步新增到本店货品数据库，并通知管理员。' : '本次任务临时新增，不会直接写入货品数据库。'}
             </p>
-            <div className="grid gap-3">
-              <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, name: event.target.value }))} placeholder="货品名称" value={extraForm.name} />
-              <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, spec: event.target.value }))} placeholder="规格" value={extraForm.spec} />
+            <div className="grid grid-cols-2 gap-3">
+              <input className="col-span-2 min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, name: event.target.value }))} placeholder="货品名称" value={extraForm.name} />
+              <input className="col-span-2 min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, spec: event.target.value }))} placeholder="规格" value={extraForm.spec} />
               <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, countUnit: event.target.value }))} placeholder="单位" value={extraForm.countUnit} />
-              {isManager ? (
-                <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, productCode: event.target.value }))} placeholder="货品编码（选填）" value={extraForm.productCode} />
-              ) : null}
               <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" inputMode="decimal" onChange={(event) => setExtraForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="数量" type="number" value={extraForm.quantity} />
-              <textarea className="min-h-20 rounded-xl border border-slate-200 p-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, note: event.target.value }))} placeholder="备注，可选" value={extraForm.note} />
+              <textarea className="col-span-2 min-h-20 rounded-xl border border-slate-200 p-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, note: event.target.value }))} placeholder="备注，可选" value={extraForm.note} />
             </div>
             {extraFormMessage ? <p className="mt-3 rounded-xl bg-accent-50 p-3 text-sm leading-6 text-accent-700">{extraFormMessage}</p> : null}
             <div className="mt-5 grid grid-cols-2 gap-3">

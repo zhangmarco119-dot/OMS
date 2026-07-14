@@ -145,12 +145,10 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
   const storeNames = new Map((storesResult.data ?? []).map((store) => [store.id, store.name]));
   const products = productsResult.data ?? [];
   const rows = products.map((product) => ({
-    货品编号: product.id,
     门店: storeNames.get(product.store_id) ?? product.store_id,
     货品名称: product.name,
     规格: product.spec,
     单位: product.count_unit,
-    货品编码: product.product_code ?? '',
     排序: product.sort_order,
     状态: product.is_active ? '启用' : '停用',
     创建时间: product.created_at,
@@ -158,11 +156,11 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
   }));
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.json_to_sheet(rows, {
-    header: ['货品编号', '门店', '货品名称', '规格', '单位', '货品编码', '排序', '状态', '创建时间', '更新时间'],
+    header: ['门店', '货品名称', '规格', '单位', '排序', '状态', '创建时间', '更新时间'],
   });
   sheet['!cols'] = [
-    { wch: 38 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
-    { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 22 },
+    { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
+    { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 22 },
   ];
   XLSX.utils.book_append_sheet(workbook, sheet, '全部货品');
 

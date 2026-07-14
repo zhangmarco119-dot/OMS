@@ -91,7 +91,7 @@ export const buildTaskWorkbook = ({ feedback, items, store, task }: TaskExportIn
   ];
 
   const itemRows = [
-    ['序号', '货品名称', '规格', '单位', '货品编码', '数量', '状态', '临时货品', '备注', '维护反馈'],
+    ['序号', '货品名称', '规格', '单位', '数量', '状态', '临时货品', '备注', '维护反馈'],
     ...items.map((item, index) => {
       const snapshot = asProductSnapshot(item.product_snapshot);
       return [
@@ -99,7 +99,6 @@ export const buildTaskWorkbook = ({ feedback, items, store, task }: TaskExportIn
         snapshot.name,
         snapshot.spec,
         snapshot.count_unit,
-        snapshot.product_code ?? '',
         item.status === 'no_order_needed' ? '' : item.quantity ?? '',
         statusLabel[item.status],
         item.is_extra_item ? '是' : '否',

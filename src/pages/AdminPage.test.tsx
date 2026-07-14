@@ -95,6 +95,7 @@ describe('AdminPage account management', () => {
     await screen.findByRole('heading', { name: '新增货品' });
     expect(loadAdminProductsData).toHaveBeenCalled();
     expect(loadAdminUsers).not.toHaveBeenCalled();
+    expect(screen.queryByPlaceholderText('货品编码')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '创建账号' })).not.toBeInTheDocument();
   });
 

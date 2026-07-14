@@ -371,7 +371,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 </a>
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、货品编码、排序、启用。导入时按货品编码优先匹配，其次按名称+规格+单位匹配。
+                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、排序、启用。导入时按“货品名称 + 规格 + 单位”匹配，已存在则更新，未匹配则新增。
               </p>
               <input
                 accept=".xlsx,.xls"
@@ -389,7 +389,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
           {productTab === 'export' ? (
             <div className="rounded-lg bg-white p-4 shadow-sm">
               <h2 className="text-lg font-bold text-slate-900">导出全部货品</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店货品，包括货品编号、门店、规格、单位、编码、状态和创建/更新时间。</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店货品，包括门店、名称、规格、单位、排序、状态和更新时间。</p>
               <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void exportAllProducts()} type="button">
                 <Download className="h-4 w-4" aria-hidden="true" />
                 导出全部货品 Excel
@@ -500,13 +500,12 @@ export function AdminUsersPage() {
 
 function ProductDraftForm({ draft, onChange }: { draft: ProductDraft; onChange: (draft: ProductDraft) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="货品名称" value={draft.name} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, spec: event.target.value })} placeholder="规格" value={draft.spec} />
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <input className="col-span-2 min-h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-1" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="货品名称" value={draft.name} />
+      <input className="col-span-2 min-h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-1" onChange={(event) => onChange({ ...draft, spec: event.target.value })} placeholder="规格" value={draft.spec} />
       <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, count_unit: event.target.value })} placeholder="单位" value={draft.count_unit} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, product_code: event.target.value })} placeholder="货品编码" value={draft.product_code} />
       <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, sort_order: Number(event.target.value) || 0 })} placeholder="排序" type="number" value={draft.sort_order} />
-      <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, is_active: event.target.value === 'true' })} value={String(draft.is_active)}>
+      <select className="col-span-2 min-h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-1" onChange={(event) => onChange({ ...draft, is_active: event.target.value === 'true' })} value={String(draft.is_active)}>
         <option value="true">启用</option>
         <option value="false">停用</option>
       </select>

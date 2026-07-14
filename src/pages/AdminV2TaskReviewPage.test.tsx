@@ -65,15 +65,15 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
     vi.mocked(reviewV2TaskItems).mockResolvedValue({});
   });
 
-  it('marks the resubmitted item and only sends that item for re-review', async () => {
+  it('treats every unmarked review item as approved', async () => {
     render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
 
     expect(await screen.findByText('重新提交 · 待复审')).toBeInTheDocument();
     expect(screen.getByText('已通过 · 无需复审')).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /门头清洁/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '所选通过' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '一键全部驳回' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /操作台清洁/ }));
-    fireEvent.click(screen.getByRole('button', { name: '所选通过' }));
     fireEvent.click(screen.getByRole('button', { name: /提交审核结果/ }));
 
     await waitFor(() => expect(reviewV2TaskItems).toHaveBeenCalledWith({}, 'task-1', [
@@ -85,14 +85,40 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
     render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
 
     await screen.findByText('重新提交 · 待复审');
-    fireEvent.click(screen.getByRole('button', { name: '所选驳回' }));
+    fireEvent.click(screen.getByRole('button', { name: '所选项驳回' }));
     expect(screen.getByRole('dialog', { name: '请完善审核信息' })).toHaveTextContent('请先勾选需要审核的项目。');
     fireEvent.click(screen.getByRole('button', { name: '我知道了' }));
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /操作台清洁/ }));
-    fireEvent.click(screen.getByRole('button', { name: '所选驳回' }));
+    fireEvent.click(screen.getByText(/操作台清洁/));
+    expect(screen.getByRole('checkbox', { name: /操作台清洁/ })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: '所选项驳回' }));
     fireEvent.click(screen.getByRole('button', { name: /提交审核结果/ }));
     expect(screen.getByRole('dialog', { name: '请完善审核信息' })).toHaveTextContent('请填写具体的整改原因');
     expect(reviewV2TaskItems).not.toHaveBeenCalled();
+  });
+
+  it('rejects selected cards and automatically approves the remaining review items', async () => {
+    const pendingAnswers = [
+      { ...approvedAnswer, id: 'pending-1', item_id: '00000000-0000-4000-8000-000000000011', item_snapshot: { field_type: 'confirmation', id: '00000000-0000-4000-8000-000000000011', label: '门店卫生' }, review_status: 'pending' },
+      { ...resubmittedAnswer, id: 'pending-2', item_id: '00000000-0000-4000-8000-000000000012', item_snapshot: { field_type: 'confirmation', id: '00000000-0000-4000-8000-000000000012', label: '库存复核' }, review_status: 'pending' },
+    ] as unknown as V2TaskAnswerRow[];
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({
+      answers: pendingAnswers,
+      images: [],
+      reviews: [],
+      task: { ...task, snapshot: { groups: [{ id: 'group-1', sort_order: 0, title: '检查项目', items: pendingAnswers.map((answer, index) => ({ id: answer.item_id, sort_order: index })) }] }, status: 'submitted' },
+    } as V2TaskDetail);
+
+    render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
+
+    fireEvent.click(await screen.findByText(/库存复核/));
+    fireEvent.click(screen.getByRole('button', { name: '所选项驳回' }));
+    fireEvent.change(screen.getByPlaceholderText(/有驳回项目时请填写整改原因/), { target: { value: '库存数据不一致，请重新核对。' } });
+    fireEvent.click(screen.getByRole('button', { name: /提交审核结果/ }));
+
+    await waitFor(() => expect(reviewV2TaskItems).toHaveBeenCalledWith({}, 'task-1', [
+      { decision: 'approved', itemId: pendingAnswers[0].item_id },
+      { decision: 'rejected', itemId: pendingAnswers[1].item_id },
+    ], '库存数据不一致，请重新核对。'));
   });
 });

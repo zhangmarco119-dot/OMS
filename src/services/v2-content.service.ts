@@ -251,8 +251,14 @@ export const saveSop = async (client: Client, draft: SopDraft) => {
   return data as unknown as SopRow;
 };
 
-export const publishSop = async (client: Client, sopId: string) => {
-  const { data, error } = await client.rpc('publish_v2_sop', { p_sop_id: sopId });
+export const publishSop = async (client: Client, sopId: string, options: { silent?: boolean } = {}) => {
+  const { data, error } = await client.rpc('publish_v2_sop_with_options', { p_silent: options.silent ?? false, p_sop_id: sopId });
+  throwIfError(error);
+  return data;
+};
+
+export const retractSop = async (client: Client, sopId: string) => {
+  const { data, error } = await client.rpc('retract_v2_sop', { p_sop_id: sopId });
   throwIfError(error);
   return data;
 };
@@ -316,6 +322,17 @@ export const uploadSopAsset = async (
   }
   onProgress?.(100);
   return { ...data, signedUrl: signed.data.signedUrl };
+};
+
+export const deleteArchivedSop = async (client: Client, sop: Pick<SopListItem, 'assetUrls' | 'id'>) => {
+  const objectPaths = sop.assetUrls.map((asset) => asset.object_path);
+  if (objectPaths.length) {
+    const storage = await client.storage.from('v2-sop-assets').remove(objectPaths);
+    throwIfError(storage.error);
+  }
+  const { data, error } = await client.rpc('delete_archived_v2_sop', { p_sop_id: sop.id });
+  throwIfError(error);
+  return data;
 };
 
 export const updateSopAssetSteps = async (client: Client, steps: Array<{ id: string; sortOrder: number; stepText: string }>) => {

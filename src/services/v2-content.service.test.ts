@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { createEmptyNoticeDraft, createEmptySopDraft, deleteNotice, deleteSopAsset, deleteSopCategory, reorderSopAssets } from './v2-content.service';
+import { createEmptyNoticeDraft, createEmptySopDraft, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, reorderSopAssets, retractSop } from './v2-content.service';
 
 describe('v2 content drafts', () => {
   it('starts an announcement as an unpinned draft for selected stores', () => {
@@ -60,5 +60,29 @@ describe('v2 content drafts', () => {
       p_asset_ids: ['image-2', 'image-1'],
       p_sop_id: 'sop-1',
     });
+  });
+
+  it('passes the silent publish choice to the protected lifecycle function', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: 'published' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await publishSop(client, 'sop-1', { silent: true });
+    expect(rpc).toHaveBeenCalledWith('publish_v2_sop_with_options', { p_silent: true, p_sop_id: 'sop-1' });
+  });
+
+  it('retracts a published SOP back to draft through the protected function', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: 'draft' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await retractSop(client, 'sop-1');
+    expect(rpc).toHaveBeenCalledWith('retract_v2_sop', { p_sop_id: 'sop-1' });
+  });
+
+  it('cleans private files before permanently deleting an archived SOP', async () => {
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    const rpc = vi.fn().mockResolvedValue({ data: { id: 'sop-1' }, error: null });
+    const client = { rpc, storage: { from: vi.fn().mockReturnValue({ remove }) } } as unknown as SupabaseClient<Database>;
+    await deleteArchivedSop(client, { assetUrls: [{ object_path: 'sop-1/cover.jpg' }, { object_path: 'sop-1/step.jpg' }] as never, id: 'sop-1' });
+    expect(remove).toHaveBeenCalledWith(['sop-1/cover.jpg', 'sop-1/step.jpg']);
+    expect(rpc).toHaveBeenCalledWith('delete_archived_v2_sop', { p_sop_id: 'sop-1' });
+    expect(remove.mock.invocationCallOrder[0]).toBeLessThan(rpc.mock.invocationCallOrder[0]);
   });
 });

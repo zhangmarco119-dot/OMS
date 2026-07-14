@@ -755,6 +755,7 @@ export type Database = {
       acknowledge_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       admin_v2_analytics: { Args: { p_days?: number; p_end_date?: string; p_start_date?: string }; Returns: Json };
       delete_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
+      delete_archived_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       delete_v2_sop_category: { Args: { p_category_id: string }; Returns: Json };
       delete_archived_v2_task_template: { Args: { p_template_id: string }; Returns: Json };
       archive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
@@ -771,12 +772,14 @@ export type Database = {
       mark_v2_notice_read: { Args: { p_notice_id: string }; Returns: Json };
       publish_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       publish_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
+      publish_v2_sop_with_options: { Args: { p_silent: boolean; p_sop_id: string }; Returns: Json };
       publish_v2_tasks: { Args: { p_due_at: string | null; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       resume_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       reorder_v2_sop_assets: { Args: { p_asset_ids: string[]; p_sop_id: string }; Returns: Json };
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
       withdraw_v2_task: { Args: { p_task_id: string }; Returns: Json };
       retract_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
+      retract_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       save_v2_notice: { Args: { p_fields: Json; p_notice_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_sop: { Args: { p_fields: Json; p_roles: string[]; p_sop_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_task_progress: { Args: { p_answers: Json; p_expected_version: number; p_task_id: string }; Returns: Json };

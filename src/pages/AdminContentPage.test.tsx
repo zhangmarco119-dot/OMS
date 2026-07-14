@@ -36,6 +36,7 @@ describe('SopEditor image-first workflow', () => {
       onSave={onSave}
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
+      status="new"
       stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
@@ -81,6 +82,7 @@ describe('SopEditor image-first workflow', () => {
       onSave={vi.fn().mockResolvedValue(true)}
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
+      status="new"
       stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
@@ -96,6 +98,7 @@ describe('SopEditor image-first workflow', () => {
 
   it('shows two compact columns and moves a step through its sequence dropdown', async () => {
     const onReorderImages = vi.fn().mockResolvedValue(undefined);
+    const onPublish = vi.fn().mockResolvedValue(true);
     const asset = (id: string, name: string, sortOrder: number) => ({
       asset_kind: 'step', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: name, id,
       mime_type: 'image/jpeg', object_path: `sop-1/${name}`, signedUrl: `https://example.test/${name}`,
@@ -110,11 +113,12 @@ describe('SopEditor image-first workflow', () => {
       onCancel={vi.fn()}
       onChange={vi.fn()}
       onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
-      onPublish={vi.fn().mockResolvedValue(true)}
+      onPublish={onPublish}
       onReorderImages={onReorderImages}
       onSave={vi.fn().mockResolvedValue(true)}
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      status="draft"
       stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
@@ -125,6 +129,9 @@ describe('SopEditor image-first workflow', () => {
 
     await waitFor(() => expect(onReorderImages).toHaveBeenCalledWith(['image-2', 'image-1']));
     expect(within(grid).getAllByRole('img').map((image) => image.getAttribute('alt'))).toEqual(['第二步.jpg', '第一步.jpg']);
+    fireEvent.click(screen.getByRole('checkbox', { name: /静默发布/ }));
+    fireEvent.click(screen.getByRole('button', { name: '发布 SOP' }));
+    await waitFor(() => expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({ silentPublish: true })));
   });
 
   it('keeps a product cover separate from production steps and uploads its replacement immediately', async () => {
@@ -149,6 +156,7 @@ describe('SopEditor image-first workflow', () => {
       onSave={vi.fn().mockResolvedValue(true)}
       onUploadCover={onUploadCover}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      status="draft"
       stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);

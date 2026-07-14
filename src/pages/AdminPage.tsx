@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, RotateCcw, Save, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, RotateCcw, Save, Search, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -8,6 +8,7 @@ import {
   archiveProduct,
   createProduct,
   createAllProductsExportFile,
+  deleteProduct,
   downloadProductExportFile,
   importProducts,
   loadAdminProductsData,
@@ -61,6 +62,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
+  const [productSearch, setProductSearch] = useState('');
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -171,6 +173,21 @@ export function AdminPage({ section }: { section: AdminSection }) {
       setMessage('货品已取消归档，已恢复到货品列表。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '取消归档失败');
+    }
+  };
+
+  const permanentlyDeleteArchivedProduct = async (product: ProductRow) => {
+    if (!window.confirm(`确认永久删除已归档货品“${product.name}”？此操作无法撤销。`)) {
+      return;
+    }
+
+    setMessage(null);
+    try {
+      await deleteProduct(product.id);
+      await refresh(selectedStoreId);
+      setMessage('已归档货品已永久删除。');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '删除已归档货品失败');
     }
   };
 
@@ -308,15 +325,30 @@ export function AdminPage({ section }: { section: AdminSection }) {
 
   const activeProducts = products.filter((product) => product.is_active);
   const archivedProducts = products.filter((product) => !product.is_active);
+  const normalizedProductSearch = productSearch.trim().toLocaleLowerCase();
+  const matchesProductSearch = (product: ProductRow) => {
+    if (!normalizedProductSearch) {
+      return true;
+    }
+    const draft = productDrafts[product.id] ?? productToDraft(product);
+    return [draft.name, draft.spec, draft.count_unit]
+      .some((value) => value.toLocaleLowerCase().includes(normalizedProductSearch));
+  };
+  const visibleActiveProducts = activeProducts.filter(matchesProductSearch);
+  const visibleArchivedProducts = archivedProducts.filter(matchesProductSearch);
 
   return (
     <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '货品管理' : '账号管理'} backTo="/app/workbench">
       {section === 'products' ? (
         <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <select className="min-h-11 rounded-xl border border-slate-200 px-3" onChange={(event) => changeStore(event.target.value)} value={selectedStoreId}>
               {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
             </select>
+            <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3 text-slate-500">
+              <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <input aria-label="检索货品" className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none" onChange={(event) => setProductSearch(event.target.value)} placeholder="检索名称、规格或单位" type="search" value={productSearch} />
+            </label>
             <button className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold" onClick={() => void refresh(selectedStoreId)} type="button">
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               刷新
@@ -358,7 +390,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
           </div>
 
           <div className="space-y-2">
-            {activeProducts.map((product) => (
+            {visibleActiveProducts.map((product) => (
               <article className="rounded-lg bg-white p-2.5 shadow-sm" key={product.id}>
                 <ProductDraftForm
                   draft={productDrafts[product.id] ?? productToDraft(product)}
@@ -376,7 +408,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 </div>
               </article>
             ))}
-            {activeProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">当前门店暂无使用中的货品。</p> : null}
+            {visibleActiveProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">{normalizedProductSearch ? '没有符合检索条件的使用中货品。' : '当前门店暂无使用中的货品。'}</p> : null}
           </div>
             </>
           ) : null}
@@ -422,20 +454,26 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 <h2 className="text-base font-bold text-slate-900">已归档货品</h2>
                 <p className="mt-1 text-xs leading-5 text-slate-500">归档货品不会出现在日常业务选择中，历史单据仍会保留。需要继续使用时可取消归档。</p>
               </div>
-              {archivedProducts.map((product) => (
+              {visibleArchivedProducts.map((product) => (
                 <article className="rounded-lg bg-white p-3 shadow-sm" key={product.id}>
                   <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] items-center gap-2 text-sm">
                     <strong className="truncate text-slate-900">{product.name}</strong>
                     <span className="truncate text-slate-600">{product.spec}</span>
                     <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{product.count_unit}</span>
                   </div>
-                  <button className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-brand-200 px-3 text-sm font-bold text-brand-700" onClick={() => void restoreArchivedProduct(product)} type="button">
-                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                    取消归档
-                  </button>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-brand-200 px-3 text-sm font-bold text-brand-700" onClick={() => void restoreArchivedProduct(product)} type="button">
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      取消归档
+                    </button>
+                    <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-bold text-red-700" onClick={() => void permanentlyDeleteArchivedProduct(product)} type="button">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      删除
+                    </button>
+                  </div>
                 </article>
               ))}
-              {archivedProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">当前门店暂无已归档货品。</p> : null}
+              {visibleArchivedProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">{normalizedProductSearch ? '没有符合检索条件的已归档货品。' : '当前门店暂无已归档货品。'}</p> : null}
             </div>
           ) : null}
         </section>

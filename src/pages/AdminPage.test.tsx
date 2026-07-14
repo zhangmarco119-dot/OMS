@@ -11,7 +11,7 @@ import {
   type AdminUserRow,
   type StoreRow,
 } from '../features/admin/adminUsersService';
-import { archiveProduct, createProduct, importProducts, loadAdminProductsData, parseProductImportFile, restoreProduct, type ProductRow } from '../features/admin/adminProductsService';
+import { archiveProduct, createProduct, deleteProduct, importProducts, loadAdminProductsData, parseProductImportFile, restoreProduct, type ProductRow } from '../features/admin/adminProductsService';
 import { useAuth } from '../features/auth/AuthContext';
 import { AdminPage } from './AdminPage';
 
@@ -156,9 +156,11 @@ describe('AdminPage account management', () => {
 
   it('uses a compact active list and separates archived products', async () => {
     const active = makeProduct();
+    const otherActive = makeProduct({ id: '00000000-0000-4000-8000-000000000012', name: '椰子脆片', spec: '500g', count_unit: '袋' });
     const archived = makeProduct({ id: '00000000-0000-4000-8000-000000000011', is_active: false, name: '旧款酸奶' });
-    vi.mocked(loadAdminProductsData).mockResolvedValue({ products: [active, archived], selectedStoreId: store.id, stores: [store] });
+    vi.mocked(loadAdminProductsData).mockResolvedValue({ products: [active, otherActive, archived], selectedStoreId: store.id, stores: [store] });
     vi.mocked(archiveProduct).mockResolvedValue(undefined);
+    vi.mocked(deleteProduct).mockResolvedValue(undefined);
     vi.mocked(restoreProduct).mockResolvedValue(undefined);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
 
@@ -169,11 +171,18 @@ describe('AdminPage account management', () => {
     expect(screen.queryByRole('option', { name: '停用' })).not.toBeInTheDocument();
     expect(screen.queryByText('旧款酸奶')).not.toBeInTheDocument();
 
+    fireEvent.change(screen.getByRole('searchbox', { name: '检索货品' }), { target: { value: '原味' } });
+    expect(screen.getByDisplayValue('原味酸奶')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('椰子脆片')).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: '归档' }));
     await waitFor(() => expect(archiveProduct).toHaveBeenCalledWith(active.id));
 
+    fireEvent.change(screen.getByRole('searchbox', { name: '检索货品' }), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: '已归档 1' }));
     expect(await screen.findByText('旧款酸奶')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
+    await waitFor(() => expect(deleteProduct).toHaveBeenCalledWith(archived.id));
     fireEvent.click(screen.getByRole('button', { name: '取消归档' }));
     await waitFor(() => expect(restoreProduct).toHaveBeenCalledWith(archived.id));
   });

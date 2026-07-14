@@ -34,6 +34,7 @@ describe('SopEditor image-first workflow', () => {
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={vi.fn().mockResolvedValue(undefined)}
       onSave={onSave}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
       stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
@@ -43,7 +44,7 @@ describe('SopEditor image-first workflow', () => {
     expect(screen.getByRole('button', { name: '发布 SOP' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
 
     const file = new File(['image'], 'finished-bowl.png', { type: 'image/png' });
-    const input = container.querySelector('input[type="file"][accept*="image/png"]');
+    const input = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"][accept*="image/png"]')).find((entry) => entry.multiple);
     expect(input).not.toBeNull();
     fireEvent.change(input!, { target: { files: [file] } });
 
@@ -78,13 +79,15 @@ describe('SopEditor image-first workflow', () => {
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={vi.fn().mockResolvedValue(undefined)}
       onSave={vi.fn().mockResolvedValue(true)}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
       stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
 
     const file = new File(['image'], 'failed.png', { type: 'image/png' });
-    fireEvent.change(container.querySelector('input[type="file"][accept*="image/png"]')!, { target: { files: [file] } });
+    const stepInput = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"][accept*="image/png"]')).find((entry) => entry.multiple);
+    fireEvent.change(stepInput!, { target: { files: [file] } });
 
     expect(await screen.findByText('网络暂时不可用')).toBeInTheDocument();
     expect(screen.getByAltText('failed.png')).toHaveAttribute('src', 'blob:sop-preview');
@@ -94,7 +97,7 @@ describe('SopEditor image-first workflow', () => {
   it('shows two compact columns and moves a step through its sequence dropdown', async () => {
     const onReorderImages = vi.fn().mockResolvedValue(undefined);
     const asset = (id: string, name: string, sortOrder: number) => ({
-      bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: name, id,
+      asset_kind: 'step', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: name, id,
       mime_type: 'image/jpeg', object_path: `sop-1/${name}`, signedUrl: `https://example.test/${name}`,
       size_bytes: 100, sop_id: 'sop-1', sort_order: sortOrder, step_text: `${name}说明`, uploaded_by: 'admin-1',
     });
@@ -110,6 +113,7 @@ describe('SopEditor image-first workflow', () => {
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={onReorderImages}
       onSave={vi.fn().mockResolvedValue(true)}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
       stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
@@ -121,6 +125,46 @@ describe('SopEditor image-first workflow', () => {
 
     await waitFor(() => expect(onReorderImages).toHaveBeenCalledWith(['image-2', 'image-1']));
     expect(within(grid).getAllByRole('img').map((image) => image.getAttribute('alt'))).toEqual(['第二步.jpg', '第一步.jpg']);
+  });
+
+  it('keeps a product cover separate from production steps and uploads its replacement immediately', async () => {
+    let finishUpload: (() => void) | undefined;
+    const onUploadCover = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { finishUpload = resolve; }));
+    const cover = {
+      asset_kind: 'cover', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: '产品图.jpg', id: 'cover-1',
+      mime_type: 'image/jpeg', object_path: 'sop-1/cover.jpg', signedUrl: 'https://example.test/cover.jpg', size_bytes: 100,
+      sop_id: 'sop-1', sort_order: 0, step_text: '', uploaded_by: 'admin-1',
+    };
+    const { container } = render(<SopEditor
+      busy={false}
+      categories={['酸奶碗制作']}
+      draft={{ ...createEmptySopDraft(['store-1']), category: '酸奶碗制作', id: 'sop-1', title: '产品图测试' }}
+      errorMessage={null}
+      existingAssets={[cover] as never}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
+      onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onSave={vi.fn().mockResolvedValue(true)}
+      onUploadCover={onUploadCover}
+      onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      stores={[{ id: 'store-1', name: '测试门店' }]}
+      templates={[]}
+    />);
+
+    expect(screen.getByAltText('产品图测试 产品图')).toHaveAttribute('src', 'https://example.test/cover.jpg');
+    expect(screen.queryByTestId('sop-step-grid')).not.toBeInTheDocument();
+    const productInput = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'))
+      .find((input) => input.accept.includes('image/png') && !input.multiple);
+    expect(productInput).toBeDefined();
+    const replacement = new File(['image'], '新产品图.png', { type: 'image/png' });
+    fireEvent.change(productInput!, { target: { files: [replacement] } });
+
+    expect(await screen.findByAltText('本地参考图待上传预览')).toHaveAttribute('src', 'blob:sop-preview');
+    expect(onUploadCover).toHaveBeenCalledWith(replacement, expect.any(Function));
+    finishUpload?.();
+    await waitFor(() => expect(screen.queryByAltText('本地参考图待上传预览')).not.toBeInTheDocument());
   });
 
   it('keeps the announcement editor and action bar above the app navigation', () => {

@@ -265,7 +265,7 @@ export const archiveSop = async (client: Client, sopId: string) => {
 
 export const uploadSopAsset = async (
   client: Client,
-  input: { file: File; profileId: string; sopId: string; sortOrder?: number; stepText?: string },
+  input: { assetKind?: SopAssetRow['asset_kind']; file: File; profileId: string; sopId: string; sortOrder?: number; stepText?: string },
   onProgress?: (progress: number) => void,
 ) => {
   const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
@@ -293,6 +293,7 @@ export const uploadSopAsset = async (
   throwIfError(upload.error);
   onProgress?.(70);
   const { data, error } = await client.from('v2_sop_assets').insert({
+    asset_kind: input.assetKind ?? (mimeType === 'application/pdf' ? 'attachment' : 'step'),
     file_name: input.file.name,
     mime_type: mimeType,
     object_path: objectPath,

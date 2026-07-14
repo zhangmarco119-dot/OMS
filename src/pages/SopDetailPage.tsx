@@ -30,8 +30,8 @@ export function SopDetailPage() {
   }, [sopId]);
   useEffect(() => { void load(); }, [load]);
 
-  const images = sop?.assetUrls.filter((asset) => asset.mime_type.startsWith('image/')).sort((left, right) => left.sort_order - right.sort_order) ?? [];
-  const documents = sop?.assetUrls.filter((asset) => !asset.mime_type.startsWith('image/')) ?? [];
+  const images = sop?.assetUrls.filter((asset) => asset.asset_kind === 'step').sort((left, right) => left.sort_order - right.sort_order) ?? [];
+  const documents = sop?.assetUrls.filter((asset) => asset.asset_kind === 'attachment') ?? [];
 
   return <PageShell eyebrow={sop?.category ?? 'SOP 手册'} title={sop?.title ?? 'SOP 详情'} backTo="/app/sops" contentGapClassName="gap-3">
     {status === 'error' && message ? <ErrorState message={message} onRetry={() => void load()} /> : null}

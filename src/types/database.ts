@@ -362,9 +362,9 @@ export type Database = {
         Relationships: [];
       };
       v2_sop_assets: {
-        Row: { bucket: 'v2-sop-assets'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; sort_order: number; step_text: string; uploaded_by: string; };
-        Insert: { bucket?: 'v2-sop-assets'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; sort_order?: number; step_text?: string; uploaded_by: string; };
-        Update: { bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path?: string; size_bytes?: number; sop_id?: string; sort_order?: number; step_text?: string; uploaded_by?: string; };
+        Row: { asset_kind: 'step' | 'cover' | 'attachment'; bucket: 'v2-sop-assets'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; sort_order: number; step_text: string; uploaded_by: string; };
+        Insert: { asset_kind?: 'step' | 'cover' | 'attachment'; bucket?: 'v2-sop-assets'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; sort_order?: number; step_text?: string; uploaded_by: string; };
+        Update: { asset_kind?: 'step' | 'cover' | 'attachment'; bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path?: string; size_bytes?: number; sop_id?: string; sort_order?: number; step_text?: string; uploaded_by?: string; };
         Relationships: [];
       };
       product_feedback: {

@@ -167,6 +167,7 @@ describe('AdminPage account management', () => {
     render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
 
     await screen.findByDisplayValue('原味酸奶');
+    expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue('9')).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: '停用' })).not.toBeInTheDocument();
     expect(screen.queryByText('旧款酸奶')).not.toBeInTheDocument();
@@ -174,6 +175,7 @@ describe('AdminPage account management', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: '检索货品' }), { target: { value: '原味' } });
     expect(screen.getByDisplayValue('原味酸奶')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('椰子脆片')).not.toBeInTheDocument();
+    expect(screen.getByText('显示 1 / 2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '归档' }));
     await waitFor(() => expect(archiveProduct).toHaveBeenCalledWith(active.id));

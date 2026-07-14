@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, RotateCcw, Save, Search, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RotateCcw, Save, Search, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -336,24 +336,32 @@ export function AdminPage({ section }: { section: AdminSection }) {
   };
   const visibleActiveProducts = activeProducts.filter(matchesProductSearch);
   const visibleArchivedProducts = archivedProducts.filter(matchesProductSearch);
+  const visibleProductCount = productTab === 'archived' ? visibleArchivedProducts.length : visibleActiveProducts.length;
+  const currentProductCount = productTab === 'archived' ? archivedProducts.length : activeProducts.length;
 
   return (
     <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '货品管理' : '账号管理'} backTo="/app/workbench">
       {section === 'products' ? (
-        <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <select className="min-h-11 rounded-xl border border-slate-200 px-3" onChange={(event) => changeStore(event.target.value)} value={selectedStoreId}>
+        <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="shrink-0 text-xs font-bold text-slate-500">当前门店</span>
+            <select className="min-h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100" onChange={(event) => changeStore(event.target.value)} value={selectedStoreId}>
               {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
             </select>
-            <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3 text-slate-500">
-              <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <input aria-label="检索货品" className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none" onChange={(event) => setProductSearch(event.target.value)} placeholder="检索名称、规格或单位" type="search" value={productSearch} />
-            </label>
-            <button className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold" onClick={() => void refresh(selectedStoreId)} type="button">
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              刷新
-            </button>
           </div>
+          {productTab !== 'batch' ? (
+            <div className="mt-3">
+              <label className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-slate-400 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100">
+                <Search className="h-5 w-5 shrink-0 text-brand-600" aria-hidden="true" />
+                <input aria-label="检索货品" className="min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400" onChange={(event) => setProductSearch(event.target.value)} placeholder="输入名称、规格或单位，立即筛选" type="search" value={productSearch} />
+                {productSearch ? <button aria-label="清空货品检索" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600" onClick={() => setProductSearch('')} type="button"><X className="h-4 w-4" aria-hidden="true" /></button> : null}
+              </label>
+              <div className="mt-2 flex items-center justify-between px-1 text-xs text-slate-500">
+                <span>{productSearch ? `正在检索“${productSearch.trim()}”` : '支持名称、规格和单位检索'}</span>
+                <span className="font-semibold text-brand-700">显示 {visibleProductCount} / {currentProductCount}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

@@ -119,10 +119,10 @@ export function AdminPage({ section }: { section: AdminSection }) {
     setMessage(null);
     try {
       await createProduct({ ...newProduct, store_id: selectedStoreId });
-      setMessage('商品已创建。');
+      setMessage('货品已创建。');
       await refresh(selectedStoreId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '创建商品失败');
+      setMessage(error instanceof Error ? error.message : '创建货品失败');
     }
   };
 
@@ -135,15 +135,15 @@ export function AdminPage({ section }: { section: AdminSection }) {
     setMessage(null);
     try {
       await updateProduct(productId, draft);
-      setMessage('商品已保存。');
+      setMessage('货品已保存。');
       await refresh(selectedStoreId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '保存商品失败');
+      setMessage(error instanceof Error ? error.message : '保存货品失败');
     }
   };
 
   const removeProduct = async (product: ProductRow) => {
-    const confirmed = window.confirm(`确认删除商品“${product.name}”？已提交的历史单据仍保留当时的商品快照。`);
+    const confirmed = window.confirm(`确认删除货品“${product.name}”？已提交的历史单据仍保留当时的货品快照。`);
     if (!confirmed) {
       return;
     }
@@ -151,10 +151,10 @@ export function AdminPage({ section }: { section: AdminSection }) {
     setMessage(null);
     try {
       await deleteProduct(product.id);
-      setMessage('商品已删除。');
+      setMessage('货品已删除。');
       await refresh(selectedStoreId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '删除商品失败');
+      setMessage(error instanceof Error ? error.message : '删除货品失败');
     }
   };
 
@@ -181,9 +181,9 @@ export function AdminPage({ section }: { section: AdminSection }) {
     try {
       const file = await createAllProductsExportFile();
       downloadProductExportFile(file);
-      setMessage(`已导出全部 ${file.count} 个商品。`);
+      setMessage(`已导出全部 ${file.count} 个货品。`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '导出商品失败');
+      setMessage(error instanceof Error ? error.message : '导出货品失败');
     }
   };
 
@@ -291,7 +291,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   };
 
   return (
-    <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '商品管理' : '账号管理'} backTo="/app/workbench">
+    <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '货品管理' : '账号管理'} backTo="/app/workbench">
       {section === 'products' ? (
         <div className="rounded-2xl bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
@@ -313,9 +313,9 @@ export function AdminPage({ section }: { section: AdminSection }) {
         <section className="space-y-2">
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 text-sm">
             {([
-              ['catalog', '商品列表'],
-              ['import', '导入商品'],
-              ['export', '导出商品'],
+              ['catalog', '货品列表'],
+              ['import', '导入货品'],
+              ['export', '导出货品'],
             ] as const).map(([value, label]) => (
               <button
                 className={`min-h-10 rounded-md font-bold ${productTab === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`}
@@ -331,11 +331,11 @@ export function AdminPage({ section }: { section: AdminSection }) {
           {productTab === 'catalog' ? (
             <>
           <div className="rounded-lg bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-base font-bold text-slate-900">新增商品</h2>
+            <h2 className="mb-3 text-base font-bold text-slate-900">新增货品</h2>
             <ProductDraftForm draft={newProduct} onChange={setNewProduct} />
             <button className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void saveNewProduct()} type="button">
               <PackagePlus className="h-4 w-4" aria-hidden="true" />
-              创建商品
+              创建货品
             </button>
           </div>
 
@@ -349,9 +349,9 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
                   <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-bold text-slate-800" onClick={() => void saveProduct(product.id)} type="button">
                     <Save className="h-4 w-4" aria-hidden="true" />
-                    保存商品
+                    保存货品
                   </button>
-                  <button aria-label={`删除${product.name}`} className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 text-red-700" onClick={() => void removeProduct(product)} title="删除商品" type="button">
+                  <button aria-label={`删除${product.name}`} className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 text-red-700" onClick={() => void removeProduct(product)} title="删除货品" type="button">
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
@@ -364,14 +364,14 @@ export function AdminPage({ section }: { section: AdminSection }) {
           {productTab === 'import' ? (
             <div className="rounded-lg bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-slate-900">Excel 导入商品</h2>
-                <a className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700" download href="/templates/商品导入模板.xlsx">
+                <h2 className="text-lg font-bold text-slate-900">Excel 导入货品</h2>
+                <a className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700" download="货品导入模板.xlsx" href="/templates/货品导入模板.xlsx">
                   <Download className="h-4 w-4" aria-hidden="true" />
                   下载模板
                 </a>
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                默认读取第一个 Sheet。支持列名：商品名称、规格、单位、商品编码、排序、启用。导入时按商品编码优先匹配，其次按名称+规格+单位匹配。
+                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、货品编码、排序、启用。导入时按货品编码优先匹配，其次按名称+规格+单位匹配。
               </p>
               <input
                 accept=".xlsx,.xls"
@@ -388,11 +388,11 @@ export function AdminPage({ section }: { section: AdminSection }) {
 
           {productTab === 'export' ? (
             <div className="rounded-lg bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900">导出全部商品</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店商品，包括商品编号、门店、规格、单位、编码、状态和创建/更新时间。</p>
+              <h2 className="text-lg font-bold text-slate-900">导出全部货品</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店货品，包括货品编号、门店、规格、单位、编码、状态和创建/更新时间。</p>
               <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void exportAllProducts()} type="button">
                 <Download className="h-4 w-4" aria-hidden="true" />
-                导出全部商品 Excel
+                导出全部货品 Excel
               </button>
             </div>
           ) : null}
@@ -478,7 +478,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                     ))}
                   </div>
                 </fieldset>
-                {user.role !== 'admin' ? <fieldset className="mt-3 rounded-lg bg-slate-50 p-3"><legend className="px-1 text-xs font-bold text-slate-500">员工商品申请权限</legend><div className="mt-1 flex flex-wrap gap-3 text-sm"><label><input checked={user.productPermissions.can_request_new} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_new: event.target.checked } } : entry))} type="checkbox" /> 新增申请</label><label><input checked={user.productPermissions.can_request_incorrect} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_incorrect: event.target.checked } } : entry))} type="checkbox" /> 修订申请</label><label><input checked={user.productPermissions.can_request_discontinued} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_discontinued: event.target.checked } } : entry))} type="checkbox" /> 删除申请</label></div></fieldset> : null}
+                {user.role !== 'admin' ? <fieldset className="mt-3 rounded-lg bg-slate-50 p-3"><legend className="px-1 text-xs font-bold text-slate-500">员工货品申请权限</legend><div className="mt-1 flex flex-wrap gap-3 text-sm"><label><input checked={user.productPermissions.can_request_new} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_new: event.target.checked } } : entry))} type="checkbox" /> 新增申请</label><label><input checked={user.productPermissions.can_request_incorrect} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_incorrect: event.target.checked } } : entry))} type="checkbox" /> 修订申请</label><label><input checked={user.productPermissions.can_request_discontinued} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_discontinued: event.target.checked } } : entry))} type="checkbox" /> 删除申请</label></div></fieldset> : null}
                 <button className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void saveProfile(user)} type="button"><Save className="h-4 w-4" aria-hidden="true" />保存账号修改</button>
               </div>
             ))}
@@ -501,10 +501,10 @@ export function AdminUsersPage() {
 function ProductDraftForm({ draft, onChange }: { draft: ProductDraft; onChange: (draft: ProductDraft) => void }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="商品名称" value={draft.name} />
+      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="货品名称" value={draft.name} />
       <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, spec: event.target.value })} placeholder="规格" value={draft.spec} />
       <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, count_unit: event.target.value })} placeholder="单位" value={draft.count_unit} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, product_code: event.target.value })} placeholder="商品编码" value={draft.product_code} />
+      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, product_code: event.target.value })} placeholder="货品编码" value={draft.product_code} />
       <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, sort_order: Number(event.target.value) || 0 })} placeholder="排序" type="number" value={draft.sort_order} />
       <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, is_active: event.target.value === 'true' })} value={String(draft.is_active)}>
         <option value="true">启用</option>

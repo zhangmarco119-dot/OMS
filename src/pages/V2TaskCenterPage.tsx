@@ -34,7 +34,7 @@ export function V2TaskCenterPage() {
   useEffect(() => { void load(); }, [load]);
 
   if (!featureFlags.taskTemplates) {
-    return <PageShell eyebrow="门店运营系统" title="任务中心暂未开放" backTo="/app"><FeedbackBanner>当前环境已关闭 V2 任务功能。</FeedbackBanner></PageShell>;
+    return <PageShell eyebrow="门店运营系统" title="任务中心暂未开放" backTo="/app"><FeedbackBanner>当前环境已关闭任务中心功能。</FeedbackBanner></PageShell>;
   }
   if (auth.profile?.role === 'admin') {
     return <PageShell eyebrow="门店运营系统 · 管理员" title="任务中心" backTo="/app"><SectionCard><p className="text-sm leading-6 text-slate-600">管理员负责配置模板、创建任务、发布任务和审核结果。模板不会显示给员工或店长。</p><Link className="ui-button-primary mt-4 w-full" to="/app/admin/tasks">进入任务管理</Link></SectionCard></PageShell>;

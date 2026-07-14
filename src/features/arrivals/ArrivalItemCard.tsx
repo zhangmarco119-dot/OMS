@@ -91,7 +91,7 @@ export function ArrivalItemCard({
             id={`arrival-product-${item.id}`}
             onChange={(event) => updateProductName(event.target.value)}
             onFocus={() => setSearchOpen(true)}
-            placeholder="搜索本店商品或手动填写"
+            placeholder="搜索本店货品或手动填写"
             value={item.productName}
           />
         </div>
@@ -112,7 +112,7 @@ export function ArrivalItemCard({
                 <span className="shrink-0 text-xs font-semibold text-brand-700">选择</span>
               </button>
             )) : (
-              <p className="p-3 text-sm leading-6 text-slate-600">本店商品中没有匹配项，将按手工产品保存。</p>
+              <p className="p-3 text-sm leading-6 text-slate-600">本店货品中没有匹配项，将按手工产品保存。</p>
             )}
             <button className="mt-1 min-h-10 w-full rounded-md bg-slate-100 text-sm font-semibold text-slate-700" onClick={() => setSearchOpen(false)} type="button">收起搜索结果</button>
           </div>
@@ -120,9 +120,9 @@ export function ArrivalItemCard({
       </div>
 
       {item.productId ? (
-        <p className="mt-2 rounded-md bg-brand-50 px-3 py-1.5 text-sm text-brand-700">已匹配本店商品 · {item.spec || '无规格'}</p>
+        <p className="mt-2 rounded-md bg-brand-50 px-3 py-1.5 text-sm text-brand-700">已匹配本店货品 · {item.spec || '无规格'}</p>
       ) : item.productName.trim() ? (
-        <p className="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800">未匹配正式商品，仅用于本次到货记录。</p>
+        <p className="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800">未匹配正式货品，仅用于本次到货记录。</p>
       ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-2">

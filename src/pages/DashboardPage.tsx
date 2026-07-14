@@ -164,7 +164,7 @@ function AdminDashboard() {
         </header>
         {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
         <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <MetricCard label="待处理" note="商品申请与任务审核" tone="danger" to="/app/todos" value={summary?.count ?? '—'} />
+          <MetricCard label="待处理" note="货品申请与任务审核" tone="danger" to="/app/todos" value={summary?.count ?? '—'} />
           <MetricCard label="到货待看" note={`今日到货 ${overview?.arrival_today ?? '—'}`} tone="warning" to="/app/admin/arrivals" value={overview?.arrival_pending ?? '—'} />
           <MetricCard label="今日盘点" note={`进行中 ${overview?.inventory_pending ?? '—'}`} tone="info" to="/app/history" value={overview?.inventory_completed_today ?? '—'} />
           <MetricCard label="执行中任务" note={`已完成 ${overview?.v2_task_completed ?? '—'}`} to="/app/admin/tasks" value={overview?.v2_task_active ?? '—'} />

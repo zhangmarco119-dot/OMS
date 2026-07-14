@@ -41,15 +41,15 @@ export function ArrivalEntryPage() {
 
   if (!featureFlags.arrivalEntry) {
     return (
-      <PageShell eyebrow="V2 功能开关" title="到货上报入口未启用" backTo="/app">
-        <div className="rounded-lg bg-white p-5 text-sm leading-6 text-slate-600 shadow-sm">当前环境已关闭 V2 到货入口。原有点货、订货和历史记录不受影响。</div>
+      <PageShell eyebrow="功能设置" title="到货上报入口未启用" backTo="/app">
+        <div className="rounded-lg bg-white p-5 text-sm leading-6 text-slate-600 shadow-sm">当前环境已关闭到货上报入口。点货、订货和历史记录不受影响。</div>
       </PageShell>
     );
   }
 
   if (!canOperateV2Modules(auth.profile?.role)) {
     return (
-      <PageShell eyebrow="V2 角色边界" title="当前账号不能执行到货上报" backTo="/app">
+      <PageShell eyebrow="账号权限" title="当前账号不能执行到货上报" backTo="/app">
         <div className="rounded-lg bg-white p-5 shadow-sm"><p className="text-sm leading-6 text-slate-600">到货上报的门店执行端仅向员工和店长开放。管理员将在独立的到货中心查看消息、记录和每日汇总。</p></div>
       </PageShell>
     );

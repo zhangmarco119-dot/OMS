@@ -145,12 +145,12 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
   const storeNames = new Map((storesResult.data ?? []).map((store) => [store.id, store.name]));
   const products = productsResult.data ?? [];
   const rows = products.map((product) => ({
-    商品编号: product.id,
+    货品编号: product.id,
     门店: storeNames.get(product.store_id) ?? product.store_id,
-    商品名称: product.name,
+    货品名称: product.name,
     规格: product.spec,
     单位: product.count_unit,
-    商品编码: product.product_code ?? '',
+    货品编码: product.product_code ?? '',
     排序: product.sort_order,
     状态: product.is_active ? '启用' : '停用',
     创建时间: product.created_at,
@@ -158,19 +158,19 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
   }));
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.json_to_sheet(rows, {
-    header: ['商品编号', '门店', '商品名称', '规格', '单位', '商品编码', '排序', '状态', '创建时间', '更新时间'],
+    header: ['货品编号', '门店', '货品名称', '规格', '单位', '货品编码', '排序', '状态', '创建时间', '更新时间'],
   });
   sheet['!cols'] = [
     { wch: 38 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
     { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 22 },
   ];
-  XLSX.utils.book_append_sheet(workbook, sheet, '全部商品');
+  XLSX.utils.book_append_sheet(workbook, sheet, '全部货品');
 
   const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
   return {
     blob: new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
     count: products.length,
-    filename: `全部商品_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    filename: `全部货品_${new Date().toISOString().slice(0, 10)}.xlsx`,
   };
 };
 
@@ -280,10 +280,10 @@ export const parseProductImportFile = async (file: File): Promise<ProductImportR
 
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
   return rawRows.map((row) => {
-    const name = pick(row, ['商品名称', '名称', 'name']);
+    const name = pick(row, ['货品名称', '商品名称', '名称', 'name']);
     const spec = pick(row, ['规格', 'spec']);
     const countUnit = pick(row, ['单位', '计数单位', 'count_unit', 'unit']);
-    const productCode = pick(row, ['商品编码', '编码', 'product_code', 'code']);
+    const productCode = pick(row, ['货品编码', '商品编码', '编码', 'product_code', 'code']);
     const sortOrder = Number(pick(row, ['排序', 'sort_order', 'order']));
     return {
       count_unit: countUnit,

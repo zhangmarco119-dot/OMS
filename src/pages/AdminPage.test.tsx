@@ -92,7 +92,7 @@ describe('AdminPage account management', () => {
   it('loads only product data on the independent product page', async () => {
     render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
 
-    await screen.findByRole('heading', { name: '新增商品' });
+    await screen.findByRole('heading', { name: '新增货品' });
     expect(loadAdminProductsData).toHaveBeenCalled();
     expect(loadAdminUsers).not.toHaveBeenCalled();
     expect(screen.queryByRole('heading', { name: '创建账号' })).not.toBeInTheDocument();

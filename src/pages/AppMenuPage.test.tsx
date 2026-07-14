@@ -17,7 +17,7 @@ describe('AppMenuPage administrator workbench', () => {
 
     expect(screen.getByRole('link', { name: /公告管理/ })).toHaveAttribute('href', '/app/admin/announcements');
     expect(screen.getByRole('link', { name: /SOP 管理/ })).toHaveAttribute('href', '/app/admin/sops');
-    expect(screen.getByRole('link', { name: /商品管理/ })).toHaveAttribute('href', '/app/admin/products');
+    expect(screen.getByRole('link', { name: /货品管理/ })).toHaveAttribute('href', '/app/admin/products');
     expect(screen.getByRole('link', { name: /账号管理/ })).toHaveAttribute('href', '/app/admin/users');
     expect(screen.queryByText('公告与 SOP')).not.toBeInTheDocument();
     expect(screen.queryByText('到货记录')).not.toBeInTheDocument();

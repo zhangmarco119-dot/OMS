@@ -52,7 +52,7 @@ describe('taskExport', () => {
 
     expect(workbook.SheetNames).toEqual(['单据信息', '盘点单']);
     const rows = XLSX.utils.sheet_to_json<string[]>(workbook.Sheets['盘点单'], { header: 1 });
-    expect(rows[0]).toContain('商品名称');
+    expect(rows[0]).toContain('货品名称');
     expect(rows[1]).toContain('原味奶酪');
     expect(rows[1]).toContain(8);
   });

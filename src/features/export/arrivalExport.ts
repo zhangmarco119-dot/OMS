@@ -45,7 +45,7 @@ export const buildArrivalReportWorkbook = ({ auditLogs, items, report }: AdminAr
     ['作废原因', report.void_reason ?? ''],
   ]), '到货信息');
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
-    ['序号', '产品名称', '数量', '单位', '未匹配商品', '备注'],
+    ['序号', '产品名称', '数量', '单位', '未匹配货品', '备注'],
     ...items.map((item, index) => [
       index + 1,
       item.product_name_snapshot,

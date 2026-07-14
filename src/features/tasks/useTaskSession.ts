@@ -179,7 +179,7 @@ export const useTaskSession = (taskType: TaskType) => {
   const goNextPending = useCallback(() => {
     const next = findNextPendingIndex(items, currentIndex);
     if (next === -1) {
-      setMessage('所有商品均已处理。');
+      setMessage('所有货品均已处理。');
       return;
     }
     setCurrentIndex(next);
@@ -205,24 +205,24 @@ export const useTaskSession = (taskType: TaskType) => {
     const created = await managerAddProductFromTask(client, sessionData.task, input);
     setSessionData((current) => current ? { ...current, items: [...current.items, created] } : current);
     setCurrentIndex(items.length);
-    setMessage('商品已新增到数据库，管理员已收到通知。');
+    setMessage('货品已新增到数据库，管理员已收到通知。');
     return created;
   }, [items.length, sessionData?.task]);
 
   const reportFeedback = useCallback(async (input: ProductFeedbackInput) => {
     const client = supabase;
     if (!client || !currentItem || !auth.profile) {
-      throw new Error('需要先登录并选择商品');
+      throw new Error('需要先登录并选择货品');
     }
 
     await reportProductFeedback(client, currentItem, auth.profile.id, input);
-    setMessage('商品反馈已保存。');
+    setMessage('货品反馈已保存。');
   }, [auth.profile, currentItem]);
 
   const correctCurrentProduct = useCallback(async (input: ManagerProductCorrectionInput) => {
     const client = supabase;
     if (!client || !currentItem) {
-      throw new Error('需要先登录并选择商品');
+      throw new Error('需要先登录并选择货品');
     }
 
     const productSnapshot = await managerUpdateProductFromTask(client, currentItem, input);
@@ -231,20 +231,20 @@ export const useTaskSession = (taskType: TaskType) => {
       product_snapshot: productSnapshot as unknown as Json,
       updated_at: new Date().toISOString(),
     });
-    setMessage('商品信息已修改，管理员已收到通知。');
+    setMessage('货品信息已修改，管理员已收到通知。');
     return productSnapshot;
   }, [currentItem, replaceItem]);
 
   const requestCurrentProductDeletion = useCallback(async (note?: string) => {
     const client = supabase;
     if (!client || !currentItem) {
-      throw new Error('需要先登录并选择商品');
+      throw new Error('需要先登录并选择货品');
     }
 
     const result = await managerRequestProductDeletion(client, currentItem, note);
     replaceItem(result.item);
     setQuantityInput('');
-    setMessage('已提交删除此商品，等待管理员确认。');
+    setMessage('已提交删除此货品，等待管理员确认。');
     return result.feedbackId;
   }, [currentItem, replaceItem]);
 
@@ -280,7 +280,7 @@ export const useTaskSession = (taskType: TaskType) => {
   const markNoOrderNeeded = useCallback(async () => {
     const client = supabase;
     if (!client || !currentItem) {
-      throw new Error('需要先选择商品');
+      throw new Error('需要先选择货品');
     }
 
     const updated = await markTaskItemNoOrderNeeded(client, currentItem);

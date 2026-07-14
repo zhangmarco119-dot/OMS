@@ -14,10 +14,10 @@ export function AppMenuPage() {
     { icon: PackageCheck, label: '到货中心', note: '到货消息、记录和汇总', to: '/app/admin/arrivals' },
     { icon: Bell, label: '公告管理', note: '发布公告并查看员工已读情况', to: '/app/admin/announcements' },
     { icon: BookOpenCheck, label: 'SOP 管理', note: '制作、发布和归档作业流程', to: '/app/admin/sops' },
-    { icon: ShoppingBag, label: '商品管理', note: '商品维护、导入与导出', to: '/app/admin/products' },
+    { icon: ShoppingBag, label: '货品管理', note: '货品维护、导入与导出', to: '/app/admin/products' },
     { icon: Users, label: '账号管理', note: '账号资料与使用权限', to: '/app/admin/users' },
-    { icon: BarChart3, label: '运营统计', note: '到货、任务、巡店与 V1 摘要', to: '/app/admin/analytics' },
-    { icon: History, label: '点货订货记录', note: '查看已提交的 V1 单据', to: '/app/history' },
+    { icon: BarChart3, label: '运营统计', note: '到货、任务、巡店与历史摘要', to: '/app/admin/analytics' },
+    { icon: History, label: '点货订货记录', note: '查看已提交的点货与订货单据', to: '/app/history' },
   ] : [
     { icon: ClipboardList, label: '点货', note: '录入实际库存并自动保存', to: '/app/inventory' },
     { icon: PackagePlus, label: '订货', note: '填写订货数量和无需订货', to: '/app/order' },

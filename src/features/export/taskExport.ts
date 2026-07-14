@@ -60,7 +60,7 @@ const feedbackSummary = (feedback: ProductFeedbackRow[] | undefined, itemId: str
   }
   return rows
     .map((row) => {
-      const label = row.feedback_type === 'discontinued' ? '不再使用' : row.feedback_type === 'incorrect' ? '信息有误' : '新增商品';
+      const label = row.feedback_type === 'discontinued' ? '不再使用' : row.feedback_type === 'incorrect' ? '信息有误' : '新增货品';
       return row.note ? `${label}: ${row.note}` : label;
     })
     .join('；');
@@ -86,12 +86,12 @@ export const buildTaskWorkbook = ({ feedback, items, store, task }: TaskExportIn
     ['开始时间', task.started_at],
     ['提交时间', submittedAt],
     ['导出时间', exportAt],
-    ['商品总数', items.length],
+    ['货品总数', items.length],
     ['已处理数量', items.filter((item) => item.status !== 'pending' || item.quantity !== null).length],
   ];
 
   const itemRows = [
-    ['序号', '商品名称', '规格', '单位', '商品编码', '数量', '状态', '临时商品', '备注', '维护反馈'],
+    ['序号', '货品名称', '规格', '单位', '货品编码', '数量', '状态', '临时货品', '备注', '维护反馈'],
     ...items.map((item, index) => {
       const snapshot = asProductSnapshot(item.product_snapshot);
       return [

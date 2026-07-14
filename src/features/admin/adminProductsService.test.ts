@@ -13,15 +13,15 @@ describe('adminProductsService', () => {
       workbook,
       XLSX.utils.json_to_sheet([
         {
-          商品名称: '原味奶酪',
+          货品名称: '原味奶酪',
           规格: '120g/杯',
           单位: '杯',
-          商品编码: 'BZ-WDK-001',
+          货品编码: 'BZ-WDK-001',
           排序: 10,
           启用: '是',
         },
       ]),
-      '商品',
+      '货品',
     );
     const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
     const file = new File([buffer], 'products.xlsx', {

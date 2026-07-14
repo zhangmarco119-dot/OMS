@@ -147,6 +147,11 @@ export const parseSopBatchWorkbook = async (file: File): Promise<SopBatchRecord[
   return parsed.records;
 };
 
+export const readSopBatchImageFileNames = async (file: File): Promise<string[]> => {
+  const rows = await readSopBatchRows(file);
+  return [...new Set(rows.map((row) => text(row['步骤图片文件名'])).filter(Boolean))];
+};
+
 export const createSopBatchTemplate = () => {
   const rows = [
     { '产品名称': '芒果酸奶碗', '分类': '酸奶碗制作', 'SOP整体说明': '标准版芒果酸奶碗', '适用门店': '', '适用角色': '员工、店长', '步骤序号': 1, '步骤图片文件名': 'mango-01.jpg', '步骤说明': '称取酸奶基底 180 克，平整铺入碗底。' },

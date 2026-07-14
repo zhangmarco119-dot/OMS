@@ -1,10 +1,17 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import * as XLSX from 'xlsx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SopBatchImportProgress } from '../features/content/sopBatchImport';
 import { formatSopActionError } from '../features/content/sopFeedback';
 import { createEmptyNoticeDraft, createEmptySopDraft } from '../services/v2-content.service';
 import { NoticeEditor, SopBatchImporter, SopBatchOperationsMenu, SopCategoryManager, SopEditor } from './AdminContentPage';
+
+const sopWorkbookFile = (rows: Array<Record<string, unknown>>, name = 'sops.xlsx') => {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'SOP');
+  return new File([XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+};
 
 describe('SopEditor image-first workflow', () => {
   const createObjectUrl = vi.fn(() => 'blob:sop-preview');
@@ -374,17 +381,21 @@ describe('SOP batch operations', () => {
       return null;
     });
     const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
-    const workbook = new File(['excel'], 'sops.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const workbook = sopWorkbookFile([{ '产品名称': '测试 SOP', '分类': '测试', '步骤序号': 1, '步骤图片文件名': 'step-01.jpg' }]);
     const images = [new File(['1'], 'step-01.jpg', { type: 'image/jpeg' }), new File(['2'], 'step-02.png', { type: 'image/png' })];
 
     fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [workbook] } });
     const folderInput = container.querySelector<HTMLInputElement>('input[webkitdirectory]');
     expect(folderInput).not.toBeNull();
     fireEvent.change(folderInput!, { target: { files: images } });
-    expect(screen.getByText('已从文件夹读取 2 张图片。', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('已建立 2 张候选图片的本地索引', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('此时不会上传图片', { exact: false })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));
 
-    await waitFor(() => expect(onImport).toHaveBeenCalledWith(workbook, images, expect.any(Function)));
+    await waitFor(() => expect(onImport).toHaveBeenCalledWith(workbook, [images[0]], expect.any(Function)));
+    expect(screen.getByText('Excel 引用').parentElement).toHaveTextContent('1Excel 引用');
+    expect(screen.getByText('文件夹匹配').parentElement).toHaveTextContent('1文件夹匹配');
+    expect(screen.getByText('不会上传').parentElement).toHaveTextContent('1不会上传');
     expect(screen.getByRole('progressbar', { name: 'SOP 批量导入进度' })).toHaveAttribute('aria-valuenow', '62');
     expect(screen.getByText('正在上传 3/5：step-03.jpg')).toBeInTheDocument();
   });
@@ -392,7 +403,7 @@ describe('SOP batch operations', () => {
   it('allows a pure-text workbook to continue without selecting an image folder', async () => {
     const onImport = vi.fn().mockResolvedValue(null);
     const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
-    const workbook = new File(['excel'], 'text-only-sops.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const workbook = sopWorkbookFile([{ '产品名称': '纯文字 SOP', '分类': '测试', '步骤序号': 1, '步骤说明': '纯文字步骤' }], 'text-only-sops.xlsx');
 
     fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [workbook] } });
     fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));
@@ -409,7 +420,7 @@ describe('SOP batch operations', () => {
       total: 3,
     });
     const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
-    const workbook = new File(['excel'], 'mixed-sops.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const workbook = sopWorkbookFile([{ '产品名称': '混合 SOP', '分类': '测试', '步骤序号': 1, '步骤说明': '步骤' }], 'mixed-sops.xlsx');
 
     fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [workbook] } });
     fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));

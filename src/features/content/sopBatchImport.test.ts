@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { importSopBatch, parseSopBatchWorkbook } from './sopBatchImport';
+import { importSopBatch, parseSopBatchWorkbook, readSopBatchImageFileNames } from './sopBatchImport';
 
 const contentService = vi.hoisted(() => ({
   archiveSop: vi.fn(),
@@ -21,6 +21,17 @@ const workbookFile = (rows: Array<Record<string, unknown>>) => {
 };
 
 describe('parseSopBatchWorkbook', () => {
+  it('reads only the unique image filenames referenced by the workbook', async () => {
+    const file = workbookFile([
+      { '产品名称': 'SOP A', '分类': '测试', '步骤序号': 1, '步骤图片文件名': 'a.jpg' },
+      { '产品名称': 'SOP A', '分类': '测试', '步骤序号': 2, '步骤图片文件名': 'a.jpg' },
+      { '产品名称': 'SOP B', '分类': '测试', '步骤序号': 1, '步骤图片文件名': 'b.png' },
+      { '产品名称': 'SOP B', '分类': '测试', '步骤序号': 2, '步骤说明': '纯文字步骤' },
+    ]);
+
+    await expect(readSopBatchImageFileNames(file)).resolves.toEqual(['a.jpg', 'b.png']);
+  });
+
   it('groups ordered image and text steps into one SOP', async () => {
     const records = await parseSopBatchWorkbook(workbookFile([
       { '产品名称': '芒果酸奶碗', '分类': '酸奶碗制作', '适用角色': '员工、店长', '步骤序号': 2, '步骤图片文件名': '02.jpg', '步骤说明': '摆放芒果' },

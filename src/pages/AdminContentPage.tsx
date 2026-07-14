@@ -8,7 +8,7 @@ import { BatchImportReportDialog } from '../components/feedback/BatchImportRepor
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { FeedbackBanner } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
-import { createSopBatchTemplate, importSopBatch, type SopBatchImportProgress, type SopBatchImportResult } from '../features/content/sopBatchImport';
+import { createSopBatchTemplate, importSopBatch, readSopBatchImageFileNames, type SopBatchImportProgress, type SopBatchImportResult } from '../features/content/sopBatchImport';
 import { downloadSopCollection } from '../features/content/sopExport';
 import { formatSopActionError, type SopSaveStage } from '../features/content/sopFeedback';
 import { SopImageUpload, type SopImageUploadStatus } from '../features/content/SopImageUpload';
@@ -940,6 +940,7 @@ const directoryInputProps = { directory: '', webkitdirectory: '' } as Record<str
 export function SopBatchImporter({ busy, errorMessage, onCancel, onImport }: { busy: boolean; errorMessage: string | null; onCancel: () => void; onImport: (workbookFile: File, imageFiles: File[], onProgress: (progress: SopBatchImportProgress) => void) => Promise<SopBatchImportResult | null> }) {
   const [workbookFile, setWorkbookFile] = useState<File | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imageMatch, setImageMatch] = useState<{ matched: number; referenced: number; unused: number } | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [progress, setProgress] = useState<SopBatchImportProgress | null>(null);
   const [report, setReport] = useState<SopBatchImportResult | null>(null);
@@ -952,11 +953,58 @@ export function SopBatchImporter({ busy, errorMessage, onCancel, onImport }: { b
   const submit = async () => {
     if (!workbookFile) { setLocalError('请先选择 SOP Excel 清单。'); return; }
     setLocalError(null);
-    setProgress({ completed: 0, detail: '正在准备批量导入', percent: 0, phase: 'validating', total: imageFiles.length });
-    const result = await onImport(workbookFile, imageFiles, setProgress);
+    let referencedNames: string[];
+    try {
+      referencedNames = await readSopBatchImageFileNames(workbookFile);
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : '无法读取 Excel 中的图片文件名。');
+      return;
+    }
+    const referencedKeys = new Set(referencedNames.map((name) => name.toLowerCase()));
+    const matchedFiles = imageFiles.filter((file) => referencedKeys.has(file.name.toLowerCase()));
+    setImageMatch({ matched: matchedFiles.length, referenced: referencedNames.length, unused: imageFiles.length - matchedFiles.length });
+    setProgress({ completed: 0, detail: `Excel 引用了 ${referencedNames.length} 张图片，正在匹配并准备上传`, percent: 0, phase: 'validating', total: referencedNames.length });
+    const result = await onImport(workbookFile, matchedFiles, setProgress);
     if (result) setReport(result);
   };
-  return <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto bg-canvas px-3 pt-3" role="dialog" aria-modal="true" aria-labelledby="sop-batch-title"><div className="mx-auto max-w-2xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><header className="ui-card sticky top-0 z-20 flex items-center justify-between p-4"><div><p className="text-xs font-bold text-brand-700">SOP 批量操作 · 批量导入</p><h2 className="text-xl font-bold" id="sop-batch-title">Excel 清单＋可选图片文件夹</h2></div><button aria-label="关闭 SOP 批量导入" className="ui-icon-button" disabled={busy} onClick={onCancel} type="button"><X className="h-5 w-5" /></button></header>{localError || errorMessage ? <FeedbackBanner title="无法完成导入" tone="danger">{localError ?? errorMessage}</FeedbackBanner> : null}<section className="ui-card space-y-4 p-4"><p className="text-sm leading-7 text-slate-600">模板中每一行代表一个制作步骤。图片文件名和步骤说明至少填写一项，因此可以导入纯文字步骤、纯图片步骤或图文步骤。同一产品的多行会合并为一个 SOP；Excel 中不存在的分类会自动新建。单个 SOP 不合规范或保存失败时不会中断整批，完成后会统一报告失败原因。</p><button className="ui-button-secondary w-full" disabled={busy} onClick={downloadTemplate} type="button"><Download className="h-4 w-4" />下载 Excel 模板</button><label className="block text-sm font-semibold">1. 选择已填写的 Excel<input accept=".xlsx,.xls" className="ui-input mt-2 py-2" disabled={busy} onChange={(event) => setWorkbookFile(event.target.files?.[0] ?? null)} type="file" /></label>{workbookFile ? <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800">已选：{workbookFile.name}</p> : null}<label className="block text-sm font-semibold">2. 选择步骤图片所在文件夹（纯文字 SOP 可跳过）<input {...directoryInputProps} accept="image/jpeg,image/png,image/webp" className="ui-input mt-2 py-2" disabled={busy} multiple onChange={(event) => { const files = Array.from(event.target.files ?? []).filter((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)); setImageFiles(files); setLocalError(null); }} type="file" /></label><p className="rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">已从文件夹读取 {imageFiles.length} 张图片。只有 Excel 填写了图片文件名时才要求匹配图片；纯文字步骤无需选择图片文件夹。</p>{progress ? <div aria-label="SOP 批量导入进度" aria-valuemax={100} aria-valuemin={0} aria-valuenow={progress.percent} className="rounded-xl border border-brand-200 bg-brand-50 p-3" role="progressbar"><div className="flex items-center justify-between gap-3 text-sm font-bold text-brand-900"><span>{progress.detail}</span><span>{progress.percent}%</span></div><div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${progress.percent}%` }} /></div>{progress.phase === 'uploading' ? <p className="mt-2 text-xs text-brand-800">已完成步骤 {progress.completed}/{progress.total}</p> : null}</div> : null}</section></div><div className="safe-bottom fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 px-3 pt-2.5"><div className="mx-auto grid max-w-2xl grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={busy} onClick={onCancel} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void submit()} type="button"><Upload className="h-4 w-4" />{busy ? `正在导入 ${progress?.percent ?? 0}%` : '开始导入草稿'}</button></div></div><BatchImportReportDialog failureCount={report?.failed ?? 0} failures={report?.failures ?? []} onClose={() => { setReport(null); onCancel(); }} open={Boolean(report)} successCount={report?.imported ?? 0} successDescription={`成功导入 ${report?.imported ?? 0} 个 SOP 草稿，共 ${report?.steps ?? 0} 个制作步骤。失败项目不会影响其他 SOP。`} title="SOP 批量上传完成" /></div>;
+  return <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto bg-canvas px-3 pt-3" role="dialog" aria-modal="true" aria-labelledby="sop-batch-title">
+    <div className="mx-auto max-w-2xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
+      <header className="ui-card sticky top-0 z-20 flex items-center justify-between p-4">
+        <div><p className="text-xs font-bold text-brand-700">SOP 批量操作 · 批量导入</p><h2 className="text-xl font-bold" id="sop-batch-title">Excel 清单＋可选图片文件夹</h2></div>
+        <button aria-label="关闭 SOP 批量导入" className="ui-icon-button" disabled={busy} onClick={onCancel} type="button"><X className="h-5 w-5" /></button>
+      </header>
+      {localError || errorMessage ? <FeedbackBanner title="无法完成导入" tone="danger">{localError ?? errorMessage}</FeedbackBanner> : null}
+      <section className="ui-card space-y-4 p-4">
+        <p className="text-sm leading-7 text-slate-600">模板中每一行代表一个制作步骤。图片文件名和步骤说明至少填写一项，因此可以导入纯文字步骤、纯图片步骤或图文步骤。同一产品的多行会合并为一个 SOP；Excel 中不存在的分类会自动新建。单个 SOP 不合规范或保存失败时不会中断整批，完成后会统一报告失败原因。</p>
+        <button className="ui-button-secondary w-full" disabled={busy} onClick={downloadTemplate} type="button"><Download className="h-4 w-4" />下载 Excel 模板</button>
+        <label className="block text-sm font-semibold">1. 选择已填写的 Excel
+          <input accept=".xlsx,.xls" className="ui-input mt-2 py-2" disabled={busy} onChange={(event) => { setWorkbookFile(event.target.files?.[0] ?? null); setImageMatch(null); }} type="file" />
+        </label>
+        {workbookFile ? <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800">已选：{workbookFile.name}</p> : null}
+        <label className="block text-sm font-semibold">2. 选择步骤图片所在文件夹（纯文字 SOP 可跳过）
+          <input {...directoryInputProps} accept="image/jpeg,image/png,image/webp" className="ui-input mt-2 py-2" disabled={busy} multiple onChange={(event) => {
+            const files = Array.from(event.target.files ?? []).filter((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
+            setImageFiles(files);
+            setImageMatch(null);
+            setLocalError(null);
+          }} type="file" />
+        </label>
+        <p className="rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">已建立 {imageFiles.length} 张候选图片的本地索引，此时不会上传图片。点击开始导入后，系统只会上传 Excel“步骤图片文件名”列实际引用并成功匹配的图片。</p>
+        {imageMatch ? <div className="grid grid-cols-3 gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 text-center text-sm text-brand-900">
+          <div><p className="text-xl font-bold">{imageMatch.referenced}</p><p className="text-xs">Excel 引用</p></div>
+          <div><p className="text-xl font-bold">{imageMatch.matched}</p><p className="text-xs">文件夹匹配</p></div>
+          <div><p className="text-xl font-bold">{imageMatch.unused}</p><p className="text-xs">不会上传</p></div>
+        </div> : null}
+        {progress ? <div aria-label="SOP 批量导入进度" aria-valuemax={100} aria-valuemin={0} aria-valuenow={progress.percent} className="rounded-xl border border-brand-200 bg-brand-50 p-3" role="progressbar">
+          <div className="flex items-center justify-between gap-3 text-sm font-bold text-brand-900"><span>{progress.detail}</span><span>{progress.percent}%</span></div>
+          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${progress.percent}%` }} /></div>
+          {progress.phase === 'uploading' ? <p className="mt-2 text-xs text-brand-800">已完成步骤 {progress.completed}/{progress.total}</p> : null}
+        </div> : null}
+      </section>
+    </div>
+    <div className="safe-bottom fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 px-3 pt-2.5"><div className="mx-auto grid max-w-2xl grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={busy} onClick={onCancel} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void submit()} type="button"><Upload className="h-4 w-4" />{busy ? `正在导入 ${progress?.percent ?? 0}%` : '开始导入草稿'}</button></div></div>
+    <BatchImportReportDialog failureCount={report?.failed ?? 0} failures={report?.failures ?? []} onClose={() => { setReport(null); onCancel(); }} open={Boolean(report)} successCount={report?.imported ?? 0} successDescription={`成功导入 ${report?.imported ?? 0} 个 SOP 草稿，共 ${report?.steps ?? 0} 个制作步骤。失败项目不会影响其他 SOP。`} title="SOP 批量上传完成" />
+  </div>;
 }
 
 function EditorActions({ busy, onCancel, onPublish, onSave, publishLabel = '保存并发布', saveLabel = '保存草稿' }: { busy: boolean; onCancel: () => void; onPublish?: () => void; onSave: () => void; publishLabel?: string; saveLabel?: string }) {

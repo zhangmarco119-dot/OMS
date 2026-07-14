@@ -1,6 +1,6 @@
 import { Bell, ChevronRight, Clock3, LogOut, RefreshCw, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { IconButton } from '../components/ui/Actions';
 import { EmptyState, FeedbackBanner, StatusBadge } from '../components/ui/Feedback';
@@ -9,7 +9,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
 import { loadAdminOperationOverview, type AdminOperationOverview } from '../services/admin-operation-overview.service';
-import { loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
+import { countUnreadNotifications, loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
 import { loadTodoSummary, type TodoSummary } from '../services/todo.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
@@ -27,35 +27,58 @@ export function DashboardPage() {
 
 function StaffDashboard() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [tasks, setTasks] = useState<V2TaskRow[]>([]);
   const [summary, setSummary] = useState<TodoSummary | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
+  const loadRequestIdRef = useRef(0);
+  const readingNotificationIdsRef = useRef(new Set<string>());
   const [dismissedNoticeId, setDismissedNoticeId] = useState<string | null>(() => window.localStorage.getItem(`dismissed-home-notice:${auth.profile?.id ?? 'anonymous'}`));
 
   const load = useCallback(async () => {
     if (!supabase || !auth.profile) return;
+    const requestId = ++loadRequestIdRef.current;
     try {
-      const [nextNotices, nextNotifications, nextTasks, nextSummary] = await Promise.all([
+      const [nextNotices, nextNotifications, nextUnreadNotificationCount, nextTasks, nextSummary] = await Promise.all([
         loadNotices(supabase),
         loadNotifications(supabase),
+        countUnreadNotifications(supabase),
         loadV2Tasks(supabase, auth.store?.id),
         loadTodoSummary(supabase, { isAdmin: false, profileId: auth.profile.id, storeId: auth.store?.id }),
       ]);
+      if (requestId !== loadRequestIdRef.current) return;
       const now = Date.now();
       setNotices(nextNotices.filter((notice) => notice.status === 'published' && !notice.isRead && (!notice.expires_at || new Date(notice.expires_at).getTime() > now)));
       setNotifications(nextNotifications);
+      setUnreadNotificationCount(nextUnreadNotificationCount);
       setTasks(nextTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status)).slice(0, 3));
       setSummary(nextSummary);
       setMessage(null);
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return;
       setMessage(error instanceof Error ? error.message : '首页信息加载失败。');
     }
   }, [auth.profile, auth.store?.id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const refresh = () => { void load(); };
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('pageshow', refresh);
+    window.addEventListener('storehub:notifications-changed', refresh);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('pageshow', refresh);
+      window.removeEventListener('storehub:notifications-changed', refresh);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [load]);
 
   const changeStore = async (storeId: string) => {
     setSwitching(true);
@@ -63,8 +86,26 @@ function StaffDashboard() {
     catch (error) { setMessage(error instanceof Error ? error.message : '切换门店失败。'); }
     finally { setSwitching(false); }
   };
-  const openNotification = (notification: UserNotification) => {
-    if (supabase && !notification.is_read) void markNotificationRead(supabase, notification.id).then(load).catch(() => undefined);
+  const openNotification = async (notification: UserNotification) => {
+    const destination = notificationLink(notification);
+    if (!supabase || notification.is_read) {
+      navigate(destination);
+      return;
+    }
+    if (readingNotificationIdsRef.current.has(notification.id)) return;
+    readingNotificationIdsRef.current.add(notification.id);
+    setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, is_read: true, read_at: new Date().toISOString() } : item));
+    setUnreadNotificationCount((current) => Math.max(0, current - 1));
+    try {
+      await markNotificationRead(supabase, notification.id);
+      window.dispatchEvent(new Event('storehub:notifications-changed'));
+      navigate(destination);
+    } catch (error) {
+      readingNotificationIdsRef.current.delete(notification.id);
+      setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, is_read: false, read_at: null } : item));
+      setUnreadNotificationCount((current) => current + 1);
+      setMessage(error instanceof Error ? error.message : '通知已读状态更新失败，请重试。');
+    }
   };
   const visibleTickerNotices = notices.filter((notice) => notice.id !== dismissedNoticeId);
   const dismissTicker = () => {
@@ -118,13 +159,13 @@ function StaffDashboard() {
         </SectionCard>
 
         <SectionCard>
-          <SectionHeader action={<IconButton aria-label="刷新首页" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={`未读 ${notifications.filter((notification) => !notification.is_read).length} 条`} icon={Bell} title="通知中心" />
+          <SectionHeader action={<IconButton aria-label="刷新首页" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={`未读 ${unreadNotificationCount} 条`} icon={Bell} title="通知中心" />
           <div className="mt-2 divide-y divide-slate-100">
             {notifications.slice(0, 3).map((notification) => (
-              <Link className="ui-interactive block py-3" key={notification.id} onClick={() => openNotification(notification)} to={notificationLink(notification)}>
+              <button className="ui-interactive block w-full py-3 text-left" key={notification.id} onClick={() => void openNotification(notification)} type="button">
                 <div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{notification.title}</p>{!notification.is_read ? <StatusBadge tone="success">未读</StatusBadge> : null}</div>
                 <p className="mt-1 line-clamp-1 text-xs text-slate-500">{notification.body} · {new Date(notification.created_at).toLocaleString('zh-CN')}</p>
-              </Link>
+              </button>
             ))}
             {notifications.length === 0 ? <p className="py-3 text-sm text-slate-500">暂无通知。</p> : null}
           </div>

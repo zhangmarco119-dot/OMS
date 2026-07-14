@@ -11,6 +11,12 @@ export const loadNotifications = async (client: Client, limit = 5) => {
   return data ?? [];
 };
 
+export const countUnreadNotifications = async (client: Client) => {
+  const { count, error } = await client.from('notifications').select('id', { count: 'exact', head: true }).eq('is_read', false);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+};
+
 export const markNotificationRead = async (client: Client, id: string) => {
   const { error } = await client.from('notifications').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', id);
   if (error) throw new Error(error.message);

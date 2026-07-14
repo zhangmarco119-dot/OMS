@@ -96,7 +96,7 @@ const requiredTables = [
   'v2_task_template_groups',
   'v2_task_template_items',
   'v2_task_template_versions',
-  'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews',
+  'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews', 'v2_task_item_reviews',
   'v2_task_schedules',
   'profile_product_permissions', 'v2_notice_recipients', 'v2_notice_assets',
 ];
@@ -154,6 +154,7 @@ const requiredPolicies = [
   'v2_task_template_versions_select_allowed',
   'v2_tasks_select_allowed', 'v2_task_answers_select_allowed', 'v2_task_images_select_allowed',
   'v2_task_images_insert_allowed', 'v2_task_images_delete_allowed', 'v2_task_reviews_select_allowed',
+  'v2_task_item_reviews_select_allowed',
   'v2_task_storage_select', 'v2_task_storage_insert', 'v2_task_storage_delete',
   'v2_task_schedules_select_allowed',
   'profile_product_permissions_select_own_or_admin', 'v2_notice_recipients_select_self_or_admin',

@@ -28,7 +28,10 @@ describe('task templates service', () => {
     expect(rpc).toHaveBeenCalledWith('save_v2_task_template', expect.objectContaining({
       p_store_ids: [storeId],
       p_template_id: null,
-      p_groups: [expect.objectContaining({ items: [expect.objectContaining({ field_type: 'confirmation' })] })],
+      p_groups: [expect.objectContaining({
+        sort_order: 0,
+        items: [expect.objectContaining({ field_type: 'confirmation', sort_order: 0 })],
+      })],
     }));
   });
 

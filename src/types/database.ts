@@ -584,9 +584,15 @@ export type Database = {
         Relationships: [];
       };
       v2_task_answers: {
-        Row: { answer: Json | null; group_id: string; id: string; is_issue: boolean; item_id: string; item_snapshot: Json; note: string; task_id: string; updated_at: string; updated_by: string | null };
-        Insert: { answer?: Json | null; group_id: string; id?: string; is_issue?: boolean; item_id: string; item_snapshot: Json; note?: string; task_id: string; updated_at?: string; updated_by?: string | null };
-        Update: { answer?: Json | null; group_id?: string; id?: string; is_issue?: boolean; item_id?: string; item_snapshot?: Json; note?: string; task_id?: string; updated_at?: string; updated_by?: string | null };
+        Row: { answer: Json | null; group_id: string; id: string; is_issue: boolean; item_id: string; item_snapshot: Json; last_reviewed_at: string | null; last_reviewed_by: string | null; note: string; review_status: 'pending' | 'approved' | 'rejected' | 'resubmitted'; submission_round: number; task_id: string; updated_at: string; updated_by: string | null };
+        Insert: { answer?: Json | null; group_id: string; id?: string; is_issue?: boolean; item_id: string; item_snapshot: Json; last_reviewed_at?: string | null; last_reviewed_by?: string | null; note?: string; review_status?: 'pending' | 'approved' | 'rejected' | 'resubmitted'; submission_round?: number; task_id: string; updated_at?: string; updated_by?: string | null };
+        Update: { answer?: Json | null; group_id?: string; id?: string; is_issue?: boolean; item_id?: string; item_snapshot?: Json; last_reviewed_at?: string | null; last_reviewed_by?: string | null; note?: string; review_status?: 'pending' | 'approved' | 'rejected' | 'resubmitted'; submission_round?: number; task_id?: string; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
+      v2_task_item_reviews: {
+        Row: { actor_id: string; created_at: string; decision: 'approved' | 'rejected'; id: string; item_id: string; note: string; submission_round: number; task_id: string };
+        Insert: { actor_id: string; created_at?: string; decision: 'approved' | 'rejected'; id?: string; item_id: string; note?: string; submission_round: number; task_id: string };
+        Update: { actor_id?: string; created_at?: string; decision?: 'approved' | 'rejected'; id?: string; item_id?: string; note?: string; submission_round?: number; task_id?: string };
         Relationships: [];
       };
       v2_task_images: {
@@ -779,6 +785,7 @@ export type Database = {
       reorder_v2_sop_assets: { Args: { p_asset_ids: string[]; p_sop_id: string }; Returns: Json };
       rename_v2_sop_category: { Args: { p_category_id: string; p_new_name: string }; Returns: Json };
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
+      review_v2_task_items: { Args: { p_decisions: Json; p_note: string; p_task_id: string }; Returns: Json };
       withdraw_v2_task: { Args: { p_task_id: string }; Returns: Json };
       retract_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       retract_v2_task_template: { Args: { p_template_id: string }; Returns: Json };

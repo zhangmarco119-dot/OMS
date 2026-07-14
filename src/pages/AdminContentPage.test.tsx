@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { formatSopActionError } from '../features/content/sopFeedback';
 import { createEmptyNoticeDraft, createEmptySopDraft } from '../services/v2-content.service';
-import { NoticeEditor, SopEditor } from './AdminContentPage';
+import { NoticeEditor, SopCategoryManager, SopEditor } from './AdminContentPage';
 
 describe('SopEditor image-first workflow', () => {
   const createObjectUrl = vi.fn(() => 'blob:sop-preview');
@@ -33,16 +33,16 @@ describe('SopEditor image-first workflow', () => {
       onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
       onSave={onSave}
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
       status="new"
-      stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
 
     expect(screen.getByRole('dialog', { name: '新建制作流程' })).toHaveClass('h-[100dvh]', 'z-50');
-    expect(screen.getByRole('button', { name: '发布 SOP' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
+    expect(screen.getByRole('button', { name: '保存并预览' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
 
     const file = new File(['image'], 'finished-bowl.png', { type: 'image/png' });
     const input = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"][accept*="image/png"]')).find((entry) => entry.multiple);
@@ -79,11 +79,11 @@ describe('SopEditor image-first workflow', () => {
       onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
       onSave={vi.fn().mockResolvedValue(true)}
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
       status="new"
-      stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
 
@@ -115,11 +115,11 @@ describe('SopEditor image-first workflow', () => {
       onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
       onPublish={onPublish}
       onReorderImages={onReorderImages}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
       onSave={vi.fn().mockResolvedValue(true)}
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
       status="draft"
-      stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
 
@@ -129,9 +129,9 @@ describe('SopEditor image-first workflow', () => {
 
     await waitFor(() => expect(onReorderImages).toHaveBeenCalledWith(['image-2', 'image-1']));
     expect(within(grid).getAllByRole('img').map((image) => image.getAttribute('alt'))).toEqual(['第二步.jpg', '第一步.jpg']);
-    expect(screen.getByRole('checkbox', { name: /静默发布/ })).toBeChecked();
-    fireEvent.click(screen.getByRole('button', { name: '发布 SOP' }));
-    await waitFor(() => expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({ silentPublish: true })));
+    expect(screen.queryByRole('checkbox', { name: /静默发布/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '保存并预览' }));
+    await waitFor(() => expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({ existingSteps: expect.any(Array) })));
   });
 
   it('keeps a product cover separate from production steps and uploads its replacement immediately', async () => {
@@ -153,11 +153,11 @@ describe('SopEditor image-first workflow', () => {
       onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
       onSave={vi.fn().mockResolvedValue(true)}
       onUploadCover={onUploadCover}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
       status="draft"
-      stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
 
@@ -175,6 +175,42 @@ describe('SopEditor image-first workflow', () => {
     await waitFor(() => expect(screen.queryByAltText('本地参考图待上传预览')).not.toBeInTheDocument());
   });
 
+  it('replaces an existing step image with an immediate local preview', async () => {
+    let finishReplace: (() => void) | undefined;
+    const onReplaceImage = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { finishReplace = resolve; }));
+    const asset = {
+      asset_kind: 'step', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: '原图片.jpg', id: 'step-1',
+      mime_type: 'image/jpeg', object_path: 'sop-1/original.jpg', signedUrl: 'https://example.test/original.jpg', size_bytes: 100,
+      sop_id: 'sop-1', sort_order: 0, step_text: '原步骤说明', uploaded_by: 'admin-1',
+    };
+    render(<SopEditor
+      busy={false}
+      categories={['酸奶碗制作']}
+      draft={{ ...createEmptySopDraft(['store-1']), category: '酸奶碗制作', id: 'sop-1', title: '替换图片测试' }}
+      errorMessage={null}
+      existingAssets={[asset] as never}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
+      onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onReplaceImage={onReplaceImage}
+      onSave={vi.fn().mockResolvedValue(true)}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
+      onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      status="draft"
+      templates={[]}
+    />);
+
+    const replacement = new File(['replacement'], '新图片.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('替换 原图片.jpg'), { target: { files: [replacement] } });
+
+    expect(await screen.findByAltText('原图片.jpg 替换预览')).toHaveAttribute('src', 'blob:sop-preview');
+    expect(onReplaceImage).toHaveBeenCalledWith(asset, replacement, '原步骤说明', expect.any(Function));
+    finishReplace?.();
+    await waitFor(() => expect(screen.queryByAltText('原图片.jpg 替换预览')).not.toBeInTheDocument());
+  });
+
   it('keeps the announcement editor and action bar above the app navigation', () => {
     render(<NoticeEditor
       busy={false}
@@ -190,6 +226,31 @@ describe('SopEditor image-first workflow', () => {
 
     expect(screen.getByRole('dialog', { name: '新建公告' })).toHaveClass('h-[100dvh]', 'z-50');
     expect(screen.getByRole('button', { name: '发布公告' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
+  });
+
+  it('renames an in-use SOP category after a second confirmation', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onRename = vi.fn().mockResolvedValue(true);
+    render(<SopCategoryManager
+      busy={false}
+      categories={[{ id: 'category-1', name: '旧分类' }] as never}
+      errorMessage={null}
+      newCategoryName=""
+      onChangeName={vi.fn()}
+      onClose={vi.fn()}
+      onCreate={vi.fn().mockResolvedValue(undefined)}
+      onDelete={vi.fn().mockResolvedValue(undefined)}
+      onRename={onRename}
+      sops={[{ category: '旧分类' }, { category: '旧分类' }] as never}
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: '修改分类 旧分类' }));
+    fireEvent.change(screen.getByRole('textbox', { name: '修改分类 旧分类' }), { target: { value: '新分类' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }));
+
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith(expect.objectContaining({ id: 'category-1', name: '旧分类' }), '新分类'));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('同步修改该分类下 2 个 SOP'));
+    confirm.mockRestore();
   });
 
   it('distinguishes a publish failure from a draft save failure', () => {

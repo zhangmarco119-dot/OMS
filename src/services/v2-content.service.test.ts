@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { createEmptyNoticeDraft, createEmptySopDraft, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, reorderSopAssets, retractSop } from './v2-content.service';
+import { createEmptyNoticeDraft, createEmptySopDraft, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, renameSopCategory, reorderSopAssets, retractSop } from './v2-content.service';
 
 describe('v2 content drafts', () => {
   it('starts an announcement as an unpinned draft for selected stores', () => {
@@ -50,6 +50,16 @@ describe('v2 content drafts', () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'SOP_CATEGORY_IN_USE:2' } });
     const client = { rpc } as unknown as SupabaseClient<Database>;
     await expect(deleteSopCategory(client, 'category-1')).rejects.toThrow('该分类仍被 SOP 使用');
+  });
+
+  it('renames a category and its existing SOPs through one protected transaction', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { updated_sops: 3 }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await renameSopCategory(client, { categoryId: 'category-1', newName: '  冰沙制作  ' });
+    expect(rpc).toHaveBeenCalledWith('rename_v2_sop_category', {
+      p_category_id: 'category-1',
+      p_new_name: '冰沙制作',
+    });
   });
 
   it('persists the complete ordered SOP image id list atomically', async () => {

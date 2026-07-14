@@ -251,6 +251,20 @@ export const deleteSopCategory = async (client: Client, categoryId: string) => {
   return data;
 };
 
+export const renameSopCategory = async (client: Client, input: { categoryId: string; newName: string }) => {
+  const newName = input.newName.trim();
+  if (!newName) throw new Error('请填写新的 SOP 分类名称。');
+  const { data, error } = await client.rpc('rename_v2_sop_category', {
+    p_category_id: input.categoryId,
+    p_new_name: newName,
+  });
+  if (error?.message.includes('SOP_CATEGORY_NAME_EXISTS')) {
+    throw new Error('该分类名称已存在，请使用其他名称。');
+  }
+  throwIfError(error);
+  return data;
+};
+
 export const saveSop = async (client: Client, draft: SopDraft) => {
   if (!draft.title.trim() || !draft.category.trim()) throw new Error('请填写 SOP 标题和分类。');
   if (!draft.storeIds.length || !draft.roles.length) throw new Error('请至少选择一个适用门店和角色。');

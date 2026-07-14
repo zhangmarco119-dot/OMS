@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SopBatchImportProgress } from '../features/content/sopBatchImport';
 import { formatSopActionError } from '../features/content/sopFeedback';
 import { createEmptyNoticeDraft, createEmptySopDraft } from '../services/v2-content.service';
-import { NoticeEditor, SopCategoryManager, SopEditor } from './AdminContentPage';
+import { NoticeEditor, SopBatchImporter, SopBatchOperationsMenu, SopCategoryManager, SopEditor } from './AdminContentPage';
 
 describe('SopEditor image-first workflow', () => {
   const createObjectUrl = vi.fn(() => 'blob:sop-preview');
@@ -155,8 +156,11 @@ describe('SopEditor image-first workflow', () => {
     const firstImage = screen.getByAltText('第一步.jpg');
     expect(firstDescription.compareDocumentPosition(firstImage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const orderSelect = screen.getByRole('combobox', { name: '调整 第二步.jpg 的步骤序号' });
-    expect(orderSelect).toHaveClass('min-h-10', 'min-w-0');
-    expect(orderSelect.parentElement).toHaveClass('grid-cols-[minmax(0,1fr)_auto_auto]');
+    expect(orderSelect).toHaveClass('min-h-8', 'w-full');
+    expect(orderSelect.parentElement).toHaveClass('space-y-1.5');
+    expect(orderSelect.nextElementSibling).toHaveClass('grid-cols-2');
+    expect(screen.getAllByText('替换')[0].closest('label')).toHaveClass('min-h-8');
+    expect(screen.getByRole('button', { name: '删除 第一步.jpg' })).toHaveClass('min-h-8');
     expect(screen.getAllByText('替换')).toHaveLength(2);
     expect(screen.getAllByText('删除')).toHaveLength(2);
     expect(screen.queryByRole('combobox', { name: '关联任务模板' })).not.toBeInTheDocument();
@@ -292,5 +296,38 @@ describe('SopEditor image-first workflow', () => {
       .toBe('SOP 草稿已保存，但发布失败：database rejected publish');
     expect(formatSopActionError('saving', new Error('network unavailable')))
       .toBe('SOP 保存失败：network unavailable');
+  });
+});
+
+describe('SOP batch operations', () => {
+  it('places import, publish, retract and archive in the batch operations menu', () => {
+    render(<SopBatchOperationsMenu onAction={vi.fn()} onClose={vi.fn()} onImport={vi.fn()} />);
+
+    expect(screen.getByRole('dialog', { name: '选择批量操作' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /批量导入/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /批量发布/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /批量撤回/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /批量归档/ })).toBeInTheDocument();
+  });
+
+  it('selects an image folder and displays live import progress', async () => {
+    const onImport = vi.fn(async (_workbook: File, _images: File[], onProgress: (progress: SopBatchImportProgress) => void) => {
+      onProgress({ completed: 2, detail: '正在上传 3/5：step-03.jpg', percent: 62, phase: 'uploading', total: 5 });
+      return false;
+    });
+    const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
+    const workbook = new File(['excel'], 'sops.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const images = [new File(['1'], 'step-01.jpg', { type: 'image/jpeg' }), new File(['2'], 'step-02.png', { type: 'image/png' })];
+
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [workbook] } });
+    const folderInput = container.querySelector<HTMLInputElement>('input[webkitdirectory]');
+    expect(folderInput).not.toBeNull();
+    fireEvent.change(folderInput!, { target: { files: images } });
+    expect(screen.getByText('已从文件夹读取 2 张图片。', { exact: false })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));
+
+    await waitFor(() => expect(onImport).toHaveBeenCalledWith(workbook, images, expect.any(Function)));
+    expect(screen.getByRole('progressbar', { name: 'SOP 批量导入进度' })).toHaveAttribute('aria-valuenow', '62');
+    expect(screen.getByText('正在上传 3/5：step-03.jpg')).toBeInTheDocument();
   });
 });

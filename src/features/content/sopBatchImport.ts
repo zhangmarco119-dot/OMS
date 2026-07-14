@@ -19,6 +19,14 @@ export interface SopBatchRecord {
   title: string;
 }
 
+export interface SopBatchImportProgress {
+  completed: number;
+  detail: string;
+  percent: number;
+  phase: 'validating' | 'categories' | 'importing' | 'uploading' | 'complete';
+  total: number;
+}
+
 type RawRow = Record<string, unknown>;
 
 const text = (value: unknown) => String(value ?? '').trim();
@@ -103,9 +111,19 @@ export const createSopBatchTemplate = () => {
 
 export const importSopBatch = async (
   client: SupabaseClient<Database>,
-  input: { imageFiles: File[]; profileId: string; stores: Array<{ id: string; name: string }>; workbookFile: File },
+  input: {
+    imageFiles: File[];
+    onProgress?: (progress: SopBatchImportProgress) => void;
+    profileId: string;
+    stores: Array<{ id: string; name: string }>;
+    workbookFile: File;
+  },
 ) => {
+  const report = (progress: SopBatchImportProgress) => input.onProgress?.(progress);
+  report({ completed: 0, detail: '正在读取并校验 Excel 清单', percent: 2, phase: 'validating', total: 1 });
   const records = await parseSopBatchWorkbook(input.workbookFile);
+  const totalSteps = records.reduce((total, record) => total + record.steps.length, 0);
+  report({ completed: 0, detail: `已识别 ${records.length} 个 SOP、${totalSteps} 个图片步骤`, percent: 5, phase: 'validating', total: totalSteps });
   const { data: existing, error } = await client.from('v2_sops').select('title,status').neq('status', 'archived');
   if (error) throw new Error(error.message);
   const existingTitles = new Set((existing ?? []).map((sop) => sop.title));
@@ -124,13 +142,34 @@ export const importSopBatch = async (
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error(`步骤图片格式不支持：${file.name}`);
   });
 
+  const categoryNames = Array.from(new Set(records.map((record) => record.category)));
+  const categoryQuery = await client.from('v2_sop_categories').select('name').eq('is_active', true);
+  if (categoryQuery.error) throw new Error(categoryQuery.error.message);
+  const existingCategories = new Set((categoryQuery.data ?? []).map((category) => category.name));
+  const missingCategories = categoryNames.filter((name) => !existingCategories.has(name));
+  for (let index = 0; index < missingCategories.length; index += 1) {
+    const name = missingCategories[index];
+    report({
+      completed: index,
+      detail: `正在根据 Excel 新建分类：${name}`,
+      percent: 8 + Math.round((index / Math.max(missingCategories.length, 1)) * 10),
+      phase: 'categories',
+      total: missingCategories.length,
+    });
+    await createSopCategory(client, { name, profileId: input.profileId });
+  }
+
+  const totalUnits = Math.max(records.length + totalSteps, 1);
+  let completedUnits = 0;
+  let uploadedSteps = 0;
+
   for (const record of records) {
     const selectedStores = record.storeNames.length
       ? record.storeNames.map((name) => input.stores.find((store) => store.name === name) ?? null)
       : input.stores;
     const missingStores = record.storeNames.filter((name) => !input.stores.some((store) => store.name === name));
     if (missingStores.length) throw new Error(`SOP“${record.title}”中的门店名称不存在：${missingStores.join('、')}`);
-    await createSopCategory(client, { name: record.category, profileId: input.profileId });
+    report({ completed: completedUnits, detail: `正在创建 SOP 草稿：${record.title}`, percent: 18 + Math.round((completedUnits / totalUnits) * 77), phase: 'importing', total: totalUnits });
     const saved = await saveSop(client, {
       body: record.body,
       category: record.category,
@@ -141,15 +180,28 @@ export const importSopBatch = async (
       taskTemplateId: null,
       title: record.title,
     });
+    completedUnits += 1;
     for (const step of record.steps) {
+      const file = fileMap.get(step.imageFileName.toLowerCase())!;
       await uploadSopAsset(client, {
-        file: fileMap.get(step.imageFileName.toLowerCase())!,
+        file,
         profileId: input.profileId,
         sopId: saved.id,
         sortOrder: step.order,
         stepText: step.text,
+      }, (fileProgress) => {
+        report({
+          completed: uploadedSteps,
+          detail: `正在上传 ${uploadedSteps + 1}/${totalSteps}：${file.name}`,
+          percent: Math.min(95, 18 + Math.round(((completedUnits + fileProgress / 100) / totalUnits) * 77)),
+          phase: 'uploading',
+          total: totalSteps,
+        });
       });
+      uploadedSteps += 1;
+      completedUnits += 1;
     }
   }
+  report({ completed: totalSteps, detail: `已完成 ${records.length} 个 SOP 和 ${totalSteps} 个图片步骤`, percent: 100, phase: 'complete', total: totalSteps });
   return { imported: records.length, steps: records.reduce((total, record) => total + record.steps.length, 0) };
 };

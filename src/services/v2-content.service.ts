@@ -378,6 +378,21 @@ export const createSopTextStep = async (client: Client, input: { sopId: string; 
   return { ...(data as unknown as SopAssetRow), signedUrl: null };
 };
 
+export const removeSopStepImage = async (client: Client, asset: SopAssetRow) => {
+  if (asset.asset_kind !== 'step') throw new Error('只能移除 SOP 步骤图片。');
+  if (!asset.step_text.trim()) throw new Error('删除图片前请先填写步骤说明，确保该步骤可以转为纯文字步骤。');
+  const { error } = await client.from('v2_sop_assets').update({
+    file_name: null,
+    mime_type: null,
+    object_path: null,
+    size_bytes: 0,
+  }).eq('id', asset.id);
+  throwIfError(error);
+  if (!asset.object_path) return { storageCleanupFailed: false };
+  const cleanup = await client.storage.from('v2-sop-assets').remove([asset.object_path]);
+  return { storageCleanupFailed: Boolean(cleanup.error) };
+};
+
 export const deleteArchivedSop = async (client: Client, sop: Pick<SopListItem, 'assetUrls' | 'id'>) => {
   const objectPaths = sop.assetUrls.map((asset) => asset.object_path).filter((path): path is string => Boolean(path));
   if (objectPaths.length) {

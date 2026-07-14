@@ -26,7 +26,7 @@ describe('SopEditor image-first workflow', () => {
     vi.clearAllMocks();
   });
 
-  it('previews and uploads a selected image immediately before saving the SOP form', async () => {
+  it('previews and stages a selected image until the SOP form is saved', async () => {
     const onSave = vi.fn().mockResolvedValue(true);
     const onUploadImage = vi.fn().mockResolvedValue(undefined);
     const { container } = render(<SopEditor
@@ -160,8 +160,9 @@ describe('SopEditor image-first workflow', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('keeps the local preview and offers retry when an SOP image upload fails', async () => {
-    const onUploadImage = vi.fn().mockRejectedValue(new Error('网络暂时不可用'));
+  it('keeps an existing SOP image local until the administrator saves', async () => {
+    const onUploadImage = vi.fn().mockRejectedValue(new Error('不应立即上传'));
+    const onSave = vi.fn().mockResolvedValue(true);
     const { container } = render(<SopEditor
       busy={false}
       categories={['酸奶碗制作']}
@@ -174,7 +175,7 @@ describe('SopEditor image-first workflow', () => {
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={vi.fn().mockResolvedValue(undefined)}
       onReplaceImage={vi.fn().mockResolvedValue(undefined)}
-      onSave={vi.fn().mockResolvedValue(true)}
+      onSave={onSave}
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
       status="new"
@@ -184,9 +185,10 @@ describe('SopEditor image-first workflow', () => {
     const stepInput = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"][accept*="image/png"]')).find((entry) => entry.multiple);
     fireEvent.change(stepInput!, { target: { files: [file] } });
 
-    expect(await screen.findByText('网络暂时不可用')).toBeInTheDocument();
-    expect(screen.getByAltText('failed.png')).toHaveAttribute('src', 'blob:sop-preview');
-    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument();
+    expect(await screen.findByAltText('failed.png')).toHaveAttribute('src', 'blob:sop-preview');
+    expect(onUploadImage).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ pendingAssets: [expect.objectContaining({ file })] })));
   });
 
   it('shows two compact columns and moves a step through its sequence dropdown', async () => {
@@ -232,16 +234,16 @@ describe('SopEditor image-first workflow', () => {
     expect(screen.getByText('上传附件')).toBeInTheDocument();
     fireEvent.change(orderSelect, { target: { value: '0' } });
 
-    await waitFor(() => expect(onReorderImages).toHaveBeenCalledWith(['image-2', 'image-1']));
+    expect(onReorderImages).not.toHaveBeenCalled();
     expect(within(grid).getAllByRole('img').map((image) => image.getAttribute('alt'))).toEqual(['第二步.jpg', '第一步.jpg']);
     expect(screen.queryByRole('checkbox', { name: /静默发布/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '保存并预览' }));
     await waitFor(() => expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({ existingSteps: expect.any(Array) })));
   });
 
-  it('keeps a product cover separate from production steps and uploads its replacement immediately', async () => {
-    let finishUpload: (() => void) | undefined;
-    const onUploadCover = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { finishUpload = resolve; }));
+  it('keeps a product cover separate from production steps and stages its replacement until save', async () => {
+    const onUploadCover = vi.fn().mockResolvedValue(undefined);
+    const onSave = vi.fn().mockResolvedValue(true);
     const cover = {
       asset_kind: 'cover', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: '产品图.jpg', id: 'cover-1',
       mime_type: 'image/jpeg', object_path: 'sop-1/cover.jpg', signedUrl: 'https://example.test/cover.jpg', size_bytes: 100,
@@ -259,7 +261,7 @@ describe('SopEditor image-first workflow', () => {
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={vi.fn().mockResolvedValue(undefined)}
       onReplaceImage={vi.fn().mockResolvedValue(undefined)}
-      onSave={vi.fn().mockResolvedValue(true)}
+      onSave={onSave}
       onUploadCover={onUploadCover}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
       status="draft"
@@ -273,15 +275,15 @@ describe('SopEditor image-first workflow', () => {
     const replacement = new File(['image'], '新产品图.png', { type: 'image/png' });
     fireEvent.change(productInput!, { target: { files: [replacement] } });
 
-    expect(await screen.findByAltText('本地参考图待上传预览')).toHaveAttribute('src', 'blob:sop-preview');
-    expect(onUploadCover).toHaveBeenCalledWith(replacement, expect.any(Function));
-    finishUpload?.();
-    await waitFor(() => expect(screen.queryByAltText('本地参考图待上传预览')).not.toBeInTheDocument());
+    expect(await screen.findByAltText('产品图测试 待上传产品图')).toHaveAttribute('src', 'blob:sop-preview');
+    expect(onUploadCover).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ pendingAssets: expect.arrayContaining([expect.objectContaining({ assetKind: 'cover', file: replacement })]) })));
   });
 
-  it('replaces an existing step image with an immediate local preview', async () => {
-    let finishReplace: (() => void) | undefined;
-    const onReplaceImage = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { finishReplace = resolve; }));
+  it('stages an existing step-image replacement until save', async () => {
+    const onReplaceImage = vi.fn().mockResolvedValue(undefined);
+    const onSave = vi.fn().mockResolvedValue(true);
     const asset = {
       asset_kind: 'step', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: '原图片.jpg', id: 'step-1',
       mime_type: 'image/jpeg', object_path: 'sop-1/original.jpg', signedUrl: 'https://example.test/original.jpg', size_bytes: 100,
@@ -299,7 +301,7 @@ describe('SopEditor image-first workflow', () => {
       onPublish={vi.fn().mockResolvedValue(true)}
       onReorderImages={vi.fn().mockResolvedValue(undefined)}
       onReplaceImage={onReplaceImage}
-      onSave={vi.fn().mockResolvedValue(true)}
+      onSave={onSave}
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
       status="draft"
@@ -309,9 +311,86 @@ describe('SopEditor image-first workflow', () => {
     fireEvent.change(screen.getByLabelText('替换 原图片.jpg'), { target: { files: [replacement] } });
 
     expect(await screen.findByAltText('原图片.jpg 替换预览')).toHaveAttribute('src', 'blob:sop-preview');
-    expect(onReplaceImage).toHaveBeenCalledWith(asset, replacement, '原步骤说明', expect.any(Function));
-    finishReplace?.();
-    await waitFor(() => expect(screen.queryByAltText('原图片.jpg 替换预览')).not.toBeInTheDocument());
+    expect(onReplaceImage).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ replacements: [expect.objectContaining({ asset, file: replacement, stepText: '原步骤说明' })] })));
+  });
+
+  it('lets a mixed step delete only its image and saves it as a pure-text step', async () => {
+    const onDeleteAsset = vi.fn().mockResolvedValue(undefined);
+    const onSave = vi.fn().mockResolvedValue(true);
+    const asset = {
+      asset_kind: 'step', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: '图文步骤.jpg', id: 'step-mixed',
+      mime_type: 'image/jpeg', object_path: 'sop-1/mixed.jpg', signedUrl: 'https://example.test/mixed.jpg', size_bytes: 100,
+      sop_id: 'sop-1', sort_order: 0, step_text: '保留这段制作说明', uploaded_by: 'admin-1',
+    };
+    render(<SopEditor
+      busy={false}
+      categories={['酸奶碗制作']}
+      draft={{ ...createEmptySopDraft(['store-1']), category: '酸奶碗制作', id: 'sop-1', title: '图文删除测试' }}
+      errorMessage={null}
+      existingAssets={[asset] as never}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onDeleteAsset={onDeleteAsset}
+      onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
+      onSave={onSave}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
+      onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      status="draft"
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: '删除 图文步骤.jpg' }));
+    expect(await screen.findByRole('dialog', { name: '请选择删除范围' })).toHaveTextContent('只删除图片');
+    fireEvent.click(screen.getByRole('button', { name: '只删除图片' }));
+    expect(screen.getByText('纯文字步骤')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('保留这段制作说明')).toBeInTheDocument();
+    expect(onDeleteAsset).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      removedImageAssets: [expect.objectContaining({ id: asset.id, step_text: '保留这段制作说明' })],
+    })));
+  });
+
+  it('discards staged SOP step changes when the editor closes without saving', async () => {
+    const onCancel = vi.fn();
+    const onDeleteAsset = vi.fn().mockResolvedValue(undefined);
+    const onReorderImages = vi.fn().mockResolvedValue(undefined);
+    const onSave = vi.fn().mockResolvedValue(true);
+    const asset = {
+      asset_kind: 'step', bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: '未保存.jpg', id: 'step-unsaved',
+      mime_type: 'image/jpeg', object_path: 'sop-1/unsaved.jpg', signedUrl: 'https://example.test/unsaved.jpg', size_bytes: 100,
+      sop_id: 'sop-1', sort_order: 0, step_text: '未保存说明', uploaded_by: 'admin-1',
+    };
+    render(<SopEditor
+      busy={false}
+      categories={['通用']}
+      draft={{ ...createEmptySopDraft(['store-1']), category: '通用', id: 'sop-1', title: '退出测试' }}
+      errorMessage={null}
+      existingAssets={[asset] as never}
+      onCancel={onCancel}
+      onChange={vi.fn()}
+      onDeleteAsset={onDeleteAsset}
+      onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={onReorderImages}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
+      onSave={onSave}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
+      onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      status="draft"
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: '删除 未保存.jpg' }));
+    fireEvent.click(await screen.findByRole('button', { name: '只删除图片' }));
+    fireEvent.click(screen.getByRole('button', { name: '关闭 SOP 编辑' }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onDeleteAsset).not.toHaveBeenCalled();
+    expect(onReorderImages).not.toHaveBeenCalled();
   });
 
   it('keeps the announcement editor and action bar above the app navigation', () => {

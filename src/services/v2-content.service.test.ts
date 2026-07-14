@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { archiveNotice, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
+import { archiveNotice, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, removeSopStepImage, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
 
 describe('v2 content drafts', () => {
   it('starts an announcement as an unpinned draft for selected stores', () => {
@@ -53,6 +53,18 @@ describe('v2 content drafts', () => {
     const client = { from: vi.fn().mockReturnValue({ delete: vi.fn().mockReturnValue({ eq }) }), storage: { from: vi.fn().mockReturnValue({ remove }) } } as unknown as SupabaseClient<Database>;
     await expect(deleteSopAsset(client, { id: 'step-1', object_path: null })).resolves.toEqual({ storageCleanupFailed: false });
     expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('turns a mixed SOP step into a text-only step before cleaning up its image', async () => {
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq });
+    const client = { from: vi.fn().mockReturnValue({ update }), storage: { from: vi.fn().mockReturnValue({ remove }) } } as unknown as SupabaseClient<Database>;
+    await removeSopStepImage(client, { asset_kind: 'step', id: 'step-1', object_path: 'sop-1/step.jpg', step_text: '保留文字说明' } as never);
+    expect(update).toHaveBeenCalledWith({ file_name: null, mime_type: null, object_path: null, size_bytes: 0 });
+    expect(eq).toHaveBeenCalledWith('id', 'step-1');
+    expect(remove).toHaveBeenCalledWith(['sop-1/step.jpg']);
+    expect(eq.mock.invocationCallOrder[0]).toBeLessThan(remove.mock.invocationCallOrder[0]);
   });
 
   it('archives an unpublished notice through the protected lifecycle function', async () => {

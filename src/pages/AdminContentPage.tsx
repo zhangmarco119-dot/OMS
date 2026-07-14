@@ -13,7 +13,7 @@ import { downloadSopCollection } from '../features/content/sopExport';
 import { formatSopActionError, type SopSaveStage } from '../features/content/sopFeedback';
 import { useSopCategoryFilter } from '../features/content/useSopCategoryFilter';
 import { SopImageUpload, type SopImageUploadStatus } from '../features/content/SopImageUpload';
-import { moveSopStep, normalizeSopSteps, type OrderedSopStep } from '../features/content/sopSteps';
+import { normalizeSopSteps, type OrderedSopStep } from '../features/content/sopSteps';
 import { getSopPreviewAsset } from '../features/content/sopPreview';
 import { TaskTemplateReferenceImageUpload } from '../features/task-templates/TaskTemplateReferenceImageUpload';
 import { supabase } from '../lib/supabase';
@@ -34,6 +34,7 @@ import {
   publishNotice,
   publishSop,
   renameSopCategory,
+  removeSopStepImage,
   retractSop,
   unarchiveSop,
   reorderSopAssets,
@@ -157,7 +158,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     catch (error) { setMessage(error instanceof Error ? error.message : '保存公告失败。'); }
     finally { setBusy(false); }
   };
-  const saveSopDraft = async (changes: SopEditorChanges = { existingSteps: [], pendingAssets: [] }) => {
+  const saveSopDraft = async (changes: SopEditorChanges = { deletedAssets: [], existingSteps: [], pendingAssets: [], removedImageAssets: [], replacements: [] }) => {
     if (!supabase || !sopDraft || !auth.profile) return false;
     setBusy(true);
     setMessage(null);
@@ -167,10 +168,19 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       updateSopDraft({ ...sopDraft, id: saved.id });
       stage = 'uploading';
       await updateSopAssetSteps(supabase, changes.existingSteps);
+      for (const replacement of changes.replacements) {
+        await replaceSopImage(replacement.asset, replacement.file, replacement.stepText, () => undefined, replacement.sortOrder);
+      }
       for (const asset of changes.pendingAssets) {
         if (asset.file) await uploadSopAsset(supabase, { assetKind: asset.assetKind, file: asset.file, profileId: auth.profile.id, sopId: saved.id, sortOrder: asset.sortOrder, stepText: asset.stepText });
         else if (asset.assetKind === 'step') await createSopTextStep(supabase, { sopId: saved.id, sortOrder: asset.sortOrder, stepText: asset.stepText });
         else throw new Error('SOP 封面或附件缺少待上传文件。');
+      }
+      for (const asset of changes.removedImageAssets) {
+        await removeSopStepImage(supabase, asset);
+      }
+      for (const asset of changes.deletedAssets) {
+        await deleteSopAsset(supabase, asset);
       }
       await refresh();
       setSuccess(`SOP 草稿已保存${changes.pendingAssets.length ? `，已上传 ${changes.pendingAssets.length} 个步骤或附件。` : '。'}`);
@@ -250,7 +260,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       throw new Error(errorMessage);
     } finally { setBusy(false); }
   };
-  const replaceSopImage = async (asset: SopListItem['assetUrls'][number], file: File, stepText: string, onProgress: (progress: number) => void) => {
+  const replaceSopImage = async (asset: SopListItem['assetUrls'][number], file: File, stepText: string, onProgress: (progress: number) => void, sortOrder = asset.sort_order) => {
     const client = supabase; const profile = auth.profile;
     if (!client || !profile) throw new Error('SOP 草稿尚未加载。');
     const owner = sopsRef.current.find((sop) => sop.assetUrls.some((entry) => entry.id === asset.id));
@@ -262,7 +272,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         file,
         profileId: profile.id,
         sopId: owner.id,
-        sortOrder: asset.sort_order,
+        sortOrder,
         stepText,
       }, onProgress);
       try {
@@ -680,9 +690,16 @@ export function NoticeEditor({ busy, draft, onCancel, onChange, onPublish, onSav
 
 type PendingSopAsset = { assetKind: 'attachment' | 'cover' | 'step'; file: File | null; key: string; previewUrl: string | null; sortOrder: number; stepText: string };
 type ExistingSopStep = OrderedSopStep;
-type SopEditorChanges = { existingSteps: ExistingSopStep[]; pendingAssets: Array<{ assetKind: 'attachment' | 'cover' | 'step'; file: File | null; sortOrder: number; stepText: string }> };
+type SopAsset = SopListItem['assetUrls'][number];
+type SopEditorChanges = {
+  deletedAssets: SopAsset[];
+  existingSteps: ExistingSopStep[];
+  pendingAssets: Array<{ assetKind: 'attachment' | 'cover' | 'step'; file: File | null; sortOrder: number; stepText: string }>;
+  removedImageAssets: SopAsset[];
+  replacements: Array<{ asset: SopAsset; file: File; sortOrder: number; stepText: string }>;
+};
 
-export function SopEditor({ busy, categories, draft, errorMessage, existingAssets, onCancel, onChange, onDeleteAsset, onPublish, onReorderImages, onReplaceImage, onSave, onUploadCover, onUploadImage, status }: {
+export function SopEditor({ busy, categories, draft, errorMessage, existingAssets, onCancel, onChange, onPublish, onSave, status }: {
   busy: boolean;
   categories: string[];
   draft: SopDraft;
@@ -705,7 +722,10 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [validationDialog, setValidationDialog] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<SopImageUploadStatus>({ hasErrors: false, isUploading: false });
-  const [replacementPreviews, setReplacementPreviews] = useState<Record<string, { progress: number; url: string }>>({});
+  const [replacementPreviews, setReplacementPreviews] = useState<Record<string, { file: File; url: string }>>({});
+  const [deletedAssetIds, setDeletedAssetIds] = useState<string[]>([]);
+  const [removedImageAssetIds, setRemovedImageAssetIds] = useState<string[]>([]);
+  const [deleteStepChoice, setDeleteStepChoice] = useState<{ kind: 'existing' | 'pending'; key: string; label: string } | null>(null);
   const previewUrls = useRef<string[]>([]);
   const replacementUrls = useRef<string[]>([]);
 
@@ -729,13 +749,13 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
     onProgress(10);
     const previewUrl = URL.createObjectURL(file);
     previewUrls.current.push(previewUrl);
+    const target = Math.max(0, Math.min(insertAt, existingSteps.length + pendingAssets.filter((asset) => asset.assetKind === 'step').length));
+    setExistingSteps((current) => current.map((step) => step.sortOrder >= target ? { ...step, sortOrder: step.sortOrder + 1 } : step));
     const key = `step-${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random()}`;
     setPendingAssets((current) => {
-      const steps = current.filter((asset) => asset.assetKind === 'step').sort((left, right) => left.sortOrder - right.sortOrder);
-      const target = Math.max(0, Math.min(insertAt - existingSteps.length, steps.length));
-      steps.splice(target, 0, { assetKind: 'step', file, key, previewUrl, sortOrder: target, stepText: '' });
-      const normalizedSteps = steps.map((asset, index) => ({ ...asset, sortOrder: existingSteps.length + index }));
-      return [...current.filter((asset) => asset.assetKind !== 'step'), ...normalizedSteps];
+      const steps = current.filter((asset) => asset.assetKind === 'step').map((asset) => asset.sortOrder >= target ? { ...asset, sortOrder: asset.sortOrder + 1 } : asset);
+      steps.push({ assetKind: 'step', file, key, previewUrl, sortOrder: target, stepText: '' });
+      return [...current.filter((asset) => asset.assetKind !== 'step'), ...steps];
     });
     onProgress(100);
   };
@@ -765,13 +785,19 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
   };
 
   const removePending = (key: string) => {
+    const removedStep = pendingAssets.find((asset) => asset.key === key && asset.assetKind === 'step');
+    if (removedStep) {
+      setExistingSteps((current) => current.map((step) => step.sortOrder > removedStep.sortOrder ? { ...step, sortOrder: step.sortOrder - 1 } : step));
+    }
     setPendingAssets((current) => {
       const target = current.find((asset) => asset.key === key);
       if (target?.previewUrl) {
         revokeLocalUrl(target.previewUrl);
         previewUrls.current = previewUrls.current.filter((url) => url !== target.previewUrl);
       }
-      return current.filter((asset) => asset.key !== key);
+      return current
+        .filter((asset) => asset.key !== key)
+        .map((asset) => removedStep && asset.assetKind === 'step' && asset.sortOrder > removedStep.sortOrder ? { ...asset, sortOrder: asset.sortOrder - 1 } : asset);
     });
   };
 
@@ -784,52 +810,133 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
     if (uploadStatus.isUploading) { stop('图片仍在上传，请等待上传完成后再保存或发布。'); return; }
     if (uploadStatus.hasErrors) { stop('仍有图片上传失败，请重试或移除失败图片后再继续。'); return; }
     if (publish && existingSteps.length + pendingSteps.length === 0) { stop('发布 SOP 前请至少添加一个制作步骤。'); return; }
-    const normalizedSteps = normalizeSopSteps(existingSteps);
+    const orderedStepRefs = [
+      ...existingSteps.map((step) => ({ key: step.id, kind: 'existing' as const, sortOrder: step.sortOrder })),
+      ...pendingAssets.filter((asset) => asset.assetKind === 'step').map((asset) => ({ key: asset.key, kind: 'pending' as const, sortOrder: asset.sortOrder })),
+    ].sort((left, right) => left.sortOrder - right.sortOrder);
+    const normalizedOrder = new Map(orderedStepRefs.map((entry, index) => [`${entry.kind}:${entry.key}`, index]));
+    const normalizedSteps = existingSteps.map((step) => ({ ...step, sortOrder: normalizedOrder.get(`existing:${step.id}`) ?? step.sortOrder }));
     const invalidExistingStep = normalizedSteps.some((step) => {
       const asset = existingAssets.find((entry) => entry.id === step.id);
-      return !asset?.object_path && !step.stepText.trim();
+      const hasImage = Boolean(replacementPreviews[step.id] || (asset?.object_path && !removedImageAssetIds.includes(step.id)));
+      return !hasImage && !step.stepText.trim();
     });
     const invalidPendingStep = pendingSteps.some((step) => !step.file && !step.stepText.trim());
     if (invalidExistingStep || invalidPendingStep) { stop('每个制作步骤至少需要图片或文字说明中的一项。'); return; }
     setValidationMessage(null);
-    const succeeded = await action({ existingSteps: normalizedSteps, pendingAssets: pendingAssets.map((asset) => ({ assetKind: asset.assetKind, file: asset.file, sortOrder: asset.sortOrder, stepText: asset.stepText })) });
+    const succeeded = await action({
+      deletedAssets: existingAssets.filter((asset) => deletedAssetIds.includes(asset.id) || (asset.asset_kind === 'cover' && pendingAssets.some((pending) => pending.assetKind === 'cover'))),
+      existingSteps: normalizedSteps,
+      pendingAssets: pendingAssets.map((asset) => ({ assetKind: asset.assetKind, file: asset.file, sortOrder: asset.assetKind === 'step' ? normalizedOrder.get(`pending:${asset.key}`) ?? asset.sortOrder : asset.sortOrder, stepText: asset.stepText })),
+      removedImageAssets: normalizedSteps.flatMap((step) => {
+        const asset = existingAssets.find((entry) => entry.id === step.id);
+        return asset && removedImageAssetIds.includes(step.id) ? [{ ...asset, step_text: step.stepText }] : [];
+      }),
+      replacements: normalizedSteps.flatMap((step) => {
+        const asset = existingAssets.find((entry) => entry.id === step.id);
+        const replacement = replacementPreviews[step.id];
+        return asset && replacement ? [{ asset, file: replacement.file, sortOrder: step.sortOrder, stepText: step.stepText }] : [];
+      }),
+    });
     if (!succeeded) return;
     pendingAssets.forEach((asset) => { if (asset.previewUrl) revokeLocalUrl(asset.previewUrl); });
+    Object.values(replacementPreviews).forEach((replacement) => revokeLocalUrl(replacement.url));
     previewUrls.current = [];
+    replacementUrls.current = [];
     setPendingAssets([]);
+    setReplacementPreviews({});
+    setDeletedAssetIds([]);
+    setRemovedImageAssetIds([]);
   };
 
   const stepOrder = new Map(existingSteps.map((step) => [step.id, step.sortOrder]));
-  const existingImages = existingAssets.filter((asset) => asset.asset_kind === 'step').sort((left, right) => (stepOrder.get(left.id) ?? left.sort_order) - (stepOrder.get(right.id) ?? right.sort_order));
-  const existingCovers = existingAssets.filter((asset) => asset.asset_kind === 'cover').sort((left, right) => right.created_at.localeCompare(left.created_at));
+  const existingImages = existingAssets.filter((asset) => asset.asset_kind === 'step' && !deletedAssetIds.includes(asset.id)).sort((left, right) => (stepOrder.get(left.id) ?? left.sort_order) - (stepOrder.get(right.id) ?? right.sort_order));
+  const existingCovers = existingAssets.filter((asset) => asset.asset_kind === 'cover' && !deletedAssetIds.includes(asset.id)).sort((left, right) => right.created_at.localeCompare(left.created_at));
   const existingCover = existingCovers[0] ?? null;
   const pendingCover = pendingAssets.find((asset) => asset.assetKind === 'cover') ?? null;
   const pendingSteps = pendingAssets.filter((asset) => asset.assetKind === 'step').sort((left, right) => left.sortOrder - right.sortOrder);
-  const existingDocuments = existingAssets.filter((asset) => asset.asset_kind === 'attachment');
+  const existingDocuments = existingAssets.filter((asset) => asset.asset_kind === 'attachment' && !deletedAssetIds.includes(asset.id));
   const pendingDocuments = pendingAssets.filter((asset): asset is PendingSopAsset & { file: File } => asset.assetKind === 'attachment' && Boolean(asset.file));
 
-  const changeStepPosition = async (stepId: string, targetIndex: number) => {
-    const previous = existingSteps;
-    const next = moveSopStep(previous, stepId, targetIndex);
-    setExistingSteps(next);
+  const changeStepPosition = (kind: 'existing' | 'pending', key: string, targetIndex: number) => {
+    const ordered = [
+      ...existingSteps.map((step) => ({ key: step.id, kind: 'existing' as const, sortOrder: step.sortOrder })),
+      ...pendingAssets.filter((asset) => asset.assetKind === 'step').map((asset) => ({ key: asset.key, kind: 'pending' as const, sortOrder: asset.sortOrder })),
+    ].sort((left, right) => left.sortOrder - right.sortOrder);
+    const currentIndex = ordered.findIndex((entry) => entry.kind === kind && entry.key === key);
+    if (currentIndex < 0) return;
+    const [moved] = ordered.splice(currentIndex, 1);
+    ordered.splice(Math.max(0, Math.min(targetIndex, ordered.length)), 0, moved);
+    const nextOrder = new Map(ordered.map((entry, index) => [`${entry.kind}:${entry.key}`, index]));
+    setExistingSteps((current) => current.map((step) => ({ ...step, sortOrder: nextOrder.get(`existing:${step.id}`) ?? step.sortOrder })));
+    setPendingAssets((current) => current.map((asset) => asset.assetKind === 'step' ? { ...asset, sortOrder: nextOrder.get(`pending:${asset.key}`) ?? asset.sortOrder } : asset));
     setValidationMessage(null);
-    try {
-      await onReorderImages(next.map((step) => step.id));
-    } catch (error) {
-      setExistingSteps(previous);
-      setValidationMessage(error instanceof Error ? error.message : '保存步骤顺序失败，请重试。');
-    }
   };
 
-  const changePendingStepPosition = (key: string, targetIndex: number) => {
-    setPendingAssets((current) => {
-      const steps = current.filter((asset) => asset.assetKind === 'step').sort((left, right) => left.sortOrder - right.sortOrder);
-      const currentIndex = steps.findIndex((asset) => asset.key === key);
-      if (currentIndex < 0) return current;
-      const [moved] = steps.splice(currentIndex, 1);
-      steps.splice(Math.max(0, Math.min(targetIndex, steps.length)), 0, moved);
-      return [...current.filter((asset) => asset.assetKind !== 'step'), ...steps.map((asset, index) => ({ ...asset, sortOrder: existingSteps.length + index }))];
-    });
+  const removePendingImageOnly = (key: string) => {
+    setPendingAssets((current) => current.map((asset) => {
+      if (asset.key !== key) return asset;
+      if (asset.previewUrl) {
+        revokeLocalUrl(asset.previewUrl);
+        previewUrls.current = previewUrls.current.filter((url) => url !== asset.previewUrl);
+      }
+      return { ...asset, file: null, previewUrl: null };
+    }));
+    setDeleteStepChoice(null);
+  };
+
+  const deleteExistingStep = (assetId: string) => {
+    const removedStep = existingSteps.find((step) => step.id === assetId);
+    setDeletedAssetIds((current) => current.includes(assetId) ? current : [...current, assetId]);
+    setExistingSteps((current) => current
+      .filter((step) => step.id !== assetId)
+      .map((step) => removedStep && step.sortOrder > removedStep.sortOrder ? { ...step, sortOrder: step.sortOrder - 1 } : step));
+    if (removedStep) {
+      setPendingAssets((current) => current.map((asset) => asset.assetKind === 'step' && asset.sortOrder > removedStep.sortOrder ? { ...asset, sortOrder: asset.sortOrder - 1 } : asset));
+    }
+    const replacement = replacementPreviews[assetId];
+    if (replacement) {
+      revokeLocalUrl(replacement.url);
+      replacementUrls.current = replacementUrls.current.filter((url) => url !== replacement.url);
+      setReplacementPreviews((current) => {
+        const next = { ...current };
+        delete next[assetId];
+        return next;
+      });
+    }
+    setDeleteStepChoice(null);
+  };
+
+  const removeExistingImageOnly = (assetId: string) => {
+    setRemovedImageAssetIds((current) => current.includes(assetId) ? current : [...current, assetId]);
+    const replacement = replacementPreviews[assetId];
+    if (replacement) {
+      revokeLocalUrl(replacement.url);
+      replacementUrls.current = replacementUrls.current.filter((url) => url !== replacement.url);
+      setReplacementPreviews((current) => {
+        const next = { ...current };
+        delete next[assetId];
+        return next;
+      });
+    }
+    setDeleteStepChoice(null);
+  };
+
+  const requestExistingStepDelete = (asset: SopAsset, stepText: string, index: number) => {
+    const hasImage = Boolean((replacementPreviews[asset.id] || asset.object_path) && !removedImageAssetIds.includes(asset.id));
+    if (hasImage && stepText.trim()) {
+      setDeleteStepChoice({ kind: 'existing', key: asset.id, label: `第 ${index + 1} 步` });
+      return;
+    }
+    if (window.confirm(`确定删除第 ${index + 1} 个制作步骤吗？`)) deleteExistingStep(asset.id);
+  };
+
+  const requestPendingStepDelete = (asset: PendingSopAsset, index: number) => {
+    if (asset.file && asset.stepText.trim()) {
+      setDeleteStepChoice({ kind: 'pending', key: asset.key, label: `第 ${index + 1} 步` });
+      return;
+    }
+    if (window.confirm(`确定删除第 ${index + 1} 个制作步骤吗？`)) removePending(asset.key);
   };
 
   const replacePendingImage = (key: string, file: File) => {
@@ -845,28 +952,17 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
     }));
   };
 
-  const replaceImage = async (asset: SopListItem['assetUrls'][number], file: File, stepText: string) => {
+  const replaceImage = (asset: SopListItem['assetUrls'][number], file: File) => {
     const url = URL.createObjectURL(file);
     replacementUrls.current.push(url);
-    setReplacementPreviews((current) => ({ ...current, [asset.id]: { progress: 5, url } }));
-    setValidationMessage(null);
-    try {
-      await onReplaceImage(asset, file, stepText, (progress) => {
-        setReplacementPreviews((current) => current[asset.id]
-          ? { ...current, [asset.id]: { ...current[asset.id], progress } }
-          : current);
-      });
-    } catch (error) {
-      setValidationMessage(error instanceof Error ? error.message : '替换 SOP 图片失败，请重试。');
-    } finally {
-      revokeLocalUrl(url);
-      replacementUrls.current = replacementUrls.current.filter((entry) => entry !== url);
-      setReplacementPreviews((current) => {
-        const next = { ...current };
-        delete next[asset.id];
-        return next;
-      });
+    const previous = replacementPreviews[asset.id];
+    if (previous) {
+      revokeLocalUrl(previous.url);
+      replacementUrls.current = replacementUrls.current.filter((entry) => entry !== previous.url);
     }
+    setReplacementPreviews((current) => ({ ...current, [asset.id]: { file, url } }));
+    setRemovedImageAssetIds((current) => current.filter((id) => id !== asset.id));
+    setValidationMessage(null);
   };
 
   return <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog" aria-modal="true" aria-labelledby="sop-editor-title">
@@ -883,43 +979,45 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
         <label className="text-sm font-semibold text-slate-700">产品或流程名称<input className="ui-input mt-1.5" onChange={(event) => onChange({ ...draft, title: event.target.value })} placeholder="例如：芒果酸奶碗（标准版）" value={draft.title} /></label>
         <label className="text-sm font-semibold text-slate-700">制作分类<select className="ui-input mt-1.5" onChange={(event) => onChange({ ...draft, category: event.target.value })} value={draft.category}><option value="">请选择分类</option>{!categories.includes(draft.category) && draft.category ? <option value={draft.category}>{draft.category}</option> : null}{categories.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-          <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">产品预览图（选填）</p><p className="mt-1 text-xs leading-5 text-slate-500">用于管理员 SOP 列表的小图预览；未上传时自动使用最后一个制作步骤图片。</p></div><TaskTemplateReferenceImageUpload disabled={busy} multiple={false} onUpload={draft.id ? onUploadCover : stageCover} /></div>
-          {pendingCover?.previewUrl && pendingCover.file ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看待上传 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: pendingCover.file!.name, url: pendingCover.previewUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 待上传产品图`} className="h-20 w-20 rounded-lg object-cover" src={pendingCover.previewUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{pendingCover.file.name}</p><p className="mt-1 text-xs text-brand-700">将在保存时上传</p></div><button aria-label="移除待上传 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => removePending(pendingCover.key)} type="button"><Trash2 className="h-4 w-4" /></button></div> : existingCover?.signedUrl ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: existingCover.file_name ?? 'SOP 产品图', url: existingCover.signedUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 产品图`} className="h-20 w-20 rounded-lg object-cover" src={existingCover.signedUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{existingCover.file_name}</p><p className="mt-1 text-xs text-brand-700">当前列表预览图</p></div><button aria-label="删除 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => { if (window.confirm('确定删除当前产品预览图吗？删除后将自动使用最后一个步骤图。')) void onDeleteAsset(existingCover); }} type="button"><Trash2 className="h-4 w-4" /></button></div> : null}
+          <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">产品预览图（选填）</p><p className="mt-1 text-xs leading-5 text-slate-500">用于管理员 SOP 列表的小图预览；未上传时自动使用最后一个制作步骤图片。更改将在保存后生效。</p></div><TaskTemplateReferenceImageUpload disabled={busy} multiple={false} onUpload={stageCover} /></div>
+          {pendingCover?.previewUrl && pendingCover.file ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看待上传 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: pendingCover.file!.name, url: pendingCover.previewUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 待上传产品图`} className="h-20 w-20 rounded-lg object-cover" src={pendingCover.previewUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{pendingCover.file.name}</p><p className="mt-1 text-xs text-brand-700">将在保存时上传</p></div><button aria-label="移除待上传 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => removePending(pendingCover.key)} type="button"><Trash2 className="h-4 w-4" /></button></div> : existingCover?.signedUrl ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: existingCover.file_name ?? 'SOP 产品图', url: existingCover.signedUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 产品图`} className="h-20 w-20 rounded-lg object-cover" src={existingCover.signedUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{existingCover.file_name}</p><p className="mt-1 text-xs text-brand-700">当前列表预览图</p></div><button aria-label="删除 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => { if (window.confirm('确定删除当前产品预览图吗？保存后将自动使用最后一个步骤图。')) setDeletedAssetIds((current) => [...current, existingCover.id]); }} type="button"><Trash2 className="h-4 w-4" /></button></div> : null}
         </div>
       </section>
 
       <section className="ui-card p-4">
         <div><p className="text-xs font-bold text-brand-700">02 · 制作步骤</p><h3 className="mt-1 font-bold text-slate-900">图片与文字可按实际需要组合</h3><p className="mt-1 text-sm leading-6 text-slate-500">每个步骤至少需要图片或文字说明中的一项：可以是纯文字、纯图片，也可以图文同时展示。员工端会按序号连续排列全部步骤。</p></div>
         {!draft.id ? <p className="mt-3 rounded-lg bg-brand-50 p-3 text-sm leading-6 text-brand-800">可以先选择制作图片并填写步骤说明；图片会保留在当前页面，保存草稿或进入发布预览时再统一检查必填项并上传。</p> : null}
-        <div className="mt-3 grid grid-cols-2 gap-2"><SopImageUpload disabled={busy} onStatusChange={setUploadStatus} onUpload={draft.id ? onUploadImage : stageStepImage} stepCount={existingImages.length + pendingSteps.length} /><button className="ui-button-secondary min-h-11" disabled={busy} onClick={stageTextStep} type="button"><FileText className="h-4 w-4" />添加纯文字步骤</button></div>
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5"><SopImageUpload disabled={busy} onStatusChange={setUploadStatus} onUpload={stageStepImage} stepCount={existingImages.length + pendingSteps.length} /><div className="mt-2 flex justify-end"><button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700" disabled={busy} onClick={stageTextStep} type="button"><FileText className="h-3.5 w-3.5" />添加纯文字步骤</button></div></div>
         {existingImages.length + pendingSteps.length ? <div className="mt-3 grid grid-cols-2 gap-2" data-testid="sop-step-grid">
           {existingImages.map((asset, index) => {
             const step = existingSteps.find((entry) => entry.id === asset.id) ?? { id: asset.id, sortOrder: index, stepText: asset.step_text };
             const replacement = replacementPreviews[asset.id];
-            return <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white" key={asset.id}>
+            const visibleImageUrl = replacement?.url ?? (removedImageAssetIds.includes(asset.id) ? null : asset.signedUrl);
+            const displayIndex = step.sortOrder;
+            return <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white" key={asset.id} style={{ order: displayIndex }}>
               <label className="block p-2 text-xs font-semibold">步骤说明（可选）<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setExistingSteps((current) => current.map((entry) => entry.id === asset.id ? { ...entry, stepText: event.target.value } : entry))} placeholder="无图片时必须填写；有图片时可留空" value={step.stepText} /></label>
-              {replacement || asset.signedUrl ? <button aria-label={`放大查看制作图片 ${index + 1}`} className="relative block w-full" disabled={Boolean(replacement)} onClick={() => asset.signedUrl && setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: asset.signedUrl })} type="button"><img alt={replacement ? `${asset.file_name ?? '步骤图片'} 替换预览` : asset.file_name ?? `步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={replacement?.url ?? asset.signedUrl ?? ''} />{replacement ? <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-xs font-bold text-white">正在替换 {replacement.progress}%</span> : null}</button> : <div className="flex aspect-[4/3] flex-col items-center justify-center bg-brand-50 px-3 text-center text-brand-800"><FileText className="h-7 w-7" /><span className="mt-2 text-xs font-bold">纯文字步骤</span></div>}
+              {visibleImageUrl ? <button aria-label={`放大查看制作图片 ${index + 1}`} className="relative block w-full" onClick={() => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: visibleImageUrl })} type="button"><img alt={replacement ? `${asset.file_name ?? '步骤图片'} 替换预览` : asset.file_name ?? `步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={visibleImageUrl} />{replacement ? <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-bold text-white">保存后替换</span> : null}</button> : <div className="flex aspect-[4/3] flex-col items-center justify-center bg-brand-50 px-3 text-center text-brand-800"><FileText className="h-5 w-5" /><span className="mt-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold">纯文字步骤</span></div>}
               <div className="space-y-1.5 p-2">
-                <select aria-label={`调整 ${asset.file_name} 的步骤序号`} className="ui-input min-h-8 w-full px-2 py-1 text-xs font-semibold" disabled={busy} onChange={(event) => void changeStepPosition(asset.id, Number(event.target.value))} value={step.sortOrder}>{existingImages.map((_, position) => <option key={position} value={position}>第 {position + 1} 步</option>)}</select>
+                <select aria-label={`调整 ${asset.file_name} 的步骤序号`} className="ui-input min-h-8 w-full px-2 py-1 text-xs font-semibold" disabled={busy} onChange={(event) => changeStepPosition('existing', asset.id, Number(event.target.value))} value={displayIndex}>{Array.from({ length: existingImages.length + pendingSteps.length }, (_, position) => <option key={position} value={position}>第 {position + 1} 步</option>)}</select>
                 <div className="grid grid-cols-2 gap-1.5">
-                  <label className={`ui-button-secondary min-h-8 cursor-pointer px-1.5 py-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-3.5 w-3.5" />{asset.signedUrl ? '替换' : '添加图片'}<input accept="image/jpeg,image/png,image/webp" aria-label={asset.signedUrl ? `替换 ${asset.file_name}` : `添加步骤 ${index + 1} 图片`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void replaceImage(asset, file, step.stepText); event.currentTarget.value = ''; }} type="file" /></label>
-                  <button aria-label={`删除 ${asset.file_name ?? `步骤 ${index + 1}`}`} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-red-50 px-1.5 py-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => { if (window.confirm(`确定删除第 ${index + 1} 个制作步骤吗？`)) void onDeleteAsset(asset); }} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
+                  <label className={`ui-button-secondary min-h-8 cursor-pointer px-1.5 py-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-3.5 w-3.5" />{visibleImageUrl ? '替换' : '添加图片'}<input accept="image/jpeg,image/png,image/webp" aria-label={visibleImageUrl ? `替换 ${asset.file_name}` : `添加步骤 ${displayIndex + 1} 图片`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) replaceImage(asset, file); event.currentTarget.value = ''; }} type="file" /></label>
+                  <button aria-label={`删除 ${asset.file_name ?? `步骤 ${displayIndex + 1}`}`} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-red-50 px-1.5 py-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => requestExistingStepDelete(asset, step.stepText, displayIndex)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
                 </div>
               </div>
             </div>;
           })}
-          {pendingSteps.map((asset, index) => <div className="min-w-0 overflow-hidden rounded-xl border border-brand-200 bg-white" key={asset.key}>
+          {pendingSteps.map((asset) => <div className="min-w-0 overflow-hidden rounded-xl border border-brand-200 bg-white" key={asset.key} style={{ order: asset.sortOrder }}>
             <label className="block p-2 text-xs font-semibold">步骤说明（可选）<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setPendingAssets((current) => current.map((entry) => entry.key === asset.key ? { ...entry, stepText: event.target.value } : entry))} placeholder="无图片时必须填写；有图片时可留空" value={asset.stepText} /></label>
-            {asset.previewUrl && asset.file ? <button aria-label={`放大查看待上传制作图片 ${index + 1}`} className="relative block w-full" onClick={() => setActiveImage({ alt: asset.file!.name, url: asset.previewUrl! })} type="button"><img alt={asset.file.name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={asset.previewUrl} /><span className="absolute inset-x-2 bottom-2 rounded-md bg-brand-700/90 px-2 py-1 text-xs font-bold text-white">将在保存时上传</span></button> : <div className="flex aspect-[4/3] flex-col items-center justify-center bg-brand-50 px-3 text-center text-brand-800"><FileText className="h-7 w-7" /><span className="mt-2 text-xs font-bold">纯文字步骤</span><span className="mt-1 text-[11px]">保存前请填写上方说明</span></div>}
+            {asset.previewUrl && asset.file ? <button aria-label={`放大查看待上传制作图片 ${asset.sortOrder + 1}`} className="relative block w-full" onClick={() => setActiveImage({ alt: asset.file!.name, url: asset.previewUrl! })} type="button"><img alt={asset.file.name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={asset.previewUrl} /><span className="absolute inset-x-2 bottom-2 rounded-md bg-brand-700/90 px-2 py-1 text-xs font-bold text-white">将在保存时上传</span></button> : <div className="flex aspect-[4/3] flex-col items-center justify-center bg-brand-50 px-3 text-center text-brand-800"><FileText className="h-5 w-5" /><span className="mt-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold">纯文字步骤</span><span className="mt-1 text-[10px]">保存前请填写说明</span></div>}
             <div className="space-y-1.5 p-2">
-              <select aria-label={`调整待保存步骤 ${index + 1} 的步骤序号`} className="ui-input min-h-8 w-full px-2 py-1 text-xs font-semibold" disabled={busy} onChange={(event) => changePendingStepPosition(asset.key, Number(event.target.value))} value={index}>{pendingSteps.map((_, position) => <option key={position} value={position}>第 {existingImages.length + position + 1} 步</option>)}</select>
+              <select aria-label={`调整待保存步骤 ${asset.sortOrder + 1} 的步骤序号`} className="ui-input min-h-8 w-full px-2 py-1 text-xs font-semibold" disabled={busy} onChange={(event) => changeStepPosition('pending', asset.key, Number(event.target.value))} value={asset.sortOrder}>{Array.from({ length: existingImages.length + pendingSteps.length }, (_, position) => <option key={position} value={position}>第 {position + 1} 步</option>)}</select>
               <div className="grid grid-cols-2 gap-1.5">
-                <label className={`ui-button-secondary min-h-8 cursor-pointer px-1.5 py-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-3.5 w-3.5" />{asset.file ? '替换' : '添加图片'}<input accept="image/jpeg,image/png,image/webp" aria-label={`${asset.file ? '替换' : '添加'}待保存步骤 ${index + 1} 图片`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) replacePendingImage(asset.key, file); event.currentTarget.value = ''; }} type="file" /></label>
-                <button aria-label={`删除待保存步骤 ${index + 1}`} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-red-50 px-1.5 py-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => removePending(asset.key)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
+                <label className={`ui-button-secondary min-h-8 cursor-pointer px-1.5 py-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-3.5 w-3.5" />{asset.file ? '替换' : '添加图片'}<input accept="image/jpeg,image/png,image/webp" aria-label={`${asset.file ? '替换' : '添加'}待保存步骤 ${asset.sortOrder + 1} 图片`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) replacePendingImage(asset.key, file); event.currentTarget.value = ''; }} type="file" /></label>
+                <button aria-label={`删除待保存步骤 ${asset.sortOrder + 1}`} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-red-50 px-1.5 py-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => requestPendingStepDelete(asset, asset.sortOrder)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
               </div>
             </div>
           </div>)}
-        </div> : uploadStatus.isUploading || uploadStatus.hasErrors ? null : <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">尚未上传图片。选择后会立即显示缩略图，并自动保存到当前 SOP。</p>}
+        </div> : uploadStatus.isUploading || uploadStatus.hasErrors ? null : <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">尚未添加制作步骤。选择图片或添加纯文字步骤后会立即预览，点击保存后才写入 SOP。</p>}
       </section>
 
       <section className="ui-card p-4">
@@ -929,10 +1027,11 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
       <section className="ui-card space-y-4 p-4">
         <div><p className="text-xs font-bold text-brand-700">04 · 附件</p><h3 className="mt-1 font-bold text-slate-900">补充资料（选填）</h3><p className="mt-1 text-sm text-slate-500">可上传配方表、培训资料等 PDF 附件。发布范围和高级设置将在详情预览页底部统一填写。</p></div>
         <label className="ui-button-secondary w-fit cursor-pointer"><FileUp className="h-4 w-4" />上传附件<input accept="application/pdf" className="hidden" disabled={busy} multiple onChange={(event) => { addAttachments(event.target.files); event.currentTarget.value = ''; }} type="file" /></label>
-        {existingDocuments.length || pendingDocuments.length ? <div className="space-y-2">{existingDocuments.map((asset) => <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-2" key={asset.id}><FileText className="h-4 w-4 text-slate-500" /><span className="min-w-0 flex-1 truncate text-sm">{asset.file_name}</span><button aria-label={`删除 ${asset.file_name}`} className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" onClick={() => { if (window.confirm(`确定删除附件“${asset.file_name}”吗？`)) void onDeleteAsset(asset); }} type="button"><Trash2 className="h-4 w-4" /></button></div>)}{pendingDocuments.map((asset) => <div className="flex items-center gap-2 rounded-lg bg-brand-50 p-2" key={asset.key}><FileText className="h-4 w-4 text-brand-700" /><span className="min-w-0 flex-1 truncate text-sm">{asset.file.name}（待上传）</span><button aria-label={`移除 ${asset.file.name}`} className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" onClick={() => removePending(asset.key)} type="button"><Trash2 className="h-4 w-4" /></button></div>)}</div> : null}
+        {existingDocuments.length || pendingDocuments.length ? <div className="space-y-2">{existingDocuments.map((asset) => <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-2" key={asset.id}><FileText className="h-4 w-4 text-slate-500" /><span className="min-w-0 flex-1 truncate text-sm">{asset.file_name}</span><button aria-label={`删除 ${asset.file_name}`} className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" onClick={() => { if (window.confirm(`确定删除附件“${asset.file_name}”吗？保存后生效。`)) setDeletedAssetIds((current) => [...current, asset.id]); }} type="button"><Trash2 className="h-4 w-4" /></button></div>)}{pendingDocuments.map((asset) => <div className="flex items-center gap-2 rounded-lg bg-brand-50 p-2" key={asset.key}><FileText className="h-4 w-4 text-brand-700" /><span className="min-w-0 flex-1 truncate text-sm">{asset.file.name}（待上传）</span><button aria-label={`移除 ${asset.file.name}`} className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" onClick={() => removePending(asset.key)} type="button"><Trash2 className="h-4 w-4" /></button></div>)}</div> : null}
       </section>
     </div>
     <EditorActions busy={busy} onCancel={onCancel} onPublish={status === 'published' ? undefined : () => void submit(onPublish, true)} onSave={() => void submit(onSave, false)} publishLabel="保存并预览" saveLabel={status === 'published' ? '保存修改' : '保存草稿'} />
+    {deleteStepChoice ? <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-5" role="dialog" aria-modal="true" aria-labelledby="sop-delete-step-title"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-red-600">删除操作</p><h3 className="mt-1 text-lg font-bold text-slate-900" id="sop-delete-step-title">请选择删除范围</h3></div><button aria-label="关闭步骤删除选项" className="ui-icon-button" onClick={() => setDeleteStepChoice(null)} type="button"><X className="h-4 w-4" /></button></div><p className="mt-3 text-sm leading-6 text-slate-600">{deleteStepChoice.label}同时包含图片和文字。只删除图片后，该步骤会保留为纯文字步骤；也可以删除整个步骤。</p><div className="mt-5 grid gap-2"><button className="ui-button-secondary w-full" onClick={() => deleteStepChoice.kind === 'existing' ? removeExistingImageOnly(deleteStepChoice.key) : removePendingImageOnly(deleteStepChoice.key)} type="button">只删除图片</button><button className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 font-bold text-white" onClick={() => { if (deleteStepChoice.kind === 'existing') deleteExistingStep(deleteStepChoice.key); else { removePending(deleteStepChoice.key); setDeleteStepChoice(null); } }} type="button"><Trash2 className="h-4 w-4" />删除整个步骤</button><button className="ui-button-secondary w-full" onClick={() => setDeleteStepChoice(null)} type="button">取消</button></div></div></div> : null}
     {validationDialog ? <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-5" role="dialog" aria-modal="true" aria-labelledby="sop-validation-title"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"><h3 className="text-lg font-bold text-slate-900" id="sop-validation-title">请完善 SOP 信息</h3><p className="mt-3 text-sm leading-7 text-slate-600">{validationDialog}</p><button className="ui-button-primary mt-5 w-full" onClick={() => setValidationDialog(null)} type="button">我知道了</button></div></div> : null}
     {activeImage ? <div aria-label="SOP 图片全屏预览" className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4" onClick={() => setActiveImage(null)} role="dialog"><button aria-label="关闭图片预览" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setActiveImage(null)} type="button"><X className="h-6 w-6" /></button><img alt={activeImage.alt} className="max-h-full max-w-full object-contain" onClick={() => setActiveImage(null)} src={activeImage.url} /></div> : null}
   </div>;

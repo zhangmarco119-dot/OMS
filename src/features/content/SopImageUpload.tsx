@@ -94,7 +94,7 @@ export function SopImageUpload({
     setPending((current) => current.filter((item) => item.id !== entry.id));
   };
 
-  return <div className="mt-3">
+  return <div>
     <input
       accept="image/jpeg,image/png,image/webp"
       className="hidden"
@@ -103,21 +103,21 @@ export function SopImageUpload({
       ref={inputRef}
       type="file"
     />
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2">
+    <div className="grid grid-cols-[minmax(9rem,1fr)_auto] items-end gap-2">
       <label className="text-xs font-bold text-slate-600">插入位置
-        <select aria-label="新图片插入位置" className="ui-input mt-1 min-h-12 py-2 text-sm" disabled={disabled} onChange={(event) => setInsertPosition(event.target.value === 'end' ? 'end' : Number(event.target.value))} value={insertPosition}>
+        <select aria-label="新图片插入位置" className="ui-input mt-1 min-h-10 py-1.5 text-sm" disabled={disabled} onChange={(event) => setInsertPosition(event.target.value === 'end' ? 'end' : Number(event.target.value))} value={insertPosition}>
           <option value="end">末尾</option>
           {Array.from({ length: stepCount }, (_, index) => <option key={index} value={index}>插入为第 {index + 1} 步</option>)}
         </select>
       </label>
       <button
-        className="flex min-h-16 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-200 bg-brand-50/40 px-3 text-center text-brand-700 transition hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mb-0 flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 text-xs font-bold text-brand-700 transition hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
         type="button"
       >
-        <ImagePlus className="h-6 w-6 shrink-0" aria-hidden="true" />
-        <span><span className="block font-bold">选择制作图片</span><span className="mt-0.5 block text-[11px] text-slate-500">多选后按选择顺序插入</span></span>
+        <ImagePlus className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>选择制作图片</span>
       </button>
     </div>
 

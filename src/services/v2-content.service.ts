@@ -183,6 +183,12 @@ export const loadSops = async (client: Client): Promise<SopListItem[]> => {
   })));
 };
 
+export const archiveNotice = async (client: Client, noticeId: string) => {
+  const { data, error } = await client.rpc('archive_v2_notice', { p_notice_id: noticeId });
+  throwIfError(error);
+  return data;
+};
+
 export const loadSopLibraryEntries = async (client: Client): Promise<SopLibraryEntry[]> => {
   const sops = await client.from('v2_sops').select('id,title,category,status,effective_at,version').eq('status', 'published').order('category').order('title');
   throwIfError(sops.error);

@@ -38,6 +38,9 @@ describe('SopDetailPage compact employee preview', () => {
     expect(await screen.findByRole('heading', { name: '六步酸奶碗' })).toBeInTheDocument();
     expect(screen.getByTestId('sop-detail-step-grid')).toHaveClass('grid-cols-2');
     expect(screen.getAllByRole('img')).toHaveLength(6);
+    const firstDescription = screen.getByText('步骤 1 说明');
+    const firstImage = screen.getByAltText('六步酸奶碗 步骤 1');
+    expect(firstDescription.compareDocumentPosition(firstImage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows the same two-column layout to staff for a published SOP', async () => {

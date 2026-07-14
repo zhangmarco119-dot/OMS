@@ -20,8 +20,7 @@ describe('SopEditor image-first workflow', () => {
 
   it('previews and uploads a selected image immediately before saving the SOP form', async () => {
     const onSave = vi.fn().mockResolvedValue(true);
-    let finishUpload: (() => void) | undefined;
-    const onUploadImage = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { finishUpload = resolve; }));
+    const onUploadImage = vi.fn().mockResolvedValue(undefined);
     const { container } = render(<SopEditor
       busy={false}
       categories={['酸奶碗制作']}
@@ -48,21 +47,51 @@ describe('SopEditor image-first workflow', () => {
     expect(input).not.toBeNull();
     fireEvent.change(input!, { target: { files: [file] } });
 
-    expect(await screen.findByAltText('finished-bowl.png')).toHaveAttribute('src', 'blob:sop-preview');
-    expect(screen.getByText(/正在上传/)).toBeInTheDocument();
-    expect(onUploadImage).toHaveBeenCalledWith(file, 0, expect.any(Function));
-
-    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
-    expect(await screen.findByText('图片仍在上传，请等待上传完成后再保存或发布。')).toBeInTheDocument();
-    expect(onSave).not.toHaveBeenCalled();
-
-    finishUpload?.();
-    await waitFor(() => expect(screen.queryByAltText('finished-bowl.png')).not.toBeInTheDocument());
+    expect((await screen.findAllByAltText('finished-bowl.png'))[0]).toHaveAttribute('src', 'blob:sop-preview');
+    expect(await screen.findByText('将在保存时上传')).toBeInTheDocument();
+    expect(onUploadImage).not.toHaveBeenCalled();
+    expect(screen.getByText('上传附件')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       existingSteps: [],
-      pendingAssets: [],
+      pendingAssets: [expect.objectContaining({ assetKind: 'step', file })],
     })));
+  });
+
+  it('allows images and attachments before required fields, then validates in a Chinese dialog on save', async () => {
+    const onSave = vi.fn().mockResolvedValue(true);
+    const onUploadImage = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(<SopEditor
+      busy={false}
+      categories={['酸奶碗制作']}
+      draft={{ ...createEmptySopDraft(['store-1']), category: '' }}
+      errorMessage={null}
+      existingAssets={[]}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
+      onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={vi.fn().mockResolvedValue(undefined)}
+      onReplaceImage={vi.fn().mockResolvedValue(undefined)}
+      onSave={onSave}
+      onUploadCover={vi.fn().mockResolvedValue(undefined)}
+      onUploadImage={onUploadImage}
+      status="new"
+    />);
+
+    const imageInput = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"][accept*="image/png"]')).find((entry) => entry.multiple);
+    fireEvent.change(imageInput!, { target: { files: [new File(['image'], 'first.png', { type: 'image/png' })] } });
+    expect(await screen.findByText('将在保存时上传')).toBeInTheDocument();
+    expect(screen.getByAltText('first.png')).toHaveAttribute('src', 'blob:sop-preview');
+    expect(onUploadImage).not.toHaveBeenCalled();
+
+    const attachmentInput = container.querySelector<HTMLInputElement>('input[type="file"][accept="application/pdf"]');
+    fireEvent.change(attachmentInput!, { target: { files: [new File(['pdf'], 'recipe.pdf', { type: 'application/pdf' })] } });
+    expect(screen.getByText('recipe.pdf（待上传）')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+    expect(await screen.findByRole('dialog', { name: '请完善 SOP 信息' })).toHaveTextContent('请填写产品或流程名称');
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('keeps the local preview and offers retry when an SOP image upload fails', async () => {
@@ -70,7 +99,7 @@ describe('SopEditor image-first workflow', () => {
     const { container } = render(<SopEditor
       busy={false}
       categories={['酸奶碗制作']}
-      draft={{ ...createEmptySopDraft(['store-1']), title: '草莓酸奶碗' }}
+      draft={{ ...createEmptySopDraft(['store-1']), id: 'sop-1', title: '草莓酸奶碗' }}
       errorMessage={null}
       existingAssets={[]}
       onCancel={vi.fn()}
@@ -122,10 +151,14 @@ describe('SopEditor image-first workflow', () => {
 
     const grid = screen.getByTestId('sop-step-grid');
     expect(grid).toHaveClass('grid-cols-2');
+    const firstDescription = screen.getByDisplayValue('第一步.jpg说明');
+    const firstImage = screen.getByAltText('第一步.jpg');
+    expect(firstDescription.compareDocumentPosition(firstImage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const orderSelect = screen.getByRole('combobox', { name: '调整 第二步.jpg 的步骤序号' });
-    expect(orderSelect).toHaveClass('min-h-10', 'w-full');
-    expect(screen.getAllByText('替换图片')).toHaveLength(2);
-    expect(screen.getAllByText('删除图片')).toHaveLength(2);
+    expect(orderSelect).toHaveClass('min-h-10', 'min-w-0');
+    expect(orderSelect.parentElement).toHaveClass('grid-cols-[minmax(0,1fr)_auto_auto]');
+    expect(screen.getAllByText('替换')).toHaveLength(2);
+    expect(screen.getAllByText('删除')).toHaveLength(2);
     expect(screen.queryByRole('combobox', { name: '关联任务模板' })).not.toBeInTheDocument();
     expect(screen.getByText('上传附件')).toBeInTheDocument();
     fireEvent.change(orderSelect, { target: { value: '0' } });

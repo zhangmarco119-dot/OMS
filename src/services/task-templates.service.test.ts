@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createEmptyTaskTemplate } from '../features/task-templates/templateForm';
 import type { Database } from '../types/database';
-import { publishTaskTemplate, saveTaskTemplate, uploadTaskTemplateReferenceImage } from './task-templates.service';
+import { publishTaskTemplate, retractTaskTemplate, saveTaskTemplate, uploadTaskTemplateReferenceImage } from './task-templates.service';
 
 vi.mock('./arrival-images.service', () => ({
   compressArrivalImage: vi.fn().mockResolvedValue({
@@ -37,6 +37,15 @@ describe('task templates service', () => {
     const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishTaskTemplate(client, '00000000-0000-4000-8000-000000000099');
     expect(rpc).toHaveBeenCalledWith('publish_v2_task_template', {
+      p_template_id: '00000000-0000-4000-8000-000000000099',
+    });
+  });
+
+  it('retracts a published template back to a draft', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: 'draft' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await retractTaskTemplate(client, '00000000-0000-4000-8000-000000000099');
+    expect(rpc).toHaveBeenCalledWith('retract_v2_task_template', {
       p_template_id: '00000000-0000-4000-8000-000000000099',
     });
   });

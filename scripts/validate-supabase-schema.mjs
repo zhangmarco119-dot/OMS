@@ -194,12 +194,13 @@ const requiredFunctions = [
   'save_v2_task_template',
   'publish_v2_task_template',
   'archive_v2_task_template',
+  'retract_v2_task_template',
   'can_read_v2_task', 'can_edit_v2_task', 'publish_v2_tasks', 'save_v2_task_progress', 'submit_v2_task', 'review_v2_task',
   'create_v2_task_schedule', 'dispatch_v2_task_schedules', 'pause_v2_task_schedule',
   'admin_operation_overview',
   'can_request_product_feedback', 'admin_set_product_permissions', 'resume_v2_task_schedule',
   'acknowledge_v2_notice',
-  'delete_v2_notice', 'admin_v2_analytics',
+  'archive_v2_notice', 'delete_v2_notice', 'admin_v2_analytics',
 ];
 
 const failures = [];

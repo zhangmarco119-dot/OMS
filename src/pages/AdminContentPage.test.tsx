@@ -38,7 +38,6 @@ describe('SopEditor image-first workflow', () => {
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
       status="new"
-      templates={[]}
     />);
 
     expect(screen.getByRole('dialog', { name: '新建制作流程' })).toHaveClass('h-[100dvh]', 'z-50');
@@ -84,7 +83,6 @@ describe('SopEditor image-first workflow', () => {
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={onUploadImage}
       status="new"
-      templates={[]}
     />);
 
     const file = new File(['image'], 'failed.png', { type: 'image/png' });
@@ -120,12 +118,17 @@ describe('SopEditor image-first workflow', () => {
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
       status="draft"
-      templates={[]}
     />);
 
     const grid = screen.getByTestId('sop-step-grid');
     expect(grid).toHaveClass('grid-cols-2');
-    fireEvent.change(screen.getByRole('combobox', { name: '调整 第二步.jpg 的步骤序号' }), { target: { value: '0' } });
+    const orderSelect = screen.getByRole('combobox', { name: '调整 第二步.jpg 的步骤序号' });
+    expect(orderSelect).toHaveClass('min-h-10', 'w-full');
+    expect(screen.getAllByText('替换图片')).toHaveLength(2);
+    expect(screen.getAllByText('删除图片')).toHaveLength(2);
+    expect(screen.queryByRole('combobox', { name: '关联任务模板' })).not.toBeInTheDocument();
+    expect(screen.getByText('上传附件')).toBeInTheDocument();
+    fireEvent.change(orderSelect, { target: { value: '0' } });
 
     await waitFor(() => expect(onReorderImages).toHaveBeenCalledWith(['image-2', 'image-1']));
     expect(within(grid).getAllByRole('img').map((image) => image.getAttribute('alt'))).toEqual(['第二步.jpg', '第一步.jpg']);
@@ -158,7 +161,6 @@ describe('SopEditor image-first workflow', () => {
       onUploadCover={onUploadCover}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
       status="draft"
-      templates={[]}
     />);
 
     expect(screen.getByAltText('产品图测试 产品图')).toHaveAttribute('src', 'https://example.test/cover.jpg');
@@ -199,7 +201,6 @@ describe('SopEditor image-first workflow', () => {
       onUploadCover={vi.fn().mockResolvedValue(undefined)}
       onUploadImage={vi.fn().mockResolvedValue(undefined)}
       status="draft"
-      templates={[]}
     />);
 
     const replacement = new File(['replacement'], '新图片.png', { type: 'image/png' });

@@ -7,13 +7,13 @@ import { SuccessToast } from '../components/feedback/SuccessToast';
 import { FeedbackBanner } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
 import { createSopBatchTemplate, importSopBatch } from '../features/content/sopBatchImport';
+import { downloadSopCollection } from '../features/content/sopExport';
 import { formatSopActionError, type SopSaveStage } from '../features/content/sopFeedback';
 import { SopImageUpload, type SopImageUploadStatus } from '../features/content/SopImageUpload';
 import { moveSopStep, normalizeSopSteps, type OrderedSopStep } from '../features/content/sopSteps';
 import { getSopPreviewAsset } from '../features/content/sopPreview';
 import { TaskTemplateReferenceImageUpload } from '../features/task-templates/TaskTemplateReferenceImageUpload';
 import { supabase } from '../lib/supabase';
-import { loadTaskTemplates, type TaskTemplateListItem } from '../services/task-templates.service';
 import {
   archiveSop,
   createEmptyNoticeDraft,
@@ -55,7 +55,6 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [sops, setSops] = useState<SopListItem[]>([]);
   const [sopCategories, setSopCategories] = useState<SopCategoryRow[]>([]);
-  const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
   const [recipientProfiles, setRecipientProfiles] = useState<ContentRecipient[]>([]);
   const [noticeDraft, setNoticeDraft] = useState<NoticeDraft | null>(null);
   const [sopDraft, setSopDraft] = useState<SopDraft | null>(null);
@@ -64,6 +63,8 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [showSopArchiveManager, setShowSopArchiveManager] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [sopCategoryFilter, setSopCategoryFilter] = useState('all');
+  const [sopExportMode, setSopExportMode] = useState(false);
+  const [selectedSopIds, setSelectedSopIds] = useState<string[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -106,15 +107,13 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         setNotices(nextNotices);
         setRecipientProfiles((profiles.data ?? []) as ContentRecipient[]);
       } else {
-        const [nextSops, nextCategories, nextTemplates] = await Promise.all([
+        const [nextSops, nextCategories] = await Promise.all([
           loadSops(supabase),
           loadSopCategories(supabase),
-          loadTaskTemplates(supabase),
         ]);
         sopsRef.current = nextSops;
         setSops(nextSops);
         setSopCategories(nextCategories);
-        setTemplates(nextTemplates);
       }
       setStatus('ready');
       setMessage(null);
@@ -367,6 +366,20 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     } finally { setBusy(false); }
   };
 
+  const exportSelectedSops = async () => {
+    const selected = sopsRef.current.filter((sop) => sop.status !== 'archived' && selectedSopIds.includes(sop.id));
+    if (!selected.length) { setMessage('请先勾选需要导出的 SOP。'); return; }
+    setBusy(true); setMessage(null);
+    try {
+      const result = await downloadSopCollection(selected, storeName);
+      setSuccess(result.missingAssetCount
+        ? `已导出 ${selected.length} 份 SOP；有 ${result.missingAssetCount} 个图片或附件未能写入，请检查网络后重试。`
+        : `已将 ${selected.length} 份 SOP 导出为一个离线合集文件。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '导出 SOP 失败。');
+    } finally { setBusy(false); }
+  };
+
   const activeSops = sops.filter((sop) => sop.status !== 'archived');
   const archivedSops = sops.filter((sop) => sop.status === 'archived');
   const visibleSops = sopCategoryFilter === 'all' ? activeSops : activeSops.filter((sop) => sop.category === sopCategoryFilter);
@@ -386,6 +399,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopBatchImport(true); }} type="button"><Upload className="h-4 w-4" />批量导入</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopCategoryManager(true); }} type="button"><FolderPlus className="h-4 w-4" />分类管理</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopArchiveManager(true); }} type="button"><Archive className="h-4 w-4" />已归档（{archivedSops.length}）</button>
+        <button className={sopExportMode ? 'ui-button-primary col-span-2 px-1 text-sm' : 'ui-button-secondary col-span-2 px-1 text-sm'} onClick={() => { setMessage(null); setSopExportMode((current) => !current); setSelectedSopIds([]); }} type="button"><Download className="h-4 w-4" />{sopExportMode ? '退出导出选择' : '导出 SOP'}</button>
       </div>
       <section className="ui-card flex items-end gap-3 p-3">
         <label className="min-w-0 flex-1 text-sm font-bold text-slate-700">分类查看
@@ -396,12 +410,17 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         </label>
         <span className="pb-3 text-xs text-slate-500">{visibleSops.length} 个 SOP</span>
       </section>
+      {sopExportMode ? <section className="ui-card space-y-3 border-brand-200 bg-brand-50/40 p-3">
+        <div><p className="text-sm font-bold text-brand-900">选择需要合并导出的 SOP</p><p className="mt-1 text-xs leading-5 text-brand-800">将生成一个包含目录、图片步骤和附件的离线 HTML 文件，可直接查看或打印为 PDF。</p></div>
+        <div className="grid grid-cols-3 gap-2"><button className="ui-button-secondary px-1 text-xs" onClick={() => setSelectedSopIds((current) => Array.from(new Set([...current, ...visibleSops.map((sop) => sop.id)])))} type="button">全选当前分类</button><button className="ui-button-secondary px-1 text-xs" onClick={() => setSelectedSopIds([])} type="button">清空选择</button><button className="ui-button-primary px-1 text-xs" disabled={busy || selectedSopIds.length === 0} onClick={() => void exportSelectedSops()} type="button"><Download className="h-4 w-4" />导出（{selectedSopIds.length}）</button></div>
+      </section> : null}
       {visibleSops.length === 0 ? <p className="ui-card p-6 text-center text-sm text-slate-500">当前分类暂无 SOP。</p> : null}
       {visibleSops.map((sop) => {
         const preview = getSopPreviewAsset(sop);
         const edit = () => { setMessage(null); setSopDraft({ body: sop.body, category: sop.category, effectiveAt: sop.effective_at?.slice(0, 16) ?? '', id: sop.id, roles: sop.roles, storeIds: sop.storeIds, taskTemplateId: sop.taskTemplateId, title: sop.title }); };
         const openPreview = () => navigate(`/app/sops/${sop.id}`);
-        return <article aria-label={`预览 SOP ${sop.title}`} className="ui-card cursor-pointer p-3 transition hover:border-brand-200 hover:shadow-md" key={sop.id} onClick={(event) => { if (!(event.target as HTMLElement).closest('button,a,input,select,textarea')) openPreview(); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openPreview(); } }} role="link" tabIndex={0}>
+        return <article aria-label={`预览 SOP ${sop.title}`} className={`ui-card p-3 transition ${sopExportMode ? 'cursor-default' : 'cursor-pointer hover:border-brand-200 hover:shadow-md'} ${selectedSopIds.includes(sop.id) ? 'border-brand-400 ring-2 ring-brand-100' : ''}`} key={sop.id} onClick={(event) => { if (!sopExportMode && !(event.target as HTMLElement).closest('button,a,input,select,textarea')) openPreview(); }} onKeyDown={(event) => { if (!sopExportMode && event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openPreview(); } }} role="link" tabIndex={0}>
+          {sopExportMode ? <label className="mb-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-brand-50 px-3 text-sm font-bold text-brand-900" onClick={(event) => event.stopPropagation()}><input aria-label={`选择导出 ${sop.title}`} checked={selectedSopIds.includes(sop.id)} onChange={() => setSelectedSopIds((current) => current.includes(sop.id) ? current.filter((id) => id !== sop.id) : [...current, sop.id])} type="checkbox" />选择此 SOP</label> : null}
           <div className="flex gap-3">
             {preview ? <img alt={`${sop.title} 产品预览`} className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover" src={preview.signedUrl} /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400"><ImageIcon className="h-7 w-7" /></div>}
             <div className="min-w-0 flex-1">
@@ -420,7 +439,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       })}
     </section> : null}
     {noticeDraft ? <NoticeEditor busy={busy} draft={noticeDraft} onCancel={() => setNoticeDraft(null)} onChange={setNoticeDraft} onPublish={() => void saveNoticeDraft(true)} onSave={() => void saveNoticeDraft()} onUpload={uploadNotice} recipients={recipientProfiles} stores={auth.availableStores} /> : null}
-    {sopDraft ? <SopEditor busy={busy} categories={sopCategories.map((entry) => entry.name)} draft={sopDraft} errorMessage={message} existingAssets={sops.find((sop) => sop.id === sopDraft.id)?.assetUrls ?? []} onCancel={() => updateSopDraft(null)} onChange={updateSopDraft} onDeleteAsset={removeSopAsset} onPublish={saveAndPreviewSop} onReorderImages={reorderSopImages} onReplaceImage={replaceSopImage} onSave={saveSopDraft} onUploadCover={uploadSopCover} onUploadImage={uploadSopImage} status={sops.find((sop) => sop.id === sopDraft.id)?.status ?? 'new'} templates={templates} /> : null}
+    {sopDraft ? <SopEditor busy={busy} categories={sopCategories.map((entry) => entry.name)} draft={sopDraft} errorMessage={message} existingAssets={sops.find((sop) => sop.id === sopDraft.id)?.assetUrls ?? []} onCancel={() => updateSopDraft(null)} onChange={updateSopDraft} onDeleteAsset={removeSopAsset} onPublish={saveAndPreviewSop} onReorderImages={reorderSopImages} onReplaceImage={replaceSopImage} onSave={saveSopDraft} onUploadCover={uploadSopCover} onUploadImage={uploadSopImage} status={sops.find((sop) => sop.id === sopDraft.id)?.status ?? 'new'} /> : null}
     {showSopBatchImport ? <SopBatchImporter busy={busy} errorMessage={message} onCancel={() => setShowSopBatchImport(false)} onImport={runSopBatchImport} /> : null}
     {showSopCategoryManager ? <SopCategoryManager busy={busy} categories={sopCategories} errorMessage={message} newCategoryName={newCategoryName} onChangeName={setNewCategoryName} onClose={() => { setMessage(null); setShowSopCategoryManager(false); }} onCreate={addSopCategory} onDelete={removeSopCategory} onRename={renameCategory} sops={sops} /> : null}
     {showSopArchiveManager ? <SopArchiveManager busy={busy} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} sops={archivedSops} /> : null}
@@ -535,7 +554,7 @@ type PendingSopAsset = { file: File; key: string; previewUrl: string | null; sor
 type ExistingSopStep = OrderedSopStep;
 type SopEditorChanges = { existingSteps: ExistingSopStep[]; pendingAssets: Array<{ file: File; sortOrder: number; stepText: string }> };
 
-export function SopEditor({ busy, categories, draft, errorMessage, existingAssets, onCancel, onChange, onDeleteAsset, onPublish, onReorderImages, onReplaceImage, onSave, onUploadCover, onUploadImage, status, templates }: {
+export function SopEditor({ busy, categories, draft, errorMessage, existingAssets, onCancel, onChange, onDeleteAsset, onPublish, onReorderImages, onReplaceImage, onSave, onUploadCover, onUploadImage, status }: {
   busy: boolean;
   categories: string[];
   draft: SopDraft;
@@ -551,7 +570,6 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
   onUploadCover: (file: File, onProgress: (progress: number) => void) => Promise<void>;
   onUploadImage: (file: File, insertAt: number, onProgress: (progress: number) => void) => Promise<void>;
   status: SopListItem['status'] | 'new';
-  templates: TaskTemplateListItem[];
 }) {
   const [pendingAssets, setPendingAssets] = useState<PendingSopAsset[]>([]);
   const [existingSteps, setExistingSteps] = useState<ExistingSopStep[]>(() => normalizeSopSteps(existingAssets.filter((asset) => asset.asset_kind === 'step').map((asset) => ({ id: asset.id, sortOrder: asset.sort_order, stepText: asset.step_text }))));
@@ -674,7 +692,7 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
         {!draft.id ? <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">首次选择图片时会自动保存 SOP 草稿。请先填写产品或流程名称；分类、门店和角色也必须保持有效。</p> : null}
         <SopImageUpload disabled={busy} onStatusChange={setUploadStatus} onUpload={onUploadImage} stepCount={existingImages.length} />
         {existingImages.length ? <div className="mt-3 grid grid-cols-2 gap-2" data-testid="sop-step-grid">
-          {existingImages.map((asset, index) => { const step = existingSteps.find((entry) => entry.id === asset.id) ?? { id: asset.id, sortOrder: index, stepText: asset.step_text }; const replacement = replacementPreviews[asset.id]; return <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white" key={asset.id}><button aria-label={`放大查看制作图片 ${index + 1}`} className="relative block w-full" disabled={Boolean(replacement)} onClick={() => setActiveImage({ alt: asset.file_name, url: asset.signedUrl })} type="button"><img alt={replacement ? `${asset.file_name} 替换预览` : asset.file_name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={replacement?.url ?? asset.signedUrl} />{replacement ? <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-xs font-bold text-white">正在替换 {replacement.progress}%</span> : null}</button><div className="space-y-2 p-2"><div className="flex items-end gap-1"><label className="min-w-0 flex-1 text-[11px] font-bold text-slate-600">步骤序号<select aria-label={`调整 ${asset.file_name} 的步骤序号`} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-1 text-sm" disabled={busy} onChange={(event) => void changeStepPosition(asset.id, Number(event.target.value))} value={step.sortOrder}>{existingImages.map((_, position) => <option key={position} value={position}>第 {position + 1} 步</option>)}</select></label><label className={`inline-flex h-9 shrink-0 cursor-pointer items-center gap-1 rounded-lg bg-brand-50 px-2 text-xs font-bold text-brand-700 ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-4 w-4" />替换<input accept="image/jpeg,image/png,image/webp" aria-label={`替换 ${asset.file_name}`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void replaceImage(asset, file, step.stepText); event.currentTarget.value = ''; }} type="file" /></label><button aria-label={`删除 ${asset.file_name}`} className="ui-icon-button h-9 w-9 shrink-0 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => { if (window.confirm(`确定删除制作图片“${asset.file_name}”吗？`)) void onDeleteAsset(asset); }} type="button"><Trash2 className="h-4 w-4" /></button></div><label className="block text-xs font-semibold">步骤说明<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setExistingSteps((current) => current.map((entry) => entry.id === asset.id ? { ...entry, stepText: event.target.value } : entry))} placeholder="用量、操作和标准" value={step.stepText} /></label></div></div>; })}
+          {existingImages.map((asset, index) => { const step = existingSteps.find((entry) => entry.id === asset.id) ?? { id: asset.id, sortOrder: index, stepText: asset.step_text }; const replacement = replacementPreviews[asset.id]; return <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white" key={asset.id}><button aria-label={`放大查看制作图片 ${index + 1}`} className="relative block w-full" disabled={Boolean(replacement)} onClick={() => setActiveImage({ alt: asset.file_name, url: asset.signedUrl })} type="button"><img alt={replacement ? `${asset.file_name} 替换预览` : asset.file_name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={replacement?.url ?? asset.signedUrl} />{replacement ? <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-xs font-bold text-white">正在替换 {replacement.progress}%</span> : null}</button><div className="space-y-2 p-2"><div className="grid grid-cols-2 gap-2"><label className="col-span-2 text-xs font-bold text-slate-600">步骤序号<select aria-label={`调整 ${asset.file_name} 的步骤序号`} className="ui-input mt-1 min-h-10 w-full px-3 text-sm font-semibold" disabled={busy} onChange={(event) => void changeStepPosition(asset.id, Number(event.target.value))} value={step.sortOrder}>{existingImages.map((_, position) => <option key={position} value={position}>第 {position + 1} 步</option>)}</select></label><label className={`ui-button-secondary min-h-10 cursor-pointer px-1 text-xs ${busy ? 'pointer-events-none opacity-50' : ''}`}><RefreshCw className="h-4 w-4" />替换图片<input accept="image/jpeg,image/png,image/webp" aria-label={`替换 ${asset.file_name}`} className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void replaceImage(asset, file, step.stepText); event.currentTarget.value = ''; }} type="file" /></label><button aria-label={`删除 ${asset.file_name}`} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-red-50 px-1 text-xs font-bold text-red-700" disabled={busy} onClick={() => { if (window.confirm(`确定删除制作图片“${asset.file_name}”吗？`)) void onDeleteAsset(asset); }} type="button"><Trash2 className="h-4 w-4" />删除图片</button></div><label className="block text-xs font-semibold">步骤说明<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setExistingSteps((current) => current.map((entry) => entry.id === asset.id ? { ...entry, stepText: event.target.value } : entry))} placeholder="用量、操作和标准" value={step.stepText} /></label></div></div>; })}
         </div> : uploadStatus.isUploading || uploadStatus.hasErrors ? null : <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">尚未上传图片。选择后会立即显示缩略图，并自动保存到当前 SOP。</p>}
       </section>
 
@@ -683,9 +701,8 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
       </section>
 
       <section className="ui-card space-y-4 p-4">
-        <div><p className="text-xs font-bold text-brand-700">04 · 附件与关联</p><h3 className="mt-1 font-bold text-slate-900">补充文件和任务关联</h3><p className="mt-1 text-sm text-slate-500">发布范围、生效时间和静默发布将在详情预览页底部统一设置。</p></div>
-        <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-bold text-slate-700">高级设置：关联任务模板</summary><label className="mt-3 block text-sm font-semibold text-slate-700">关联任务模板<select className="ui-input mt-1.5" onChange={(event) => onChange({ ...draft, taskTemplateId: event.target.value || null })} value={draft.taskTemplateId ?? ''}><option value="">不关联</option>{templates.filter((template) => template.status === 'published').map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label></details>
-        {draft.id ? <label className="ui-button-secondary w-fit cursor-pointer"><FileUp className="h-4 w-4" />补充 PDF 文件<input accept="application/pdf" className="hidden" disabled={busy} multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = ''; }} type="file" /></label> : null}
+        <div><p className="text-xs font-bold text-brand-700">04 · 附件</p><h3 className="mt-1 font-bold text-slate-900">补充资料（选填）</h3><p className="mt-1 text-sm text-slate-500">可上传配方表、培训资料等 PDF 附件。发布范围和高级设置将在详情预览页底部统一填写。</p></div>
+        {draft.id ? <label className="ui-button-secondary w-fit cursor-pointer"><FileUp className="h-4 w-4" />上传附件<input accept="application/pdf" className="hidden" disabled={busy} multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = ''; }} type="file" /></label> : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">保存草稿后即可上传附件。</p>}
         {existingDocuments.length || pendingDocuments.length ? <div className="space-y-2">{existingDocuments.map((asset) => <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-2" key={asset.id}><FileText className="h-4 w-4 text-slate-500" /><span className="min-w-0 flex-1 truncate text-sm">{asset.file_name}</span><button aria-label={`删除 ${asset.file_name}`} className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" onClick={() => { if (window.confirm(`确定删除附件“${asset.file_name}”吗？`)) void onDeleteAsset(asset); }} type="button"><Trash2 className="h-4 w-4" /></button></div>)}{pendingDocuments.map((asset) => <div className="flex items-center gap-2 rounded-lg bg-brand-50 p-2" key={asset.key}><FileText className="h-4 w-4 text-brand-700" /><span className="min-w-0 flex-1 truncate text-sm">{asset.file.name}（待上传）</span><button aria-label={`移除 ${asset.file.name}`} className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" onClick={() => removePending(asset.key)} type="button"><Trash2 className="h-4 w-4" /></button></div>)}</div> : null}
       </section>
     </div>

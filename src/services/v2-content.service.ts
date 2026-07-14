@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
+import { selectSopPreviewAsset } from '../features/content/sopPreview';
 import { compressArrivalImage } from './arrival-images.service';
 
 type Client = SupabaseClient<Database>;
@@ -29,7 +30,7 @@ export interface SopListItem extends SopRow {
   taskTemplateId: string | null;
 }
 
-export type SopLibraryEntry = Pick<SopRow, 'category' | 'effective_at' | 'id' | 'status' | 'title' | 'version'>;
+export type SopLibraryEntry = Pick<SopRow, 'category' | 'effective_at' | 'id' | 'status' | 'title' | 'version'> & { previewUrl: string | null };
 
 export interface NoticeDraft {
   body: string;
@@ -183,9 +184,21 @@ export const loadSops = async (client: Client): Promise<SopListItem[]> => {
 };
 
 export const loadSopLibraryEntries = async (client: Client): Promise<SopLibraryEntry[]> => {
-  const { data, error } = await client.from('v2_sops').select('id,title,category,status,effective_at,version').eq('status', 'published').order('category').order('title');
-  throwIfError(error);
-  return data ?? [];
+  const sops = await client.from('v2_sops').select('id,title,category,status,effective_at,version').eq('status', 'published').order('category').order('title');
+  throwIfError(sops.error);
+  if (!sops.data?.length) return [];
+  const assets = await client.from('v2_sop_assets').select('*').in('sop_id', sops.data.map((sop) => sop.id)).in('asset_kind', ['cover', 'step']).order('sort_order').order('created_at');
+  throwIfError(assets.error);
+  const bySop = new Map<string, SopAssetRow[]>();
+  (assets.data ?? []).forEach((asset) => bySop.set(asset.sop_id, [...(bySop.get(asset.sop_id) ?? []), asset]));
+  return Promise.all(sops.data.map(async (sop) => {
+    const candidates = bySop.get(sop.id) ?? [];
+    const preview = selectSopPreviewAsset(candidates);
+    if (!preview) return { ...sop, previewUrl: null };
+    const signed = await client.storage.from('v2-sop-assets').createSignedUrl(preview.object_path, 3600);
+    throwIfError(signed.error);
+    return { ...sop, previewUrl: signed.data?.signedUrl ?? null };
+  }));
 };
 
 export const loadSopDetail = async (client: Client, sopId: string): Promise<SopListItem | null> => {

@@ -1,5 +1,6 @@
 import { Archive, Download, FileText, FileUp, FolderPlus, ImageIcon, Pin, Plus, RefreshCw, Rocket, Save, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { SuccessToast } from '../components/feedback/SuccessToast';
@@ -50,6 +51,7 @@ const sopStatus: Record<SopListItem['status'], string> = { archived: '已归档'
 
 export function AdminContentPage() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<ContentTab>('notices');
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [sops, setSops] = useState<SopListItem[]>([]);
@@ -318,7 +320,8 @@ export function AdminContentPage() {
       {visibleSops.map((sop) => {
         const preview = getSopPreviewAsset(sop);
         const edit = () => { setMessage(null); setSopDraft({ body: sop.body, category: sop.category, effectiveAt: sop.effective_at?.slice(0, 16) ?? '', id: sop.id, roles: sop.roles, storeIds: sop.storeIds, taskTemplateId: sop.taskTemplateId, title: sop.title }); };
-        return <article className="ui-card p-3" key={sop.id}>
+        const openPreview = () => navigate(`/app/sops/${sop.id}`);
+        return <article aria-label={`预览 SOP ${sop.title}`} className="ui-card cursor-pointer p-3 transition hover:border-brand-200 hover:shadow-md" key={sop.id} onClick={(event) => { if (!(event.target as HTMLElement).closest('button,a,input,select,textarea')) openPreview(); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openPreview(); } }} role="link" tabIndex={0}>
           <div className="flex gap-3">
             {preview ? <img alt={`${sop.title} 产品预览`} className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover" src={preview.signedUrl} /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400"><ImageIcon className="h-7 w-7" /></div>}
             <div className="min-w-0 flex-1">
@@ -457,7 +460,7 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
   const [activeImage, setActiveImage] = useState<{ alt: string; url: string } | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<SopImageUploadStatus>({ hasErrors: false, isUploading: false });
-  const [silentPublish, setSilentPublish] = useState(false);
+  const [silentPublish, setSilentPublish] = useState(true);
   const previewUrls = useRef<string[]>([]);
 
   useEffect(() => () => previewUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);

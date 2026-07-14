@@ -1,4 +1,4 @@
-import { BookOpenCheck, ChevronRight, RefreshCw, Search } from 'lucide-react';
+import { BookOpenCheck, ChevronRight, ImageIcon, RefreshCw, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -46,6 +46,6 @@ export function SopLibraryPage() {
     {status === 'error' && message ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'loading' ? <LoadingState label="正在加载 SOP" /> : null}
     {status === 'ready' && visible.length === 0 ? <EmptyState description={query || category !== 'all' ? '请尝试其他关键词或分类。' : '管理员发布并生效后，会按门店和角色显示在这里。'} icon={BookOpenCheck} title={query || category !== 'all' ? '没有找到 SOP' : '暂无适用 SOP'} /> : null}
-    <div className="space-y-2">{visible.map((sop) => <button className="ui-card ui-interactive flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left" key={sop.id} onClick={() => navigate(`/app/sops/${sop.id}`)} type="button"><span className="min-w-0 flex-1 truncate font-bold text-slate-900">{sop.title}</span><ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" /></button>)}</div>
+    <div className="space-y-2">{visible.map((sop) => <button className="ui-card ui-interactive flex min-h-20 w-full items-center gap-3 p-2.5 text-left" key={sop.id} onClick={() => navigate(`/app/sops/${sop.id}`)} type="button">{sop.previewUrl ? <img alt={`${sop.title} 预览`} className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover" src={sop.previewUrl} /> : <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></span>}<span className="min-w-0 flex-1"><span className="block truncate font-bold text-slate-900">{sop.title}</span><span className="mt-1 block truncate text-xs text-slate-500">{sop.category}</span></span><ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" /></button>)}</div>
   </PageShell>;
 }

@@ -129,7 +129,7 @@ describe('SopEditor image-first workflow', () => {
 
     await waitFor(() => expect(onReorderImages).toHaveBeenCalledWith(['image-2', 'image-1']));
     expect(within(grid).getAllByRole('img').map((image) => image.getAttribute('alt'))).toEqual(['第二步.jpg', '第一步.jpg']);
-    fireEvent.click(screen.getByRole('checkbox', { name: /静默发布/ }));
+    expect(screen.getByRole('checkbox', { name: /静默发布/ })).toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: '发布 SOP' }));
     await waitFor(() => expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({ silentPublish: true })));
   });

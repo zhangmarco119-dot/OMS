@@ -755,6 +755,7 @@ export type Database = {
       acknowledge_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       admin_v2_analytics: { Args: { p_days?: number; p_end_date?: string; p_start_date?: string }; Returns: Json };
       delete_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
+      delete_v2_sop_category: { Args: { p_category_id: string }; Returns: Json };
       delete_archived_v2_task_template: { Args: { p_template_id: string }; Returns: Json };
       archive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       can_manage_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };

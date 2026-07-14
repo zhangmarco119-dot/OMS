@@ -10,6 +10,16 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-07-14',
     highlights: [
+      '修复新建和编辑 SOP 时图片选择无响应的问题，改为选择后立即预览、压缩并持久化。',
+      'SOP 图片上传增加进度、失败重试和正式预览替换，上传过程不刷新页面或改变滚动位置。',
+      'SOP 分类支持新建和删除，并阻止误删仍被 SOP 使用的分类。',
+    ],
+    title: '修复 SOP 图片上传与分类管理',
+    version: 'StoreHub v2.1.10',
+  },
+  {
+    date: '2026-07-14',
+    highlights: [
       '员工 SOP 手册改为仅显示产品名称的条目列表，支持搜索和分类筛选。',
       'SOP 详情按“一张图片＋一段步骤文字”拼接为一个连续页面。',
       '管理员可创建 SOP 分类，并通过 Excel 清单配合图片文件批量导入 SOP 草稿。',

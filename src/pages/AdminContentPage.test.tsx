@@ -18,8 +18,10 @@ describe('SopEditor image-first workflow', () => {
     vi.clearAllMocks();
   });
 
-  it('previews a selected image immediately and includes it when saving an unsaved SOP', async () => {
+  it('previews and uploads a selected image immediately before saving the SOP form', async () => {
     const onSave = vi.fn().mockResolvedValue(true);
+    let finishUpload: (() => void) | undefined;
+    const onUploadImage = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { finishUpload = resolve; }));
     const { container } = render(<SopEditor
       busy={false}
       categories={['酸奶碗制作']}
@@ -31,6 +33,7 @@ describe('SopEditor image-first workflow', () => {
       onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
       onPublish={vi.fn().mockResolvedValue(true)}
       onSave={onSave}
+      onUploadImage={onUploadImage}
       stores={[{ id: 'store-1', name: '测试门店' }]}
       templates={[]}
     />);
@@ -44,13 +47,46 @@ describe('SopEditor image-first workflow', () => {
     fireEvent.change(input!, { target: { files: [file] } });
 
     expect(await screen.findByAltText('finished-bowl.png')).toHaveAttribute('src', 'blob:sop-preview');
-    expect(screen.getByText('待保存上传')).toBeInTheDocument();
+    expect(screen.getByText(/正在上传/)).toBeInTheDocument();
+    expect(onUploadImage).toHaveBeenCalledWith(file, expect.any(Function));
 
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+    expect(await screen.findByText('图片仍在上传，请等待上传完成后再保存或发布。')).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+
+    finishUpload?.();
+    await waitFor(() => expect(screen.queryByAltText('finished-bowl.png')).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       existingSteps: [],
-      pendingAssets: [expect.objectContaining({ file, sortOrder: 0, stepText: '' })],
+      pendingAssets: [],
     })));
+  });
+
+  it('keeps the local preview and offers retry when an SOP image upload fails', async () => {
+    const onUploadImage = vi.fn().mockRejectedValue(new Error('网络暂时不可用'));
+    const { container } = render(<SopEditor
+      busy={false}
+      categories={['酸奶碗制作']}
+      draft={{ ...createEmptySopDraft(['store-1']), title: '草莓酸奶碗' }}
+      errorMessage={null}
+      existingAssets={[]}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
+      onPublish={vi.fn().mockResolvedValue(true)}
+      onSave={vi.fn().mockResolvedValue(true)}
+      onUploadImage={onUploadImage}
+      stores={[{ id: 'store-1', name: '测试门店' }]}
+      templates={[]}
+    />);
+
+    const file = new File(['image'], 'failed.png', { type: 'image/png' });
+    fireEvent.change(container.querySelector('input[type="file"][accept*="image/png"]')!, { target: { files: [file] } });
+
+    expect(await screen.findByText('网络暂时不可用')).toBeInTheDocument();
+    expect(screen.getByAltText('failed.png')).toHaveAttribute('src', 'blob:sop-preview');
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument();
   });
 
   it('keeps the announcement editor and action bar above the app navigation', () => {

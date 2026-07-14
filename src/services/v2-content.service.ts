@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
+import { compressArrivalImage } from './arrival-images.service';
 
 type Client = SupabaseClient<Database>;
 export type NoticeRow = Database['public']['Tables']['v2_notices']['Row'];
@@ -228,6 +229,15 @@ export const createSopCategory = async (client: Client, input: { name: string; p
   return data?.[0] ?? null;
 };
 
+export const deleteSopCategory = async (client: Client, categoryId: string) => {
+  const { data, error } = await client.rpc('delete_v2_sop_category', { p_category_id: categoryId });
+  if (error?.message.includes('SOP_CATEGORY_IN_USE')) {
+    throw new Error('该分类仍被 SOP 使用，请先把这些 SOP 调整到其他分类后再删除。');
+  }
+  throwIfError(error);
+  return data;
+};
+
 export const saveSop = async (client: Client, draft: SopDraft) => {
   if (!draft.title.trim() || !draft.category.trim()) throw new Error('请填写 SOP 标题和分类。');
   if (!draft.storeIds.length || !draft.roles.length) throw new Error('请至少选择一个适用门店和角色。');
@@ -253,29 +263,58 @@ export const archiveSop = async (client: Client, sopId: string) => {
   return data;
 };
 
-export const uploadSopAsset = async (client: Client, input: { file: File; profileId: string; sopId: string; sortOrder?: number; stepText?: string }) => {
+export const uploadSopAsset = async (
+  client: Client,
+  input: { file: File; profileId: string; sopId: string; sortOrder?: number; stepText?: string },
+  onProgress?: (progress: number) => void,
+) => {
   const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
   if (!allowed.has(input.file.type)) throw new Error('仅支持 JPG、PNG、WEBP 图片或 PDF 文件。');
-  if (input.file.size <= 0 || input.file.size > 10 * 1024 * 1024) throw new Error('附件大小必须在 10 MB 以内。');
-  const extension = input.file.name.split('.').pop()?.toLowerCase() || 'file';
+  if (input.file.size <= 0) throw new Error('所选文件为空，请重新选择。');
+  onProgress?.(5);
+  let body: Blob = input.file;
+  let mimeType = input.file.type as SopAssetRow['mime_type'];
+  if (input.file.type.startsWith('image/')) {
+    try {
+      const processed = await compressArrivalImage(input.file);
+      body = processed.blob;
+      mimeType = processed.mimeType;
+    } catch (error) {
+      throw new Error(`图片处理失败：${error instanceof Error ? error.message : '无法读取所选图片。'}`);
+    }
+  } else if (input.file.size > 10 * 1024 * 1024) {
+    throw new Error('PDF 文件大小必须在 10 MB 以内。');
+  }
+  onProgress?.(35);
+  const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : mimeType === 'image/jpeg' ? 'jpg' : 'pdf';
   const objectPath = `${input.sopId}/${createUuid()}.${extension}`;
-  const upload = await client.storage.from('v2-sop-assets').upload(objectPath, input.file, { contentType: input.file.type, upsert: false });
+  const bucket = client.storage.from('v2-sop-assets');
+  const upload = await bucket.upload(objectPath, body, { cacheControl: '3600', contentType: mimeType, upsert: false });
   throwIfError(upload.error);
+  onProgress?.(70);
   const { data, error } = await client.from('v2_sop_assets').insert({
     file_name: input.file.name,
-    mime_type: input.file.type as SopAssetRow['mime_type'],
+    mime_type: mimeType,
     object_path: objectPath,
-    size_bytes: input.file.size,
+    size_bytes: body.size,
     sop_id: input.sopId,
     sort_order: input.sortOrder ?? 0,
     step_text: input.stepText?.trim() ?? '',
     uploaded_by: input.profileId,
   }).select('*').single();
   if (error) {
-    await client.storage.from('v2-sop-assets').remove([objectPath]);
+    await bucket.remove([objectPath]);
     throw new Error(error.message);
   }
-  return data;
+  onProgress?.(85);
+  const signed = await bucket.createSignedUrl(objectPath, 3600);
+  if (signed.error || !signed.data) {
+    await client.from('v2_sop_assets').delete().eq('id', data.id);
+    await bucket.remove([objectPath]);
+    throw new Error(`预览生成失败：${signed.error?.message ?? '无法生成 SOP 图片访问地址。'}`);
+  }
+  onProgress?.(100);
+  return { ...data, signedUrl: signed.data.signedUrl };
 };
 
 export const updateSopAssetSteps = async (client: Client, steps: Array<{ id: string; sortOrder: number; stepText: string }>) => {
@@ -286,8 +325,8 @@ export const updateSopAssetSteps = async (client: Client, steps: Array<{ id: str
 };
 
 export const deleteSopAsset = async (client: Client, asset: Pick<SopAssetRow, 'id' | 'object_path'>) => {
-  const storage = await client.storage.from('v2-sop-assets').remove([asset.object_path]);
-  throwIfError(storage.error);
   const { error } = await client.from('v2_sop_assets').delete().eq('id', asset.id);
   throwIfError(error);
+  const storage = await client.storage.from('v2-sop-assets').remove([asset.object_path]);
+  if (storage.error) throw new Error('图片记录已删除，但存储清理失败，请联系管理员处理。');
 };

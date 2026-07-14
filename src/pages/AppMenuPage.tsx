@@ -12,12 +12,12 @@ export function AppMenuPage() {
   const items = isAdmin ? [
     { icon: ClipboardList, label: '任务管理', note: '发布、模板、周期与审核', to: '/app/admin/tasks' },
     { icon: PackageCheck, label: '到货中心', note: '到货消息、记录和汇总', to: '/app/admin/arrivals' },
-    { icon: Bell, label: '公告与 SOP', note: '发布门店内容和流程手册', to: '/app/admin/content' },
-    { icon: ShoppingBag, label: '商品管理', note: '商品维护、导入与导出', to: '/app/admin?tab=products' },
-    { icon: Users, label: '账号管理', note: '账号资料与使用权限', to: '/app/admin?tab=users' },
+    { icon: Bell, label: '公告管理', note: '发布公告并查看员工已读情况', to: '/app/admin/announcements' },
+    { icon: BookOpenCheck, label: 'SOP 管理', note: '制作、发布和归档作业流程', to: '/app/admin/sops' },
+    { icon: ShoppingBag, label: '商品管理', note: '商品维护、导入与导出', to: '/app/admin/products' },
+    { icon: Users, label: '账号管理', note: '账号资料与使用权限', to: '/app/admin/users' },
     { icon: BarChart3, label: '运营统计', note: '到货、任务、巡店与 V1 摘要', to: '/app/admin/analytics' },
     { icon: History, label: '点货订货记录', note: '查看已提交的 V1 单据', to: '/app/history' },
-    { icon: History, label: '到货记录', note: '查看全部到货上报记录', to: '/app/admin/arrivals' },
   ] : [
     { icon: ClipboardList, label: '点货', note: '录入实际库存并自动保存', to: '/app/inventory' },
     { icon: PackagePlus, label: '订货', note: '填写订货数量和无需订货', to: '/app/order' },

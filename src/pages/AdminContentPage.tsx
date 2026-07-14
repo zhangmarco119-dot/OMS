@@ -43,16 +43,15 @@ import {
   type SopCategoryRow,
 } from '../services/v2-content.service';
 
-type ContentTab = 'notices' | 'sops';
+export type AdminContentSection = 'notices' | 'sops';
 type ContentRecipient = { display_name: string; id: string; role: 'staff' | 'manager'; store_id: string };
 
 const noticeStatus: Record<NoticeListItem['status'], string> = { draft: '草稿', published: '已发布', retracted: '已撤回' };
 const sopStatus: Record<SopListItem['status'], string> = { archived: '已归档', draft: '待发布', published: '已发布' };
 
-export function AdminContentPage() {
+export function AdminContentPage({ section }: { section: AdminContentSection }) {
   const auth = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<ContentTab>('notices');
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [sops, setSops] = useState<SopListItem[]>([]);
   const [sopCategories, setSopCategories] = useState<SopCategoryRow[]>([]);
@@ -95,11 +94,35 @@ export function AdminContentPage() {
   };
 
   const refresh = useCallback(async () => {
-    if (!supabase) { setStatus('error'); setMessage('缺少 Supabase 配置，暂时无法管理公告和 SOP。'); return; }
+    if (!supabase) { setStatus('error'); setMessage(`缺少 Supabase 配置，暂时无法管理${section === 'notices' ? '公告' : ' SOP'}。`); return; }
     setStatus('loading');
-    try { const [nextNotices, nextSops, nextCategories, nextTemplates, profiles] = await Promise.all([loadNotices(supabase), loadSops(supabase), loadSopCategories(supabase), loadTaskTemplates(supabase), supabase.from('profiles').select('id,display_name,role,store_id').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null)]); if (profiles.error) throw new Error(profiles.error.message); setNotices(nextNotices); setSops(nextSops); setSopCategories(nextCategories); setTemplates(nextTemplates); setRecipientProfiles((profiles.data ?? []) as ContentRecipient[]); setStatus('ready'); setMessage(null); }
-    catch (error) { setStatus('error'); setMessage(error instanceof Error ? error.message : '加载公告和 SOP 失败。'); }
-  }, []);
+    try {
+      if (section === 'notices') {
+        const [nextNotices, profiles] = await Promise.all([
+          loadNotices(supabase),
+          supabase.from('profiles').select('id,display_name,role,store_id').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null),
+        ]);
+        if (profiles.error) throw new Error(profiles.error.message);
+        setNotices(nextNotices);
+        setRecipientProfiles((profiles.data ?? []) as ContentRecipient[]);
+      } else {
+        const [nextSops, nextCategories, nextTemplates] = await Promise.all([
+          loadSops(supabase),
+          loadSopCategories(supabase),
+          loadTaskTemplates(supabase),
+        ]);
+        sopsRef.current = nextSops;
+        setSops(nextSops);
+        setSopCategories(nextCategories);
+        setTemplates(nextTemplates);
+      }
+      setStatus('ready');
+      setMessage(null);
+    } catch (error) {
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : `加载${section === 'notices' ? '公告' : ' SOP'}失败。`);
+    }
+  }, [section]);
   useEffect(() => { void refresh(); }, [refresh]);
   const defaultStores = auth.availableStores.map((store) => store.id);
   const storeName = (id: string) => auth.availableStores.find((store) => store.id === id)?.short_name ?? '未知门店';
@@ -295,12 +318,16 @@ export function AdminContentPage() {
   const archivedSops = sops.filter((sop) => sop.status === 'archived');
   const visibleSops = sopCategoryFilter === 'all' ? activeSops : activeSops.filter((sop) => sop.category === sopCategoryFilter);
 
-  return <PageShell eyebrow="门店运营系统 · 管理员" title="公告与 SOP 管理" backTo="/app">
-    <section className="rounded-lg bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-brand-700">门店内容管理</p><p className="mt-1 text-sm text-slate-500">公告按门店发布；SOP 同时按门店、角色和生效时间控制可见范围。</p></div><button aria-label="刷新内容" className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void refresh()} type="button"><RefreshCw className="h-4 w-4" /></button></div><div className="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1"><button className={`min-h-10 rounded-md text-sm font-bold ${tab === 'notices' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setTab('notices')} type="button">公告</button><button className={`min-h-10 rounded-md text-sm font-bold ${tab === 'sops' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setTab('sops')} type="button">SOP</button></div></section>
+  const pageCopy = section === 'notices'
+    ? { description: '创建和发布门店公告，并查看员工已读情况。', label: '门店公告', title: '公告管理' }
+    : { description: '创建、发布、分类和归档门店标准作业流程。', label: '标准作业流程', title: 'SOP 管理' };
+
+  return <PageShell eyebrow="门店运营系统 · 管理员" title={pageCopy.title} backTo="/app/workbench">
+    <section className="rounded-lg bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-brand-700">{pageCopy.label}</p><p className="mt-1 text-sm text-slate-500">{pageCopy.description}</p></div><button aria-label={`刷新${pageCopy.title}`} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void refresh()} type="button"><RefreshCw className="h-4 w-4" /></button></div></section>
     {message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
     {status === 'loading' ? <p className="rounded-lg bg-white p-5 text-sm font-semibold text-slate-600 shadow-sm">正在加载内容</p> : null}
-    {tab === 'notices' ? <section className="space-y-3"><button className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white" onClick={() => { setSopDraft(null); setNoticeDraft(createEmptyNoticeDraft(defaultStores)); }} type="button"><Plus className="h-4 w-4" />新建公告</button>{notices.map((notice) => <article className="rounded-lg bg-white p-4 shadow-sm" key={notice.id}><div className="flex items-start justify-between gap-3"><div><p className="flex items-center gap-1 text-xs font-bold text-brand-700">{notice.is_pinned ? <><Pin className="h-3.5 w-3.5" />置顶</> : '公告'} · {noticeStatus[notice.status]}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{notice.title}</h2><p className="mt-2 text-xs text-slate-500">门店：{notice.storeIds.map(storeName).join('、')} · {notice.readCount}/{notice.recipientCount} 已读{notice.expires_at ? ` · ${new Date(notice.expires_at).toLocaleDateString('zh-CN')} 到期` : ''}</p></div></div><p className="mt-3 line-clamp-2 whitespace-pre-wrap text-sm text-slate-600">{notice.body || '暂无正文内容。'}</p><details className="mt-3 rounded-lg bg-slate-50 p-3 text-sm"><summary className="cursor-pointer font-bold text-slate-700">查看已读/未读人员</summary><div className="mt-2 grid gap-1">{notice.recipients.map((recipient) => { const profile = recipientProfiles.find((item) => item.id === recipient.profileId); return <p key={recipient.profileId} className="text-slate-600">{recipient.firstReadAt ? '已读' : '未读'} · {profile?.display_name ?? '已离职/未知账号'} · {recipient.firstReadAt ? new Date(recipient.firstReadAt).toLocaleString('zh-CN') : '尚未打开'}</p>; })}</div></details><div className="mt-4 grid grid-cols-3 gap-2"><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" disabled={busy} onClick={() => setNoticeDraft({ body: notice.body, expiresAt: notice.expires_at?.slice(0, 16) ?? '', id: notice.id, isPinned: notice.is_pinned, recipientIds: notice.recipientIds, requiresAcknowledgment: notice.requires_acknowledgment, storeIds: notice.storeIds, title: notice.title })} type="button">编辑</button>{notice.status !== 'published' ? <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-brand-600 text-sm font-bold text-white" disabled={busy} onClick={() => void run(() => publishNotice(supabase!, notice.id), '公告已发布。')} type="button"><Rocket className="h-4 w-4" />发布</button> : <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 text-sm font-bold text-amber-800" disabled={busy} onClick={() => void run(() => retractNotice(supabase!, notice.id), '公告已撤回。')} type="button"><Undo2 className="h-4 w-4" />撤回</button>}<button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-red-200 text-sm font-bold text-red-700" disabled={busy} onClick={() => { if (window.confirm(`确定删除公告“${notice.title}”吗？删除后不可恢复。`)) void run(() => deleteNotice(supabase!, notice), '公告已删除。'); }} type="button"><Trash2 className="h-4 w-4" />删除</button></div></article>)}</section> : null}
-    {tab === 'sops' ? <section className="space-y-3">
+    {section === 'notices' ? <section className="space-y-3"><button className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white" onClick={() => { setSopDraft(null); setNoticeDraft(createEmptyNoticeDraft(defaultStores)); }} type="button"><Plus className="h-4 w-4" />新建公告</button>{notices.map((notice) => <article className="rounded-lg bg-white p-4 shadow-sm" key={notice.id}><div className="flex items-start justify-between gap-3"><div><p className="flex items-center gap-1 text-xs font-bold text-brand-700">{notice.is_pinned ? <><Pin className="h-3.5 w-3.5" />置顶</> : '公告'} · {noticeStatus[notice.status]}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{notice.title}</h2><p className="mt-2 text-xs text-slate-500">门店：{notice.storeIds.map(storeName).join('、')} · {notice.readCount}/{notice.recipientCount} 已读{notice.expires_at ? ` · ${new Date(notice.expires_at).toLocaleDateString('zh-CN')} 到期` : ''}</p></div></div><p className="mt-3 line-clamp-2 whitespace-pre-wrap text-sm text-slate-600">{notice.body || '暂无正文内容。'}</p><details className="mt-3 rounded-lg bg-slate-50 p-3 text-sm"><summary className="cursor-pointer font-bold text-slate-700">查看已读/未读人员</summary><div className="mt-2 grid gap-1">{notice.recipients.map((recipient) => { const profile = recipientProfiles.find((item) => item.id === recipient.profileId); return <p key={recipient.profileId} className="text-slate-600">{recipient.firstReadAt ? '已读' : '未读'} · {profile?.display_name ?? '已离职/未知账号'} · {recipient.firstReadAt ? new Date(recipient.firstReadAt).toLocaleString('zh-CN') : '尚未打开'}</p>; })}</div></details><div className="mt-4 grid grid-cols-3 gap-2"><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" disabled={busy} onClick={() => setNoticeDraft({ body: notice.body, expiresAt: notice.expires_at?.slice(0, 16) ?? '', id: notice.id, isPinned: notice.is_pinned, recipientIds: notice.recipientIds, requiresAcknowledgment: notice.requires_acknowledgment, storeIds: notice.storeIds, title: notice.title })} type="button">编辑</button>{notice.status !== 'published' ? <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-brand-600 text-sm font-bold text-white" disabled={busy} onClick={() => void run(() => publishNotice(supabase!, notice.id), '公告已发布。')} type="button"><Rocket className="h-4 w-4" />发布</button> : <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 text-sm font-bold text-amber-800" disabled={busy} onClick={() => void run(() => retractNotice(supabase!, notice.id), '公告已撤回。')} type="button"><Undo2 className="h-4 w-4" />撤回</button>}<button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-red-200 text-sm font-bold text-red-700" disabled={busy} onClick={() => { if (window.confirm(`确定删除公告“${notice.title}”吗？删除后不可恢复。`)) void run(() => deleteNotice(supabase!, notice), '公告已删除。'); }} type="button"><Trash2 className="h-4 w-4" />删除</button></div></article>)}</section> : null}
+    {section === 'sops' ? <section className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <button className="ui-button-primary px-1 text-sm" onClick={() => { setMessage(null); setNoticeDraft(null); setSopDraft(createEmptySopDraft(defaultStores)); }} type="button"><Plus className="h-4 w-4" />新建 SOP</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopBatchImport(true); }} type="button"><Upload className="h-4 w-4" />批量导入</button>
@@ -346,6 +373,14 @@ export function AdminContentPage() {
     {showSopArchiveManager ? <SopArchiveManager busy={busy} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} sops={archivedSops} /> : null}
     <SuccessToast message={success} onClose={() => setSuccess(null)} />
   </PageShell>;
+}
+
+export function AdminAnnouncementsPage() {
+  return <AdminContentPage section="notices" />;
+}
+
+export function AdminSopsPage() {
+  return <AdminContentPage section="sops" />;
 }
 
 function StorePicker({ selected, stores, onChange }: { selected: string[]; stores: Array<{ id: string; name: string }>; onChange: (ids: string[]) => void }) {

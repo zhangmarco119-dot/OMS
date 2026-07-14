@@ -89,10 +89,20 @@ describe('AdminPage account management', () => {
     expect(findInitialAdminId([staff, initialAdmin])).toBe(initialAdmin.id);
   });
 
+  it('loads only product data on the independent product page', async () => {
+    render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: '新增商品' });
+    expect(loadAdminProductsData).toHaveBeenCalled();
+    expect(loadAdminUsers).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: '创建账号' })).not.toBeInTheDocument();
+  });
+
   it('hides email from new and ordinary accounts, then confirms a successful save in a dialog', async () => {
-    render(<MemoryRouter initialEntries={['/app/admin?tab=users']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/app/admin/users']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="users" /></MemoryRouter>);
 
     await screen.findByRole('heading', { name: '创建账号' });
+    expect(loadAdminProductsData).not.toHaveBeenCalled();
     expect(screen.queryByPlaceholderText('联系邮箱（选填）')).not.toBeInTheDocument();
     expect(screen.getAllByRole('textbox').filter((input) => input.getAttribute('type') === 'email')).toHaveLength(1);
     expect(screen.getByRole('textbox', { name: '初始管理员邮箱' })).toHaveValue('admin@example.com');

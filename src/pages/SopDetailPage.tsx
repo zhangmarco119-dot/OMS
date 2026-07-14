@@ -35,7 +35,7 @@ export function SopDetailPage() {
   const images = sop?.assetUrls.filter((asset) => asset.asset_kind === 'step').sort((left, right) => left.sort_order - right.sort_order) ?? [];
   const documents = sop?.assetUrls.filter((asset) => asset.asset_kind === 'attachment') ?? [];
 
-  return <PageShell eyebrow={sop?.category ?? 'SOP 手册'} title={sop?.title ?? 'SOP 详情'} backTo={auth.profile?.role === 'admin' ? '/app/admin/content' : '/app/sops'} contentGapClassName="gap-3">
+  return <PageShell eyebrow={sop?.category ?? 'SOP 手册'} title={sop?.title ?? 'SOP 详情'} backTo={auth.profile?.role === 'admin' ? '/app/admin/sops' : '/app/sops'} contentGapClassName="gap-3">
     {status === 'error' && message ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'loading' ? <LoadingState label="正在加载完整 SOP" /> : null}
     {status === 'ready' && !sop ? <EmptyState description="该 SOP 可能尚未发布、已归档，或不适用于当前门店。" icon={BookOpenCheck} title="无法查看 SOP" /> : null}

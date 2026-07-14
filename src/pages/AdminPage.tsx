@@ -1,6 +1,5 @@
 import { CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, Save, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import {
@@ -29,7 +28,7 @@ import {
 } from '../features/admin/adminUsersService';
 import { useAuth } from '../features/auth/AuthContext';
 
-type AdminTab = 'products' | 'users';
+export type AdminSection = 'products' | 'users';
 type ProductTab = 'catalog' | 'import' | 'export';
 
 const emptyProductDraft = (storeId = ''): ProductDraft => ({
@@ -52,12 +51,8 @@ const productToDraft = (product: ProductRow): ProductDraft => ({
   store_id: product.store_id,
 });
 
-export function AdminPage() {
+export function AdminPage({ section }: { section: AdminSection }) {
   const auth = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<AdminTab>(() => searchParams.get('tab') === 'users' ? 'users' : 'products');
-  useEffect(() => { setTab(searchParams.get('tab') === 'users' ? 'users' : 'products'); }, [searchParams]);
-  const changeTab = (nextTab: AdminTab) => { setTab(nextTab); setSearchParams({ tab: nextTab }); };
   const [productTab, setProductTab] = useState<ProductTab>('catalog');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
@@ -84,22 +79,24 @@ export function AdminPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const [catalogData, userData] = await Promise.all([
-        loadAdminProductsData(storeId),
-        loadAdminUsers(),
-      ]);
-      setStores(catalogData.stores);
-      setSelectedStoreId(catalogData.selectedStoreId);
-      setProducts(catalogData.products);
-      setUsers(userData.users);
-      setProductDrafts(Object.fromEntries(catalogData.products.map((product) => [product.id, productToDraft(product)])));
-      setNewProduct(emptyProductDraft(catalogData.selectedStoreId));
-      setNewUser((current) => ({
-        ...current,
-        storeIds: current.storeIds.length > 0
-          ? current.storeIds
-          : [userData.stores[0]?.id || catalogData.selectedStoreId].filter(Boolean),
-      }));
+      if (section === 'products') {
+        const catalogData = await loadAdminProductsData(storeId);
+        setStores(catalogData.stores);
+        setSelectedStoreId(catalogData.selectedStoreId);
+        setProducts(catalogData.products);
+        setProductDrafts(Object.fromEntries(catalogData.products.map((product) => [product.id, productToDraft(product)])));
+        setNewProduct(emptyProductDraft(catalogData.selectedStoreId));
+      } else {
+        const userData = await loadAdminUsers();
+        setStores(userData.stores);
+        setUsers(userData.users);
+        setNewUser((current) => ({
+          ...current,
+          storeIds: current.storeIds.length > 0
+            ? current.storeIds
+            : [userData.stores[0]?.id].filter(Boolean),
+        }));
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '加载后台数据失败');
     } finally {
@@ -294,29 +291,10 @@ export function AdminPage() {
   };
 
   return (
-    <PageShell eyebrow="管理员" title={tab === 'products' ? '商品管理' : '账号管理'} backTo="/app">
-      <div className="rounded-2xl bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 text-sm">
-          {[
-            ['products', '商品'],
-            ['users', '账号'],
-          ].map(([value, label]) => (
-            <button
-              className={[
-                'min-h-10 rounded-lg font-bold transition',
-                tab === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600',
-              ].join(' ')}
-              key={value}
-              onClick={() => changeTab(value as AdminTab)}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'products' ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+    <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '商品管理' : '账号管理'} backTo="/app/workbench">
+      {section === 'products' ? (
+        <div className="rounded-2xl bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
             <select className="min-h-11 rounded-xl border border-slate-200 px-3" onChange={(event) => changeStore(event.target.value)} value={selectedStoreId}>
               {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
             </select>
@@ -325,13 +303,13 @@ export function AdminPage() {
               刷新
             </button>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {message ? <p className="rounded-xl bg-accent-50 p-3 text-sm leading-6 text-accent-700">{message}</p> : null}
       {loading ? <p className="rounded-xl bg-white p-4 text-sm font-semibold text-slate-700 shadow-sm">正在加载后台数据</p> : null}
 
-      {tab === 'products' ? (
+      {section === 'products' ? (
         <section className="space-y-2">
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 text-sm">
             {([
@@ -421,7 +399,7 @@ export function AdminPage() {
         </section>
       ) : null}
 
-      {tab === 'users' ? (
+      {section === 'users' ? (
         <section className="space-y-3">
           <div className="rounded-lg bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -510,6 +488,14 @@ export function AdminPage() {
       {savedAccountName ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="account-save-success-title"><section className="ui-dialog-panel max-w-sm border border-emerald-100 p-5"><div className="flex items-start justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 className="h-7 w-7" aria-hidden="true" /></div><button aria-label="关闭保存成功提示" className="ui-icon-button" onClick={() => setSavedAccountName(null)} type="button"><X className="h-5 w-5" /></button></div><h2 className="mt-4 text-xl font-bold text-slate-900" id="account-save-success-title">账号修改已保存</h2><p className="mt-2 text-sm leading-6 text-slate-600">“{savedAccountName}”的账号资料已更新并生效。</p><button className="ui-button-primary mt-5 w-full" onClick={() => setSavedAccountName(null)} type="button">我知道了</button></section></div> : null}
     </PageShell>
   );
+}
+
+export function AdminProductsPage() {
+  return <AdminPage section="products" />;
+}
+
+export function AdminUsersPage() {
+  return <AdminPage section="users" />;
 }
 
 function ProductDraftForm({ draft, onChange }: { draft: ProductDraft; onChange: (draft: ProductDraft) => void }) {

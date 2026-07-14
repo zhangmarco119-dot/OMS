@@ -937,13 +937,47 @@ export function SopBatchOperationsMenu({ onAction, onClose, onImport }: { onActi
 
 const directoryInputProps = { directory: '', webkitdirectory: '' } as Record<string, string>;
 
+interface SopFileHandle {
+  getFile: () => Promise<File>;
+  kind: 'file';
+  name: string;
+}
+
+interface SopDirectoryHandle {
+  kind: 'directory';
+  name: string;
+  values: () => AsyncIterableIterator<SopDirectoryHandle | SopFileHandle>;
+}
+
+const isSupportedSopImageName = (name: string) => /\.(?:jpe?g|png|webp)$/i.test(name);
+
+const collectReferencedDirectoryFiles = async (root: SopDirectoryHandle, referencedKeys: Set<string>) => {
+  const files: File[] = [];
+  let candidateImages = 0;
+  const scan = async (directory: SopDirectoryHandle): Promise<void> => {
+    for await (const entry of directory.values()) {
+      if (entry.kind === 'directory') {
+        await scan(entry);
+        continue;
+      }
+      if (!isSupportedSopImageName(entry.name)) continue;
+      candidateImages += 1;
+      if (referencedKeys.has(entry.name.toLowerCase())) files.push(await entry.getFile());
+    }
+  };
+  await scan(root);
+  return { candidateImages, files };
+};
+
 export function SopBatchImporter({ busy, errorMessage, onCancel, onImport }: { busy: boolean; errorMessage: string | null; onCancel: () => void; onImport: (workbookFile: File, imageFiles: File[], onProgress: (progress: SopBatchImportProgress) => void) => Promise<SopBatchImportResult | null> }) {
   const [workbookFile, setWorkbookFile] = useState<File | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [directoryHandle, setDirectoryHandle] = useState<SopDirectoryHandle | null>(null);
   const [imageMatch, setImageMatch] = useState<{ matched: number; referenced: number; unused: number } | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [progress, setProgress] = useState<SopBatchImportProgress | null>(null);
   const [report, setReport] = useState<SopBatchImportResult | null>(null);
+  const fallbackDirectoryInputRef = useRef<HTMLInputElement>(null);
   const downloadTemplate = () => {
     const url = URL.createObjectURL(new Blob([createSopBatchTemplate()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     const anchor = document.createElement('a');
@@ -961,11 +995,43 @@ export function SopBatchImporter({ busy, errorMessage, onCancel, onImport }: { b
       return;
     }
     const referencedKeys = new Set(referencedNames.map((name) => name.toLowerCase()));
-    const matchedFiles = imageFiles.filter((file) => referencedKeys.has(file.name.toLowerCase()));
-    setImageMatch({ matched: matchedFiles.length, referenced: referencedNames.length, unused: imageFiles.length - matchedFiles.length });
+    let matchedFiles: File[];
+    let candidateImages: number;
+    if (directoryHandle) {
+      setProgress({ completed: 0, detail: `正在文件夹中查找 Excel 引用的 ${referencedNames.length} 张图片`, percent: 0, phase: 'validating', total: referencedNames.length });
+      try {
+        const matched = await collectReferencedDirectoryFiles(directoryHandle, referencedKeys);
+        matchedFiles = matched.files;
+        candidateImages = matched.candidateImages;
+      } catch (error) {
+        setLocalError(`读取所选图片文件夹失败：${error instanceof Error ? error.message : '请重新选择文件夹。'}`);
+        return;
+      }
+    } else {
+      matchedFiles = imageFiles.filter((file) => referencedKeys.has(file.name.toLowerCase()));
+      candidateImages = imageFiles.length;
+    }
+    setImageMatch({ matched: matchedFiles.length, referenced: referencedNames.length, unused: Math.max(0, candidateImages - matchedFiles.length) });
     setProgress({ completed: 0, detail: `Excel 引用了 ${referencedNames.length} 张图片，正在匹配并准备上传`, percent: 0, phase: 'validating', total: referencedNames.length });
     const result = await onImport(workbookFile, matchedFiles, setProgress);
     if (result) setReport(result);
+  };
+  const selectDirectory = async () => {
+    const picker = (window as Window & { showDirectoryPicker?: (options?: { mode?: 'read' }) => Promise<SopDirectoryHandle> }).showDirectoryPicker;
+    if (!picker) {
+      fallbackDirectoryInputRef.current?.click();
+      return;
+    }
+    try {
+      const handle = await picker.call(window, { mode: 'read' });
+      setDirectoryHandle(handle);
+      setImageFiles([]);
+      setImageMatch(null);
+      setLocalError(null);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setLocalError(error instanceof Error ? error.message : '无法选择图片文件夹。');
+    }
   };
   return <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto bg-canvas px-3 pt-3" role="dialog" aria-modal="true" aria-labelledby="sop-batch-title">
     <div className="mx-auto max-w-2xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
@@ -981,15 +1047,22 @@ export function SopBatchImporter({ busy, errorMessage, onCancel, onImport }: { b
           <input accept=".xlsx,.xls" className="ui-input mt-2 py-2" disabled={busy} onChange={(event) => { setWorkbookFile(event.target.files?.[0] ?? null); setImageMatch(null); }} type="file" />
         </label>
         {workbookFile ? <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800">已选：{workbookFile.name}</p> : null}
-        <label className="block text-sm font-semibold">2. 选择步骤图片所在文件夹（纯文字 SOP 可跳过）
-          <input {...directoryInputProps} accept="image/jpeg,image/png,image/webp" className="ui-input mt-2 py-2" disabled={busy} multiple onChange={(event) => {
+        <div>
+          <p className="text-sm font-semibold">2. 选择步骤图片所在文件夹（纯文字 SOP 可跳过）</p>
+          <button className="ui-button-secondary mt-2 w-full" disabled={busy} onClick={() => void selectDirectory()} type="button"><FolderPlus className="h-4 w-4" />{directoryHandle ? '重新选择图片文件夹' : '选择图片文件夹'}</button>
+          <input {...directoryInputProps} accept="image/jpeg,image/png,image/webp" aria-label="兼容模式选择步骤图片文件夹" className="hidden" disabled={busy} multiple onChange={(event) => {
             const files = Array.from(event.target.files ?? []).filter((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
             setImageFiles(files);
+            setDirectoryHandle(null);
             setImageMatch(null);
             setLocalError(null);
-          }} type="file" />
-        </label>
-        <p className="rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">已建立 {imageFiles.length} 张候选图片的本地索引，此时不会上传图片。点击开始导入后，系统只会上传 Excel“步骤图片文件名”列实际引用并成功匹配的图片。</p>
+          }} ref={fallbackDirectoryInputRef} type="file" />
+        </div>
+        {directoryHandle
+          ? <p className="rounded-lg bg-brand-50 p-3 text-sm leading-6 text-brand-900">已选择文件夹“{directoryHandle.name}”。当前只保存本地读取授权，没有读取或上传其中的图片；点击开始导入后才会按 Excel 文件名读取对应图片。</p>
+          : imageFiles.length
+            ? <p className="rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-900">当前浏览器使用兼容模式，已建立 {imageFiles.length} 张候选图片的本地索引。浏览器可能把授权读取文件写成“上传”，但系统仍只会在开始导入后上传 Excel 实际引用的图片。</p>
+            : <p className="rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">选择文件夹时只授予本地读取权限，不上传图片。点击开始导入后，系统才会按 Excel“步骤图片文件名”列查找并上传对应图片。</p>}
         {imageMatch ? <div className="grid grid-cols-3 gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 text-center text-sm text-brand-900">
           <div><p className="text-xl font-bold">{imageMatch.referenced}</p><p className="text-xs">Excel 引用</p></div>
           <div><p className="text-xl font-bold">{imageMatch.matched}</p><p className="text-xs">文件夹匹配</p></div>

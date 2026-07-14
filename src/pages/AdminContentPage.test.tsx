@@ -365,6 +365,8 @@ describe('SopEditor image-first workflow', () => {
 });
 
 describe('SOP batch operations', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it('places import, publish, retract and archive in the batch operations menu', () => {
     render(<SopBatchOperationsMenu onAction={vi.fn()} onClose={vi.fn()} onImport={vi.fn()} />);
 
@@ -388,8 +390,8 @@ describe('SOP batch operations', () => {
     const folderInput = container.querySelector<HTMLInputElement>('input[webkitdirectory]');
     expect(folderInput).not.toBeNull();
     fireEvent.change(folderInput!, { target: { files: images } });
-    expect(screen.getByText('已建立 2 张候选图片的本地索引', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText('此时不会上传图片', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('当前浏览器使用兼容模式，已建立 2 张候选图片的本地索引', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('系统仍只会在开始导入后上传 Excel 实际引用的图片', { exact: false })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));
 
     await waitFor(() => expect(onImport).toHaveBeenCalledWith(workbook, [images[0]], expect.any(Function)));
@@ -398,6 +400,38 @@ describe('SOP batch operations', () => {
     expect(screen.getByText('不会上传').parentElement).toHaveTextContent('1不会上传');
     expect(screen.getByRole('progressbar', { name: 'SOP 批量导入进度' })).toHaveAttribute('aria-valuenow', '62');
     expect(screen.getByText('正在上传 3/5：step-03.jpg')).toBeInTheDocument();
+  });
+
+  it('uses a directory handle and reads only the image referenced by Excel', async () => {
+    const referencedFile = new File(['used'], 'used.jpg', { type: 'image/jpeg' });
+    const referencedGetFile = vi.fn().mockResolvedValue(referencedFile);
+    const unusedGetFile = vi.fn().mockResolvedValue(new File(['unused'], 'unused.jpg', { type: 'image/jpeg' }));
+    const directoryHandle = {
+      kind: 'directory' as const,
+      name: 'SOP图片',
+      values: async function* () {
+        yield { getFile: referencedGetFile, kind: 'file' as const, name: 'used.jpg' };
+        yield { getFile: unusedGetFile, kind: 'file' as const, name: 'unused.jpg' };
+      },
+    };
+    const picker = vi.fn().mockResolvedValue(directoryHandle);
+    vi.stubGlobal('showDirectoryPicker', picker);
+    const onImport = vi.fn().mockResolvedValue(null);
+    const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
+    const workbook = sopWorkbookFile([{ '产品名称': '测试 SOP', '分类': '测试', '步骤序号': 1, '步骤图片文件名': 'used.jpg' }]);
+
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [workbook] } });
+    fireEvent.click(screen.getByRole('button', { name: '选择图片文件夹' }));
+
+    await waitFor(() => expect(picker).toHaveBeenCalledWith({ mode: 'read' }));
+    expect(await screen.findByText('已选择文件夹“SOP图片”', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('没有读取或上传其中的图片', { exact: false })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));
+
+    await waitFor(() => expect(onImport).toHaveBeenCalledWith(workbook, [referencedFile], expect.any(Function)));
+    expect(referencedGetFile).toHaveBeenCalledTimes(1);
+    expect(unusedGetFile).not.toHaveBeenCalled();
   });
 
   it('allows a pure-text workbook to continue without selecting an image folder', async () => {

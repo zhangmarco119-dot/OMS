@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, Download, FileText, FileUp, FolderPlus, ImageIcon, ListChecks, Pencil, Pin, Plus, RefreshCw, Rocket, Save, Trash2, Undo2, Upload, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Download, FileText, FileUp, FolderPlus, ImageIcon, ListChecks, Pencil, Pin, Plus, RefreshCw, Rocket, Save, Search, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,6 +15,7 @@ import { useSopCategoryFilter } from '../features/content/useSopCategoryFilter';
 import { SopImageUpload, type SopImageUploadStatus } from '../features/content/SopImageUpload';
 import { normalizeSopSteps, type OrderedSopStep } from '../features/content/sopSteps';
 import { getSopPreviewAsset } from '../features/content/sopPreview';
+import { filterAdminSops } from '../features/content/sopLibrary';
 import { TaskTemplateReferenceImageUpload } from '../features/task-templates/TaskTemplateReferenceImageUpload';
 import { supabase } from '../lib/supabase';
 import {
@@ -69,6 +70,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const auth = useAuth();
   const navigate = useNavigate();
   const [sopCategoryFilter, setSopCategoryFilter] = useSopCategoryFilter();
+  const [sopSearch, setSopSearch] = useState('');
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [sops, setSops] = useState<SopListItem[]>([]);
   const [sopCategories, setSopCategories] = useState<SopCategoryRow[]>([]);
@@ -464,7 +466,8 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const archivedSops = sops.filter((sop) => sop.status === 'archived');
   const activeNotices = notices.filter((notice) => notice.status !== 'archived');
   const archivedNotices = notices.filter((notice) => notice.status === 'archived');
-  const visibleSops = sopCategoryFilter === 'all' ? activeSops : activeSops.filter((sop) => sop.category === sopCategoryFilter);
+  const normalizedSopSearch = sopSearch.trim().toLocaleLowerCase('zh-CN');
+  const visibleSops = filterAdminSops(activeSops, sopCategoryFilter, sopSearch);
   const sopSelectionMode = sopExportMode || Boolean(sopBatchAction);
   const eligibleBatchSops = sopBatchAction
     ? visibleSops.filter((sop) => sop.status === sopBatchLifecycleCopy[sopBatchAction].eligibleStatus)
@@ -475,7 +478,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     : { description: '创建、发布、分类和归档门店标准作业流程。', label: '标准作业流程', title: 'SOP 管理' };
 
   return <PageShell eyebrow="门店运营系统 · 管理员" title={pageCopy.title} backTo="/app/workbench">
-    <section className="rounded-lg bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-brand-700">{pageCopy.label}</p><p className="mt-1 text-sm text-slate-500">{pageCopy.description}</p></div><button aria-label={`刷新${pageCopy.title}`} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void refresh()} type="button"><RefreshCw className="h-4 w-4" /></button></div></section>
+    {section === 'notices' ? <section className="rounded-lg bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-brand-700">{pageCopy.label}</p><p className="mt-1 text-sm text-slate-500">{pageCopy.description}</p></div><button aria-label={`刷新${pageCopy.title}`} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void refresh()} type="button"><RefreshCw className="h-4 w-4" /></button></div></section> : null}
     {status === 'error' && message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
     {status === 'loading' ? <p className="rounded-lg bg-white p-5 text-sm font-semibold text-slate-600 shadow-sm">正在加载内容</p> : null}
     {section === 'notices' ? <section className="space-y-3">
@@ -503,25 +506,32 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopArchiveManager(true); }} type="button"><Archive className="h-4 w-4" />已归档（{archivedSops.length}）</button>
         <button className={sopExportMode ? 'ui-button-primary col-span-2 px-1 text-sm' : 'ui-button-secondary col-span-2 px-1 text-sm'} onClick={() => { setMessage(null); setSopBatchAction(null); setSopExportMode((current) => !current); setSelectedSopIds([]); }} type="button"><Download className="h-4 w-4" />{sopExportMode ? '退出导出选择' : '导出 SOP'}</button>
       </div>
-      <section className="ui-card flex items-end gap-3 p-3">
-        <label className="min-w-0 flex-1 text-sm font-bold text-slate-700">分类查看
-          <select className="ui-input mt-1.5" onChange={(event) => setSopCategoryFilter(event.target.value)} value={sopCategoryFilter}>
+      <section className="ui-card space-y-2.5 p-3">
+        <div className="flex items-end gap-3">
+          <label className="min-w-0 flex-1 text-sm font-bold text-slate-700">分类查看
+            <select className="ui-input mt-1.5" onChange={(event) => setSopCategoryFilter(event.target.value)} value={sopCategoryFilter}>
             <option value="all">全部分类</option>
             {sopCategories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
-          </select>
+            </select>
+          </label>
+          <span className="pb-3 text-xs font-semibold text-brand-700">{visibleSops.length} 个 SOP</span>
+        </div>
+        <label className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-400 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100">
+          <Search className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+          <input aria-label="检索 SOP" className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" onChange={(event) => setSopSearch(event.target.value)} placeholder="检索 SOP 名称、分类或说明" type="search" value={sopSearch} />
+          {sopSearch ? <button aria-label="清空 SOP 检索" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600" onClick={() => setSopSearch('')} type="button"><X className="h-3.5 w-3.5" /></button> : null}
         </label>
-        <span className="pb-3 text-xs text-slate-500">{visibleSops.length} 个 SOP</span>
       </section>
       {sopExportMode ? <section className="ui-card space-y-3 border-brand-200 bg-brand-50/40 p-3">
         <div><p className="text-sm font-bold text-brand-900">选择需要合并导出的 SOP</p><p className="mt-1 text-xs leading-5 text-brand-800">将生成一个包含目录、图片步骤和附件的离线 HTML 文件，可直接查看或打印为 PDF。</p></div>
-        <div className="grid grid-cols-3 gap-2"><button className="ui-button-secondary px-1 text-xs" onClick={() => setSelectedSopIds((current) => Array.from(new Set([...current, ...visibleSops.map((sop) => sop.id)])))} type="button">全选当前分类</button><button className="ui-button-secondary px-1 text-xs" onClick={() => setSelectedSopIds([])} type="button">清空选择</button><button className="ui-button-primary px-1 text-xs" disabled={busy || selectedSopIds.length === 0} onClick={() => void exportSelectedSops()} type="button"><Download className="h-4 w-4" />导出（{selectedSopIds.length}）</button></div>
+        <div className="grid grid-cols-3 gap-2"><button className="ui-button-secondary px-1 text-xs" onClick={() => setSelectedSopIds((current) => Array.from(new Set([...current, ...visibleSops.map((sop) => sop.id)])))} type="button">全选当前结果</button><button className="ui-button-secondary px-1 text-xs" onClick={() => setSelectedSopIds([])} type="button">清空选择</button><button className="ui-button-primary px-1 text-xs" disabled={busy || selectedSopIds.length === 0} onClick={() => void exportSelectedSops()} type="button"><Download className="h-4 w-4" />导出（{selectedSopIds.length}）</button></div>
       </section> : null}
       {sopBatchAction ? <section className="ui-card space-y-3 border-brand-200 bg-brand-50/40 p-3">
         <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-brand-900">{sopBatchLifecycleCopy[sopBatchAction].title}</p><p className="mt-1 text-xs leading-5 text-brand-800">当前分类有 {eligibleBatchSops.length} 个可操作项目。{sopBatchAction === 'publish' ? '批量发布默认静默进行，不发送员工通知。' : ''}</p></div><button className="text-xs font-bold text-slate-600" onClick={() => { setSopBatchAction(null); setSelectedSopIds([]); }} type="button">退出</button></div>
         <div className="grid grid-cols-3 gap-2"><button className="ui-button-secondary px-1 text-xs" onClick={() => setSelectedSopIds(eligibleBatchSops.map((sop) => sop.id))} type="button">全选可操作项</button><button className="ui-button-secondary px-1 text-xs" onClick={() => setSelectedSopIds([])} type="button">清空选择</button><button className="ui-button-primary px-1 text-xs" disabled={busy || selectedSopIds.length === 0} onClick={() => void runSopBatchLifecycle()} type="button">{sopBatchLifecycleCopy[sopBatchAction].button}（{selectedSopIds.length}）</button></div>
         {sopBatchActionProgress ? <div aria-label="SOP 批量操作进度" className="space-y-1"><div className="h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${Math.round((sopBatchActionProgress.completed / Math.max(sopBatchActionProgress.total, 1)) * 100)}%` }} /></div><p className="text-xs text-brand-800">正在处理 {sopBatchActionProgress.completed}/{sopBatchActionProgress.total}</p></div> : null}
       </section> : null}
-      {visibleSops.length === 0 ? <p className="ui-card p-6 text-center text-sm text-slate-500">当前分类暂无 SOP。</p> : null}
+      {visibleSops.length === 0 ? <p className="ui-card p-6 text-center text-sm text-slate-500">{normalizedSopSearch ? '没有符合检索条件的 SOP。' : '当前分类暂无 SOP。'}</p> : null}
       {visibleSops.map((sop) => {
         const preview = getSopPreviewAsset(sop);
         const edit = () => { setMessage(null); setSopDraft({ body: sop.body, category: sop.category, effectiveAt: sop.effective_at?.slice(0, 16) ?? '', id: sop.id, roles: sop.roles, storeIds: sop.storeIds, taskTemplateId: sop.taskTemplateId, title: sop.title }); };

@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SopBatchImportProgress } from '../features/content/sopBatchImport';
+import { filterAdminSops } from '../features/content/sopLibrary';
 import { formatSopActionError } from '../features/content/sopFeedback';
 import { createEmptyNoticeDraft, createEmptySopDraft } from '../services/v2-content.service';
 import { NoticeEditor, SopArchiveManager, SopBatchImporter, SopBatchOperationsMenu, SopCategoryManager, SopEditor } from './AdminContentPage';
@@ -12,6 +13,17 @@ const sopWorkbookFile = (rows: Array<Record<string, unknown>>, name = 'sops.xlsx
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'SOP');
   return new File([XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 };
+
+describe('administrator SOP search', () => {
+  const sop = (id: string, title: string, category: string, body: string) => ({ body, category, id, title });
+
+  it('filters names, categories and descriptions together with the selected category', () => {
+    const sops = [sop('1', '芒果酸奶碗', '酸奶碗', '冷藏水果制作'), sop('2', '黑糖珍珠奶茶', '奶茶', '珍珠熬煮说明')];
+    expect(filterAdminSops(sops, 'all', '珍珠').map((entry) => entry.id)).toEqual(['2']);
+    expect(filterAdminSops(sops, '酸奶碗', '冷藏').map((entry) => entry.id)).toEqual(['1']);
+    expect(filterAdminSops(sops, '奶茶', '芒果')).toEqual([]);
+  });
+});
 
 describe('SopEditor image-first workflow', () => {
   const createObjectUrl = vi.fn(() => 'blob:sop-preview');

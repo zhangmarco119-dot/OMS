@@ -17,7 +17,7 @@ import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
 const notificationLink = (notification: UserNotification) => {
   if (notification.entity_type === 'v2_notice') return `/app/notices/${notification.entity_id}`;
   if (notification.entity_type === 'v2_task') return `/app/tasks/${notification.entity_id}`;
-  if (notification.entity_type === 'v2_sop') return '/app/sops';
+  if (notification.entity_type === 'v2_sop') return `/app/sops/${notification.entity_id}`;
   return '/app/todos';
 };
 

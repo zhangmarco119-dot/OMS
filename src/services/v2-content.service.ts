@@ -7,6 +7,7 @@ type Client = SupabaseClient<Database>;
 export type NoticeRow = Database['public']['Tables']['v2_notices']['Row'];
 export type SopRow = Database['public']['Tables']['v2_sops']['Row'];
 export type SopAssetRow = Database['public']['Tables']['v2_sop_assets']['Row'];
+export type SopCategoryRow = Database['public']['Tables']['v2_sop_categories']['Row'];
 export type NoticeAssetRow = Database['public']['Tables']['v2_notice_assets']['Row'];
 
 export interface NoticeListItem extends NoticeRow {
@@ -26,6 +27,8 @@ export interface SopListItem extends SopRow {
   storeIds: string[];
   taskTemplateId: string | null;
 }
+
+export type SopLibraryEntry = Pick<SopRow, 'category' | 'effective_at' | 'id' | 'status' | 'title' | 'version'>;
 
 export interface NoticeDraft {
   body: string;
@@ -152,7 +155,7 @@ export const loadSops = async (client: Client): Promise<SopListItem[]> => {
     client.from('v2_sops').select('*').order('category').order('effective_at', { ascending: false }).order('updated_at', { ascending: false }),
     client.from('v2_sop_stores').select('*'),
     client.from('v2_sop_roles').select('*'),
-    client.from('v2_sop_assets').select('*').order('created_at'),
+    client.from('v2_sop_assets').select('*').order('sort_order').order('created_at'),
   ]);
   throwIfError(sops.error);
   throwIfError(assignments.error);
@@ -176,6 +179,53 @@ export const loadSops = async (client: Client): Promise<SopListItem[]> => {
     storeIds: stores.get(sop.id) ?? [],
     taskTemplateId: sop.task_template_id,
   })));
+};
+
+export const loadSopLibraryEntries = async (client: Client): Promise<SopLibraryEntry[]> => {
+  const { data, error } = await client.from('v2_sops').select('id,title,category,status,effective_at,version').eq('status', 'published').order('category').order('title');
+  throwIfError(error);
+  return data ?? [];
+};
+
+export const loadSopDetail = async (client: Client, sopId: string): Promise<SopListItem | null> => {
+  const [sop, assignments, roles, assets] = await Promise.all([
+    client.from('v2_sops').select('*').eq('id', sopId).maybeSingle(),
+    client.from('v2_sop_stores').select('*').eq('sop_id', sopId),
+    client.from('v2_sop_roles').select('*').eq('sop_id', sopId),
+    client.from('v2_sop_assets').select('*').eq('sop_id', sopId).order('sort_order').order('created_at'),
+  ]);
+  throwIfError(sop.error);
+  throwIfError(assignments.error);
+  throwIfError(roles.error);
+  throwIfError(assets.error);
+  if (!sop.data) return null;
+  const assetUrls = await Promise.all((assets.data ?? []).map(async (asset) => {
+    const signed = await client.storage.from('v2-sop-assets').createSignedUrl(asset.object_path, 3600);
+    throwIfError(signed.error);
+    if (!signed.data) throw new Error('无法生成 SOP 附件访问链接。');
+    return { ...asset, signedUrl: signed.data.signedUrl };
+  }));
+  return {
+    ...sop.data,
+    assetUrls,
+    roles: (roles.data ?? []).map((entry) => entry.role),
+    storeIds: (assignments.data ?? []).map((entry) => entry.store_id),
+    taskTemplateId: sop.data.task_template_id,
+  };
+};
+
+export const loadSopCategories = async (client: Client): Promise<SopCategoryRow[]> => {
+  const { data, error } = await client.from('v2_sop_categories').select('*').eq('is_active', true).order('sort_order').order('name');
+  throwIfError(error);
+  return data ?? [];
+};
+
+export const createSopCategory = async (client: Client, input: { name: string; profileId: string }) => {
+  const name = input.name.trim();
+  if (!name) throw new Error('请填写 SOP 分类名称。');
+  const { data, error } = await client.from('v2_sop_categories').upsert({ created_by: input.profileId, name }, { ignoreDuplicates: true, onConflict: 'name' }).select('*');
+  throwIfError(error);
+  return data?.[0] ?? null;
 };
 
 export const saveSop = async (client: Client, draft: SopDraft) => {
@@ -203,7 +253,7 @@ export const archiveSop = async (client: Client, sopId: string) => {
   return data;
 };
 
-export const uploadSopAsset = async (client: Client, input: { file: File; profileId: string; sopId: string }) => {
+export const uploadSopAsset = async (client: Client, input: { file: File; profileId: string; sopId: string; sortOrder?: number; stepText?: string }) => {
   const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
   if (!allowed.has(input.file.type)) throw new Error('仅支持 JPG、PNG、WEBP 图片或 PDF 文件。');
   if (input.file.size <= 0 || input.file.size > 10 * 1024 * 1024) throw new Error('附件大小必须在 10 MB 以内。');
@@ -217,6 +267,8 @@ export const uploadSopAsset = async (client: Client, input: { file: File; profil
     object_path: objectPath,
     size_bytes: input.file.size,
     sop_id: input.sopId,
+    sort_order: input.sortOrder ?? 0,
+    step_text: input.stepText?.trim() ?? '',
     uploaded_by: input.profileId,
   }).select('*').single();
   if (error) {
@@ -224,6 +276,13 @@ export const uploadSopAsset = async (client: Client, input: { file: File; profil
     throw new Error(error.message);
   }
   return data;
+};
+
+export const updateSopAssetSteps = async (client: Client, steps: Array<{ id: string; sortOrder: number; stepText: string }>) => {
+  for (const step of steps) {
+    const { error } = await client.from('v2_sop_assets').update({ sort_order: step.sortOrder, step_text: step.stepText.trim() }).eq('id', step.id);
+    throwIfError(error);
+  }
 };
 
 export const deleteSopAsset = async (client: Client, asset: Pick<SopAssetRow, 'id' | 'object_path'>) => {

@@ -26,6 +26,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
+import { SopDetailPage } from './pages/SopDetailPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
 import { TodoPage } from './pages/TodoPage';
 import { V2TaskCenterPage } from './pages/V2TaskCenterPage';
@@ -65,6 +66,7 @@ export const router = createBrowserRouter([
       { path: 'notices', element: <AnnouncementsPage /> },
       { path: 'notices/:noticeId', element: <AnnouncementDetailPage /> },
       { path: 'sops', element: <SopLibraryPage /> },
+      { path: 'sops/:sopId', element: <SopDetailPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'account', element: <AccountPage /> },

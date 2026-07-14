@@ -355,10 +355,16 @@ export type Database = {
         Update: { created_at?: string; role?: 'staff' | 'manager'; sop_id?: string; };
         Relationships: [];
       };
+      v2_sop_categories: {
+        Row: { created_at: string; created_by: string | null; id: string; is_active: boolean; name: string; sort_order: number; updated_at: string; };
+        Insert: { created_at?: string; created_by?: string | null; id?: string; is_active?: boolean; name: string; sort_order?: number; updated_at?: string; };
+        Update: { created_at?: string; created_by?: string | null; id?: string; is_active?: boolean; name?: string; sort_order?: number; updated_at?: string; };
+        Relationships: [];
+      };
       v2_sop_assets: {
-        Row: { bucket: 'v2-sop-assets'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; uploaded_by: string; };
-        Insert: { bucket?: 'v2-sop-assets'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; uploaded_by: string; };
-        Update: { bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path?: string; size_bytes?: number; sop_id?: string; uploaded_by?: string; };
+        Row: { bucket: 'v2-sop-assets'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; sort_order: number; step_text: string; uploaded_by: string; };
+        Insert: { bucket?: 'v2-sop-assets'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; sort_order?: number; step_text?: string; uploaded_by: string; };
+        Update: { bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path?: string; size_bytes?: number; sop_id?: string; sort_order?: number; step_text?: string; uploaded_by?: string; };
         Relationships: [];
       };
       product_feedback: {

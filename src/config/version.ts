@@ -10,6 +10,16 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-07-14',
     highlights: [
+      '员工 SOP 手册改为仅显示产品名称的条目列表，支持搜索和分类筛选。',
+      'SOP 详情按“一张图片＋一段步骤文字”拼接为一个连续页面。',
+      '管理员可创建 SOP 分类，并通过 Excel 清单配合图片文件批量导入 SOP 草稿。',
+    ],
+    title: '重构 SOP 手册与批量导入',
+    version: 'StoreHub v2.1.9',
+  },
+  {
+    date: '2026-07-14',
+    highlights: [
       '修复 SOP 未填生效时间时无法立即发布的数据库约束冲突。',
       '修复已发布 SOP 再编辑和归档时的同类生命周期问题。',
       '前端错误反馈现在会明确区分保存、图片上传和发布失败。',

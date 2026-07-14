@@ -371,7 +371,7 @@ describe('SOP batch operations', () => {
   it('selects an image folder and displays live import progress', async () => {
     const onImport = vi.fn(async (_workbook: File, _images: File[], onProgress: (progress: SopBatchImportProgress) => void) => {
       onProgress({ completed: 2, detail: '正在上传 3/5：step-03.jpg', percent: 62, phase: 'uploading', total: 5 });
-      return false;
+      return null;
     });
     const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
     const workbook = new File(['excel'], 'sops.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -390,7 +390,7 @@ describe('SOP batch operations', () => {
   });
 
   it('allows a pure-text workbook to continue without selecting an image folder', async () => {
-    const onImport = vi.fn().mockResolvedValue(true);
+    const onImport = vi.fn().mockResolvedValue(null);
     const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
     const workbook = new File(['excel'], 'text-only-sops.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
@@ -398,5 +398,24 @@ describe('SOP batch operations', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));
 
     await waitFor(() => expect(onImport).toHaveBeenCalledWith(workbook, [], expect.any(Function)));
+  });
+
+  it('shows success and failure counts with detailed reasons after a mixed SOP import', async () => {
+    const onImport = vi.fn().mockResolvedValue({
+      failed: 1,
+      failures: [{ item: 'SOP“重复名称”', reason: '系统中已存在同名 SOP。' }],
+      imported: 2,
+      steps: 5,
+      total: 3,
+    });
+    const { container } = render(<SopBatchImporter busy={false} errorMessage={null} onCancel={vi.fn()} onImport={onImport} />);
+    const workbook = new File(['excel'], 'mixed-sops.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [workbook] } });
+    fireEvent.click(screen.getByRole('button', { name: '开始导入草稿' }));
+
+    expect(await screen.findByRole('dialog', { name: 'SOP 批量上传完成' })).toHaveTextContent('上传成功2上传失败1');
+    expect(screen.getByRole('dialog', { name: 'SOP 批量上传完成' })).toHaveTextContent('SOP“重复名称”');
+    expect(screen.getByRole('dialog', { name: 'SOP 批量上传完成' })).toHaveTextContent('系统中已存在同名 SOP');
   });
 });

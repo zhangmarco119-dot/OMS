@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
+import { BatchImportReportDialog } from '../components/feedback/BatchImportReportDialog';
 import {
   createProduct,
   createAllProductsExportFile,
@@ -13,6 +14,7 @@ import {
   parseProductImportFile,
   updateProduct,
   type ProductDraft,
+  type ProductImportResult,
   type ProductRow,
 } from '../features/admin/adminProductsService';
 import {
@@ -65,6 +67,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const [newProduct, setNewProduct] = useState<ProductDraft>(emptyProductDraft());
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [productImportReport, setProductImportReport] = useState<ProductImportResult | null>(null);
   const [newUser, setNewUser] = useState<CreateUserInput>({
     password: '',
     username: '',
@@ -171,7 +174,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
       const result = await importProducts(selectedStoreId, rows);
       setImportFile(null);
       await refresh(selectedStoreId);
-      setMessage(`导入完成：新增 ${result.inserted}，更新 ${result.updated}，跳过 ${result.skipped}。`);
+      setProductImportReport(result);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导入失败');
     }
@@ -371,7 +374,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 </a>
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、排序、启用。导入时按“货品名称 + 规格 + 单位”匹配，已存在则更新，未匹配则新增。
+                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、排序、启用。导入时按“货品名称 + 规格 + 单位”匹配，已存在则更新，未匹配则新增。单行不合规范或写入失败时会继续处理其余货品，完成后统一报告失败原因。
               </p>
               <input
                 accept=".xlsx,.xls"
@@ -486,6 +489,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
         </section>
       ) : null}
       {savedAccountName ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="account-save-success-title"><section className="ui-dialog-panel max-w-sm border border-emerald-100 p-5"><div className="flex items-start justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 className="h-7 w-7" aria-hidden="true" /></div><button aria-label="关闭保存成功提示" className="ui-icon-button" onClick={() => setSavedAccountName(null)} type="button"><X className="h-5 w-5" /></button></div><h2 className="mt-4 text-xl font-bold text-slate-900" id="account-save-success-title">账号修改已保存</h2><p className="mt-2 text-sm leading-6 text-slate-600">“{savedAccountName}”的账号资料已更新并生效。</p><button className="ui-button-primary mt-5 w-full" onClick={() => setSavedAccountName(null)} type="button">我知道了</button></section></div> : null}
+      <BatchImportReportDialog failureCount={productImportReport?.failed ?? 0} failures={productImportReport?.failures ?? []} onClose={() => setProductImportReport(null)} open={Boolean(productImportReport)} successCount={productImportReport?.succeeded ?? 0} successDescription={`成功处理 ${productImportReport?.succeeded ?? 0} 个货品：新增 ${productImportReport?.inserted ?? 0} 个，更新 ${productImportReport?.updated ?? 0} 个。失败行不会影响其他货品。`} title="货品批量导入完成" />
       <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title={message && /失败|请|不能|不能为空|不正确|至少|已存在|未配置/.test(message) ? '操作未完成' : '操作成功'} tone={message && /失败|请|不能|不能为空|不正确|至少|已存在|未配置/.test(message) ? 'warning' : 'success'} />
     </PageShell>
   );

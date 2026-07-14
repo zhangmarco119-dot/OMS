@@ -29,14 +29,24 @@ export interface ProductImportRow {
   is_active: boolean;
   name: string;
   product_code: string | null;
+  row_number: number;
   sort_order: number;
   spec: string;
 }
 
+export interface ProductImportFailure {
+  item: string;
+  reason: string;
+  rowNumber: number;
+}
+
 export interface ProductImportResult {
+  failed: number;
+  failures: ProductImportFailure[];
   inserted: number;
+  succeeded: number;
+  total: number;
   updated: number;
-  skipped: number;
 }
 
 export interface ProductExportFile {
@@ -277,7 +287,7 @@ export const parseProductImportFile = async (file: File): Promise<ProductImportR
   }
 
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-  return rawRows.map((row) => {
+  return rawRows.map((row, index) => {
     const name = pick(row, ['货品名称', '商品名称', '名称', 'name']);
     const spec = pick(row, ['规格', 'spec']);
     const countUnit = pick(row, ['单位', '计数单位', 'count_unit', 'unit']);
@@ -288,6 +298,7 @@ export const parseProductImportFile = async (file: File): Promise<ProductImportR
       is_active: toBoolean(pick(row, ['启用', '是否启用', 'is_active', 'active'])),
       name,
       product_code: productCode || null,
+      row_number: index + 2,
       sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
       spec,
     };
@@ -298,69 +309,86 @@ export const importProducts = async (storeId: string, rows: ProductImportRow[]):
   const client = requireClient();
   let inserted = 0;
   let updated = 0;
-  let skipped = 0;
+  const failures: ProductImportFailure[] = [];
 
   for (const row of rows) {
-    if (!row.name || !row.spec || !row.count_unit) {
-      skipped += 1;
+    const missingFields = [!row.name && '货品名称', !row.spec && '规格', !row.count_unit && '单位'].filter(Boolean);
+    const item = `Excel 第 ${row.row_number} 行${row.name ? ` · ${row.name}` : ''}`;
+    if (missingFields.length) {
+      failures.push({ item, reason: `缺少必填字段：${missingFields.join('、')}。`, rowNumber: row.row_number });
       continue;
     }
 
-    let existing: ProductRow | null = null;
-    if (row.product_code) {
-      const { data, error } = await client
-        .from('products')
-        .select('*')
-        .eq('store_id', storeId)
-        .eq('product_code', row.product_code)
-        .maybeSingle();
-      if (error) {
-        throw new Error(error.message);
+    try {
+      let existing: ProductRow | null = null;
+      if (row.product_code) {
+        const { data, error } = await client
+          .from('products')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('product_code', row.product_code)
+          .maybeSingle();
+        if (error) {
+          throw new Error(error.message);
+        }
+        existing = data;
       }
-      existing = data;
-    }
 
-    if (!existing) {
-      const { data, error } = await client
-        .from('products')
-        .select('*')
-        .eq('store_id', storeId)
-        .eq('name', row.name)
-        .eq('spec', row.spec)
-        .eq('count_unit', row.count_unit)
-        .maybeSingle();
-      if (error) {
-        throw new Error(error.message);
+      if (!existing) {
+        const { data, error } = await client
+          .from('products')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('name', row.name)
+          .eq('spec', row.spec)
+          .eq('count_unit', row.count_unit)
+          .maybeSingle();
+        if (error) {
+          throw new Error(error.message);
+        }
+        existing = data;
       }
-      existing = data;
-    }
 
-    const payload = {
-      count_unit: row.count_unit,
-      is_active: row.is_active,
-      name: row.name,
-      product_code: row.product_code,
-      sort_order: row.sort_order,
-      spec: row.spec,
-      store_id: storeId,
-    };
+      const payload = {
+        count_unit: row.count_unit,
+        is_active: row.is_active,
+        name: row.name,
+        product_code: row.product_code,
+        sort_order: row.sort_order,
+        spec: row.spec,
+        store_id: storeId,
+      };
 
-    if (existing) {
-      const { error } = await client.from('products').update(payload).eq('id', existing.id);
-      if (error) {
-        throw new Error(error.message);
+      if (existing) {
+        const { error } = await client.from('products').update(payload).eq('id', existing.id);
+        if (error) {
+          throw new Error(error.message);
+        }
+        updated += 1;
+      } else {
+        const { error } = await client.from('products').insert(payload);
+        if (error) {
+          throw new Error(error.message);
+        }
+        inserted += 1;
       }
-      updated += 1;
-    } else {
-      const { error } = await client.from('products').insert(payload);
-      if (error) {
-        throw new Error(error.message);
-      }
-      inserted += 1;
+    } catch (error) {
+      failures.push({
+        item,
+        reason: error instanceof Error ? error.message : '该货品写入失败。',
+        rowNumber: row.row_number,
+      });
     }
   }
 
-  return { inserted, updated, skipped };
+  return {
+    failed: failures.length,
+    failures,
+    inserted,
+    succeeded: inserted + updated,
+    total: rows.length,
+    updated,
+  };
 };
 
 export const updateFeedbackStatus = async (

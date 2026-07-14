@@ -11,7 +11,7 @@ import {
   type AdminUserRow,
   type StoreRow,
 } from '../features/admin/adminUsersService';
-import { createProduct, loadAdminProductsData } from '../features/admin/adminProductsService';
+import { createProduct, importProducts, loadAdminProductsData, parseProductImportFile } from '../features/admin/adminProductsService';
 import { useAuth } from '../features/auth/AuthContext';
 import { AdminPage } from './AdminPage';
 
@@ -108,6 +108,34 @@ describe('AdminPage account management', () => {
 
     await waitFor(() => expect(createProduct).toHaveBeenCalled());
     expect(await screen.findByRole('dialog', { name: '操作成功' })).toHaveTextContent('货品已创建');
+  });
+
+  it('shows a detailed modal report after a mixed product import', async () => {
+    vi.mocked(parseProductImportFile).mockResolvedValue([
+      { count_unit: '杯', is_active: true, name: '成功货品', product_code: null, row_number: 2, sort_order: 1, spec: '100g' },
+      { count_unit: '', is_active: true, name: '失败货品', product_code: null, row_number: 3, sort_order: 2, spec: '120g' },
+    ]);
+    vi.mocked(importProducts).mockResolvedValue({
+      failed: 1,
+      failures: [{ item: 'Excel 第 3 行 · 失败货品', reason: '缺少必填字段：单位。', rowNumber: 3 }],
+      inserted: 1,
+      succeeded: 1,
+      total: 2,
+      updated: 0,
+    });
+    const { container } = render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: '新增货品' });
+    fireEvent.click(screen.getByRole('button', { name: '导入货品' }));
+    const file = new File(['excel'], 'products.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: '导入到当前门店' }));
+
+    await waitFor(() => expect(importProducts).toHaveBeenCalled());
+    const dialog = await screen.findByRole('dialog', { name: '货品批量导入完成' });
+    expect(dialog).toHaveTextContent('上传成功1上传失败1');
+    expect(dialog).toHaveTextContent('Excel 第 3 行 · 失败货品');
+    expect(dialog).toHaveTextContent('缺少必填字段：单位');
   });
 
   it('hides email from new and ordinary accounts, then confirms a successful save in a dialog', async () => {

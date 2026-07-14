@@ -1,17 +1,18 @@
-import { CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, Save, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, RotateCcw, Save, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { BatchImportReportDialog } from '../components/feedback/BatchImportReportDialog';
 import {
+  archiveProduct,
   createProduct,
   createAllProductsExportFile,
-  deleteProduct,
   downloadProductExportFile,
   importProducts,
   loadAdminProductsData,
   parseProductImportFile,
+  restoreProduct,
   updateProduct,
   type ProductDraft,
   type ProductImportResult,
@@ -32,7 +33,7 @@ import {
 import { useAuth } from '../features/auth/AuthContext';
 
 export type AdminSection = 'products' | 'users';
-type ProductTab = 'catalog' | 'import' | 'export';
+type ProductTab = 'catalog' | 'batch' | 'archived';
 
 const emptyProductDraft = (storeId = ''): ProductDraft => ({
   count_unit: '',
@@ -146,19 +147,30 @@ export function AdminPage({ section }: { section: AdminSection }) {
     }
   };
 
-  const removeProduct = async (product: ProductRow) => {
-    const confirmed = window.confirm(`确认删除货品“${product.name}”？已提交的历史单据仍保留当时的货品快照。`);
+  const moveProductToArchive = async (product: ProductRow) => {
+    const confirmed = window.confirm(`确认归档货品“${product.name}”？归档后不会出现在日常货品列表中，历史单据仍会完整保留。`);
     if (!confirmed) {
       return;
     }
 
     setMessage(null);
     try {
-      await deleteProduct(product.id);
+      await archiveProduct(product.id);
       await refresh(selectedStoreId);
-      setMessage('货品已删除。');
+      setMessage('货品已归档。');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '删除货品失败');
+      setMessage(error instanceof Error ? error.message : '归档货品失败');
+    }
+  };
+
+  const restoreArchivedProduct = async (product: ProductRow) => {
+    setMessage(null);
+    try {
+      await restoreProduct(product.id);
+      await refresh(selectedStoreId);
+      setMessage('货品已取消归档，已恢复到货品列表。');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '取消归档失败');
     }
   };
 
@@ -294,6 +306,9 @@ export function AdminPage({ section }: { section: AdminSection }) {
       : user));
   };
 
+  const activeProducts = products.filter((product) => product.is_active);
+  const archivedProducts = products.filter((product) => !product.is_active);
+
   return (
     <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '货品管理' : '账号管理'} backTo="/app/workbench">
       {section === 'products' ? (
@@ -317,8 +332,8 @@ export function AdminPage({ section }: { section: AdminSection }) {
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 text-sm">
             {([
               ['catalog', '货品列表'],
-              ['import', '导入货品'],
-              ['export', '导出货品'],
+              ['batch', '批量处理'],
+              ['archived', `已归档 ${archivedProducts.length}`],
             ] as const).map(([value, label]) => (
               <button
                 className={`min-h-10 rounded-md font-bold ${productTab === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`}
@@ -333,38 +348,41 @@ export function AdminPage({ section }: { section: AdminSection }) {
 
           {productTab === 'catalog' ? (
             <>
-          <div className="rounded-lg bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-base font-bold text-slate-900">新增货品</h2>
+          <div className="rounded-lg bg-white p-3 shadow-sm">
+            <h2 className="mb-2 text-base font-bold text-slate-900">新增货品</h2>
             <ProductDraftForm draft={newProduct} onChange={setNewProduct} />
-            <button className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void saveNewProduct()} type="button">
+            <button className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-lg bg-brand-600 px-3 text-sm font-bold text-white" onClick={() => void saveNewProduct()} type="button">
               <PackagePlus className="h-4 w-4" aria-hidden="true" />
               创建货品
             </button>
           </div>
 
           <div className="space-y-2">
-            {products.map((product) => (
-              <article className="rounded-lg bg-white p-3 shadow-sm" key={product.id}>
+            {activeProducts.map((product) => (
+              <article className="rounded-lg bg-white p-2.5 shadow-sm" key={product.id}>
                 <ProductDraftForm
                   draft={productDrafts[product.id] ?? productToDraft(product)}
                   onChange={(draft) => setProductDrafts((current) => ({ ...current, [product.id]: draft }))}
                 />
-                <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-                  <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-bold text-slate-800" onClick={() => void saveProduct(product.id)} type="button">
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-800" onClick={() => void saveProduct(product.id)} type="button">
                     <Save className="h-4 w-4" aria-hidden="true" />
                     保存货品
                   </button>
-                  <button aria-label={`删除${product.name}`} className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 text-red-700" onClick={() => void removeProduct(product)} title="删除货品" type="button">
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-amber-200 px-3 text-sm font-bold text-amber-800" onClick={() => void moveProductToArchive(product)} type="button">
+                    <Archive className="h-4 w-4" aria-hidden="true" />
+                    归档
                   </button>
                 </div>
               </article>
             ))}
+            {activeProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">当前门店暂无使用中的货品。</p> : null}
           </div>
             </>
           ) : null}
 
-          {productTab === 'import' ? (
+          {productTab === 'batch' ? (
+            <div className="space-y-2">
             <div className="rounded-lg bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-bold text-slate-900">Excel 导入货品</h2>
@@ -387,9 +405,6 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 导入到当前门店
               </button>
             </div>
-          ) : null}
-
-          {productTab === 'export' ? (
             <div className="rounded-lg bg-white p-4 shadow-sm">
               <h2 className="text-lg font-bold text-slate-900">导出全部货品</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店货品，包括门店、名称、规格、单位、排序、状态和更新时间。</p>
@@ -397,6 +412,30 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 <Download className="h-4 w-4" aria-hidden="true" />
                 导出全部货品 Excel
               </button>
+            </div>
+            </div>
+          ) : null}
+
+          {productTab === 'archived' ? (
+            <div className="space-y-2">
+              <div className="rounded-lg bg-white p-3 shadow-sm">
+                <h2 className="text-base font-bold text-slate-900">已归档货品</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-500">归档货品不会出现在日常业务选择中，历史单据仍会保留。需要继续使用时可取消归档。</p>
+              </div>
+              {archivedProducts.map((product) => (
+                <article className="rounded-lg bg-white p-3 shadow-sm" key={product.id}>
+                  <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] items-center gap-2 text-sm">
+                    <strong className="truncate text-slate-900">{product.name}</strong>
+                    <span className="truncate text-slate-600">{product.spec}</span>
+                    <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{product.count_unit}</span>
+                  </div>
+                  <button className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-brand-200 px-3 text-sm font-bold text-brand-700" onClick={() => void restoreArchivedProduct(product)} type="button">
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    取消归档
+                  </button>
+                </article>
+              ))}
+              {archivedProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">当前门店暂无已归档货品。</p> : null}
             </div>
           ) : null}
         </section>
@@ -505,15 +544,10 @@ export function AdminUsersPage() {
 
 function ProductDraftForm({ draft, onChange }: { draft: ProductDraft; onChange: (draft: ProductDraft) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
-      <input className="col-span-2 min-h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-1" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="货品名称" value={draft.name} />
-      <input className="col-span-2 min-h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-1" onChange={(event) => onChange({ ...draft, spec: event.target.value })} placeholder="规格" value={draft.spec} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, count_unit: event.target.value })} placeholder="单位" value={draft.count_unit} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, sort_order: Number(event.target.value) || 0 })} placeholder="排序" type="number" value={draft.sort_order} />
-      <select className="col-span-2 min-h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-1" onChange={(event) => onChange({ ...draft, is_active: event.target.value === 'true' })} value={String(draft.is_active)}>
-        <option value="true">启用</option>
-        <option value="false">停用</option>
-      </select>
+    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(4.5rem,0.55fr)] gap-2">
+      <input aria-label="货品名称" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="名称" value={draft.name} />
+      <input aria-label="货品规格" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, spec: event.target.value })} placeholder="规格" value={draft.spec} />
+      <input aria-label="货品单位" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, count_unit: event.target.value })} placeholder="单位" value={draft.count_unit} />
     </div>
   );
 }

@@ -266,6 +266,30 @@ export const updateProduct = async (productId: string, draft: ProductDraft) => {
   }
 };
 
+export const archiveProduct = async (productId: string) => {
+  const client = requireClient();
+  const { error } = await client
+    .from('products')
+    .update({ is_active: false })
+    .eq('id', productId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
+export const restoreProduct = async (productId: string) => {
+  const client = requireClient();
+  const { error } = await client
+    .from('products')
+    .update({ is_active: true })
+    .eq('id', productId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
 export const deleteProduct = async (productId: string) => {
   const client = requireClient();
   const { error } = await client

@@ -11,12 +11,13 @@ import {
   type AdminUserRow,
   type StoreRow,
 } from '../features/admin/adminUsersService';
-import { createProduct, importProducts, loadAdminProductsData, parseProductImportFile } from '../features/admin/adminProductsService';
+import { archiveProduct, createProduct, importProducts, loadAdminProductsData, parseProductImportFile, restoreProduct, type ProductRow } from '../features/admin/adminProductsService';
 import { useAuth } from '../features/auth/AuthContext';
 import { AdminPage } from './AdminPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
 vi.mock('../features/admin/adminProductsService', () => ({
+  archiveProduct: vi.fn(),
   createAllProductsExportFile: vi.fn(),
   createProduct: vi.fn(),
   deleteProduct: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../features/admin/adminProductsService', () => ({
   importProducts: vi.fn(),
   loadAdminProductsData: vi.fn(),
   parseProductImportFile: vi.fn(),
+  restoreProduct: vi.fn(),
   updateProduct: vi.fn(),
 }));
 vi.mock('../features/admin/adminUsersService', async (importOriginal) => {
@@ -46,6 +48,20 @@ const store: StoreRow = {
   name: '测试门店',
   short_name: '测试门店',
 };
+
+const makeProduct = (overrides: Partial<ProductRow> = {}): ProductRow => ({
+  count_unit: '杯',
+  created_at: '2026-07-14T00:00:00Z',
+  id: '00000000-0000-4000-8000-000000000010',
+  is_active: true,
+  name: '原味酸奶',
+  product_code: null,
+  sort_order: 9,
+  spec: '120g',
+  store_id: store.id,
+  updated_at: '2026-07-14T00:00:00Z',
+  ...overrides,
+});
 
 const makeUser = (overrides: Partial<AdminUserRow>): AdminUserRow => ({
   created_at: '2026-02-01T00:00:00Z',
@@ -126,7 +142,7 @@ describe('AdminPage account management', () => {
     const { container } = render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
 
     await screen.findByRole('heading', { name: '新增货品' });
-    fireEvent.click(screen.getByRole('button', { name: '导入货品' }));
+    fireEvent.click(screen.getByRole('button', { name: '批量处理' }));
     const file = new File(['excel'], 'products.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: '导入到当前门店' }));
@@ -136,6 +152,30 @@ describe('AdminPage account management', () => {
     expect(dialog).toHaveTextContent('上传成功1上传失败1');
     expect(dialog).toHaveTextContent('Excel 第 3 行 · 失败货品');
     expect(dialog).toHaveTextContent('缺少必填字段：单位');
+  });
+
+  it('uses a compact active list and separates archived products', async () => {
+    const active = makeProduct();
+    const archived = makeProduct({ id: '00000000-0000-4000-8000-000000000011', is_active: false, name: '旧款酸奶' });
+    vi.mocked(loadAdminProductsData).mockResolvedValue({ products: [active, archived], selectedStoreId: store.id, stores: [store] });
+    vi.mocked(archiveProduct).mockResolvedValue(undefined);
+    vi.mocked(restoreProduct).mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByDisplayValue('原味酸奶');
+    expect(screen.queryByDisplayValue('9')).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '停用' })).not.toBeInTheDocument();
+    expect(screen.queryByText('旧款酸奶')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '归档' }));
+    await waitFor(() => expect(archiveProduct).toHaveBeenCalledWith(active.id));
+
+    fireEvent.click(screen.getByRole('button', { name: '已归档 1' }));
+    expect(await screen.findByText('旧款酸奶')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '取消归档' }));
+    await waitFor(() => expect(restoreProduct).toHaveBeenCalledWith(archived.id));
   });
 
   it('hides email from new and ordinary accounts, then confirms a successful save in a dialog', async () => {

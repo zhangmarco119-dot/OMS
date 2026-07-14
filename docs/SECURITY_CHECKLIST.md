@@ -1,5 +1,14 @@
 # 上线前安全检查
 
+## 环境隔离
+
+- [ ] `v2-development` 的 URL、Anon Key、Auth、Storage 和数据全部属于开发测试 Supabase。
+- [ ] `manage-system` 的配置全部属于正式 Supabase，且两个 Project Ref 与 `config/environment-policy.json` 一致。
+- [ ] Supabase CLI Link 与当前分支环境一致。
+- [ ] 新 Migration 已先在开发测试库执行并验证，正式前端部署前同批 Migration 已应用正式库。
+- [ ] 正式库未执行 reset、Seed、DROP、TRUNCATE 或测试清理。
+- [ ] 已运行 `pnpm release:check`。
+
 ## 密钥和配置
 
 - [ ] 前端只配置 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。

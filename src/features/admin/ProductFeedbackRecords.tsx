@@ -57,7 +57,7 @@ export function ProductFeedbackRecords() {
     try {
       setRecords(await loadProductFeedbackRecords());
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '加载商品反馈失败。');
+      setMessage(error instanceof Error ? error.message : '加载货品反馈失败。');
     } finally {
       setLoading(false);
     }
@@ -73,7 +73,7 @@ export function ProductFeedbackRecords() {
   );
 
   const handleFeedback = async (item: ProductFeedbackRow, action: AdminFeedbackAction) => {
-    if (action === 'confirm_delete' && !window.confirm(`接受删除申请：确认从商品数据库删除“${feedbackProductText(item)}”？`)) {
+    if (action === 'confirm_delete' && !window.confirm(`接受删除申请：确认从货品数据库删除“${feedbackProductText(item)}”？`)) {
       return;
     }
     if (action === 'revert' && !window.confirm(`确认撤回“${feedbackProductText(item)}”的修改？`)) {
@@ -115,7 +115,7 @@ export function ProductFeedbackRecords() {
       </div>
 
       {message ? <p className="rounded-lg bg-accent-50 p-3 text-sm text-accent-700">{message}</p> : null}
-      {loading ? <div className="rounded-lg bg-white p-4 text-sm font-semibold shadow-sm">正在加载商品反馈</div> : null}
+      {loading ? <div className="rounded-lg bg-white p-4 text-sm font-semibold shadow-sm">正在加载货品反馈</div> : null}
       {!loading && filtered.length === 0 ? <div className="rounded-lg bg-white p-6 text-center text-sm text-slate-500 shadow-sm">当前筛选下暂无反馈。</div> : null}
 
       {filtered.map(({ creatorName, feedback: item, storeName }) => {
@@ -151,7 +151,7 @@ export function ProductFeedbackRecords() {
                     <p className="truncate font-semibold text-brand-700" title={`${snapshots.suggested.name} ${snapshots.suggested.spec}`}>修改后：{snapshots.suggested.name} · {snapshots.suggested.spec} · {snapshots.suggested.count_unit}</p>
                   </div>
                 ) : (
-                  <p className="mt-2 text-sm text-slate-500">商品信息：{feedbackProductText(item)}</p>
+                  <p className="mt-2 text-sm text-slate-500">货品信息：{feedbackProductText(item)}</p>
                 )}
 
                 {item.status === 'open' ? (

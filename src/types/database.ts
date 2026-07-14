@@ -308,9 +308,9 @@ export type Database = {
         Relationships: [];
       };
       v2_notices: {
-        Row: { body: string; created_at: string; created_by: string; expires_at: string | null; id: string; is_pinned: boolean; published_at: string | null; requires_acknowledgment: boolean; retracted_at: string | null; status: 'draft' | 'published' | 'retracted'; title: string; updated_at: string; };
-        Insert: { body?: string; created_at?: string; created_by: string; expires_at?: string | null; id?: string; is_pinned?: boolean; published_at?: string | null; requires_acknowledgment?: boolean; retracted_at?: string | null; status?: 'draft' | 'published' | 'retracted'; title: string; updated_at?: string; };
-        Update: { body?: string; created_at?: string; created_by?: string; expires_at?: string | null; id?: string; is_pinned?: boolean; published_at?: string | null; requires_acknowledgment?: boolean; retracted_at?: string | null; status?: 'draft' | 'published' | 'retracted'; title?: string; updated_at?: string; };
+        Row: { body: string; created_at: string; created_by: string; expires_at: string | null; id: string; is_pinned: boolean; published_at: string | null; requires_acknowledgment: boolean; retracted_at: string | null; status: 'draft' | 'published' | 'retracted' | 'archived'; title: string; updated_at: string; };
+        Insert: { body?: string; created_at?: string; created_by: string; expires_at?: string | null; id?: string; is_pinned?: boolean; published_at?: string | null; requires_acknowledgment?: boolean; retracted_at?: string | null; status?: 'draft' | 'published' | 'retracted' | 'archived'; title: string; updated_at?: string; };
+        Update: { body?: string; created_at?: string; created_by?: string; expires_at?: string | null; id?: string; is_pinned?: boolean; published_at?: string | null; requires_acknowledgment?: boolean; retracted_at?: string | null; status?: 'draft' | 'published' | 'retracted' | 'archived'; title?: string; updated_at?: string; };
         Relationships: [];
       };
       v2_notice_stores: {
@@ -355,10 +355,16 @@ export type Database = {
         Update: { created_at?: string; role?: 'staff' | 'manager'; sop_id?: string; };
         Relationships: [];
       };
+      v2_sop_categories: {
+        Row: { created_at: string; created_by: string | null; id: string; is_active: boolean; name: string; sort_order: number; updated_at: string; };
+        Insert: { created_at?: string; created_by?: string | null; id?: string; is_active?: boolean; name: string; sort_order?: number; updated_at?: string; };
+        Update: { created_at?: string; created_by?: string | null; id?: string; is_active?: boolean; name?: string; sort_order?: number; updated_at?: string; };
+        Relationships: [];
+      };
       v2_sop_assets: {
-        Row: { bucket: 'v2-sop-assets'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; uploaded_by: string; };
-        Insert: { bucket?: 'v2-sop-assets'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path: string; size_bytes: number; sop_id: string; uploaded_by: string; };
-        Update: { bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; object_path?: string; size_bytes?: number; sop_id?: string; uploaded_by?: string; };
+        Row: { asset_kind: 'step' | 'cover' | 'attachment'; bucket: 'v2-sop-assets'; created_at: string; file_name: string | null; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' | null; object_path: string | null; size_bytes: number; sop_id: string; sort_order: number; step_text: string; uploaded_by: string; };
+        Insert: { asset_kind?: 'step' | 'cover' | 'attachment'; bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string | null; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' | null; object_path?: string | null; size_bytes?: number; sop_id: string; sort_order?: number; step_text?: string; uploaded_by: string; };
+        Update: { asset_kind?: 'step' | 'cover' | 'attachment'; bucket?: 'v2-sop-assets'; created_at?: string; file_name?: string | null; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' | null; object_path?: string | null; size_bytes?: number; sop_id?: string; sort_order?: number; step_text?: string; uploaded_by?: string; };
         Relationships: [];
       };
       product_feedback: {
@@ -578,9 +584,15 @@ export type Database = {
         Relationships: [];
       };
       v2_task_answers: {
-        Row: { answer: Json | null; group_id: string; id: string; is_issue: boolean; item_id: string; item_snapshot: Json; note: string; task_id: string; updated_at: string; updated_by: string | null };
-        Insert: { answer?: Json | null; group_id: string; id?: string; is_issue?: boolean; item_id: string; item_snapshot: Json; note?: string; task_id: string; updated_at?: string; updated_by?: string | null };
-        Update: { answer?: Json | null; group_id?: string; id?: string; is_issue?: boolean; item_id?: string; item_snapshot?: Json; note?: string; task_id?: string; updated_at?: string; updated_by?: string | null };
+        Row: { answer: Json | null; group_id: string; id: string; is_issue: boolean; item_id: string; item_snapshot: Json; last_reviewed_at: string | null; last_reviewed_by: string | null; note: string; review_status: 'pending' | 'approved' | 'rejected' | 'resubmitted'; submission_round: number; task_id: string; updated_at: string; updated_by: string | null };
+        Insert: { answer?: Json | null; group_id: string; id?: string; is_issue?: boolean; item_id: string; item_snapshot: Json; last_reviewed_at?: string | null; last_reviewed_by?: string | null; note?: string; review_status?: 'pending' | 'approved' | 'rejected' | 'resubmitted'; submission_round?: number; task_id: string; updated_at?: string; updated_by?: string | null };
+        Update: { answer?: Json | null; group_id?: string; id?: string; is_issue?: boolean; item_id?: string; item_snapshot?: Json; last_reviewed_at?: string | null; last_reviewed_by?: string | null; note?: string; review_status?: 'pending' | 'approved' | 'rejected' | 'resubmitted'; submission_round?: number; task_id?: string; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
+      v2_task_item_reviews: {
+        Row: { actor_id: string; created_at: string; decision: 'approved' | 'rejected'; id: string; item_id: string; note: string; submission_round: number; task_id: string };
+        Insert: { actor_id: string; created_at?: string; decision: 'approved' | 'rejected'; id?: string; item_id: string; note?: string; submission_round: number; task_id: string };
+        Update: { actor_id?: string; created_at?: string; decision?: 'approved' | 'rejected'; id?: string; item_id?: string; note?: string; submission_round?: number; task_id?: string };
         Relationships: [];
       };
       v2_task_images: {
@@ -747,8 +759,11 @@ export type Database = {
       attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };
       admin_set_product_permissions: { Args: { p_can_request_discontinued: boolean; p_can_request_incorrect: boolean; p_can_request_new: boolean; p_profile_id: string }; Returns: Json };
       acknowledge_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
+      archive_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       admin_v2_analytics: { Args: { p_days?: number; p_end_date?: string; p_start_date?: string }; Returns: Json };
       delete_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
+      delete_archived_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
+      delete_v2_sop_category: { Args: { p_category_id: string }; Returns: Json };
       delete_archived_v2_task_template: { Args: { p_template_id: string }; Returns: Json };
       archive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       can_manage_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };
@@ -760,15 +775,23 @@ export type Database = {
       can_read_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       admin_operation_overview: { Args: Record<PropertyKey, never>; Returns: { arrival_pending: number; arrival_today: number; inventory_completed_today: number; inventory_pending: number; v2_task_active: number; v2_task_completed: number }[] };
       create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_month_day: number | null; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      create_v2_sop_text_step: { Args: { p_sop_id: string; p_sort_order: number; p_step_text: string }; Returns: Json };
       pause_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       mark_v2_notice_read: { Args: { p_notice_id: string }; Returns: Json };
       publish_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       publish_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
+      publish_v2_sop_with_options: { Args: { p_silent: boolean; p_sop_id: string }; Returns: Json };
       publish_v2_tasks: { Args: { p_due_at: string | null; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       resume_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
+      reorder_v2_sop_assets: { Args: { p_asset_ids: string[]; p_sop_id: string }; Returns: Json };
+      rename_v2_sop_category: { Args: { p_category_id: string; p_new_name: string }; Returns: Json };
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
+      review_v2_task_items: { Args: { p_decisions: Json; p_note: string; p_task_id: string }; Returns: Json };
       withdraw_v2_task: { Args: { p_task_id: string }; Returns: Json };
       retract_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
+      retract_v2_task_template: { Args: { p_template_id: string }; Returns: Json };
+      retract_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
+      unarchive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       save_v2_notice: { Args: { p_fields: Json; p_notice_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_sop: { Args: { p_fields: Json; p_roles: string[]; p_sop_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_task_progress: { Args: { p_answers: Json; p_expected_version: number; p_task_id: string }; Returns: Json };

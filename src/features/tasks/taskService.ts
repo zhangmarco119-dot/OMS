@@ -218,7 +218,7 @@ export const createDraftTask = async (
   }
 
   if (!products || products.length === 0) {
-    throw new Error('当前门店没有启用商品，无法创建任务。');
+    throw new Error('当前门店没有启用货品，无法创建任务。');
   }
 
   const { data: task, error: taskError } = await client
@@ -407,7 +407,7 @@ export const managerAddProductFromTask = async (
     || typeof data.task_item_id !== 'string'
     || typeof data.product_id !== 'string'
   ) {
-    throw new Error('新增商品结果格式无效');
+    throw new Error('新增货品结果格式无效');
   }
 
   const [itemResult, productResult] = await Promise.all([
@@ -419,7 +419,7 @@ export const managerAddProductFromTask = async (
     throw new Error(itemResult.error.message);
   }
   if (productResult.error || !productResult.data) {
-    throw new Error(productResult.error?.message ?? '商品未成功写入数据库');
+    throw new Error(productResult.error?.message ?? '货品未成功写入数据库');
   }
 
   return itemResult.data;
@@ -482,7 +482,7 @@ export const managerUpdateProductFromTask = async (
   }
 
   if (!data || typeof data !== 'object' || Array.isArray(data) || !('product_snapshot' in data)) {
-    throw new Error('商品修改结果格式无效');
+    throw new Error('货品修改结果格式无效');
   }
 
   return asProductSnapshot(data.product_snapshot as Json);

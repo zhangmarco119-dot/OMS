@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
+import { ConfirmDialog } from '../components/ui/Actions';
 import {
   arrivalStatusClass,
   arrivalStatusLabel,
@@ -31,6 +33,7 @@ export function AdminArrivalDetailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
+  const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidReason, setVoidReason] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -59,6 +62,7 @@ export function AdminArrivalDetailPage() {
     try {
       await markAdminArrivalViewed(supabase, detail.report.id);
       await load();
+      setMessage('到货记录已标记为已查看。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '标记查看失败。');
     } finally {
@@ -72,7 +76,12 @@ export function AdminArrivalDetailPage() {
       setMessage('请填写作废原因。');
       return;
     }
-    if (!window.confirm(`再次确认作废到货单 ${detail.report.report_no}？作废后不会计入每日汇总。`)) return;
+    setShowVoidConfirm(true);
+  };
+
+  const voidReport = async () => {
+    if (!supabase || !detail) return;
+    setShowVoidConfirm(false);
     setBusy(true);
     try {
       if (detail.report.status === 'submitted') await markAdminArrivalViewed(supabase, detail.report.id);
@@ -80,6 +89,7 @@ export function AdminArrivalDetailPage() {
       setShowVoidDialog(false);
       setVoidReason('');
       await load();
+      setMessage('到货记录已作废，不再计入到货汇总。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '作废到货单失败。');
     } finally {
@@ -102,7 +112,7 @@ export function AdminArrivalDetailPage() {
 
   return (
     <PageShell eyebrow="门店运营系统 · 管理员" title="到货详情" backTo="/app/admin/arrivals">
-      {message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
+      {status === 'error' && message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
       {status === 'loading' ? <p className="rounded-lg bg-white p-5 font-semibold text-slate-600 shadow-sm">正在加载到货详情</p> : null}
       {status === 'ready' && detail ? <>
         <section className="rounded-lg bg-white p-5 shadow-sm">
@@ -125,7 +135,7 @@ export function AdminArrivalDetailPage() {
         <ImageGroup images={detail.images.filter((image) => image.image_type === 'waybill')} onView={setViewerUrl} title="面单照片" />
         <ImageGroup images={detail.images.filter((image) => image.image_type === 'goods')} onView={setViewerUrl} title="货品照片" />
 
-        <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">产品明细</h2><div className="mt-3 divide-y divide-slate-100">{detail.items.map((item, index) => <div className="flex items-start justify-between gap-4 py-3" key={item.id}><div><p className="font-semibold text-slate-900">{index + 1}. {item.product_name_snapshot}</p>{item.note ? <p className="mt-1 text-xs text-slate-500">{item.note}</p> : null}{item.is_unmatched_product ? <span className="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">未匹配商品</span> : null}</div><p className="shrink-0 font-bold text-brand-700">{item.quantity} {item.unit}</p></div>)}</div></section>
+        <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">产品明细</h2><div className="mt-3 divide-y divide-slate-100">{detail.items.map((item, index) => <div className="flex items-start justify-between gap-4 py-3" key={item.id}><div><p className="font-semibold text-slate-900">{index + 1}. {item.product_name_snapshot}</p>{item.note ? <p className="mt-1 text-xs text-slate-500">{item.note}</p> : null}{item.is_unmatched_product ? <span className="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">未匹配货品</span> : null}</div><p className="shrink-0 font-bold text-brand-700">{item.quantity} {item.unit}</p></div>)}</div></section>
 
         <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">操作日志</h2>{detail.auditLogs.length ? <ol className="mt-3 space-y-3">{detail.auditLogs.map((log) => <li className="border-l-2 border-brand-200 pl-3 text-sm" key={log.id}><p className="font-semibold text-slate-800">{auditLabel[log.action] ?? log.action}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(log.created_at)}</p></li>)}</ol> : <p className="mt-3 text-sm text-slate-500">暂无操作日志。</p>}</section>
 
@@ -138,6 +148,8 @@ export function AdminArrivalDetailPage() {
 
       {viewerUrl ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" aria-label="查看到货图片"><button aria-label="关闭图片" className="absolute right-4 top-4 h-12 w-12 rounded-full bg-white/15 text-white" onClick={() => setViewerUrl(null)} type="button"><X className="mx-auto h-6 w-6" /></button>{detail && detail.images.length > 1 ? <><button aria-label="上一张图片" className="absolute left-3 h-12 w-12 rounded-full bg-white/15 text-white" onClick={() => changeViewerImage(-1)} type="button"><ChevronLeft className="mx-auto h-7 w-7" /></button><button aria-label="下一张图片" className="absolute right-3 h-12 w-12 rounded-full bg-white/15 text-white" onClick={() => changeViewerImage(1)} type="button"><ChevronRight className="mx-auto h-7 w-7" /></button><p className="absolute bottom-4 rounded-full bg-black/50 px-3 py-1 text-sm text-white">{viewerIndex + 1} / {detail.images.length}</p></> : null}<img alt="到货大图" className="max-h-[85vh] max-w-full object-contain" src={viewerUrl} /></div> : null}
       {showVoidDialog ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="void-title"><div className="ui-dialog-panel max-w-md p-5"><h2 className="text-lg font-bold" id="void-title">作废到货记录</h2><p className="mt-2 text-sm text-slate-600">作废后记录仍保留，但不会计入每日汇总。</p><label className="mt-4 block text-sm font-semibold">作废原因<textarea className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 p-3" onChange={(event) => setVoidReason(event.target.value)} value={voidReason} /></label><div className="mt-4 grid grid-cols-2 gap-3"><button className="min-h-11 rounded-lg border border-slate-200 font-bold" onClick={() => setShowVoidDialog(false)} type="button">取消</button><button className="min-h-11 rounded-lg bg-red-600 font-bold text-white" disabled={busy} onClick={() => void confirmVoid()} type="button">继续作废</button></div></div></div> : null}
+      <ConfirmDialog confirmLabel="确认作废" danger onCancel={() => setShowVoidConfirm(false)} onConfirm={() => void voidReport()} open={showVoidConfirm} title="再次确认作废"><p>确定作废到货单 {detail?.report.report_no} 吗？作废后该记录不会计入到货汇总。</p></ConfirmDialog>
+      <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title={message?.includes('已标记') || message?.includes('已作废') ? '操作成功' : message?.includes('请填写') ? '请完善作废信息' : '操作未完成'} tone={message?.includes('已标记') || message?.includes('已作废') ? 'success' : message?.includes('请填写') ? 'warning' : 'danger'} />
     </PageShell>
   );
 }

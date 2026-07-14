@@ -1,6 +1,6 @@
 import { Bell, ChevronRight, Clock3, LogOut, RefreshCw, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { IconButton } from '../components/ui/Actions';
 import { EmptyState, FeedbackBanner, StatusBadge } from '../components/ui/Feedback';
@@ -17,7 +17,7 @@ import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
 const notificationLink = (notification: UserNotification) => {
   if (notification.entity_type === 'v2_notice') return `/app/notices/${notification.entity_id}`;
   if (notification.entity_type === 'v2_task') return `/app/tasks/${notification.entity_id}`;
-  if (notification.entity_type === 'v2_sop') return '/app/sops';
+  if (notification.entity_type === 'v2_sop') return `/app/sops/${notification.entity_id}`;
   return '/app/todos';
 };
 
@@ -27,16 +27,20 @@ export function DashboardPage() {
 
 function StaffDashboard() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [tasks, setTasks] = useState<V2TaskRow[]>([]);
   const [summary, setSummary] = useState<TodoSummary | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
+  const loadRequestIdRef = useRef(0);
+  const readingNotificationIdsRef = useRef(new Set<string>());
   const [dismissedNoticeId, setDismissedNoticeId] = useState<string | null>(() => window.localStorage.getItem(`dismissed-home-notice:${auth.profile?.id ?? 'anonymous'}`));
 
   const load = useCallback(async () => {
     if (!supabase || !auth.profile) return;
+    const requestId = ++loadRequestIdRef.current;
     try {
       const [nextNotices, nextNotifications, nextTasks, nextSummary] = await Promise.all([
         loadNotices(supabase),
@@ -44,6 +48,7 @@ function StaffDashboard() {
         loadV2Tasks(supabase, auth.store?.id),
         loadTodoSummary(supabase, { isAdmin: false, profileId: auth.profile.id, storeId: auth.store?.id }),
       ]);
+      if (requestId !== loadRequestIdRef.current) return;
       const now = Date.now();
       setNotices(nextNotices.filter((notice) => notice.status === 'published' && !notice.isRead && (!notice.expires_at || new Date(notice.expires_at).getTime() > now)));
       setNotifications(nextNotifications);
@@ -51,11 +56,26 @@ function StaffDashboard() {
       setSummary(nextSummary);
       setMessage(null);
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return;
       setMessage(error instanceof Error ? error.message : '首页信息加载失败。');
     }
   }, [auth.profile, auth.store?.id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const refresh = () => { void load(); };
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('pageshow', refresh);
+    window.addEventListener('storehub:notifications-changed', refresh);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('pageshow', refresh);
+      window.removeEventListener('storehub:notifications-changed', refresh);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [load]);
 
   const changeStore = async (storeId: string) => {
     setSwitching(true);
@@ -63,9 +83,27 @@ function StaffDashboard() {
     catch (error) { setMessage(error instanceof Error ? error.message : '切换门店失败。'); }
     finally { setSwitching(false); }
   };
-  const openNotification = (notification: UserNotification) => {
-    if (supabase && !notification.is_read) void markNotificationRead(supabase, notification.id).then(load).catch(() => undefined);
+  const openNotification = async (notification: UserNotification) => {
+    const destination = notificationLink(notification);
+    if (!supabase || notification.is_read) {
+      navigate(destination);
+      return;
+    }
+    if (readingNotificationIdsRef.current.has(notification.id)) return;
+    readingNotificationIdsRef.current.add(notification.id);
+    setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, is_read: true, read_at: new Date().toISOString() } : item));
+    try {
+      await markNotificationRead(supabase, notification.id);
+      window.dispatchEvent(new Event('storehub:notifications-changed'));
+      navigate(destination);
+    } catch (error) {
+      readingNotificationIdsRef.current.delete(notification.id);
+      setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, is_read: false, read_at: null } : item));
+      setMessage(error instanceof Error ? error.message : '通知已读状态更新失败，请重试。');
+    }
   };
+  const visibleNotifications = notifications.slice(0, 3);
+  const visibleUnreadNotificationCount = visibleNotifications.filter((notification) => !notification.is_read).length;
   const visibleTickerNotices = notices.filter((notice) => notice.id !== dismissedNoticeId);
   const dismissTicker = () => {
     const id = visibleTickerNotices[0]?.id;
@@ -118,13 +156,13 @@ function StaffDashboard() {
         </SectionCard>
 
         <SectionCard>
-          <SectionHeader action={<IconButton aria-label="刷新首页" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={`未读 ${notifications.filter((notification) => !notification.is_read).length} 条`} icon={Bell} title="通知中心" />
+          <SectionHeader action={<IconButton aria-label="刷新首页" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={`未读 ${visibleUnreadNotificationCount} 条`} icon={Bell} title="通知中心" />
           <div className="mt-2 divide-y divide-slate-100">
-            {notifications.slice(0, 3).map((notification) => (
-              <Link className="ui-interactive block py-3" key={notification.id} onClick={() => openNotification(notification)} to={notificationLink(notification)}>
+            {visibleNotifications.map((notification) => (
+              <button className="ui-interactive block w-full py-3 text-left" key={notification.id} onClick={() => void openNotification(notification)} type="button">
                 <div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{notification.title}</p>{!notification.is_read ? <StatusBadge tone="success">未读</StatusBadge> : null}</div>
                 <p className="mt-1 line-clamp-1 text-xs text-slate-500">{notification.body} · {new Date(notification.created_at).toLocaleString('zh-CN')}</p>
-              </Link>
+              </button>
             ))}
             {notifications.length === 0 ? <p className="py-3 text-sm text-slate-500">暂无通知。</p> : null}
           </div>
@@ -164,7 +202,7 @@ function AdminDashboard() {
         </header>
         {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
         <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <MetricCard label="待处理" note="商品申请与任务审核" tone="danger" to="/app/todos" value={summary?.count ?? '—'} />
+          <MetricCard label="待处理" note="货品申请与任务审核" tone="danger" to="/app/todos" value={summary?.count ?? '—'} />
           <MetricCard label="到货待看" note={`今日到货 ${overview?.arrival_today ?? '—'}`} tone="warning" to="/app/admin/arrivals" value={overview?.arrival_pending ?? '—'} />
           <MetricCard label="今日盘点" note={`进行中 ${overview?.inventory_pending ?? '—'}`} tone="info" to="/app/history" value={overview?.inventory_completed_today ?? '—'} />
           <MetricCard label="执行中任务" note={`已完成 ${overview?.v2_task_completed ?? '—'}`} to="/app/admin/tasks" value={overview?.v2_task_active ?? '—'} />

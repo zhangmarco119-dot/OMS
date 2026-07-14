@@ -27,4 +27,13 @@ describe('routePlan', () => {
   it('registers the system version history page', () => {
     expect(routePlan.map((item) => item.path)).toContain('/app/account/about');
   });
+
+  it('keeps administrator content, products, and users on independent routes', () => {
+    expect(routePlan.map((item) => item.path)).toEqual(expect.arrayContaining([
+      '/app/admin/announcements',
+      '/app/admin/sops',
+      '/app/admin/products',
+      '/app/admin/users',
+    ]));
+  });
 });

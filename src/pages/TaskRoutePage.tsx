@@ -24,7 +24,7 @@ const copy = {
     pendingLabel: '待点',
     complete: '结束盘点',
     summaryTitle: '盘点汇总',
-    summaryBody: '货品已清点完毕，可以返回修改或继续补充临时商品。',
+    summaryBody: '货品已清点完毕，可以返回修改或继续补充临时货品。',
   },
   order: {
     title: '门店运营系统',
@@ -34,7 +34,7 @@ const copy = {
     pendingLabel: '待订',
     complete: '结束订货',
     summaryTitle: '订货汇总',
-    summaryBody: '本次订货信息已填写完毕，可以返回修改或继续补充临时商品。',
+    summaryBody: '本次订货信息已填写完毕，可以返回修改或继续补充临时货品。',
   },
 } satisfies Record<
   TaskType,
@@ -68,7 +68,7 @@ export function TaskRoutePage({ mode }: TaskRoutePageProps) {
       <PageShell eyebrow="管理员账号" title="管理员不执行点货和订货" backTo="/app">
         <div className="rounded-lg bg-white p-5 shadow-sm">
           <p className="text-sm leading-6 text-slate-600">
-            管理员账号用于查看提交消息、审阅全部记录以及维护商品和账号。请使用员工或店长账号完成门店点货、订货提交。
+            管理员账号用于查看提交消息、审阅全部记录以及维护货品和账号。请使用员工或店长账号完成门店点货、订货提交。
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Link className="min-h-12 rounded-lg bg-brand-600 px-4 py-3 text-center font-bold text-white" to="/app/history">
@@ -109,7 +109,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const [inventoryTemplates, setInventoryTemplates] = useState<InventoryTemplate[]>([]);
   const [inventoryImportStatus, setInventoryImportStatus] = useState<'idle' | 'loading' | 'importing' | 'error'>('idle');
   const [inventoryImportMessage, setInventoryImportMessage] = useState<string | null>(null);
-  const [extraForm, setExtraForm] = useState({ name: '', spec: '', countUnit: '', productCode: '', quantity: '', note: '' });
+  const [extraForm, setExtraForm] = useState({ name: '', spec: '', countUnit: '', quantity: '', note: '' });
   const [productPermissions, setProductPermissions] = useState({ discontinued: false, incorrect: false, new: false });
   const isManager = canManageV1ProductsFromTask(auth.profile?.role);
   const canCorrectProduct = productPermissions.incorrect;
@@ -195,7 +195,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
 
   const submitManagerCorrection = async () => {
     if (!correctionForm.name.trim() || !correctionForm.spec.trim() || !correctionForm.countUnit.trim()) {
-      setFeedbackActionMessage('请填写商品名称、规格和单位。');
+      setFeedbackActionMessage('请填写货品名称、规格和单位。');
       return;
     }
 
@@ -210,9 +210,9 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       });
       setFeedbackNote('');
       setShowCorrectionForm(false);
-      setFeedbackActionMessage('商品信息已修改，管理员已收到通知。');
+      setFeedbackActionMessage('货品信息已修改，管理员已收到通知。');
     } catch (error) {
-      setFeedbackActionMessage(error instanceof Error ? error.message : '修改商品信息失败');
+      setFeedbackActionMessage(error instanceof Error ? error.message : '修改货品信息失败');
     } finally {
       setFeedbackBusy(false);
     }
@@ -229,7 +229,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       await task.requestCurrentProductDeletion(feedbackNote || undefined);
       setFeedbackNote('');
       setShowDeletionConfirm(false);
-      setFeedbackActionMessage('已提交删除此商品，等待管理员确认。');
+      setFeedbackActionMessage('已提交删除此货品，等待管理员确认。');
     } catch (error) {
       setFeedbackActionMessage(error instanceof Error ? error.message : '提交删除申请失败');
     } finally {
@@ -240,7 +240,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const submitExtraItem = async () => {
     const quantity = Number(extraForm.quantity);
     if (!extraForm.name || !extraForm.spec || !extraForm.countUnit || !Number.isFinite(quantity) || quantity < 0) {
-      setExtraFormMessage('请填写商品名称、规格、单位和有效数量。');
+      setExtraFormMessage('请填写货品名称、规格、单位和有效数量。');
       return;
     }
 
@@ -255,15 +255,15 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
         note: extraForm.note.trim() || undefined,
       };
       if (isManager) {
-        await task.addManagerProduct({ ...input, productCode: extraForm.productCode.trim() || undefined });
+        await task.addManagerProduct(input);
       } else {
         await task.addExtraItem(input);
       }
-      setExtraForm({ name: '', spec: '', countUnit: '', productCode: '', quantity: '', note: '' });
+      setExtraForm({ name: '', spec: '', countUnit: '', quantity: '', note: '' });
       setShowExtraForm(false);
       setShowSummary(false);
     } catch (error) {
-      setExtraFormMessage(error instanceof Error ? error.message : '新增商品失败');
+      setExtraFormMessage(error instanceof Error ? error.message : '新增货品失败');
     } finally {
       setExtraFormBusy(false);
     }
@@ -329,7 +329,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
         </header>
 
         {task.status === 'loading' ? (
-          <StatePanel title="正在加载" body="正在加载门店商品和未完成草稿。" />
+          <StatePanel title="正在加载" body="正在加载门店货品和未完成草稿。" />
         ) : null}
 
         {task.status === 'error' || task.status === 'empty' ? (
@@ -365,7 +365,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                 返回修改
               </button>
               <button className="min-h-12 rounded-xl border border-slate-200 px-4 font-semibold" onClick={() => setShowExtraForm(true)} type="button">
-                继续新增商品
+                继续新增货品
               </button>
               <button className="min-h-12 rounded-xl bg-brand-600 px-4 font-semibold text-white disabled:bg-slate-300" disabled={isSubmitting} onClick={() => void submitTaskOnly()} type="button">
                 {isSubmitting ? '正在提交' : `提交本次${text.modeLabel}`}
@@ -398,12 +398,12 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                 ) : null}
 
                 <div className="flex items-center justify-between text-sm font-semibold text-slate-500">
-                  <span>当前商品</span>
+                  <span>当前货品</span>
                   <span>{task.stats.total ? task.currentIndex + 1 : 0}/{task.stats.total}</span>
                 </div>
 
                 <div className="mt-6 min-h-36 text-center">
-                  <h2 className="text-3xl font-bold leading-tight text-slate-900">{snapshot?.name ?? '暂无商品'}</h2>
+                  <h2 className="text-3xl font-bold leading-tight text-slate-900">{snapshot?.name ?? '暂无货品'}</h2>
                   <p className="mt-3 text-base text-slate-500">{snapshot?.spec || '无规格'}</p>
                   {task.currentItem?.status === 'no_order_needed' ? (
                     <span className="mt-4 inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">已标记无需订货</span>
@@ -488,7 +488,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                     <textarea
                       className="min-h-20 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-brand-500"
                       onChange={(event) => setFeedbackNote(event.target.value)}
-                      placeholder="商品操作说明，可选"
+                      placeholder="货品操作说明，可选"
                       value={feedbackNote}
                     />
                     {feedbackActionMessage ? (
@@ -496,14 +496,14 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                     ) : null}
                     {deletionRequested ? (
                       <p className="mt-3 rounded-xl bg-accent-50 p-3 text-sm font-semibold leading-6 text-accent-700">
-                        已提交删除此商品，等待管理员确认。
+                        已提交删除此货品，等待管理员确认。
                       </p>
                     ) : null}
                     <div className="mt-3 grid grid-cols-2 gap-3">
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
                         disabled={feedbackBusy || deletionActionLocked}
-                        onClick={() => { if (!canRequestProductDeletion) { setFeedbackActionMessage('当前账号没有商品删除权限，请联系管理员授权。'); return; } setShowDeletionConfirm(true); }}
+                        onClick={() => { if (!canRequestProductDeletion) { setFeedbackActionMessage('当前账号没有货品删除权限，请联系管理员授权。'); return; } setShowDeletionConfirm(true); }}
                         type="button"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -512,7 +512,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
                         disabled={feedbackBusy || !task.currentItem?.product_id}
-                        onClick={() => { if (!canCorrectProduct) { setFeedbackActionMessage('当前账号没有商品修订权限，请联系管理员授权。'); return; } openCorrectionForm(); }}
+                        onClick={() => { if (!canCorrectProduct) { setFeedbackActionMessage('当前账号没有货品修订权限，请联系管理员授权。'); return; } openCorrectionForm(); }}
                         type="button"
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -535,7 +535,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                     type="button"
                   >
                     <PackagePlus className="h-5 w-5" aria-hidden="true" />
-                    新增商品
+                    新增货品
                   </button> : null}
                 </div>
               </section>
@@ -577,7 +577,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   <FileDown className="h-5 w-5 text-brand-600" aria-hidden="true" />
                   <h2 className="text-lg font-semibold text-slate-900" id="inventory-import-title">导入历史盘点单</h2>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">显示本门店所有账号提交的盘点单。导入会覆盖当前草稿中匹配商品的盘点状态和数量。</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">显示本门店所有账号提交的盘点单。导入会覆盖当前草稿中匹配货品的盘点状态和数量。</p>
               </div>
               <button aria-label="关闭导入历史盘点单" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100" onClick={() => setShowInventoryImport(false)} type="button">
                 <X className="h-5 w-5" aria-hidden="true" />
@@ -624,29 +624,26 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <PackagePlus className="h-5 w-5 text-brand-600" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-900" id="extra-product-title">新增商品</h2>
+                <h2 className="text-lg font-semibold text-slate-900" id="extra-product-title">新增货品</h2>
               </div>
               <button aria-label="关闭" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100" onClick={() => setShowExtraForm(false)} type="button">
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
             <p className="mb-4 text-sm leading-6 text-slate-600">
-              {isManager ? '保存后会同步新增到本店商品数据库，并通知管理员。' : '本次任务临时新增，不会直接写入商品数据库。'}
+              {isManager ? '保存后会同步新增到本店货品数据库，并通知管理员。' : '本次任务临时新增，不会直接写入货品数据库。'}
             </p>
-            <div className="grid gap-3">
-              <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, name: event.target.value }))} placeholder="商品名称" value={extraForm.name} />
-              <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, spec: event.target.value }))} placeholder="规格" value={extraForm.spec} />
+            <div className="grid grid-cols-2 gap-3">
+              <input className="col-span-2 min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, name: event.target.value }))} placeholder="货品名称" value={extraForm.name} />
+              <input className="col-span-2 min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, spec: event.target.value }))} placeholder="规格" value={extraForm.spec} />
               <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, countUnit: event.target.value }))} placeholder="单位" value={extraForm.countUnit} />
-              {isManager ? (
-                <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, productCode: event.target.value }))} placeholder="商品编码（选填）" value={extraForm.productCode} />
-              ) : null}
               <input className="min-h-11 rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-500" inputMode="decimal" onChange={(event) => setExtraForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="数量" type="number" value={extraForm.quantity} />
-              <textarea className="min-h-20 rounded-xl border border-slate-200 p-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, note: event.target.value }))} placeholder="备注，可选" value={extraForm.note} />
+              <textarea className="col-span-2 min-h-20 rounded-xl border border-slate-200 p-3 outline-none focus:border-brand-500" onChange={(event) => setExtraForm((current) => ({ ...current, note: event.target.value }))} placeholder="备注，可选" value={extraForm.note} />
             </div>
             {extraFormMessage ? <p className="mt-3 rounded-xl bg-accent-50 p-3 text-sm leading-6 text-accent-700">{extraFormMessage}</p> : null}
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button className="min-h-12 rounded-xl border border-slate-200 font-semibold" disabled={extraFormBusy} onClick={() => setShowExtraForm(false)} type="button">取消</button>
-              <button className="min-h-12 rounded-xl bg-brand-600 font-semibold text-white disabled:bg-slate-300" disabled={extraFormBusy} onClick={() => void submitExtraItem()} type="button">{extraFormBusy ? '正在保存' : '保存商品'}</button>
+              <button className="min-h-12 rounded-xl bg-brand-600 font-semibold text-white disabled:bg-slate-300" disabled={extraFormBusy} onClick={() => void submitExtraItem()} type="button">{extraFormBusy ? '正在保存' : '保存货品'}</button>
             </div>
           </div>
         </div>
@@ -658,16 +655,16 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Pencil className="h-5 w-5 text-brand-600" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-900" id="product-correction-title">更正商品信息</h2>
+                <h2 className="text-lg font-semibold text-slate-900" id="product-correction-title">更正货品信息</h2>
               </div>
-              <button aria-label="关闭更正商品信息" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100" onClick={() => setShowCorrectionForm(false)} type="button">
+              <button aria-label="关闭更正货品信息" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100" onClick={() => setShowCorrectionForm(false)} type="button">
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
-            <p className="mb-4 text-sm leading-6 text-slate-600">提交后立即更新本店商品资料，并向管理员发送一条修改通知。</p>
+            <p className="mb-4 text-sm leading-6 text-slate-600">提交后立即更新本店货品资料，并向管理员发送一条修改通知。</p>
             <div className="grid gap-3">
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                商品名称
+                货品名称
                 <input className="min-h-11 rounded-xl border border-slate-200 px-3 font-normal outline-none focus:border-brand-500" onChange={(event) => setCorrectionForm((current) => ({ ...current, name: event.target.value }))} value={correctionForm.name} />
               </label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
@@ -701,7 +698,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                 <p className="mt-1 text-sm text-slate-600">{snapshot.name} · {snapshot.spec}</p>
               </div>
             </div>
-            <p className="mt-4 text-sm leading-6 text-slate-600">商品不会立即删除。管理员收到通知并再次确认后，才会从商品数据库中删除；历史点货和订货记录仍会保留。</p>
+            <p className="mt-4 text-sm leading-6 text-slate-600">货品不会立即删除。管理员收到通知并再次确认后，才会从货品数据库中删除；历史点货和订货记录仍会保留。</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button className="min-h-12 rounded-xl border border-slate-200 font-semibold" disabled={feedbackBusy} onClick={() => setShowDeletionConfirm(false)} type="button">取消</button>
               <button className="min-h-12 rounded-xl bg-red-700 font-semibold text-white disabled:bg-slate-300" disabled={feedbackBusy} onClick={() => void confirmManagerDeletionRequest()} type="button">
@@ -776,7 +773,7 @@ interface ItemListProps {
 
 function ItemList({ currentId, items, onClose, onSelect, sourceItems }: ItemListProps) {
   if (items.length === 0) {
-    return <p className="mt-3 text-sm leading-6 text-slate-600">暂无商品。</p>;
+    return <p className="mt-3 text-sm leading-6 text-slate-600">暂无货品。</p>;
   }
 
   return (

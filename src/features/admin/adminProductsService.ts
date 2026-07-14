@@ -29,14 +29,24 @@ export interface ProductImportRow {
   is_active: boolean;
   name: string;
   product_code: string | null;
+  row_number: number;
   sort_order: number;
   spec: string;
 }
 
+export interface ProductImportFailure {
+  item: string;
+  reason: string;
+  rowNumber: number;
+}
+
 export interface ProductImportResult {
+  failed: number;
+  failures: ProductImportFailure[];
   inserted: number;
+  succeeded: number;
+  total: number;
   updated: number;
-  skipped: number;
 }
 
 export interface ProductExportFile {
@@ -145,12 +155,10 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
   const storeNames = new Map((storesResult.data ?? []).map((store) => [store.id, store.name]));
   const products = productsResult.data ?? [];
   const rows = products.map((product) => ({
-    商品编号: product.id,
     门店: storeNames.get(product.store_id) ?? product.store_id,
-    商品名称: product.name,
+    货品名称: product.name,
     规格: product.spec,
     单位: product.count_unit,
-    商品编码: product.product_code ?? '',
     排序: product.sort_order,
     状态: product.is_active ? '启用' : '停用',
     创建时间: product.created_at,
@@ -158,19 +166,19 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
   }));
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.json_to_sheet(rows, {
-    header: ['商品编号', '门店', '商品名称', '规格', '单位', '商品编码', '排序', '状态', '创建时间', '更新时间'],
+    header: ['门店', '货品名称', '规格', '单位', '排序', '状态', '创建时间', '更新时间'],
   });
   sheet['!cols'] = [
-    { wch: 38 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
-    { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 22 },
+    { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
+    { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 22 },
   ];
-  XLSX.utils.book_append_sheet(workbook, sheet, '全部商品');
+  XLSX.utils.book_append_sheet(workbook, sheet, '全部货品');
 
   const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
   return {
     blob: new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
     count: products.length,
-    filename: `全部商品_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    filename: `全部货品_${new Date().toISOString().slice(0, 10)}.xlsx`,
   };
 };
 
@@ -258,6 +266,30 @@ export const updateProduct = async (productId: string, draft: ProductDraft) => {
   }
 };
 
+export const archiveProduct = async (productId: string) => {
+  const client = requireClient();
+  const { error } = await client
+    .from('products')
+    .update({ is_active: false })
+    .eq('id', productId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
+export const restoreProduct = async (productId: string) => {
+  const client = requireClient();
+  const { error } = await client
+    .from('products')
+    .update({ is_active: true })
+    .eq('id', productId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
 export const deleteProduct = async (productId: string) => {
   const client = requireClient();
   const { error } = await client
@@ -279,17 +311,18 @@ export const parseProductImportFile = async (file: File): Promise<ProductImportR
   }
 
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-  return rawRows.map((row) => {
-    const name = pick(row, ['商品名称', '名称', 'name']);
+  return rawRows.map((row, index) => {
+    const name = pick(row, ['货品名称', '商品名称', '名称', 'name']);
     const spec = pick(row, ['规格', 'spec']);
     const countUnit = pick(row, ['单位', '计数单位', 'count_unit', 'unit']);
-    const productCode = pick(row, ['商品编码', '编码', 'product_code', 'code']);
+    const productCode = pick(row, ['货品编码', '商品编码', '编码', 'product_code', 'code']);
     const sortOrder = Number(pick(row, ['排序', 'sort_order', 'order']));
     return {
       count_unit: countUnit,
       is_active: toBoolean(pick(row, ['启用', '是否启用', 'is_active', 'active'])),
       name,
       product_code: productCode || null,
+      row_number: index + 2,
       sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
       spec,
     };
@@ -300,69 +333,86 @@ export const importProducts = async (storeId: string, rows: ProductImportRow[]):
   const client = requireClient();
   let inserted = 0;
   let updated = 0;
-  let skipped = 0;
+  const failures: ProductImportFailure[] = [];
 
   for (const row of rows) {
-    if (!row.name || !row.spec || !row.count_unit) {
-      skipped += 1;
+    const missingFields = [!row.name && '货品名称', !row.spec && '规格', !row.count_unit && '单位'].filter(Boolean);
+    const item = `Excel 第 ${row.row_number} 行${row.name ? ` · ${row.name}` : ''}`;
+    if (missingFields.length) {
+      failures.push({ item, reason: `缺少必填字段：${missingFields.join('、')}。`, rowNumber: row.row_number });
       continue;
     }
 
-    let existing: ProductRow | null = null;
-    if (row.product_code) {
-      const { data, error } = await client
-        .from('products')
-        .select('*')
-        .eq('store_id', storeId)
-        .eq('product_code', row.product_code)
-        .maybeSingle();
-      if (error) {
-        throw new Error(error.message);
+    try {
+      let existing: ProductRow | null = null;
+      if (row.product_code) {
+        const { data, error } = await client
+          .from('products')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('product_code', row.product_code)
+          .maybeSingle();
+        if (error) {
+          throw new Error(error.message);
+        }
+        existing = data;
       }
-      existing = data;
-    }
 
-    if (!existing) {
-      const { data, error } = await client
-        .from('products')
-        .select('*')
-        .eq('store_id', storeId)
-        .eq('name', row.name)
-        .eq('spec', row.spec)
-        .eq('count_unit', row.count_unit)
-        .maybeSingle();
-      if (error) {
-        throw new Error(error.message);
+      if (!existing) {
+        const { data, error } = await client
+          .from('products')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('name', row.name)
+          .eq('spec', row.spec)
+          .eq('count_unit', row.count_unit)
+          .maybeSingle();
+        if (error) {
+          throw new Error(error.message);
+        }
+        existing = data;
       }
-      existing = data;
-    }
 
-    const payload = {
-      count_unit: row.count_unit,
-      is_active: row.is_active,
-      name: row.name,
-      product_code: row.product_code,
-      sort_order: row.sort_order,
-      spec: row.spec,
-      store_id: storeId,
-    };
+      const payload = {
+        count_unit: row.count_unit,
+        is_active: row.is_active,
+        name: row.name,
+        product_code: row.product_code,
+        sort_order: row.sort_order,
+        spec: row.spec,
+        store_id: storeId,
+      };
 
-    if (existing) {
-      const { error } = await client.from('products').update(payload).eq('id', existing.id);
-      if (error) {
-        throw new Error(error.message);
+      if (existing) {
+        const { error } = await client.from('products').update(payload).eq('id', existing.id);
+        if (error) {
+          throw new Error(error.message);
+        }
+        updated += 1;
+      } else {
+        const { error } = await client.from('products').insert(payload);
+        if (error) {
+          throw new Error(error.message);
+        }
+        inserted += 1;
       }
-      updated += 1;
-    } else {
-      const { error } = await client.from('products').insert(payload);
-      if (error) {
-        throw new Error(error.message);
-      }
-      inserted += 1;
+    } catch (error) {
+      failures.push({
+        item,
+        reason: error instanceof Error ? error.message : '该货品写入失败。',
+        rowNumber: row.row_number,
+      });
     }
   }
 
-  return { inserted, updated, skipped };
+  return {
+    failed: failures.length,
+    failures,
+    inserted,
+    succeeded: inserted + updated,
+    total: rows.length,
+    updated,
+  };
 };
 
 export const updateFeedbackStatus = async (

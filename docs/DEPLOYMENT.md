@@ -1,75 +1,100 @@
-# 部署说明
+# StoreHub 部署说明
+
+StoreHub 只允许以下发布关系，详细安全规则见 [ENVIRONMENT_ISOLATION.md](./ENVIRONMENT_ISOLATION.md)。
+
+| Git 分支 | 应用环境 | Supabase | Cloudflare 用途 |
+|---|---|---|---|
+| `v2-development` | `development` | 独立开发测试项目 | 测试站点/预览部署 |
+| `manage-system` | `production` | 正式项目 | 正式站点 |
+
+两个 Supabase 项目天然拥有独立的 Database、Auth 用户、Storage bucket 和 Edge Function 配置。禁止复制开发测试业务数据到正式项目。
+
+## Cloudflare Pages 构建配置
+
+- Production branch：正式站点项目使用 `manage-system`；测试站点项目使用 `v2-development`。
+- Framework preset：`Vite`
+- Build command：`pnpm build`
+- Build output directory：`dist`
+- Node.js：22 LTS
+
+每个项目/分支都必须配置：
+
+```text
+VITE_APP_ENV
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+STOREHUB_PRODUCTION_SUPABASE_REF
+STOREHUB_DEVELOPMENT_SUPABASE_REF
+```
+
+`STOREHUB_*_REF` 是公开的 20 位项目编号，不是密钥。真实 Anon Key 只能存入本地未跟踪环境文件或 Cloudflare 后台，不能提交到 Git；仓库只登记不可逆的 SHA-256 指纹用于识别连错的 Key。
+
+## 开发测试发布
+
+先在 `config/environment-policy.json` 登记两个项目编号和两个 Anon Key 指纹，并为 `v2-development` 配置开发项目变量：
+
+```powershell
+./scripts/supabase-environment.ps1 -Environment Development -Action Link
+./scripts/supabase-environment.ps1 -Environment Development -Action DryRun
+./scripts/supabase-environment.ps1 -Environment Development -Action Push
+./scripts/supabase-environment.ps1 -Environment Development -Action PushAuthConfig -AuthSiteUrl https://oms-store-development.pages.dev -AuthRedirectUrl https://oms-store-development.pages.dev
+./scripts/supabase-environment.ps1 -Environment Development -Action DeployFunctions
+pnpm release:check
+```
+
+只有明确需要初始化演示数据时才执行：
+
+```powershell
+./scripts/supabase-environment.ps1 -Environment Development -Action SeedDevelopment -DevelopmentSeedConfirmation APPLY-DEVELOPMENT-SEED
+```
+
+Seed 只允许位于 `supabase/seeds/development.sql`，发布正式环境时绝不执行。
+
+## 正式发布顺序
+
+1. 在 `v2-development` 新增 Migration，并先应用到开发测试 Supabase。
+2. 在开发项目完成 RLS、业务测试和 `pnpm release:check`。
+3. 将 `v2-development` 合并到本地 `manage-system`，此时先不要推送正式分支。
+4. 切换本地正式环境变量，并安全 Link 正式 Supabase。
+5. 对正式项目执行 Dry Run，再显式确认 Push：
+
+```powershell
+./scripts/supabase-environment.ps1 -Environment Production -Action Link
+./scripts/supabase-environment.ps1 -Environment Production -Action DryRun
+./scripts/supabase-environment.ps1 -Environment Production -Action Push -ProductionConfirmation APPLY-PRODUCTION-MIGRATIONS
+pnpm release:check
+```
+
+6. 若 Edge Function 有变化，使用安全脚本部署 `account-login`、`admin-users` 和 `task-template-images`：
+
+```powershell
+./scripts/supabase-environment.ps1 -Environment Production -Action DeployFunctions -ProductionFunctionConfirmation DEPLOY-PRODUCTION-FUNCTIONS
+```
+
+脚本会对 `account-login` 使用 `--no-verify-jwt`，并在部署前复核分支、项目编号和 CLI Link。
+
+7. 正式库 Migration 和全部门禁通过后，才推送 `manage-system`，触发正式前端部署。
+
+禁止在正式项目执行 `db reset`、Seed、DROP、TRUNCATE、测试清理或批量删除业务数据。
 
 ## 本地预览
 
-```powershell
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' dev
-```
-
-本机打开：
-
-- `http://localhost:5173/app`
-- `http://localhost:5173/login`
-
-手机预览：
-
-1. 电脑和手机连接同一个 Wi-Fi。
-2. 电脑运行 `ipconfig` 找到 IPv4 地址。
-3. 手机打开 `http://电脑IPv4:5173/app`。
-
-## 必要环境变量
-
-Cloudflare Pages 或其他静态托管平台只需要公开 anon 配置：
-
-```text
-VITE_SUPABASE_URL=https://你的项目.supabase.co
-VITE_SUPABASE_ANON_KEY=你的 publishable/anon key
-```
-
-不要把以下内容放到前端环境变量：
-
-- Supabase service role key
-- 数据库连接串
-- 数据库密码
-- 员工密码 Excel
-
-## Cloudflare Pages
-
-推荐配置：
-
-- Framework preset: `Vite`
-- Build command: `pnpm build`
-- Build output directory: `dist`
-- Node version: 22 或 Cloudflare 默认可用 LTS
-
-如果 Cloudflare 没有启用 pnpm，可使用：
-
-```text
-corepack enable && pnpm install --frozen-lockfile && pnpm build
-```
-
-## 部署前检查
+复制 `.env.example` 为未跟踪的 `.env.local`，填入当前分支对应项目后运行：
 
 ```powershell
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' validate:supabase
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' audit:security
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' typecheck
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' lint
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' test
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' build
+pnpm dev
 ```
 
-E2E smoke 需要先启动本地服务：
+本机打开 `http://localhost:5173/app`。手机预览需要与电脑处于同一网络，再访问电脑 IPv4 地址的 5173 端口。
 
-```powershell
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' dev
-& 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\hwson\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.cjs' test:e2e
-```
+## 发布门禁内容
 
-## Supabase 注意事项
+`pnpm release:check` 会依次校验：
 
-- 生产项目必须启用 RLS。
-- 前端只使用 anon/publishable key。
-- `admin-users` 和 `account-login` Edge Function 上线时，必须只在 Supabase Function 环境中使用 `SUPABASE_SERVICE_ROLE_KEY`。
-- `account-login` 必须使用 `supabase functions deploy account-login --no-verify-jwt` 部署；它在用户登录前调用，并在函数内部通过 Supabase Auth 校验密码。
-- 管理员账号创建后应重置数据库密码，避免聊天或本机日志中出现过的临时密码继续有效。
+- 分支、应用环境、URL、Anon Key 和 CLI Link 的项目绑定；
+- 新增 Migration 的编号、不可变历史和破坏性 SQL；
+- 本地与当前远端 Migration 完全一致；
+- Schema/RLS 静态规则与密钥扫描；
+- TypeScript、ESLint、Vitest 和生产构建。
+
+任何一步失败都不得继续部署。

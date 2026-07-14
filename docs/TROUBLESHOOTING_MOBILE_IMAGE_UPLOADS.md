@@ -9,6 +9,11 @@
 - 到货图片：`ArrivalImageSection`、`useArrivalDraft`、`arrival-images.service`；
 - 任务执行图片：`V2TaskExecutionPage`、`TaskImagePreview`、`v2-tasks.service`；
 - 模板参考图片：`TaskTemplateReferenceImageUpload`、`AdminTaskTemplatesPage`、`task-templates.service`。
+- SOP 制作图片和产品预览图：`SopImageUpload`、`TaskTemplateReferenceImageUpload`、`AdminContentPage`、`v2-content.service`。
+
+SOP 新建页没有业务对象 ID，因此首次选择图片时先保存完整 SOP 草稿取得 ID，再按本规范完成压缩、Storage、元数据和签名地址链路。多选图片必须串行处理草稿保存和步骤序号，上传成功后直接把服务端返回记录合并到页面状态，不整页刷新。
+
+SOP 图片元数据必须通过 `asset_kind` 区分用途：`step` 是员工端连续显示的制作步骤，`cover` 只用于管理员列表的产品预览，`attachment` 是 PDF 附件。产品图上传成功后立即替换页面中的旧产品图；未设置产品图时，列表预览自动回退到排序后的最后一个 `step`，但不能把产品图混入员工制作步骤。
 
 ## 已解决的典型故障
 

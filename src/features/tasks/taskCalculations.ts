@@ -21,7 +21,7 @@ export const asProductSnapshot = (value: Json): ProductSnapshot => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {
       product_id: null,
-      name: '未知商品',
+      name: '未知货品',
       spec: '',
       count_unit: '',
       product_code: null,
@@ -32,7 +32,7 @@ export const asProductSnapshot = (value: Json): ProductSnapshot => {
 
   return {
     product_id: typeof record.product_id === 'string' ? record.product_id : null,
-    name: typeof record.name === 'string' ? record.name : '未知商品',
+    name: typeof record.name === 'string' ? record.name : '未知货品',
     spec: typeof record.spec === 'string' ? record.spec : '',
     count_unit: typeof record.count_unit === 'string' ? record.count_unit : '',
     product_code: typeof record.product_code === 'string' ? record.product_code : null,

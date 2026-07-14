@@ -11,12 +11,13 @@ import {
   type AdminUserRow,
   type StoreRow,
 } from '../features/admin/adminUsersService';
-import { loadAdminProductsData } from '../features/admin/adminProductsService';
+import { archiveProduct, createProduct, deleteProduct, importProducts, loadAdminProductsData, parseProductImportFile, restoreProduct, type ProductRow } from '../features/admin/adminProductsService';
 import { useAuth } from '../features/auth/AuthContext';
 import { AdminPage } from './AdminPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
 vi.mock('../features/admin/adminProductsService', () => ({
+  archiveProduct: vi.fn(),
   createAllProductsExportFile: vi.fn(),
   createProduct: vi.fn(),
   deleteProduct: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../features/admin/adminProductsService', () => ({
   importProducts: vi.fn(),
   loadAdminProductsData: vi.fn(),
   parseProductImportFile: vi.fn(),
+  restoreProduct: vi.fn(),
   updateProduct: vi.fn(),
 }));
 vi.mock('../features/admin/adminUsersService', async (importOriginal) => {
@@ -46,6 +48,20 @@ const store: StoreRow = {
   name: '测试门店',
   short_name: '测试门店',
 };
+
+const makeProduct = (overrides: Partial<ProductRow> = {}): ProductRow => ({
+  count_unit: '杯',
+  created_at: '2026-07-14T00:00:00Z',
+  id: '00000000-0000-4000-8000-000000000010',
+  is_active: true,
+  name: '原味酸奶',
+  product_code: null,
+  sort_order: 9,
+  spec: '120g',
+  store_id: store.id,
+  updated_at: '2026-07-14T00:00:00Z',
+  ...overrides,
+});
 
 const makeUser = (overrides: Partial<AdminUserRow>): AdminUserRow => ({
   created_at: '2026-02-01T00:00:00Z',
@@ -89,10 +105,95 @@ describe('AdminPage account management', () => {
     expect(findInitialAdminId([staff, initialAdmin])).toBe(initialAdmin.id);
   });
 
+  it('loads only product data on the independent product page', async () => {
+    render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: '新增货品' });
+    expect(loadAdminProductsData).toHaveBeenCalled();
+    expect(loadAdminUsers).not.toHaveBeenCalled();
+    expect(screen.queryByPlaceholderText('货品编码')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '创建账号' })).not.toBeInTheDocument();
+  });
+
+  it('shows a centered success dialog after creating a product', async () => {
+    vi.mocked(createProduct).mockResolvedValue(undefined);
+    render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: '新增货品' });
+    fireEvent.click(screen.getByRole('button', { name: '创建货品' }));
+
+    await waitFor(() => expect(createProduct).toHaveBeenCalled());
+    expect(await screen.findByRole('dialog', { name: '操作成功' })).toHaveTextContent('货品已创建');
+  });
+
+  it('shows a detailed modal report after a mixed product import', async () => {
+    vi.mocked(parseProductImportFile).mockResolvedValue([
+      { count_unit: '杯', is_active: true, name: '成功货品', product_code: null, row_number: 2, sort_order: 1, spec: '100g' },
+      { count_unit: '', is_active: true, name: '失败货品', product_code: null, row_number: 3, sort_order: 2, spec: '120g' },
+    ]);
+    vi.mocked(importProducts).mockResolvedValue({
+      failed: 1,
+      failures: [{ item: 'Excel 第 3 行 · 失败货品', reason: '缺少必填字段：单位。', rowNumber: 3 }],
+      inserted: 1,
+      succeeded: 1,
+      total: 2,
+      updated: 0,
+    });
+    const { container } = render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: '新增货品' });
+    fireEvent.click(screen.getByRole('button', { name: '批量处理' }));
+    const file = new File(['excel'], 'products.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[accept=".xlsx,.xls"]')!, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: '导入到当前门店' }));
+
+    await waitFor(() => expect(importProducts).toHaveBeenCalled());
+    const dialog = await screen.findByRole('dialog', { name: '货品批量导入完成' });
+    expect(dialog).toHaveTextContent('上传成功1上传失败1');
+    expect(dialog).toHaveTextContent('Excel 第 3 行 · 失败货品');
+    expect(dialog).toHaveTextContent('缺少必填字段：单位');
+  });
+
+  it('uses a compact active list and separates archived products', async () => {
+    const active = makeProduct();
+    const otherActive = makeProduct({ id: '00000000-0000-4000-8000-000000000012', name: '椰子脆片', spec: '500g', count_unit: '袋' });
+    const archived = makeProduct({ id: '00000000-0000-4000-8000-000000000011', is_active: false, name: '旧款酸奶' });
+    vi.mocked(loadAdminProductsData).mockResolvedValue({ products: [active, otherActive, archived], selectedStoreId: store.id, stores: [store] });
+    vi.mocked(archiveProduct).mockResolvedValue(undefined);
+    vi.mocked(deleteProduct).mockResolvedValue(undefined);
+    vi.mocked(restoreProduct).mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByDisplayValue('原味酸奶');
+    expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('9')).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '停用' })).not.toBeInTheDocument();
+    expect(screen.queryByText('旧款酸奶')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '检索货品' }), { target: { value: '原味' } });
+    expect(screen.getByDisplayValue('原味酸奶')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('椰子脆片')).not.toBeInTheDocument();
+    expect(screen.getByText('显示 1 / 2')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '归档' }));
+    await waitFor(() => expect(archiveProduct).toHaveBeenCalledWith(active.id));
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '检索货品' }), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: '已归档 1' }));
+    expect(await screen.findByText('旧款酸奶')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
+    await waitFor(() => expect(deleteProduct).toHaveBeenCalledWith(archived.id));
+    fireEvent.click(screen.getByRole('button', { name: '取消归档' }));
+    await waitFor(() => expect(restoreProduct).toHaveBeenCalledWith(archived.id));
+  });
+
   it('hides email from new and ordinary accounts, then confirms a successful save in a dialog', async () => {
-    render(<MemoryRouter initialEntries={['/app/admin?tab=users']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/app/admin/users']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="users" /></MemoryRouter>);
 
     await screen.findByRole('heading', { name: '创建账号' });
+    expect(loadAdminProductsData).not.toHaveBeenCalled();
     expect(screen.queryByPlaceholderText('联系邮箱（选填）')).not.toBeInTheDocument();
     expect(screen.getAllByRole('textbox').filter((input) => input.getAttribute('type') === 'email')).toHaveLength(1);
     expect(screen.getByRole('textbox', { name: '初始管理员邮箱' })).toHaveValue('admin@example.com');

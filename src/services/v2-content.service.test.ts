@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { createEmptyNoticeDraft, createEmptySopDraft, deleteNotice, deleteSopAsset } from './v2-content.service';
+import { archiveNotice, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, removeSopStepImage, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
 
 describe('v2 content drafts', () => {
   it('starts an announcement as an unpinned draft for selected stores', () => {
@@ -26,7 +26,7 @@ describe('v2 content drafts', () => {
     expect(rpc).toHaveBeenCalledWith('delete_v2_notice', { p_notice_id: 'notice-1' });
   });
 
-  it('removes an SOP asset from private storage and its metadata table', async () => {
+  it('removes SOP metadata before cleaning up its private storage object', async () => {
     const remove = vi.fn().mockResolvedValue({ error: null });
     const eq = vi.fn().mockResolvedValue({ error: null });
     const deleteRows = vi.fn().mockReturnValue({ eq });
@@ -36,5 +36,105 @@ describe('v2 content drafts', () => {
     expect(remove).toHaveBeenCalledWith(['sop-1/step.png']);
     expect(from).toHaveBeenCalledWith('v2_sop_assets');
     expect(eq).toHaveBeenCalledWith('id', 'asset-1');
+    expect(eq.mock.invocationCallOrder[0]).toBeLessThan(remove.mock.invocationCallOrder[0]);
+  });
+
+  it('creates a text-only SOP step without a storage object', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { asset_kind: 'step', id: 'step-1', object_path: null, step_text: '静置十分钟' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    const result = await createSopTextStep(client, { sopId: 'sop-1', sortOrder: 2, stepText: '  静置十分钟  ' });
+    expect(rpc).toHaveBeenCalledWith('create_v2_sop_text_step', { p_sop_id: 'sop-1', p_sort_order: 2, p_step_text: '静置十分钟' });
+    expect(result).toMatchObject({ id: 'step-1', signedUrl: null, step_text: '静置十分钟' });
+  });
+
+  it('deletes a text-only step without calling private storage', async () => {
+    const remove = vi.fn();
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const client = { from: vi.fn().mockReturnValue({ delete: vi.fn().mockReturnValue({ eq }) }), storage: { from: vi.fn().mockReturnValue({ remove }) } } as unknown as SupabaseClient<Database>;
+    await expect(deleteSopAsset(client, { id: 'step-1', object_path: null })).resolves.toEqual({ storageCleanupFailed: false });
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('turns a mixed SOP step into a text-only step before cleaning up its image', async () => {
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq });
+    const client = { from: vi.fn().mockReturnValue({ update }), storage: { from: vi.fn().mockReturnValue({ remove }) } } as unknown as SupabaseClient<Database>;
+    await removeSopStepImage(client, { asset_kind: 'step', id: 'step-1', object_path: 'sop-1/step.jpg', step_text: '保留文字说明' } as never);
+    expect(update).toHaveBeenCalledWith({ file_name: null, mime_type: null, object_path: null, size_bytes: 0 });
+    expect(eq).toHaveBeenCalledWith('id', 'step-1');
+    expect(remove).toHaveBeenCalledWith(['sop-1/step.jpg']);
+    expect(eq.mock.invocationCallOrder[0]).toBeLessThan(remove.mock.invocationCallOrder[0]);
+  });
+
+  it('archives an unpublished notice through the protected lifecycle function', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: 'archived' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await archiveNotice(client, 'notice-1');
+    expect(rpc).toHaveBeenCalledWith('archive_v2_notice', { p_notice_id: 'notice-1' });
+  });
+
+  it('deletes an unused SOP category through the protected database function', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { deleted: true }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await deleteSopCategory(client, 'category-1');
+    expect(rpc).toHaveBeenCalledWith('delete_v2_sop_category', { p_category_id: 'category-1' });
+  });
+
+  it('shows a Chinese explanation when a category is still in use', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'SOP_CATEGORY_IN_USE:2' } });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await expect(deleteSopCategory(client, 'category-1')).rejects.toThrow('该分类仍被 SOP 使用');
+  });
+
+  it('renames a category and its existing SOPs through one protected transaction', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { updated_sops: 3 }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await renameSopCategory(client, { categoryId: 'category-1', newName: '  冰沙制作  ' });
+    expect(rpc).toHaveBeenCalledWith('rename_v2_sop_category', {
+      p_category_id: 'category-1',
+      p_new_name: '冰沙制作',
+    });
+  });
+
+  it('persists the complete ordered SOP image id list atomically', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { asset_ids: ['image-2', 'image-1'] }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await reorderSopAssets(client, 'sop-1', ['image-2', 'image-1']);
+    expect(rpc).toHaveBeenCalledWith('reorder_v2_sop_assets', {
+      p_asset_ids: ['image-2', 'image-1'],
+      p_sop_id: 'sop-1',
+    });
+  });
+
+  it('passes the silent publish choice to the protected lifecycle function', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: 'published' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await publishSop(client, 'sop-1', { silent: true });
+    expect(rpc).toHaveBeenCalledWith('publish_v2_sop_with_options', { p_silent: true, p_sop_id: 'sop-1' });
+  });
+
+  it('retracts a published SOP back to draft through the protected function', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: 'draft' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await retractSop(client, 'sop-1');
+    expect(rpc).toHaveBeenCalledWith('retract_v2_sop', { p_sop_id: 'sop-1' });
+  });
+
+  it('restores an archived SOP to draft through the protected function', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: 'draft' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await unarchiveSop(client, 'sop-1');
+    expect(rpc).toHaveBeenCalledWith('unarchive_v2_sop', { p_sop_id: 'sop-1' });
+  });
+
+  it('cleans private files before permanently deleting an archived SOP', async () => {
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    const rpc = vi.fn().mockResolvedValue({ data: { id: 'sop-1' }, error: null });
+    const client = { rpc, storage: { from: vi.fn().mockReturnValue({ remove }) } } as unknown as SupabaseClient<Database>;
+    await deleteArchivedSop(client, { assetUrls: [{ object_path: 'sop-1/cover.jpg' }, { object_path: null }, { object_path: 'sop-1/step.jpg' }] as never, id: 'sop-1' });
+    expect(remove).toHaveBeenCalledWith(['sop-1/cover.jpg', 'sop-1/step.jpg']);
+    expect(rpc).toHaveBeenCalledWith('delete_archived_v2_sop', { p_sop_id: 'sop-1' });
+    expect(remove.mock.invocationCallOrder[0]).toBeLessThan(rpc.mock.invocationCallOrder[0]);
   });
 });

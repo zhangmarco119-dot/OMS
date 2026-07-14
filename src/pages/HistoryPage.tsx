@@ -112,7 +112,7 @@ export function HistoryPage() {
   return (
     <PageShell eyebrow={isAdmin ? '管理员记录' : '我的记录'} title={isAdmin ? '全部提交记录' : '提交记录'} backTo="/app">
       {isAdmin ? (
-        <SegmentedControl className="grid-cols-2" items={[{ active: adminView === 'tasks', label: '点货与订货', onClick: () => setAdminView('tasks') }, { active: adminView === 'feedback', label: '商品反馈', onClick: () => setAdminView('feedback') }]} />
+        <SegmentedControl className="grid-cols-2" items={[{ active: adminView === 'tasks', label: '点货与订货', onClick: () => setAdminView('tasks') }, { active: adminView === 'feedback', label: '货品反馈', onClick: () => setAdminView('feedback') }]} />
       ) : null}
 
       {isAdmin && adminView === 'feedback' ? <ProductFeedbackRecords /> : (
@@ -141,7 +141,7 @@ export function HistoryPage() {
       ) : null}
 
       {status === 'ready' && items.length === 0 ? (
-        <EmptyState icon={FileSpreadsheet} title="暂无已提交记录" description="员工点击提交后，这里会保留数据库记录和商品快照。" />
+        <EmptyState icon={FileSpreadsheet} title="暂无已提交记录" description="员工点击提交后，这里会保留数据库记录和货品快照。" />
       ) : null}
 
       {status === 'ready' && items.length > 0 ? (
@@ -155,7 +155,7 @@ export function HistoryPage() {
                   <p className="text-sm font-semibold text-brand-700">{taskTypeLabel[task.task_type]}</p>
                   <h2 className="mt-1 truncate text-lg font-bold text-slate-900">{formatDateTime(task.submitted_at)}</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {isAdmin ? `${storeName} · ` : ''}{submitterName} · {itemCount} 个商品 · 单号 {task.id.slice(0, 8)}
+                    {isAdmin ? `${storeName} · ` : ''}{submitterName} · {itemCount} 个货品 · 单号 {task.id.slice(0, 8)}
                   </p>
                 </div>
                 <StatusBadge tone="success">已提交</StatusBadge>
@@ -191,7 +191,7 @@ export function HistoryPage() {
             <div className="max-h-[64vh] overflow-auto p-3">
               <div className="min-w-[420px] overflow-hidden rounded-lg border border-slate-200 text-xs sm:text-sm">
                 <div className="grid grid-cols-[minmax(9rem,1.7fr)_4.5rem_5.5rem_minmax(5rem,1fr)] gap-1 bg-slate-100 px-2 py-2 text-xs font-bold text-slate-500">
-                  <span>商品 / 规格</span><span>数量</span><span>状态</span><span>备注</span>
+                  <span>货品 / 规格</span><span>数量</span><span>状态</span><span>备注</span>
                 </div>
                 {selected.items.map((item, index) => {
                   const snapshot = asProductSnapshot(item.product_snapshot);
@@ -210,7 +210,7 @@ export function HistoryPage() {
                       <span className="truncate font-semibold text-slate-900" title={`${index + 1}. ${snapshot.name} · ${snapshot.spec}`}>{index + 1}. {snapshot.name} · <span className="font-normal text-slate-500">{snapshot.spec || '无规格'}</span></span>
                       <span className="font-semibold text-slate-800">{quantity}{item.quantity === null ? '' : ` ${snapshot.count_unit}`}</span>
                       <span className="truncate text-slate-600" title={`${itemStatusLabel(item.status, selected.task.task_type)} ${actionStatus}`}>{actionStatus || itemStatusLabel(item.status, selected.task.task_type)}</span>
-                      <span className="truncate text-slate-500" title={item.staff_note ?? ''}>{item.staff_note || (item.is_extra_item ? '本次新增商品' : '-')}</span>
+                      <span className="truncate text-slate-500" title={item.staff_note ?? ''}>{item.staff_note || (item.is_extra_item ? '本次新增货品' : '-')}</span>
                     </div>
                   );
                 })}

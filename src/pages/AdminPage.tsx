@@ -1,9 +1,11 @@
-import { CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, Save, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RotateCcw, Save, Search, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
+import { BatchImportReportDialog } from '../components/feedback/BatchImportReportDialog';
 import {
+  archiveProduct,
   createProduct,
   createAllProductsExportFile,
   deleteProduct,
@@ -11,8 +13,10 @@ import {
   importProducts,
   loadAdminProductsData,
   parseProductImportFile,
+  restoreProduct,
   updateProduct,
   type ProductDraft,
+  type ProductImportResult,
   type ProductRow,
 } from '../features/admin/adminProductsService';
 import {
@@ -29,8 +33,8 @@ import {
 } from '../features/admin/adminUsersService';
 import { useAuth } from '../features/auth/AuthContext';
 
-type AdminTab = 'products' | 'users';
-type ProductTab = 'catalog' | 'import' | 'export';
+export type AdminSection = 'products' | 'users';
+type ProductTab = 'catalog' | 'batch' | 'archived';
 
 const emptyProductDraft = (storeId = ''): ProductDraft => ({
   count_unit: '',
@@ -52,16 +56,13 @@ const productToDraft = (product: ProductRow): ProductDraft => ({
   store_id: product.store_id,
 });
 
-export function AdminPage() {
+export function AdminPage({ section }: { section: AdminSection }) {
   const auth = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<AdminTab>(() => searchParams.get('tab') === 'users' ? 'users' : 'products');
-  useEffect(() => { setTab(searchParams.get('tab') === 'users' ? 'users' : 'products'); }, [searchParams]);
-  const changeTab = (nextTab: AdminTab) => { setTab(nextTab); setSearchParams({ tab: nextTab }); };
   const [productTab, setProductTab] = useState<ProductTab>('catalog');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
+  const [productSearch, setProductSearch] = useState('');
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,6 +70,7 @@ export function AdminPage() {
   const [newProduct, setNewProduct] = useState<ProductDraft>(emptyProductDraft());
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [productImportReport, setProductImportReport] = useState<ProductImportResult | null>(null);
   const [newUser, setNewUser] = useState<CreateUserInput>({
     password: '',
     username: '',
@@ -84,22 +86,24 @@ export function AdminPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const [catalogData, userData] = await Promise.all([
-        loadAdminProductsData(storeId),
-        loadAdminUsers(),
-      ]);
-      setStores(catalogData.stores);
-      setSelectedStoreId(catalogData.selectedStoreId);
-      setProducts(catalogData.products);
-      setUsers(userData.users);
-      setProductDrafts(Object.fromEntries(catalogData.products.map((product) => [product.id, productToDraft(product)])));
-      setNewProduct(emptyProductDraft(catalogData.selectedStoreId));
-      setNewUser((current) => ({
-        ...current,
-        storeIds: current.storeIds.length > 0
-          ? current.storeIds
-          : [userData.stores[0]?.id || catalogData.selectedStoreId].filter(Boolean),
-      }));
+      if (section === 'products') {
+        const catalogData = await loadAdminProductsData(storeId);
+        setStores(catalogData.stores);
+        setSelectedStoreId(catalogData.selectedStoreId);
+        setProducts(catalogData.products);
+        setProductDrafts(Object.fromEntries(catalogData.products.map((product) => [product.id, productToDraft(product)])));
+        setNewProduct(emptyProductDraft(catalogData.selectedStoreId));
+      } else {
+        const userData = await loadAdminUsers();
+        setStores(userData.stores);
+        setUsers(userData.users);
+        setNewUser((current) => ({
+          ...current,
+          storeIds: current.storeIds.length > 0
+            ? current.storeIds
+            : [userData.stores[0]?.id].filter(Boolean),
+        }));
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '加载后台数据失败');
     } finally {
@@ -122,10 +126,10 @@ export function AdminPage() {
     setMessage(null);
     try {
       await createProduct({ ...newProduct, store_id: selectedStoreId });
-      setMessage('商品已创建。');
       await refresh(selectedStoreId);
+      setMessage('货品已创建。');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '创建商品失败');
+      setMessage(error instanceof Error ? error.message : '创建货品失败');
     }
   };
 
@@ -138,26 +142,52 @@ export function AdminPage() {
     setMessage(null);
     try {
       await updateProduct(productId, draft);
-      setMessage('商品已保存。');
       await refresh(selectedStoreId);
+      setMessage('货品已保存。');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '保存商品失败');
+      setMessage(error instanceof Error ? error.message : '保存货品失败');
     }
   };
 
-  const removeProduct = async (product: ProductRow) => {
-    const confirmed = window.confirm(`确认删除商品“${product.name}”？已提交的历史单据仍保留当时的商品快照。`);
+  const moveProductToArchive = async (product: ProductRow) => {
+    const confirmed = window.confirm(`确认归档货品“${product.name}”？归档后不会出现在日常货品列表中，历史单据仍会完整保留。`);
     if (!confirmed) {
       return;
     }
 
     setMessage(null);
     try {
-      await deleteProduct(product.id);
-      setMessage('商品已删除。');
+      await archiveProduct(product.id);
       await refresh(selectedStoreId);
+      setMessage('货品已归档。');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '删除商品失败');
+      setMessage(error instanceof Error ? error.message : '归档货品失败');
+    }
+  };
+
+  const restoreArchivedProduct = async (product: ProductRow) => {
+    setMessage(null);
+    try {
+      await restoreProduct(product.id);
+      await refresh(selectedStoreId);
+      setMessage('货品已取消归档，已恢复到货品列表。');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '取消归档失败');
+    }
+  };
+
+  const permanentlyDeleteArchivedProduct = async (product: ProductRow) => {
+    if (!window.confirm(`确认永久删除已归档货品“${product.name}”？此操作无法撤销。`)) {
+      return;
+    }
+
+    setMessage(null);
+    try {
+      await deleteProduct(product.id);
+      await refresh(selectedStoreId);
+      setMessage('已归档货品已永久删除。');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '删除已归档货品失败');
     }
   };
 
@@ -171,9 +201,9 @@ export function AdminPage() {
     try {
       const rows = await parseProductImportFile(importFile);
       const result = await importProducts(selectedStoreId, rows);
-      setMessage(`导入完成：新增 ${result.inserted}，更新 ${result.updated}，跳过 ${result.skipped}。`);
       setImportFile(null);
       await refresh(selectedStoreId);
+      setProductImportReport(result);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导入失败');
     }
@@ -184,9 +214,9 @@ export function AdminPage() {
     try {
       const file = await createAllProductsExportFile();
       downloadProductExportFile(file);
-      setMessage(`已导出全部 ${file.count} 个商品。`);
+      setMessage(`已导出全部 ${file.count} 个货品。`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '导出商品失败');
+      setMessage(error instanceof Error ? error.message : '导出货品失败');
     }
   };
 
@@ -202,9 +232,9 @@ export function AdminPage() {
     }
     try {
       await createAuthUserWithProfile(newUser);
-      setMessage('账号已创建。');
       setNewUser({ password: '', username: '', displayName: '', role: 'staff', storeIds: stores[0]?.id ? [stores[0].id] : [] });
       await refresh(selectedStoreId);
+      setMessage('账号已创建。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建账号失败');
     }
@@ -266,8 +296,8 @@ export function AdminPage() {
     setMessage(null);
     try {
       await deleteManagedUser(user.id);
-      setMessage('账号已删除，历史提交记录已保留。');
       await refresh(selectedStoreId);
+      setMessage('账号已删除，历史提交记录已保留。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '删除账号失败');
     }
@@ -293,51 +323,57 @@ export function AdminPage() {
       : user));
   };
 
-  return (
-    <PageShell eyebrow="管理员" title={tab === 'products' ? '商品管理' : '账号管理'} backTo="/app">
-      <div className="rounded-2xl bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 text-sm">
-          {[
-            ['products', '商品'],
-            ['users', '账号'],
-          ].map(([value, label]) => (
-            <button
-              className={[
-                'min-h-10 rounded-lg font-bold transition',
-                tab === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600',
-              ].join(' ')}
-              key={value}
-              onClick={() => changeTab(value as AdminTab)}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+  const activeProducts = products.filter((product) => product.is_active);
+  const archivedProducts = products.filter((product) => !product.is_active);
+  const normalizedProductSearch = productSearch.trim().toLocaleLowerCase();
+  const matchesProductSearch = (product: ProductRow) => {
+    if (!normalizedProductSearch) {
+      return true;
+    }
+    const draft = productDrafts[product.id] ?? productToDraft(product);
+    return [draft.name, draft.spec, draft.count_unit]
+      .some((value) => value.toLocaleLowerCase().includes(normalizedProductSearch));
+  };
+  const visibleActiveProducts = activeProducts.filter(matchesProductSearch);
+  const visibleArchivedProducts = archivedProducts.filter(matchesProductSearch);
+  const visibleProductCount = productTab === 'archived' ? visibleArchivedProducts.length : visibleActiveProducts.length;
+  const currentProductCount = productTab === 'archived' ? archivedProducts.length : activeProducts.length;
 
-        {tab === 'products' ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <select className="min-h-11 rounded-xl border border-slate-200 px-3" onChange={(event) => changeStore(event.target.value)} value={selectedStoreId}>
+  return (
+    <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '货品管理' : '账号管理'} backTo="/app/workbench">
+      {section === 'products' ? (
+        <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="shrink-0 text-xs font-bold text-slate-500">当前门店</span>
+            <select className="min-h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100" onChange={(event) => changeStore(event.target.value)} value={selectedStoreId}>
               {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
             </select>
-            <button className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold" onClick={() => void refresh(selectedStoreId)} type="button">
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              刷新
-            </button>
           </div>
-        ) : null}
-      </div>
+          {productTab !== 'batch' ? (
+            <div className="mt-3">
+              <label className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-slate-400 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100">
+                <Search className="h-5 w-5 shrink-0 text-brand-600" aria-hidden="true" />
+                <input aria-label="检索货品" className="min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400" onChange={(event) => setProductSearch(event.target.value)} placeholder="输入名称、规格或单位，立即筛选" type="search" value={productSearch} />
+                {productSearch ? <button aria-label="清空货品检索" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600" onClick={() => setProductSearch('')} type="button"><X className="h-4 w-4" aria-hidden="true" /></button> : null}
+              </label>
+              <div className="mt-2 flex items-center justify-between px-1 text-xs text-slate-500">
+                <span>{productSearch ? `正在检索“${productSearch.trim()}”` : '支持名称、规格和单位检索'}</span>
+                <span className="font-semibold text-brand-700">显示 {visibleProductCount} / {currentProductCount}</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
-      {message ? <p className="rounded-xl bg-accent-50 p-3 text-sm leading-6 text-accent-700">{message}</p> : null}
       {loading ? <p className="rounded-xl bg-white p-4 text-sm font-semibold text-slate-700 shadow-sm">正在加载后台数据</p> : null}
 
-      {tab === 'products' ? (
+      {section === 'products' ? (
         <section className="space-y-2">
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 text-sm">
             {([
-              ['catalog', '商品列表'],
-              ['import', '导入商品'],
-              ['export', '导出商品'],
+              ['catalog', '货品列表'],
+              ['batch', '批量处理'],
+              ['archived', `已归档 ${archivedProducts.length}`],
             ] as const).map(([value, label]) => (
               <button
                 className={`min-h-10 rounded-md font-bold ${productTab === value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`}
@@ -352,48 +388,51 @@ export function AdminPage() {
 
           {productTab === 'catalog' ? (
             <>
-          <div className="rounded-lg bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-base font-bold text-slate-900">新增商品</h2>
+          <div className="rounded-lg bg-white p-3 shadow-sm">
+            <h2 className="mb-2 text-base font-bold text-slate-900">新增货品</h2>
             <ProductDraftForm draft={newProduct} onChange={setNewProduct} />
-            <button className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void saveNewProduct()} type="button">
+            <button className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-lg bg-brand-600 px-3 text-sm font-bold text-white" onClick={() => void saveNewProduct()} type="button">
               <PackagePlus className="h-4 w-4" aria-hidden="true" />
-              创建商品
+              创建货品
             </button>
           </div>
 
           <div className="space-y-2">
-            {products.map((product) => (
-              <article className="rounded-lg bg-white p-3 shadow-sm" key={product.id}>
+            {visibleActiveProducts.map((product) => (
+              <article className="rounded-lg bg-white p-2.5 shadow-sm" key={product.id}>
                 <ProductDraftForm
                   draft={productDrafts[product.id] ?? productToDraft(product)}
                   onChange={(draft) => setProductDrafts((current) => ({ ...current, [product.id]: draft }))}
                 />
-                <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-                  <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-bold text-slate-800" onClick={() => void saveProduct(product.id)} type="button">
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-800" onClick={() => void saveProduct(product.id)} type="button">
                     <Save className="h-4 w-4" aria-hidden="true" />
-                    保存商品
+                    保存货品
                   </button>
-                  <button aria-label={`删除${product.name}`} className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 text-red-700" onClick={() => void removeProduct(product)} title="删除商品" type="button">
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-amber-200 px-3 text-sm font-bold text-amber-800" onClick={() => void moveProductToArchive(product)} type="button">
+                    <Archive className="h-4 w-4" aria-hidden="true" />
+                    归档
                   </button>
                 </div>
               </article>
             ))}
+            {visibleActiveProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">{normalizedProductSearch ? '没有符合检索条件的使用中货品。' : '当前门店暂无使用中的货品。'}</p> : null}
           </div>
             </>
           ) : null}
 
-          {productTab === 'import' ? (
+          {productTab === 'batch' ? (
+            <div className="space-y-2">
             <div className="rounded-lg bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-slate-900">Excel 导入商品</h2>
-                <a className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700" download href="/templates/商品导入模板.xlsx">
+                <h2 className="text-lg font-bold text-slate-900">Excel 导入货品</h2>
+                <a className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700" download="货品导入模板.xlsx" href="/templates/货品导入模板.xlsx">
                   <Download className="h-4 w-4" aria-hidden="true" />
                   下载模板
                 </a>
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                默认读取第一个 Sheet。支持列名：商品名称、规格、单位、商品编码、排序、启用。导入时按商品编码优先匹配，其次按名称+规格+单位匹配。
+                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、排序、启用。导入时按“货品名称 + 规格 + 单位”匹配，已存在则更新，未匹配则新增。单行不合规范或写入失败时会继续处理其余货品，完成后统一报告失败原因。
               </p>
               <input
                 accept=".xlsx,.xls"
@@ -406,22 +445,49 @@ export function AdminPage() {
                 导入到当前门店
               </button>
             </div>
-          ) : null}
-
-          {productTab === 'export' ? (
             <div className="rounded-lg bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900">导出全部商品</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店商品，包括商品编号、门店、规格、单位、编码、状态和创建/更新时间。</p>
+              <h2 className="text-lg font-bold text-slate-900">导出全部货品</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店货品，包括门店、名称、规格、单位、排序、状态和更新时间。</p>
               <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void exportAllProducts()} type="button">
                 <Download className="h-4 w-4" aria-hidden="true" />
-                导出全部商品 Excel
+                导出全部货品 Excel
               </button>
+            </div>
+            </div>
+          ) : null}
+
+          {productTab === 'archived' ? (
+            <div className="space-y-2">
+              <div className="rounded-lg bg-white p-3 shadow-sm">
+                <h2 className="text-base font-bold text-slate-900">已归档货品</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-500">归档货品不会出现在日常业务选择中，历史单据仍会保留。需要继续使用时可取消归档。</p>
+              </div>
+              {visibleArchivedProducts.map((product) => (
+                <article className="rounded-lg bg-white p-3 shadow-sm" key={product.id}>
+                  <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] items-center gap-2 text-sm">
+                    <strong className="truncate text-slate-900">{product.name}</strong>
+                    <span className="truncate text-slate-600">{product.spec}</span>
+                    <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{product.count_unit}</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-brand-200 px-3 text-sm font-bold text-brand-700" onClick={() => void restoreArchivedProduct(product)} type="button">
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      取消归档
+                    </button>
+                    <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-bold text-red-700" onClick={() => void permanentlyDeleteArchivedProduct(product)} type="button">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      删除
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {visibleArchivedProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">{normalizedProductSearch ? '没有符合检索条件的已归档货品。' : '当前门店暂无已归档货品。'}</p> : null}
             </div>
           ) : null}
         </section>
       ) : null}
 
-      {tab === 'users' ? (
+      {section === 'users' ? (
         <section className="space-y-3">
           <div className="rounded-lg bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -500,7 +566,7 @@ export function AdminPage() {
                     ))}
                   </div>
                 </fieldset>
-                {user.role !== 'admin' ? <fieldset className="mt-3 rounded-lg bg-slate-50 p-3"><legend className="px-1 text-xs font-bold text-slate-500">员工商品申请权限</legend><div className="mt-1 flex flex-wrap gap-3 text-sm"><label><input checked={user.productPermissions.can_request_new} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_new: event.target.checked } } : entry))} type="checkbox" /> 新增申请</label><label><input checked={user.productPermissions.can_request_incorrect} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_incorrect: event.target.checked } } : entry))} type="checkbox" /> 修订申请</label><label><input checked={user.productPermissions.can_request_discontinued} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_discontinued: event.target.checked } } : entry))} type="checkbox" /> 删除申请</label></div></fieldset> : null}
+                {user.role !== 'admin' ? <fieldset className="mt-3 rounded-lg bg-slate-50 p-3"><legend className="px-1 text-xs font-bold text-slate-500">员工货品申请权限</legend><div className="mt-1 flex flex-wrap gap-3 text-sm"><label><input checked={user.productPermissions.can_request_new} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_new: event.target.checked } } : entry))} type="checkbox" /> 新增申请</label><label><input checked={user.productPermissions.can_request_incorrect} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_incorrect: event.target.checked } } : entry))} type="checkbox" /> 修订申请</label><label><input checked={user.productPermissions.can_request_discontinued} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, productPermissions: { ...entry.productPermissions, can_request_discontinued: event.target.checked } } : entry))} type="checkbox" /> 删除申请</label></div></fieldset> : null}
                 <button className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void saveProfile(user)} type="button"><Save className="h-4 w-4" aria-hidden="true" />保存账号修改</button>
               </div>
             ))}
@@ -508,22 +574,26 @@ export function AdminPage() {
         </section>
       ) : null}
       {savedAccountName ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="account-save-success-title"><section className="ui-dialog-panel max-w-sm border border-emerald-100 p-5"><div className="flex items-start justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 className="h-7 w-7" aria-hidden="true" /></div><button aria-label="关闭保存成功提示" className="ui-icon-button" onClick={() => setSavedAccountName(null)} type="button"><X className="h-5 w-5" /></button></div><h2 className="mt-4 text-xl font-bold text-slate-900" id="account-save-success-title">账号修改已保存</h2><p className="mt-2 text-sm leading-6 text-slate-600">“{savedAccountName}”的账号资料已更新并生效。</p><button className="ui-button-primary mt-5 w-full" onClick={() => setSavedAccountName(null)} type="button">我知道了</button></section></div> : null}
+      <BatchImportReportDialog failureCount={productImportReport?.failed ?? 0} failures={productImportReport?.failures ?? []} onClose={() => setProductImportReport(null)} open={Boolean(productImportReport)} successCount={productImportReport?.succeeded ?? 0} successDescription={`成功处理 ${productImportReport?.succeeded ?? 0} 个货品：新增 ${productImportReport?.inserted ?? 0} 个，更新 ${productImportReport?.updated ?? 0} 个。失败行不会影响其他货品。`} title="货品批量导入完成" />
+      <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title={message && /失败|请|不能|不能为空|不正确|至少|已存在|未配置/.test(message) ? '操作未完成' : '操作成功'} tone={message && /失败|请|不能|不能为空|不正确|至少|已存在|未配置/.test(message) ? 'warning' : 'success'} />
     </PageShell>
   );
 }
 
+export function AdminProductsPage() {
+  return <AdminPage section="products" />;
+}
+
+export function AdminUsersPage() {
+  return <AdminPage section="users" />;
+}
+
 function ProductDraftForm({ draft, onChange }: { draft: ProductDraft; onChange: (draft: ProductDraft) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="商品名称" value={draft.name} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, spec: event.target.value })} placeholder="规格" value={draft.spec} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, count_unit: event.target.value })} placeholder="单位" value={draft.count_unit} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, product_code: event.target.value })} placeholder="商品编码" value={draft.product_code} />
-      <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, sort_order: Number(event.target.value) || 0 })} placeholder="排序" type="number" value={draft.sort_order} />
-      <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => onChange({ ...draft, is_active: event.target.value === 'true' })} value={String(draft.is_active)}>
-        <option value="true">启用</option>
-        <option value="false">停用</option>
-      </select>
+    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(4.5rem,0.55fr)] gap-2">
+      <input aria-label="货品名称" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="名称" value={draft.name} />
+      <input aria-label="货品规格" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, spec: event.target.value })} placeholder="规格" value={draft.spec} />
+      <input aria-label="货品单位" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, count_unit: event.target.value })} placeholder="单位" value={draft.count_unit} />
     </div>
   );
 }

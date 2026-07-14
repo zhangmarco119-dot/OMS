@@ -1,2 +1,19 @@
 [functions.account-login]
 verify_jwt = false
+
+[auth]
+site_url = "env(STOREHUB_AUTH_SITE_URL)"
+additional_redirect_urls = ["env(STOREHUB_AUTH_REDIRECT_URL)"]
+enable_signup = false
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.email]
+enable_confirmations = true
+max_frequency = "1m"
+otp_length = 8
+
+[storage.vector]
+enabled = false

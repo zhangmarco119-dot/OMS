@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 const migrationDirectory = join(root, 'supabase', 'migrations');
-const seedPath = join(root, 'supabase', 'seed.sql');
+const seedPath = join(root, 'supabase', 'seeds', 'development.sql');
 const envExamplePath = join(root, '.env.example');
 const arrivalRollbackPath = join(root, 'supabase', 'rollbacks', '0010_arrival_reports.sql');
 const arrivalTestPath = join(root, 'supabase', 'tests', '0010_arrival_schema.sql');
@@ -96,7 +96,7 @@ const requiredTables = [
   'v2_task_template_groups',
   'v2_task_template_items',
   'v2_task_template_versions',
-  'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews',
+  'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews', 'v2_task_item_reviews',
   'v2_task_schedules',
   'profile_product_permissions', 'v2_notice_recipients', 'v2_notice_assets',
 ];
@@ -154,6 +154,7 @@ const requiredPolicies = [
   'v2_task_template_versions_select_allowed',
   'v2_tasks_select_allowed', 'v2_task_answers_select_allowed', 'v2_task_images_select_allowed',
   'v2_task_images_insert_allowed', 'v2_task_images_delete_allowed', 'v2_task_reviews_select_allowed',
+  'v2_task_item_reviews_select_allowed',
   'v2_task_storage_select', 'v2_task_storage_insert', 'v2_task_storage_delete',
   'v2_task_schedules_select_allowed',
   'profile_product_permissions_select_own_or_admin', 'v2_notice_recipients_select_self_or_admin',
@@ -194,12 +195,13 @@ const requiredFunctions = [
   'save_v2_task_template',
   'publish_v2_task_template',
   'archive_v2_task_template',
+  'retract_v2_task_template',
   'can_read_v2_task', 'can_edit_v2_task', 'publish_v2_tasks', 'save_v2_task_progress', 'submit_v2_task', 'review_v2_task',
   'create_v2_task_schedule', 'dispatch_v2_task_schedules', 'pause_v2_task_schedule',
   'admin_operation_overview',
   'can_request_product_feedback', 'admin_set_product_permissions', 'resume_v2_task_schedule',
   'acknowledge_v2_notice',
-  'delete_v2_notice', 'admin_v2_analytics',
+  'archive_v2_notice', 'delete_v2_notice', 'admin_v2_analytics',
 ];
 
 const failures = [];

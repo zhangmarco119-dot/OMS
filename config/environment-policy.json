@@ -1,0 +1,10 @@
+{
+  "productionProjectRef": "mxxxpyowccezplfeffms",
+  "productionAnonKeySha256": "694be447705eaa661682cd307244f61b7f54d84b9d03a0338a7a417de3c46dec",
+  "developmentProjectRef": "tpbjlzmxpxsydsheeswm",
+  "developmentAnonKeySha256": "4ce7b40f3ab645cb29b2c8927b11e7f86133147ef73c634507838bdc5fb9508d",
+  "branches": {
+    "manage-system": "production",
+    "v2-development": "development"
+  }
+}

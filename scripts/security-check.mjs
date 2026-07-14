@@ -53,6 +53,18 @@ const forbiddenPatterns = [
     pattern: /sb_secret_[a-z0-9_-]{20,}/i,
     reason: 'possible Supabase secret key',
   },
+  {
+    pattern: /sb_publishable_[a-z0-9_-]{20,}/i,
+    reason: 'real Supabase publishable key must stay outside Git',
+  },
+  {
+    pattern: /\beyJ[a-z0-9_-]{20,}\.[a-z0-9_-]{20,}\.[a-z0-9_-]{20,}\b/i,
+    reason: 'possible committed JWT/legacy anon key',
+  },
+  {
+    pattern: /SUPABASE_ACCESS_TOKEN\s*=\s*\S+/i,
+    reason: 'Supabase access token must not be committed',
+  },
 ];
 
 const walk = async (directory) => {

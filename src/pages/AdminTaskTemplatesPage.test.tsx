@@ -7,6 +7,7 @@ import { createEmptyTaskTemplate } from '../features/task-templates/templateForm
 import {
   loadTaskTemplateDraft,
   loadTaskTemplates,
+  retractTaskTemplate,
   saveTaskTemplate,
   uploadTaskTemplateReferenceImage,
 } from '../services/task-templates.service';
@@ -20,6 +21,7 @@ vi.mock('../services/task-templates.service', async (importOriginal) => {
     ...original,
     loadTaskTemplateDraft: vi.fn(),
     loadTaskTemplates: vi.fn(),
+    retractTaskTemplate: vi.fn(),
     saveTaskTemplate: vi.fn(),
     uploadTaskTemplateReferenceImage: vi.fn(),
   };
@@ -114,5 +116,35 @@ describe('AdminTaskTemplatesPage reference images', () => {
     await waitFor(() => expect(saveTaskTemplate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: templateId })));
     await waitFor(() => expect(uploadTaskTemplateReferenceImage).toHaveBeenCalled());
     expect(vi.mocked(saveTaskTemplate).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(uploadTaskTemplateReferenceImage).mock.invocationCallOrder[0]);
+  });
+
+  it('shows edit, retract and disabled archive actions for a published template', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.mocked(loadTaskTemplates).mockResolvedValue([{
+      allow_overdue: false,
+      category: 'weekly_clean',
+      created_at: '2026-07-13T00:00:00Z',
+      created_by: '00000000-0000-4000-8000-000000000002',
+      current_version: 2,
+      description: '已发布模板',
+      due_time: '20:00:00',
+      id: '00000000-0000-4000-8000-000000000030',
+      name: '每周清洁',
+      recurrence: 'weekly',
+      recurrence_day: 1,
+      requires_review: true,
+      status: 'published',
+      storeIds: ['00000000-0000-4000-8000-000000000001'],
+      updated_at: '2026-07-13T00:00:00Z',
+    }]);
+    vi.mocked(retractTaskTemplate).mockResolvedValue({ status: 'draft' });
+
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminTaskTemplatesPage /></MemoryRouter>);
+
+    const archiveButton = await screen.findByRole('button', { name: '归档每周清洁' });
+    expect(screen.getByRole('button', { name: '撤回' })).toBeInTheDocument();
+    expect(archiveButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '撤回' }));
+    await waitFor(() => expect(retractTaskTemplate).toHaveBeenCalledWith(expect.anything(), '00000000-0000-4000-8000-000000000030'));
   });
 });

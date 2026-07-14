@@ -14,9 +14,11 @@ interface PendingReferenceImage {
 
 export function TaskTemplateReferenceImageUpload({
   disabled,
+  multiple = true,
   onUpload,
 }: {
   disabled: boolean;
+  multiple?: boolean;
   onUpload: (file: File, onProgress: (progress: number) => void) => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +73,7 @@ export function TaskTemplateReferenceImageUpload({
   };
 
   return <div>
-    <input accept="image/jpeg,image/png,image/webp" className="hidden" multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = ''; }} ref={inputRef} type="file" />
+    <input accept="image/jpeg,image/png,image/webp" className="hidden" multiple={multiple} onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = ''; }} ref={inputRef} type="file" />
     <button className="inline-flex min-h-10 items-center gap-1 rounded-lg border bg-white px-3 text-sm font-bold text-brand-700 disabled:opacity-50" disabled={disabled} onClick={() => inputRef.current?.click()} type="button"><ImagePlus className="h-4 w-4" />上传</button>
     {pending.length > 0 ? <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{pending.map((entry) => <div className="overflow-hidden rounded-lg border border-slate-200 bg-white" key={entry.id}>
       <img alt="本地参考图待上传预览" className="aspect-square w-full object-cover" src={entry.previewUrl} />

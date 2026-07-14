@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "env:check": "node scripts/verify-environment.mjs",
+    "migrations:check": "node scripts/check-migration-safety.mjs",
+    "migrations:remote:check": "node scripts/verify-remote-migrations.mjs",
+    "release:check": "node scripts/release-gate.mjs",
     "dev": "vite --host 0.0.0.0",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",
@@ -11,7 +15,7 @@
     "audit:security": "node scripts/security-check.mjs",
     "test": "vitest run",
     "test:e2e": "node scripts/e2e-smoke.mjs",
-    "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
+    "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build && node scripts/verify-build-environment.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

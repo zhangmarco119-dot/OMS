@@ -10,12 +10,58 @@ export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['R
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
 export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
 export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
-export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[] }
+export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
 export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
+export interface V2TaskAnswerPosition { groupNumber: number; groupTitle: string; itemNumber: number; number: string }
+export type V2TaskItemDecision = { decision: 'approved' | 'rejected'; itemId: string };
 
 const fail = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 export const asTaskItemSnapshot = (value: Json): TaskItemSnapshot => value as unknown as TaskItemSnapshot;
+
+const asRecord = (value: Json): Record<string, Json | undefined> | null => value !== null && !Array.isArray(value) && typeof value === 'object'
+  ? value as Record<string, Json | undefined>
+  : null;
+
+export const getV2TaskAnswerPositions = (snapshot: Json): Record<string, V2TaskAnswerPosition> => {
+  const root = asRecord(snapshot);
+  const groups = Array.isArray(root?.groups) ? root.groups : [];
+  const orderedGroups = groups
+    .map((value, index) => ({ index, value: asRecord(value) }))
+    .filter((entry): entry is { index: number; value: Record<string, Json | undefined> } => entry.value !== null)
+    .sort((left, right) => Number(left.value.sort_order ?? left.index) - Number(right.value.sort_order ?? right.index));
+  const positions: Record<string, V2TaskAnswerPosition> = {};
+  orderedGroups.forEach((groupEntry, groupIndex) => {
+    const items = Array.isArray(groupEntry.value.items) ? groupEntry.value.items : [];
+    const orderedItems = items
+      .map((value, index) => ({ index, value: asRecord(value) }))
+      .filter((entry): entry is { index: number; value: Record<string, Json | undefined> } => entry.value !== null)
+      .sort((left, right) => Number(left.value.sort_order ?? left.index) - Number(right.value.sort_order ?? right.index));
+    orderedItems.forEach((itemEntry, itemIndex) => {
+      const itemId = typeof itemEntry.value.id === 'string' ? itemEntry.value.id : '';
+      if (!itemId) return;
+      positions[itemId] = {
+        groupNumber: groupIndex + 1,
+        groupTitle: typeof groupEntry.value.title === 'string' ? groupEntry.value.title : `分组 ${groupIndex + 1}`,
+        itemNumber: itemIndex + 1,
+        number: `${groupIndex + 1}.${itemIndex + 1}`,
+      };
+    });
+  });
+  return positions;
+};
+
+export const orderV2TaskAnswers = (snapshot: Json, answers: V2TaskAnswerRow[]) => {
+  const positions = getV2TaskAnswerPositions(snapshot);
+  return [...answers].sort((left, right) => {
+    const leftPosition = positions[left.item_id];
+    const rightPosition = positions[right.item_id];
+    if (!leftPosition && !rightPosition) return left.id.localeCompare(right.id);
+    if (!leftPosition) return 1;
+    if (!rightPosition) return -1;
+    return leftPosition.groupNumber - rightPosition.groupNumber || leftPosition.itemNumber - rightPosition.itemNumber;
+  });
+};
 
 export const loadV2Tasks = async (client: Client, storeId?: string) => {
   let query = client.from('v2_tasks').select('*').neq('status', 'cancelled').order('due_at', { ascending: true });
@@ -30,7 +76,7 @@ export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<
     client.from('v2_task_reviews').select('*').eq('task_id', taskId).order('created_at'),
   ]); fail(task.error); fail(answers.error); fail(images.error); fail(reviews.error);
   if (!task.data) throw new Error('任务不存在或无权查看。');
-  return { answers: answers.data ?? [], images: images.data ?? [], reviews: reviews.data ?? [], task: task.data };
+  return { answers: orderV2TaskAnswers(task.data.snapshot, answers.data ?? []), images: images.data ?? [], reviews: reviews.data ?? [], task: task.data };
 };
 export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string | null) => {
   const { data, error } = await client.rpc('publish_v2_tasks', { p_due_at: dueAt, p_store_ids: storeIds, p_template_id: templateId }); fail(error); return data ?? [];
@@ -71,6 +117,15 @@ export const submitV2Task = async (client: Client, taskId: string, version: numb
 };
 export const reviewV2Task = async (client: Client, taskId: string, action: 'approved' | 'rejected', note: string, correctionIds: string[]) => {
   const { data, error } = await client.rpc('review_v2_task', { p_action: action, p_correction_item_ids: correctionIds, p_note: note, p_task_id: taskId }); fail(error); return data;
+};
+export const reviewV2TaskItems = async (client: Client, taskId: string, decisions: V2TaskItemDecision[], note: string) => {
+  const { data, error } = await client.rpc('review_v2_task_items', {
+    p_decisions: decisions.map((decision) => ({ decision: decision.decision, item_id: decision.itemId })),
+    p_note: note,
+    p_task_id: taskId,
+  });
+  fail(error);
+  return data;
 };
 export const withdrawV2Task = async (client: Client, taskId: string) => {
   const { data, error } = await client.rpc('withdraw_v2_task', { p_task_id: taskId }); fail(error); return data;

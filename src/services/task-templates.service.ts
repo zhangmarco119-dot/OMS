@@ -197,6 +197,12 @@ export const publishTaskTemplate = async (client: Client, templateId: string) =>
   return data;
 };
 
+export const retractTaskTemplate = async (client: Client, templateId: string) => {
+  const { data, error } = await client.rpc('retract_v2_task_template', { p_template_id: templateId });
+  throwIfError(error);
+  return data;
+};
+
 export const archiveTaskTemplate = async (client: Client, templateId: string) => {
   const { data, error } = await client.rpc('archive_v2_task_template', { p_template_id: templateId });
   throwIfError(error);

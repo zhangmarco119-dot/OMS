@@ -9,7 +9,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
 import { loadAdminOperationOverview, type AdminOperationOverview } from '../services/admin-operation-overview.service';
-import { countUnreadNotifications, loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
+import { loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
 import { loadTodoSummary, type TodoSummary } from '../services/todo.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
@@ -30,7 +30,6 @@ function StaffDashboard() {
   const navigate = useNavigate();
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
-  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [tasks, setTasks] = useState<V2TaskRow[]>([]);
   const [summary, setSummary] = useState<TodoSummary | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -43,10 +42,9 @@ function StaffDashboard() {
     if (!supabase || !auth.profile) return;
     const requestId = ++loadRequestIdRef.current;
     try {
-      const [nextNotices, nextNotifications, nextUnreadNotificationCount, nextTasks, nextSummary] = await Promise.all([
+      const [nextNotices, nextNotifications, nextTasks, nextSummary] = await Promise.all([
         loadNotices(supabase),
         loadNotifications(supabase),
-        countUnreadNotifications(supabase),
         loadV2Tasks(supabase, auth.store?.id),
         loadTodoSummary(supabase, { isAdmin: false, profileId: auth.profile.id, storeId: auth.store?.id }),
       ]);
@@ -54,7 +52,6 @@ function StaffDashboard() {
       const now = Date.now();
       setNotices(nextNotices.filter((notice) => notice.status === 'published' && !notice.isRead && (!notice.expires_at || new Date(notice.expires_at).getTime() > now)));
       setNotifications(nextNotifications);
-      setUnreadNotificationCount(nextUnreadNotificationCount);
       setTasks(nextTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status)).slice(0, 3));
       setSummary(nextSummary);
       setMessage(null);
@@ -95,7 +92,6 @@ function StaffDashboard() {
     if (readingNotificationIdsRef.current.has(notification.id)) return;
     readingNotificationIdsRef.current.add(notification.id);
     setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, is_read: true, read_at: new Date().toISOString() } : item));
-    setUnreadNotificationCount((current) => Math.max(0, current - 1));
     try {
       await markNotificationRead(supabase, notification.id);
       window.dispatchEvent(new Event('storehub:notifications-changed'));
@@ -103,10 +99,11 @@ function StaffDashboard() {
     } catch (error) {
       readingNotificationIdsRef.current.delete(notification.id);
       setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, is_read: false, read_at: null } : item));
-      setUnreadNotificationCount((current) => current + 1);
       setMessage(error instanceof Error ? error.message : '通知已读状态更新失败，请重试。');
     }
   };
+  const visibleNotifications = notifications.slice(0, 3);
+  const visibleUnreadNotificationCount = visibleNotifications.filter((notification) => !notification.is_read).length;
   const visibleTickerNotices = notices.filter((notice) => notice.id !== dismissedNoticeId);
   const dismissTicker = () => {
     const id = visibleTickerNotices[0]?.id;
@@ -159,9 +156,9 @@ function StaffDashboard() {
         </SectionCard>
 
         <SectionCard>
-          <SectionHeader action={<IconButton aria-label="刷新首页" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={`未读 ${unreadNotificationCount} 条`} icon={Bell} title="通知中心" />
+          <SectionHeader action={<IconButton aria-label="刷新首页" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={`未读 ${visibleUnreadNotificationCount} 条`} icon={Bell} title="通知中心" />
           <div className="mt-2 divide-y divide-slate-100">
-            {notifications.slice(0, 3).map((notification) => (
+            {visibleNotifications.map((notification) => (
               <button className="ui-interactive block w-full py-3 text-left" key={notification.id} onClick={() => void openNotification(notification)} type="button">
                 <div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{notification.title}</p>{!notification.is_read ? <StatusBadge tone="success">未读</StatusBadge> : null}</div>
                 <p className="mt-1 line-clamp-1 text-xs text-slate-500">{notification.body} · {new Date(notification.created_at).toLocaleString('zh-CN')}</p>

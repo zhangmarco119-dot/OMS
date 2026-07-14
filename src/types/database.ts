@@ -791,6 +791,7 @@ export type Database = {
       retract_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       retract_v2_task_template: { Args: { p_template_id: string }; Returns: Json };
       retract_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
+      unarchive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       save_v2_notice: { Args: { p_fields: Json; p_notice_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_sop: { Args: { p_fields: Json; p_roles: string[]; p_sop_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_task_progress: { Args: { p_answers: Json; p_expected_version: number; p_task_id: string }; Returns: Json };

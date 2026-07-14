@@ -305,6 +305,12 @@ export const archiveSop = async (client: Client, sopId: string) => {
   return data;
 };
 
+export const unarchiveSop = async (client: Client, sopId: string) => {
+  const { data, error } = await client.rpc('unarchive_v2_sop', { p_sop_id: sopId });
+  throwIfError(error);
+  return data;
+};
+
 export const uploadSopAsset = async (
   client: Client,
   input: { assetKind?: SopAssetRow['asset_kind']; file: File; profileId: string; sopId: string; sortOrder?: number; stepText?: string },

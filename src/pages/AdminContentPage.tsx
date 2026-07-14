@@ -1,4 +1,4 @@
-import { Archive, Download, FileText, FileUp, FolderPlus, ImageIcon, ListChecks, Pencil, Pin, Plus, RefreshCw, Rocket, Save, Trash2, Undo2, Upload, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Download, FileText, FileUp, FolderPlus, ImageIcon, ListChecks, Pencil, Pin, Plus, RefreshCw, Rocket, Save, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,6 +11,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { createSopBatchTemplate, importSopBatch, readSopBatchImageFileNames, type SopBatchImportProgress, type SopBatchImportResult } from '../features/content/sopBatchImport';
 import { downloadSopCollection } from '../features/content/sopExport';
 import { formatSopActionError, type SopSaveStage } from '../features/content/sopFeedback';
+import { useSopCategoryFilter } from '../features/content/useSopCategoryFilter';
 import { SopImageUpload, type SopImageUploadStatus } from '../features/content/SopImageUpload';
 import { moveSopStep, normalizeSopSteps, type OrderedSopStep } from '../features/content/sopSteps';
 import { getSopPreviewAsset } from '../features/content/sopPreview';
@@ -34,6 +35,7 @@ import {
   publishSop,
   renameSopCategory,
   retractSop,
+  unarchiveSop,
   reorderSopAssets,
   retractNotice,
   saveNotice,
@@ -65,6 +67,7 @@ const revokeLocalUrl = (url: string) => { if (typeof URL.revokeObjectURL === 'fu
 export function AdminContentPage({ section }: { section: AdminContentSection }) {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [sopCategoryFilter, setSopCategoryFilter] = useSopCategoryFilter();
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [sops, setSops] = useState<SopListItem[]>([]);
   const [sopCategories, setSopCategories] = useState<SopCategoryRow[]>([]);
@@ -77,7 +80,6 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [showSopArchiveManager, setShowSopArchiveManager] = useState(false);
   const [showNoticeArchiveManager, setShowNoticeArchiveManager] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [sopCategoryFilter, setSopCategoryFilter] = useState('all');
   const [sopExportMode, setSopExportMode] = useState(false);
   const [sopBatchAction, setSopBatchAction] = useState<SopBatchLifecycleAction | null>(null);
   const [sopBatchActionProgress, setSopBatchActionProgress] = useState<{ completed: number; total: number } | null>(null);
@@ -140,6 +142,11 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     }
   }, [section]);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (section === 'sops' && status === 'ready' && sopCategoryFilter !== 'all' && !sopCategories.some((category) => category.name === sopCategoryFilter)) {
+      setSopCategoryFilter('all');
+    }
+  }, [section, setSopCategoryFilter, sopCategories, sopCategoryFilter, status]);
   const defaultStores = auth.availableStores.map((store) => store.id);
   const storeName = (id: string) => auth.availableStores.find((store) => store.id === id)?.short_name ?? '未知门店';
 
@@ -360,6 +367,12 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     if (!window.confirm(`确定永久删除已归档 SOP“${sop.title}”吗？相关图片和附件也会删除，且无法恢复。`)) return;
     await run(() => deleteArchivedSop(client, sop), `已归档 SOP“${sop.title}”已永久删除。`);
   };
+  const restoreArchivedSop = async (sop: SopListItem) => {
+    const client = supabase;
+    if (!client || sop.status !== 'archived') return;
+    if (!window.confirm(`确定取消归档 SOP“${sop.title}”吗？恢复后会成为待发布草稿，不会自动通知员工。`)) return;
+    await run(() => unarchiveSop(client, sop.id), `SOP“${sop.title}”已取消归档并恢复为待发布草稿。`);
+  };
   const removeArchivedNotice = async (notice: NoticeListItem) => {
     const client = supabase;
     if (!client || notice.status !== 'archived') return;
@@ -529,7 +542,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     {showSopBatchOperations ? <SopBatchOperationsMenu onAction={startSopBatchAction} onClose={() => setShowSopBatchOperations(false)} onImport={() => { setShowSopBatchOperations(false); setShowSopBatchImport(true); }} /> : null}
     {showSopBatchImport ? <SopBatchImporter busy={busy} errorMessage={message} onCancel={() => setShowSopBatchImport(false)} onImport={runSopBatchImport} /> : null}
     {showSopCategoryManager ? <SopCategoryManager busy={busy} categories={sopCategories} errorMessage={message} newCategoryName={newCategoryName} onChangeName={setNewCategoryName} onClose={() => { setMessage(null); setShowSopCategoryManager(false); }} onCreate={addSopCategory} onDelete={removeSopCategory} onRename={renameCategory} sops={sops} /> : null}
-    {showSopArchiveManager ? <SopArchiveManager busy={busy} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} sops={archivedSops} /> : null}
+    {showSopArchiveManager ? <SopArchiveManager busy={busy} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} onRestore={restoreArchivedSop} sops={archivedSops} /> : null}
     {showNoticeArchiveManager ? <NoticeArchiveManager busy={busy} notices={archivedNotices} onClose={() => { setMessage(null); setShowNoticeArchiveManager(false); }} onDelete={removeArchivedNotice} /> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title={message?.includes('请') || message?.includes('仍有') ? '请完善操作信息' : '操作未完成'} tone={message?.includes('请') || message?.includes('仍有') ? 'warning' : 'danger'} />
     <SuccessToast message={success} onClose={() => setSuccess(null)} />
@@ -593,10 +606,11 @@ export function SopCategoryManager({ busy, categories, errorMessage, newCategory
   </div>;
 }
 
-function SopArchiveManager({ busy, onClose, onDelete, sops }: {
+export function SopArchiveManager({ busy, onClose, onDelete, onRestore, sops }: {
   busy: boolean;
   onClose: () => void;
   onDelete: (sop: SopListItem) => Promise<void>;
+  onRestore: (sop: SopListItem) => Promise<void>;
   sops: SopListItem[];
 }) {
   return <div aria-labelledby="sop-archive-title" aria-modal="true" className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog">
@@ -610,10 +624,13 @@ function SopArchiveManager({ busy, onClose, onDelete, sops }: {
         return <article className="ui-card flex items-center gap-3 p-3" key={sop.id}>
           {preview?.signedUrl ? <img alt={`${sop.title} 归档预览`} className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover" src={preview.signedUrl} /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></div>}
           <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-brand-700">{sop.category}</p><h3 className="mt-1 truncate font-bold text-slate-900">{sop.title}</h3><p className="mt-1 text-xs text-slate-500">已归档 · 步骤 {sop.assetUrls.filter((asset) => asset.asset_kind === 'step').length}</p></div>
-          <button aria-label={`永久删除 ${sop.title}`} className="ui-icon-button h-10 w-10 shrink-0 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => void onDelete(sop)} type="button"><Trash2 className="h-4 w-4" /></button>
+          <div className="grid shrink-0 gap-1.5">
+            <button aria-label={`取消归档 ${sop.title}`} className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg bg-brand-50 px-2 text-xs font-bold text-brand-800" disabled={busy} onClick={() => void onRestore(sop)} type="button"><ArchiveRestore className="h-3.5 w-3.5" />取消归档</button>
+            <button aria-label={`永久删除 ${sop.title}`} className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg bg-red-50 px-2 text-xs font-bold text-red-700" disabled={busy} onClick={() => void onDelete(sop)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
+          </div>
         </article>;
       })}</section> : <p className="ui-card p-6 text-center text-sm text-slate-500">暂无已归档 SOP。</p>}
-      <p className="px-2 text-xs leading-5 text-slate-500">永久删除会同时清理该 SOP 的产品图、制作步骤图片和附件，删除后无法恢复。</p>
+      <p className="px-2 text-xs leading-5 text-slate-500">取消归档会恢复为待发布草稿，不会自动通知员工；永久删除会同时清理产品图、制作步骤图片和附件，且无法恢复。</p>
     </div>
   </div>;
 }

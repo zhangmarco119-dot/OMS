@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SopBatchImportProgress } from '../features/content/sopBatchImport';
 import { formatSopActionError } from '../features/content/sopFeedback';
 import { createEmptyNoticeDraft, createEmptySopDraft } from '../services/v2-content.service';
-import { NoticeEditor, SopBatchImporter, SopBatchOperationsMenu, SopCategoryManager, SopEditor } from './AdminContentPage';
+import { NoticeEditor, SopArchiveManager, SopBatchImporter, SopBatchOperationsMenu, SopCategoryManager, SopEditor } from './AdminContentPage';
 
 const sopWorkbookFile = (rows: Array<Record<string, unknown>>, name = 'sops.xlsx') => {
   const workbook = XLSX.utils.book_new();
@@ -462,5 +462,19 @@ describe('SOP batch operations', () => {
     expect(await screen.findByRole('dialog', { name: 'SOP 批量上传完成' })).toHaveTextContent('上传成功2上传失败1');
     expect(screen.getByRole('dialog', { name: 'SOP 批量上传完成' })).toHaveTextContent('SOP“重复名称”');
     expect(screen.getByRole('dialog', { name: 'SOP 批量上传完成' })).toHaveTextContent('系统中已存在同名 SOP');
+  });
+});
+
+describe('SOP archive management', () => {
+  it('offers cancel archive and permanent delete as separate actions', () => {
+    const archived = { assetUrls: [], category: '奶茶', id: 'sop-1', status: 'archived', title: '珍珠奶茶' } as never;
+    const onRestore = vi.fn().mockResolvedValue(undefined);
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    render(<SopArchiveManager busy={false} onClose={vi.fn()} onDelete={onDelete} onRestore={onRestore} sops={[archived]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '取消归档 珍珠奶茶' }));
+    expect(onRestore).toHaveBeenCalledWith(archived);
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByText('恢复为待发布草稿', { exact: false })).toBeInTheDocument();
   });
 });

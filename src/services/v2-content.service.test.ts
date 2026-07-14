@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { archiveNotice, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, renameSopCategory, reorderSopAssets, retractSop } from './v2-content.service';
+import { archiveNotice, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
 
 describe('v2 content drafts', () => {
   it('starts an announcement as an unpinned draft for selected stores', () => {
@@ -107,6 +107,13 @@ describe('v2 content drafts', () => {
     const client = { rpc } as unknown as SupabaseClient<Database>;
     await retractSop(client, 'sop-1');
     expect(rpc).toHaveBeenCalledWith('retract_v2_sop', { p_sop_id: 'sop-1' });
+  });
+
+  it('restores an archived SOP to draft through the protected function', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: 'draft' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await unarchiveSop(client, 'sop-1');
+    expect(rpc).toHaveBeenCalledWith('unarchive_v2_sop', { p_sop_id: 'sop-1' });
   });
 
   it('cleans private files before permanently deleting an archived SOP', async () => {

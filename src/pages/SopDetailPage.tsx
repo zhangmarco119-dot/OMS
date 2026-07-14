@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { SuccessToast } from '../components/feedback/SuccessToast';
-import { EmptyState, ErrorState, FeedbackBanner, LoadingState } from '../components/ui/Feedback';
+import { EmptyState, ErrorState, LoadingState } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { loadTaskTemplates, type TaskTemplateListItem } from '../services/task-templates.service';
@@ -111,7 +112,6 @@ export function SopDetailPage() {
     </article> : null}
     {canPublish ? <section className="ui-card space-y-4 p-4" id="sop-publish-settings">
       <div><p className="text-xs font-bold text-brand-700">发布前最后一步</p><h2 className="mt-1 text-lg font-bold text-slate-900">发布基本设置</h2><p className="mt-1 text-sm leading-6 text-slate-500">上方内容就是员工看到的 SOP。确认预览无误后，再设置生效时间和可见范围。</p></div>
-      {message ? <FeedbackBanner title="暂时无法发布" tone="danger">{message}</FeedbackBanner> : null}
       <label className="block text-sm font-semibold text-slate-700">生效时间（不填则立即生效）<input className="ui-input mt-1.5" onChange={(event) => setPublishSettings((current) => ({ ...current, effectiveAt: event.target.value }))} type="datetime-local" value={publishSettings.effectiveAt} /></label>
       <fieldset><legend className="text-sm font-semibold text-slate-700">适用角色</legend><div className="mt-2 grid grid-cols-2 gap-2"><label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input checked={publishSettings.roles.includes('staff')} onChange={() => toggleRole('staff')} type="checkbox" />员工</label><label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input checked={publishSettings.roles.includes('manager')} onChange={() => toggleRole('manager')} type="checkbox" />店长</label></div></fieldset>
       <fieldset><legend className="text-sm font-semibold text-slate-700">适用门店</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{auth.availableStores.map((store) => <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm" key={store.id}><input checked={publishSettings.storeIds.includes(store.id)} onChange={() => toggleStore(store.id)} type="checkbox" />{store.name}</label>)}</div></fieldset>
@@ -120,6 +120,7 @@ export function SopDetailPage() {
       <button className="ui-button-primary w-full" disabled={busy} onClick={() => void confirmPublish()} type="button"><Rocket className="h-4 w-4" />{busy ? '正在发布' : '确认发布 SOP'}</button>
     </section> : null}
     {activeImage ? <div aria-label="SOP 步骤图片全屏预览" className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4" onClick={() => setActiveImage(null)} role="dialog"><button aria-label="关闭图片预览" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setActiveImage(null)} type="button"><X className="h-6 w-6" /></button><img alt={activeImage.alt} className="max-h-full max-w-full object-contain" onClick={() => setActiveImage(null)} src={activeImage.url} /></div> : null}
+    <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status === 'ready' && Boolean(message)} title="暂时无法发布" tone="warning" />
     <SuccessToast message={success} onClose={() => setSuccess(null)} />
   </PageShell>;
 }

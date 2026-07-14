@@ -11,7 +11,7 @@ import {
   type AdminUserRow,
   type StoreRow,
 } from '../features/admin/adminUsersService';
-import { loadAdminProductsData } from '../features/admin/adminProductsService';
+import { createProduct, loadAdminProductsData } from '../features/admin/adminProductsService';
 import { useAuth } from '../features/auth/AuthContext';
 import { AdminPage } from './AdminPage';
 
@@ -97,6 +97,17 @@ describe('AdminPage account management', () => {
     expect(loadAdminUsers).not.toHaveBeenCalled();
     expect(screen.queryByPlaceholderText('货品编码')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '创建账号' })).not.toBeInTheDocument();
+  });
+
+  it('shows a centered success dialog after creating a product', async () => {
+    vi.mocked(createProduct).mockResolvedValue(undefined);
+    render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: '新增货品' });
+    fireEvent.click(screen.getByRole('button', { name: '创建货品' }));
+
+    await waitFor(() => expect(createProduct).toHaveBeenCalled());
+    expect(await screen.findByRole('dialog', { name: '操作成功' })).toHaveTextContent('货品已创建');
   });
 
   it('hides email from new and ordinary accounts, then confirms a successful save in a dialog', async () => {

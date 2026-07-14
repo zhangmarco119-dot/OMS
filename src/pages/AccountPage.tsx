@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
-import { FeedbackBanner } from '../components/ui/Feedback';
+import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { FormField } from '../components/ui/FormField';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -120,7 +120,6 @@ export function AccountPage() {
             {showPassword ? '隐藏' : '显示'}
           </button>
         </div>
-        {message ? <FeedbackBanner className="mb-4" tone={message === '密码已修改。' ? 'success' : 'warning'}>{message}</FeedbackBanner> : null}
         <div className="grid gap-3">
           <FormField hint="至少 8 位，请避免使用容易猜测的密码。" label="新密码" required><input autoComplete="new-password" className="ui-input" onChange={(event) => setPassword(event.target.value)} placeholder="请输入新密码" type={showPassword ? 'text' : 'password'} value={password} /></FormField>
           <FormField label="确认新密码" required><input autoComplete="new-password" className="ui-input" onChange={(event) => setConfirmPassword(event.target.value)} placeholder="再次输入新密码" type={showPassword ? 'text' : 'password'} value={confirmPassword} /></FormField>
@@ -129,6 +128,7 @@ export function AccountPage() {
           </button>
         </div>
       </div>
+      <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title={message === '密码已修改。' ? '修改成功' : '密码未修改'} tone={message === '密码已修改。' ? 'success' : 'warning'} />
     </PageShell>
   );
 }

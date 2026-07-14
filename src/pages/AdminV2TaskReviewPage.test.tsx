@@ -80,4 +80,19 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
       { decision: 'approved', itemId: resubmittedAnswer.item_id },
     ], ''));
   });
+
+  it('opens a visible dialog when reject actions are missing a selection or reason', async () => {
+    render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
+
+    await screen.findByText('重新提交 · 待复审');
+    fireEvent.click(screen.getByRole('button', { name: '所选驳回' }));
+    expect(screen.getByRole('dialog', { name: '请完善审核信息' })).toHaveTextContent('请先勾选需要审核的项目。');
+    fireEvent.click(screen.getByRole('button', { name: '我知道了' }));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /操作台清洁/ }));
+    fireEvent.click(screen.getByRole('button', { name: '所选驳回' }));
+    fireEvent.click(screen.getByRole('button', { name: /提交审核结果/ }));
+    expect(screen.getByRole('dialog', { name: '请完善审核信息' })).toHaveTextContent('请填写具体的整改原因');
+    expect(reviewV2TaskItems).not.toHaveBeenCalled();
+  });
 });

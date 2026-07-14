@@ -99,7 +99,6 @@ export function V2TaskExecutionPage() {
       await submitV2Task(supabase, detail.task.id, saved?.version ?? detail.task.version);
       window.dispatchEvent(new Event('storehub:todos-changed'));
       setSuccessMessage('任务已提交，等待管理员审核');
-      window.setTimeout(() => navigate('/app/tasks'), 900);
     } catch (error) { setMessage(error instanceof Error ? error.message : '提交失败'); }
     finally { setBusy(false); }
   };
@@ -176,7 +175,7 @@ export function V2TaskExecutionPage() {
     })}</div>
     {editable ? <MobileActionBar className="grid grid-cols-2 gap-2.5"><button className="ui-button-secondary" disabled={busy || activeUploadCount > 0} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg font-bold disabled:opacity-60 ${currentSubmissionIssues.length > 0 ? 'bg-slate-300 text-slate-600' : 'bg-brand-600 text-white'}`} disabled={busy || activeUploadCount > 0} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />{activeUploadCount > 0 ? '图片上传中…' : '提交检查'}</button></MobileActionBar> : null}</> : <LoadingState label="正在加载任务" />}
     {submissionIssues.length > 0 ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-label="必填项目未完成"><section className="ui-dialog-panel max-w-sm p-5"><h2 className="text-lg font-bold text-slate-900">请先完成必填项目</h2><p className="mt-2 text-sm leading-6 text-slate-600">以下内容尚未完成，完成后才能提交检查：</p><ul className="mt-3 space-y-2">{submissionIssues.map((issue) => <li className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm" key={issue.itemId}><b className="block text-slate-900">项目：{issue.label}</b><span className="mt-1 block text-amber-800">{issue.reason}</span></li>)}</ul><button className="ui-button-primary mt-5 w-full" onClick={() => setSubmissionIssues([])} type="button">我知道了</button></section></div> : null}
-    <SuccessToast message={successMessage} onClose={() => setSuccessMessage(null)} />
+    <SuccessToast message={successMessage} onClose={() => { const returnToTasks = successMessage === '任务已提交，等待管理员审核'; setSuccessMessage(null); if (returnToTasks) navigate('/app/tasks'); }} />
   </PageShell>;
 }
 

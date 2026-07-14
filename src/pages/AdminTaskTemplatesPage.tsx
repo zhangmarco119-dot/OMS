@@ -2,6 +2,7 @@ import { Archive, ClipboardPlus, Plus, RefreshCw, Rocket, Save, Trash2, Undo2, X
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
+import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { featureFlags } from '../config/featureFlags';
 import {
@@ -212,7 +213,7 @@ export function AdminTaskTemplatesPage() {
     if (!supabase) return;
     if (!window.confirm(`确认发布“${template.name}”的新版本？已发布历史版本不会变化。`)) return;
     setBusy(true);
-    try { await publishTaskTemplate(supabase, template.id); await refresh(); setMessage('模板新版本已发布。'); }
+    try { await publishTaskTemplate(supabase, template.id); await refresh(); setSuccessMessage('模板新版本已发布。'); }
     catch (error) { setMessage(error instanceof Error ? error.message : '发布模板失败。'); }
     finally { setBusy(false); }
   };
@@ -220,7 +221,7 @@ export function AdminTaskTemplatesPage() {
   const archive = async (template: TaskTemplateListItem) => {
     if (!supabase || !window.confirm(`确认归档“${template.name}”？历史版本仍会保留。`)) return;
     setBusy(true);
-    try { await archiveTaskTemplate(supabase, template.id); await refresh(); setMessage('模板已归档。'); }
+    try { await archiveTaskTemplate(supabase, template.id); await refresh(); setSuccessMessage('模板已归档。'); }
     catch (error) { setMessage(error instanceof Error ? error.message : '归档模板失败。'); }
     finally { setBusy(false); }
   };
@@ -249,12 +250,13 @@ export function AdminTaskTemplatesPage() {
       {scope === 'active' ? <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white" onClick={() => setDraft(createEmptyTaskTemplate(auth.availableStores[0]?.id ? [auth.availableStores[0].id] : []))} type="button"><ClipboardPlus className="h-5 w-5" />新建模板</button> : null}
     </section>
 
-    {message ? <p className={`rounded-lg p-4 text-sm ${message.includes('失败') || message.includes('需要') ? 'bg-red-50 text-red-700' : 'bg-brand-50 text-brand-800'}`}>{message}</p> : null}
+    {status === 'error' && message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
     {status === 'loading' ? <p className="rounded-lg bg-white p-5 font-semibold text-slate-600 shadow-sm">正在加载任务模板</p> : null}
     {status === 'ready' && visibleTemplates.length === 0 ? <p className="rounded-lg bg-white p-8 text-center text-slate-500 shadow-sm">{scope === 'archived' ? '暂无已归档模板。' : '当前分类还没有模板。'}</p> : null}
     {status === 'ready' ? <div className="grid gap-3 md:grid-cols-2">{visibleTemplates.map((template) => <article className="rounded-lg bg-white p-4 shadow-sm" key={template.id}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{categoryLabel[template.category]} · v{template.current_version}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{template.name}</h2></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass[template.status]}`}>{statusLabel[template.status]}</span></div><p className="mt-2 line-clamp-2 text-sm text-slate-600">{template.description || '无额外说明'}</p><p className="mt-3 text-xs text-slate-500">适用：{template.storeIds.map(storeName).join('、') || '未配置门店'} · {template.requires_review ? '需要审核' : '无需审核'}</p>{template.status !== 'archived' ? <div className="mt-4 grid grid-cols-3 gap-2"><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" disabled={busy} onClick={() => void editTemplate(template)} type="button">编辑</button>{template.status === 'published' ? <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 text-sm font-bold text-amber-800" disabled={busy} onClick={() => void retract(template)} type="button"><Undo2 className="h-4 w-4" />撤回</button> : <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-brand-600 text-sm font-bold text-white" disabled={busy} onClick={() => void publish(template)} type="button"><Rocket className="h-4 w-4" />发布</button>}<button aria-label={`归档${template.name}`} className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border text-sm font-bold ${template.status === 'published' ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 text-slate-600'}`} disabled={busy || template.status === 'published'} onClick={() => void archive(template)} type="button"><Archive className="h-4 w-4" />归档</button></div> : <button className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-200 text-sm font-bold text-red-700" disabled={busy} onClick={() => void deleteArchived(template)} type="button"><Trash2 className="h-4 w-4" />删除模板</button>}</article>)}</div> : null}
 
     {draft ? <TemplateEditor busy={busy} draft={draft} errorMessage={message} onCancel={() => { setDraft(null); setMessage(null); }} onChange={setDraft} onDeleteReferenceImage={deleteReferenceImage} onPublishSave={() => void save(true)} onSave={() => void save()} onUploadReferenceImage={uploadReferenceImage} stores={auth.availableStores} /> : null}
+    <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title="操作未完成" tone="warning" />
     <SuccessToast message={successMessage} onClose={() => setSuccessMessage(null)} />
   </PageShell>;
 }

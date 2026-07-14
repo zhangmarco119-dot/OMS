@@ -2,6 +2,7 @@ import { CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, Sa
 import { useEffect, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
+import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import {
   createProduct,
   createAllProductsExportFile,
@@ -119,8 +120,8 @@ export function AdminPage({ section }: { section: AdminSection }) {
     setMessage(null);
     try {
       await createProduct({ ...newProduct, store_id: selectedStoreId });
-      setMessage('货品已创建。');
       await refresh(selectedStoreId);
+      setMessage('货品已创建。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建货品失败');
     }
@@ -135,8 +136,8 @@ export function AdminPage({ section }: { section: AdminSection }) {
     setMessage(null);
     try {
       await updateProduct(productId, draft);
-      setMessage('货品已保存。');
       await refresh(selectedStoreId);
+      setMessage('货品已保存。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存货品失败');
     }
@@ -151,8 +152,8 @@ export function AdminPage({ section }: { section: AdminSection }) {
     setMessage(null);
     try {
       await deleteProduct(product.id);
-      setMessage('货品已删除。');
       await refresh(selectedStoreId);
+      setMessage('货品已删除。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '删除货品失败');
     }
@@ -168,9 +169,9 @@ export function AdminPage({ section }: { section: AdminSection }) {
     try {
       const rows = await parseProductImportFile(importFile);
       const result = await importProducts(selectedStoreId, rows);
-      setMessage(`导入完成：新增 ${result.inserted}，更新 ${result.updated}，跳过 ${result.skipped}。`);
       setImportFile(null);
       await refresh(selectedStoreId);
+      setMessage(`导入完成：新增 ${result.inserted}，更新 ${result.updated}，跳过 ${result.skipped}。`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导入失败');
     }
@@ -199,9 +200,9 @@ export function AdminPage({ section }: { section: AdminSection }) {
     }
     try {
       await createAuthUserWithProfile(newUser);
-      setMessage('账号已创建。');
       setNewUser({ password: '', username: '', displayName: '', role: 'staff', storeIds: stores[0]?.id ? [stores[0].id] : [] });
       await refresh(selectedStoreId);
+      setMessage('账号已创建。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建账号失败');
     }
@@ -263,8 +264,8 @@ export function AdminPage({ section }: { section: AdminSection }) {
     setMessage(null);
     try {
       await deleteManagedUser(user.id);
-      setMessage('账号已删除，历史提交记录已保留。');
       await refresh(selectedStoreId);
+      setMessage('账号已删除，历史提交记录已保留。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '删除账号失败');
     }
@@ -306,7 +307,6 @@ export function AdminPage({ section }: { section: AdminSection }) {
         </div>
       ) : null}
 
-      {message ? <p className="rounded-xl bg-accent-50 p-3 text-sm leading-6 text-accent-700">{message}</p> : null}
       {loading ? <p className="rounded-xl bg-white p-4 text-sm font-semibold text-slate-700 shadow-sm">正在加载后台数据</p> : null}
 
       {section === 'products' ? (
@@ -486,6 +486,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
         </section>
       ) : null}
       {savedAccountName ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="account-save-success-title"><section className="ui-dialog-panel max-w-sm border border-emerald-100 p-5"><div className="flex items-start justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 className="h-7 w-7" aria-hidden="true" /></div><button aria-label="关闭保存成功提示" className="ui-icon-button" onClick={() => setSavedAccountName(null)} type="button"><X className="h-5 w-5" /></button></div><h2 className="mt-4 text-xl font-bold text-slate-900" id="account-save-success-title">账号修改已保存</h2><p className="mt-2 text-sm leading-6 text-slate-600">“{savedAccountName}”的账号资料已更新并生效。</p><button className="ui-button-primary mt-5 w-full" onClick={() => setSavedAccountName(null)} type="button">我知道了</button></section></div> : null}
+      <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title={message && /失败|请|不能|不能为空|不正确|至少|已存在|未配置/.test(message) ? '操作未完成' : '操作成功'} tone={message && /失败|请|不能|不能为空|不正确|至少|已存在|未配置/.test(message) ? 'warning' : 'success'} />
     </PageShell>
   );
 }

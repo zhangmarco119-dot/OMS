@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { FeedbackBanner } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
@@ -389,7 +390,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
 
   return <PageShell eyebrow="门店运营系统 · 管理员" title={pageCopy.title} backTo="/app/workbench">
     <section className="rounded-lg bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-brand-700">{pageCopy.label}</p><p className="mt-1 text-sm text-slate-500">{pageCopy.description}</p></div><button aria-label={`刷新${pageCopy.title}`} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void refresh()} type="button"><RefreshCw className="h-4 w-4" /></button></div></section>
-    {message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
+    {status === 'error' && message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
     {status === 'loading' ? <p className="rounded-lg bg-white p-5 text-sm font-semibold text-slate-600 shadow-sm">正在加载内容</p> : null}
     {section === 'notices' ? <section className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -459,6 +460,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     {showSopCategoryManager ? <SopCategoryManager busy={busy} categories={sopCategories} errorMessage={message} newCategoryName={newCategoryName} onChangeName={setNewCategoryName} onClose={() => { setMessage(null); setShowSopCategoryManager(false); }} onCreate={addSopCategory} onDelete={removeSopCategory} onRename={renameCategory} sops={sops} /> : null}
     {showSopArchiveManager ? <SopArchiveManager busy={busy} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} sops={archivedSops} /> : null}
     {showNoticeArchiveManager ? <NoticeArchiveManager busy={busy} notices={archivedNotices} onClose={() => { setMessage(null); setShowNoticeArchiveManager(false); }} onDelete={removeArchivedNotice} /> : null}
+    <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title={message?.includes('请') || message?.includes('仍有') ? '请完善操作信息' : '操作未完成'} tone={message?.includes('请') || message?.includes('仍有') ? 'warning' : 'danger'} />
     <SuccessToast message={success} onClose={() => setSuccess(null)} />
   </PageShell>;
 }

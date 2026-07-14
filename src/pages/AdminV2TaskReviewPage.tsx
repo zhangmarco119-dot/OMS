@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
+import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { ConfirmDialog, MobileActionBar } from '../components/ui/Actions';
 import { FeedbackBanner, LoadingState } from '../components/ui/Feedback';
 import { TaskImagePreview } from '../features/v2-tasks/TaskImagePreview';
@@ -116,7 +117,6 @@ export function AdminV2TaskReviewPage() {
   };
 
   return <PageShell eyebrow="门店运营系统 · 管理员审核" title={detail?.task.name ?? '任务'} backTo="/app/admin/tasks" contentGapClassName="gap-3">
-    {message ? <FeedbackBanner tone={message.includes('失败') || message.includes('请') || message.includes('未选择') || message.includes('还有') ? 'warning' : 'success'}>{message}</FeedbackBanner> : null}
     {detail ? <>
       <section className="ui-card p-4">
         <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-700">{detail.task.task_no}</p><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[detail.task.status]}`}>{v2TaskStatusLabel[detail.task.status]}</span></div>
@@ -155,7 +155,8 @@ export function AdminV2TaskReviewPage() {
       })}</div>
 
       {isReviewable ? <section className="ui-card p-4"><textarea className="ui-input min-h-24 py-3" onChange={(event) => setNote(event.target.value)} placeholder="审核意见；有驳回项目时请填写整改原因" value={note} /><p className="mt-2 text-xs leading-5 text-slate-500">所有待审项目都选择结果后提交。重新提交时，已通过项目仅供查看，不会重复审核。</p><MobileActionBar className="mt-3"><button className="ui-button-primary w-full" disabled={busy} onClick={() => void submitReview()} type="button">{busy ? '正在提交审核…' : `提交审核结果（${decidedCount}/${reviewableAnswers.length}）`}</button></MobileActionBar></section> : null}
-    </> : <LoadingState label="正在加载任务" />}
+    </> : message ? <FeedbackBanner title="任务加载失败" tone="danger">{message}</FeedbackBanner> : <LoadingState label="正在加载任务" />}
+    <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(detail && message)} title={message?.includes('审核已提交') || message?.includes('任务已撤回') ? '操作成功' : message?.includes('失败') ? '操作失败' : '请完善审核信息'} tone={message?.includes('审核已提交') || message?.includes('任务已撤回') ? 'success' : message?.includes('失败') ? 'danger' : 'warning'} />
     <ConfirmDialog confirmLabel="确认撤回" danger onCancel={() => setShowWithdrawConfirm(false)} onConfirm={() => void withdraw()} open={showWithdrawConfirm} title="撤回任务"><p>撤回后，员工和店长将无法继续执行该任务。此操作会同步更新待办列表。</p></ConfirmDialog>
   </PageShell>;
 }

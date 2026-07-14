@@ -324,9 +324,15 @@ export const updateSopAssetSteps = async (client: Client, steps: Array<{ id: str
   }
 };
 
+export const reorderSopAssets = async (client: Client, sopId: string, orderedAssetIds: string[]) => {
+  const { data, error } = await client.rpc('reorder_v2_sop_assets', { p_asset_ids: orderedAssetIds, p_sop_id: sopId });
+  throwIfError(error);
+  return data;
+};
+
 export const deleteSopAsset = async (client: Client, asset: Pick<SopAssetRow, 'id' | 'object_path'>) => {
   const { error } = await client.from('v2_sop_assets').delete().eq('id', asset.id);
   throwIfError(error);
   const storage = await client.storage.from('v2-sop-assets').remove([asset.object_path]);
-  if (storage.error) throw new Error('图片记录已删除，但存储清理失败，请联系管理员处理。');
+  return { storageCleanupFailed: Boolean(storage.error) };
 };

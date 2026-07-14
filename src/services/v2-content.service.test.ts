@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { createEmptyNoticeDraft, createEmptySopDraft, deleteNotice, deleteSopAsset, deleteSopCategory } from './v2-content.service';
+import { createEmptyNoticeDraft, createEmptySopDraft, deleteNotice, deleteSopAsset, deleteSopCategory, reorderSopAssets } from './v2-content.service';
 
 describe('v2 content drafts', () => {
   it('starts an announcement as an unpinned draft for selected stores', () => {
@@ -50,5 +50,15 @@ describe('v2 content drafts', () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'SOP_CATEGORY_IN_USE:2' } });
     const client = { rpc } as unknown as SupabaseClient<Database>;
     await expect(deleteSopCategory(client, 'category-1')).rejects.toThrow('该分类仍被 SOP 使用');
+  });
+
+  it('persists the complete ordered SOP image id list atomically', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { asset_ids: ['image-2', 'image-1'] }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await reorderSopAssets(client, 'sop-1', ['image-2', 'image-1']);
+    expect(rpc).toHaveBeenCalledWith('reorder_v2_sop_assets', {
+      p_asset_ids: ['image-2', 'image-1'],
+      p_sop_id: 'sop-1',
+    });
   });
 });

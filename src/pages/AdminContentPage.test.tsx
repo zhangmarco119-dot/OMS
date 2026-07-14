@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { formatSopActionError } from '../features/content/sopFeedback';
@@ -32,6 +32,7 @@ describe('SopEditor image-first workflow', () => {
       onChange={vi.fn()}
       onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
       onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={vi.fn().mockResolvedValue(undefined)}
       onSave={onSave}
       onUploadImage={onUploadImage}
       stores={[{ id: 'store-1', name: '测试门店' }]}
@@ -48,7 +49,7 @@ describe('SopEditor image-first workflow', () => {
 
     expect(await screen.findByAltText('finished-bowl.png')).toHaveAttribute('src', 'blob:sop-preview');
     expect(screen.getByText(/正在上传/)).toBeInTheDocument();
-    expect(onUploadImage).toHaveBeenCalledWith(file, expect.any(Function));
+    expect(onUploadImage).toHaveBeenCalledWith(file, 0, expect.any(Function));
 
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
     expect(await screen.findByText('图片仍在上传，请等待上传完成后再保存或发布。')).toBeInTheDocument();
@@ -75,6 +76,7 @@ describe('SopEditor image-first workflow', () => {
       onChange={vi.fn()}
       onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
       onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={vi.fn().mockResolvedValue(undefined)}
       onSave={vi.fn().mockResolvedValue(true)}
       onUploadImage={onUploadImage}
       stores={[{ id: 'store-1', name: '测试门店' }]}
@@ -87,6 +89,38 @@ describe('SopEditor image-first workflow', () => {
     expect(await screen.findByText('网络暂时不可用')).toBeInTheDocument();
     expect(screen.getByAltText('failed.png')).toHaveAttribute('src', 'blob:sop-preview');
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument();
+  });
+
+  it('shows two compact columns and moves a step through its sequence dropdown', async () => {
+    const onReorderImages = vi.fn().mockResolvedValue(undefined);
+    const asset = (id: string, name: string, sortOrder: number) => ({
+      bucket: 'v2-sop-assets', created_at: '2026-07-14T00:00:00Z', file_name: name, id,
+      mime_type: 'image/jpeg', object_path: `sop-1/${name}`, signedUrl: `https://example.test/${name}`,
+      size_bytes: 100, sop_id: 'sop-1', sort_order: sortOrder, step_text: `${name}说明`, uploaded_by: 'admin-1',
+    });
+    render(<SopEditor
+      busy={false}
+      categories={['酸奶碗制作']}
+      draft={{ ...createEmptySopDraft(['store-1']), id: 'sop-1', title: '双图步骤' }}
+      errorMessage={null}
+      existingAssets={[asset('image-1', '第一步.jpg', 0), asset('image-2', '第二步.jpg', 1)] as never}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onDeleteAsset={vi.fn().mockResolvedValue(undefined)}
+      onPublish={vi.fn().mockResolvedValue(true)}
+      onReorderImages={onReorderImages}
+      onSave={vi.fn().mockResolvedValue(true)}
+      onUploadImage={vi.fn().mockResolvedValue(undefined)}
+      stores={[{ id: 'store-1', name: '测试门店' }]}
+      templates={[]}
+    />);
+
+    const grid = screen.getByTestId('sop-step-grid');
+    expect(grid).toHaveClass('grid-cols-2');
+    fireEvent.change(screen.getByRole('combobox', { name: '调整 第二步.jpg 的步骤序号' }), { target: { value: '0' } });
+
+    await waitFor(() => expect(onReorderImages).toHaveBeenCalledWith(['image-2', 'image-1']));
+    expect(within(grid).getAllByRole('img').map((image) => image.getAttribute('alt'))).toEqual(['第二步.jpg', '第一步.jpg']);
   });
 
   it('keeps the announcement editor and action bar above the app navigation', () => {

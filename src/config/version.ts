@@ -10,6 +10,16 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-07-15',
     highlights: [
+      '在管理员“我的 → 关于系统”中增加员工与店长说明、管理员说明两个在线入口。',
+      '说明文档改为从系统集中读取，每次进入都会显示最新上传内容。',
+      '在线说明支持手机阅读、关键词搜索和打印，出现加载问题时可以直接重新加载。',
+    ],
+    title: '新增系统内在线使用说明',
+    version: 'StoreHub v2.2.1',
+  },
+  {
+    date: '2026-07-15',
+    highlights: [
       '正式版本升级至 2.2，集中发布近期完成的 SOP、任务审核、货品管理和通知体验改造。',
       '强化开发与正式 Supabase、Cloudflare Pages 和 Git 分支的环境隔离，正式发布前必须先完成数据库 Migration 与全量门禁。',
       '新增正式合并版本规则：每次合并到 manage-system 都必须提升次版本号并将补丁位归零。',

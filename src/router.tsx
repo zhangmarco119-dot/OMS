@@ -28,6 +28,7 @@ import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
 import { SopDetailPage } from './pages/SopDetailPage';
+import { SystemManualPage } from './pages/SystemManualPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
 import { TodoPage } from './pages/TodoPage';
 import { V2TaskCenterPage } from './pages/V2TaskCenterPage';
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/about', element: <ProtectedRoute requireAdmin><AboutSystemPage /></ProtectedRoute> },
+      { path: 'account/about/manual/:manualSlug', element: <ProtectedRoute requireAdmin><SystemManualPage /></ProtectedRoute> },
       { path: 'menu', element: <AppMenuPage /> },
       { path: 'workbench', element: <AppMenuPage /> },
       { path: 'todos', element: <TodoPage /> },

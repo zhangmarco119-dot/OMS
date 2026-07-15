@@ -99,6 +99,7 @@ const requiredTables = [
   'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews', 'v2_task_item_reviews',
   'v2_task_schedules',
   'profile_product_permissions', 'v2_notice_recipients', 'v2_notice_assets',
+  'v2_system_documents',
 ];
 
 const storeScopedTables = [
@@ -159,6 +160,7 @@ const requiredPolicies = [
   'v2_task_schedules_select_allowed',
   'profile_product_permissions_select_own_or_admin', 'v2_notice_recipients_select_self_or_admin',
   'v2_notice_assets_select_allowed', 'v2_notice_assets_insert_admin', 'v2_notice_assets_delete_admin',
+  'v2_system_documents_select_admin', 'v2_system_documents_insert_admin', 'v2_system_documents_update_admin',
 ];
 
 const requiredFunctions = [

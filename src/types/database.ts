@@ -343,6 +343,12 @@ export type Database = {
         Update: { body?: string; category?: string; created_at?: string; created_by?: string; effective_at?: string | null; id?: string; published_at?: string | null; status?: 'draft' | 'published' | 'archived'; task_template_id?: string | null; title?: string; updated_at?: string; version?: number; };
         Relationships: [];
       };
+      v2_system_documents: {
+        Row: { audience: 'staff_manager' | 'admin'; content_html: string; document_version: string; slug: string; summary: string; title: string; updated_at: string; updated_by: string | null; };
+        Insert: { audience: 'staff_manager' | 'admin'; content_html?: string; document_version: string; slug: string; summary?: string; title: string; updated_at?: string; updated_by?: string | null; };
+        Update: { audience?: 'staff_manager' | 'admin'; content_html?: string; document_version?: string; slug?: string; summary?: string; title?: string; updated_at?: string; updated_by?: string | null; };
+        Relationships: [];
+      };
       v2_sop_stores: {
         Row: { created_at: string; sop_id: string; store_id: string; };
         Insert: { created_at?: string; sop_id: string; store_id: string; };

@@ -26,6 +26,19 @@
 - `migrations/0020_v2_recurring_task_schedules.sql`：每 N 天 / 每周指定日期的周期任务计划、自动推送定时调度和暂停机制。
 - `migrations/0021_admin_operation_overview.sql`：管理员首页的到货、盘点和 V2 任务概览汇总 RPC。
 - `migrations/0022_v2_monthly_task_schedules.sql`：周期任务的每月固定日期规则。
+- `migrations/0049_system_user_manuals.sql`：管理员在线说明文档表、初始元数据和仅管理员可读写的 RLS。
+
+## 在线使用说明同步
+
+两份独立 HTML 保存在 `docs/`，应用从 `public.v2_system_documents` 读取最新正文。应用 `0049` 后执行：
+
+```powershell
+$env:STOREHUB_DOCUMENT_ADMIN_IDENTIFIER = '<管理员账号名>'
+$env:STOREHUB_DOCUMENT_ADMIN_PASSWORD = '<管理员密码>'
+pnpm manuals:sync -- --env development
+```
+
+脚本会校验目标项目必须与所选环境一致，再同步员工与店长说明、管理员说明。正式环境还必须显式使用 `--env production --allow-production`，且正式环境的 URL、Anon Key 和项目 Ref 必须通过环境变量提供。账号和密钥只能临时放入环境变量，禁止写入仓库。
 
 ## 本地/远程执行顺序
 

@@ -11,6 +11,8 @@ describe('AboutSystemPage', () => {
 
     expect(screen.getByRole('heading', { name: '关于系统' })).toBeInTheDocument();
     expect(screen.getByText(`当前版本：${systemVersion}`)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /员工与店长使用说明/ })).toHaveAttribute('href', '/app/account/about/manual/staff-manager-guide');
+    expect(screen.getByRole('link', { name: /管理员使用说明/ })).toHaveAttribute('href', '/app/account/about/manual/admin-guide');
     expect(screen.getByText('版本更新记录')).toBeInTheDocument();
     for (const release of systemReleaseHistory) expect(screen.getByText(release.title)).toBeInTheDocument();
   });

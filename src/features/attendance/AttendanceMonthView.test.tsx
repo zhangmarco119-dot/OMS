@@ -7,7 +7,7 @@ import type { AttendanceMonthDetail } from './model';
 const detail: AttendanceMonthDetail = {
   summary: { attendanceDates: ['2026-07-14', '2026-07-15'], attendanceDays: 2, lateCount: 1, lateMinutes: 12, missingCount: 0, abnormalCount: 0, lastSyncedAt: '2026-07-15T02:00:00Z' },
   days: [
-    { id: 'normal', date: '2026-07-14', timezone: 'Asia/Shanghai', shiftId: '1', shiftName: '早班', plannedOnAt: '2026-07-14T01:00:00Z', plannedOffAt: '2026-07-14T10:00:00Z', actualOnAt: '2026-07-14T00:58:00Z', actualOffAt: '2026-07-14T10:00:00Z', onDutyResult: 'normal', offDutyResult: 'normal', status: 'normal', isAttended: true, lateMinutes: 0, earlyMinutes: 0, missingPunch: 'none', exceptionNote: null, lastSyncedAt: '2026-07-15T02:00:00Z', punches: [] },
+    { id: 'normal', date: '2026-07-14', timezone: 'Asia/Shanghai', shiftId: '1', shiftName: '早班', plannedOnAt: '2026-07-14T01:00:00Z', plannedOffAt: '2026-07-14T10:00:00Z', actualOnAt: '2026-07-14T00:58:00Z', actualOffAt: '2026-07-14T10:00:00Z', onDutyResult: 'normal', offDutyResult: 'normal', status: 'normal', isAttended: true, lateMinutes: 0, earlyMinutes: 0, missingPunch: 'none', exceptionNote: null, lastSyncedAt: '2026-07-15T02:00:00Z', hasScheduleConflict: true, enterpriseCount: 2, sources: [{ corpId: 'a', enterpriseName: '企业 A', storeId: 'store-a', storeName: '门店 A', shiftId: '1', shiftName: '早班', plannedOnAt: '2026-07-14T01:00:00Z', plannedOffAt: '2026-07-14T10:00:00Z', actualOnAt: '2026-07-14T00:58:00Z', actualOffAt: '2026-07-14T10:00:00Z', status: 'normal' }, { corpId: 'b', enterpriseName: '企业 B', storeId: 'store-b', storeName: '门店 B', shiftId: '2', shiftName: '中班', plannedOnAt: '2026-07-14T02:00:00Z', plannedOffAt: '2026-07-14T11:00:00Z', actualOnAt: null, actualOffAt: null, status: 'pending' }], punches: [] },
     { id: 'late', date: '2026-07-15', timezone: 'Asia/Shanghai', shiftId: '1', shiftName: '非常长的门店早班名称用于验证小屏展示', plannedOnAt: '2026-07-15T01:00:00Z', plannedOffAt: '2026-07-15T10:00:00Z', actualOnAt: '2026-07-15T01:12:00Z', actualOffAt: '2026-07-15T10:00:00Z', onDutyResult: 'late', offDutyResult: 'normal', status: 'late', isAttended: true, lateMinutes: 12, earlyMinutes: 0, missingPunch: 'none', exceptionNote: '迟到', lastSyncedAt: '2026-07-15T02:00:00Z', punches: [] },
   ],
 };
@@ -18,6 +18,8 @@ describe('AttendanceMonthView', () => {
     expect(screen.getByText('12', { selector: 'p' })).toBeInTheDocument();
     expect(screen.getByText('实际 09:12')).toBeInTheDocument();
     expect(screen.getByText('非常长的门店早班名称用于验证小屏展示')).toBeInTheDocument();
+    expect(screen.getByText('同一天在多个钉钉企业中都有排班，请确认是否存在重复排班。')).toBeInTheDocument();
+    expect(screen.getAllByText('查看打卡（0 次）')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: '迟到与异常' }));
     expect(screen.queryByText('2026-07-14')).not.toBeInTheDocument();
     expect(screen.getByText('迟到 12 分钟')).toBeInTheDocument();

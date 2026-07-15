@@ -71,6 +71,19 @@ pnpm dlx supabase@latest secrets set `
 | `DINGTALK_ENTERPRISE_TIMEZONE` | 否 | 默认 `Asia/Shanghai`。 |
 | `DINGTALK_CRON_SECRET` | 自动同步必填 | 仅供 Cron 请求头鉴权，建议 32 字节以上随机值。 |
 
+### 多企业配置
+
+同一个 StoreHub 环境需要连接两个或更多钉钉企业时，改用一个受保护的 JSON Secret `DINGTALK_ENTERPRISE_CONFIGS`。设置后它会覆盖上表中的单企业 CorpId、AppKey 和 AppSecret；每个企业必须使用各自的内部应用凭据：
+
+```json
+[
+  {"corpId":"企业A CorpId","displayName":"企业A","appKey":"企业A AppKey","appSecret":"企业A AppSecret","rootDepartmentIds":["1"],"timezone":"Asia/Shanghai"},
+  {"corpId":"企业B CorpId","displayName":"企业B","appKey":"企业B AppKey","appSecret":"企业B AppSecret","rootDepartmentIds":["1"],"timezone":"Asia/Shanghai"}
+]
+```
+
+通过 `supabase secrets set DINGTALK_ENTERPRISE_CONFIGS='<压缩成一行的 JSON>' --project-ref <项目 ref>` 保存，禁止写入 `.env`、Migration 或 Git。更新通讯录后，管理员还必须在“考勤管理 → 企业门店”中把每个企业对应到门店，再到“员工绑定”为员工增加该企业身份。
+
 Supabase 自动提供 `SUPABASE_URL`、`SUPABASE_ANON_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY`，无需手工复制。
 
 ## 4. 部署与首次同步
@@ -84,11 +97,11 @@ pnpm dlx supabase@latest functions deploy dingtalk-attendance --project-ref tpbj
 
 然后在 StoreHub 管理员端依次执行：
 
-1. 进入“工作台 → 考勤管理 → 员工绑定”。
-2. 点击“更新钉钉员工通讯录”。
-3. 逐个确认员工绑定；姓名一致的“建议”也必须人工确认。
+1. 进入“工作台 → 考勤管理 → 员工绑定”，点击“更新钉钉员工通讯录”。
+2. 进入“企业门店”，把每个钉钉企业与实际门店建立对应关系。
+3. 返回“员工绑定”，逐个确认员工；同一员工在多个企业任职时，可为其增加多个企业身份。
 4. 回到“月度考勤”，选择当前月和门店，点击同步。
-5. 在“同步日志”核对成功数、失败数和失败原因。
+5. 在“同步日志”核对成功数、失败数和失败原因。同一员工的多企业记录会按日期合并，同日多企业排班会显示提醒。
 
 ## 5. 自动同步
 

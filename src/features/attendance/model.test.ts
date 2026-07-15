@@ -17,6 +17,6 @@ describe('attendance view model', () => {
   });
 
   it('keeps only actionable exceptions in the exception filter', () => {
-    expect(filterAttendanceDays([day('normal'), day('rest'), day('late'), day('missing')], 'exceptions').map((item) => item.status)).toEqual(['late', 'missing']);
+    expect(filterAttendanceDays([day('normal'), day('pending'), day('rest'), day('late'), day('missing')], 'exceptions').map((item) => item.status)).toEqual(['late', 'missing']);
   });
 });

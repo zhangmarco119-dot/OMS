@@ -1,4 +1,4 @@
-import { CalendarDays, Clock3 } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Clock3 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { EmptyState, StatusBadge } from '../../components/ui/Feedback';
@@ -33,9 +33,11 @@ export function AttendanceMonthView({ detail }: { detail: AttendanceMonthDetail 
           <TimeBlock label="上班" planned={day.plannedOnAt} actual={day.actualOnAt} />
           <TimeBlock label="下班" planned={day.plannedOffAt} actual={day.actualOffAt} />
         </div>
+        {day.hasScheduleConflict ? <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-900"><AlertTriangle className="mr-1 inline h-4 w-4" />同一天在多个钉钉企业中都有排班，请确认是否存在重复排班。</div> : null}
+        {day.sources && day.sources.length > 1 ? <details className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600"><summary className="cursor-pointer font-semibold text-brand-700">查看 {day.sources.length} 个企业的排班来源</summary><div className="mt-2 space-y-1.5">{day.sources.map((source) => <div className="rounded-md bg-white p-2" key={`${source.corpId}-${source.storeId}`}><b>{source.enterpriseName}</b><span className="text-slate-400"> · {source.storeName}</span><p className="mt-1">应打卡 {formatAttendanceTime(source.plannedOnAt)}–{formatAttendanceTime(source.plannedOffAt)}{source.shiftName ? ` · ${source.shiftName}` : ''}</p></div>)}</div></details> : null}
         {day.lateMinutes || day.earlyMinutes ? <p className="mt-2 text-sm font-semibold text-amber-800">{day.lateMinutes ? `迟到 ${day.lateMinutes} 分钟` : ''}{day.lateMinutes && day.earlyMinutes ? '；' : ''}{day.earlyMinutes ? `早退 ${day.earlyMinutes} 分钟` : ''}</p> : null}
         {day.exceptionNote ? <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm leading-5 text-red-800">{day.exceptionNote}</p> : null}
-        {day.punches.length > 2 ? <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer font-semibold text-brand-700">查看全部 {day.punches.length} 次打卡</summary><div className="mt-2 flex flex-wrap gap-1.5">{day.punches.map((punch) => <span className="rounded bg-slate-100 px-2 py-1" key={punch.id}>{formatAttendanceTime(punch.time)}{punch.locationName ? ` · ${punch.locationName}` : ''}</span>)}</div></details> : null}
+        <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer font-semibold text-brand-700">查看打卡（{day.punches.length} 次）</summary>{day.punches.length ? <div className="mt-2 flex flex-wrap gap-1.5">{day.punches.map((punch) => <span className="rounded bg-slate-100 px-2 py-1" key={punch.id}>{formatAttendanceTime(punch.time)}{punch.enterpriseName ? ` · ${punch.enterpriseName}` : ''}{punch.locationName ? ` · ${punch.locationName}` : ''}</span>)}</div> : <p className="mt-2 rounded bg-slate-50 p-2 text-slate-500">当天暂无打卡记录。</p>}</details>
       </SectionCard>;
     })}</section> : <EmptyState icon={CalendarDays} title={filter === 'all' ? '本月暂无考勤记录' : '本月暂无迟到或异常'} description={filter === 'all' ? '管理员完成钉钉员工绑定并同步后，记录会显示在这里。' : '当前筛选下没有需要关注的记录。'} />}
     <p className="px-1 text-xs leading-5 text-slate-500">数据以钉钉考勤和排班结果为准。最近同步：{summary.lastSyncedAt ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Shanghai' }).format(new Date(summary.lastSyncedAt)) : '尚未同步'}</p>

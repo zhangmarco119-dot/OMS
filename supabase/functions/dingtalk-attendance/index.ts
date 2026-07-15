@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
 import { normalizeAttendanceBundle, type AttendanceBindingInput } from './attendance-normalizer.ts';
 import { chunk, DingTalkApiError, DingTalkClient } from './dingtalk-client.ts';
+import { loadDingTalkEnterpriseConfigs } from './enterprise-config.ts';
 import { summarizeAttendanceSync } from './sync-result.ts';
 
 type AttendanceAction =
@@ -85,35 +86,40 @@ Deno.serve(async (request) => {
     allowedStoreIds = (access ?? []).map((item) => item.store_id);
   }
 
-  let client: DingTalkClient;
-  let corpId: string;
+  let enterpriseConfigs: ReturnType<typeof loadDingTalkEnterpriseConfigs>;
   try {
-    corpId = requiredEnv('DINGTALK_CORP_ID');
-    client = new DingTalkClient({ appKey: requiredEnv('DINGTALK_APP_KEY'), appSecret: requiredEnv('DINGTALK_APP_SECRET'), corpId });
+    enterpriseConfigs = loadDingTalkEnterpriseConfigs((key) => Deno.env.get(key));
   } catch {
     return json({ error: '钉钉服务尚未完成安全配置。' }, 503);
   }
+  const clientByCorp = new Map(enterpriseConfigs.map((config) => [config.corpId, new DingTalkClient(config)]));
+  const configByCorp = new Map(enterpriseConfigs.map((config) => [config.corpId, config]));
+  const jobCorpId = enterpriseConfigs.length === 1 ? enterpriseConfigs[0].corpId : 'multi-enterprise';
 
   if (payload.action === 'refresh-directory') {
-    const rootDepartmentIds = unique((payload.rootDepartmentIds?.length ? payload.rootDepartmentIds : optionalEnv('DINGTALK_ROOT_DEPARTMENT_IDS', '1').split(','))
-      .map((item) => item.trim()).filter(Boolean));
     const { data: job, error: jobError } = await adminClient.from('attendance_sync_jobs').insert({
-      corp_id: corpId, sync_type: 'directory', scope_type: 'organization', trigger_type: 'manual', initiated_by: actorId, status: 'running', started_at: new Date().toISOString(),
+      corp_id: jobCorpId, sync_type: 'directory', scope_type: 'organization', trigger_type: 'manual', initiated_by: actorId, status: 'running', started_at: new Date().toISOString(),
     }).select('id').single();
     if (jobError || !job) return json({ error: '无法创建通讯录同步任务。' }, 500);
     try {
-      const employees = await client.listEmployees(rootDepartmentIds);
       const now = new Date().toISOString();
-      const rows = employees.map((employee) => ({
-        corp_id: corpId, dingtalk_user_id: employee.dingtalkUserId, union_id: employee.unionId,
-        display_name: employee.displayName, mobile_masked: employee.mobileMasked, job_number: employee.jobNumber,
-        department_ids: employee.departmentIds, is_active: employee.isActive, last_synced_at: now,
-      }));
-      const { error } = rows.length ? await adminClient.from('dingtalk_employee_directory').upsert(rows, { onConflict: 'corp_id,dingtalk_user_id' }) : { error: null };
-      if (error) throw new Error(error.message);
-      if (rows.length) {
+      let employeeCount = 0;
+      for (const config of enterpriseConfigs) {
+        const client = clientByCorp.get(config.corpId)!;
+        const rootDepartmentIds = unique((payload.rootDepartmentIds?.length ? payload.rootDepartmentIds : config.rootDepartmentIds).map((item) => item.trim()).filter(Boolean));
+        const employees = await client.listEmployees(rootDepartmentIds);
+        employeeCount += employees.length;
+        const rows = employees.map((employee) => ({
+          corp_id: config.corpId, dingtalk_user_id: employee.dingtalkUserId, union_id: employee.unionId,
+          display_name: employee.displayName, mobile_masked: employee.mobileMasked, job_number: employee.jobNumber,
+          department_ids: employee.departmentIds, is_active: employee.isActive, last_synced_at: now,
+        }));
+        const enterpriseSave = await adminClient.from('dingtalk_enterprises').upsert({ corp_id: config.corpId, display_name: config.displayName, is_active: true, last_directory_synced_at: now });
+        if (enterpriseSave.error) throw new Error(enterpriseSave.error.message);
+        const { error } = rows.length ? await adminClient.from('dingtalk_employee_directory').upsert(rows, { onConflict: 'corp_id,dingtalk_user_id' }) : { error: null };
+        if (error) throw new Error(error.message);
         const activeUserIds = new Set(rows.map((row) => row.dingtalk_user_id));
-        const { data: existing, error: existingError } = await adminClient.from('dingtalk_employee_directory').select('id,dingtalk_user_id').eq('corp_id', corpId).eq('is_active', true);
+        const { data: existing, error: existingError } = await adminClient.from('dingtalk_employee_directory').select('id,dingtalk_user_id').eq('corp_id', config.corpId).eq('is_active', true);
         if (existingError) throw new Error(existingError.message);
         const missingDirectoryIds = (existing ?? []).filter((item) => !activeUserIds.has(item.dingtalk_user_id)).map((item) => item.id);
         for (const ids of chunk(missingDirectoryIds, 100)) {
@@ -123,8 +129,8 @@ Deno.serve(async (request) => {
           if (bindingError) throw new Error(bindingError.message);
         }
       }
-      await adminClient.from('attendance_sync_jobs').update({ status: 'succeeded', success_count: rows.length, inserted_count: rows.length, finished_at: now }).eq('id', job.id);
-      return json({ jobId: job.id, status: 'succeeded', employeeCount: rows.length, message: `已更新 ${rows.length} 名钉钉员工。` });
+      await adminClient.from('attendance_sync_jobs').update({ status: 'succeeded', success_count: employeeCount, inserted_count: employeeCount, finished_at: now }).eq('id', job.id);
+      return json({ jobId: job.id, status: 'succeeded', employeeCount, enterpriseCount: enterpriseConfigs.length, message: `已更新 ${enterpriseConfigs.length} 个企业的 ${employeeCount} 名钉钉员工。` });
     } catch (error) {
       await adminClient.from('attendance_sync_jobs').update({ status: 'failed', failure_count: 1, error_summary: publicError(error), finished_at: new Date().toISOString() }).eq('id', job.id);
       return json({ jobId: job.id, error: publicError(error) }, 502);
@@ -164,7 +170,7 @@ Deno.serve(async (request) => {
     return json({ error: '未知考勤操作。' }, 400);
   }
 
-  let bindingsQuery = adminClient.from('dingtalk_employee_bindings').select('profile_id,corp_id,dingtalk_user_id').eq('corp_id', corpId).eq('binding_status', 'active');
+  let bindingsQuery = adminClient.from('dingtalk_employee_bindings').select('profile_id,corp_id,dingtalk_user_id,store_id').eq('binding_status', 'active');
   if (requestedProfileId) bindingsQuery = bindingsQuery.eq('profile_id', requestedProfileId);
   const { data: bindingRows, error: bindingError } = await bindingsQuery;
   if (bindingError) return json({ error: '无法读取员工绑定。' }, 500);
@@ -177,13 +183,13 @@ Deno.serve(async (request) => {
   const bindings: AttendanceBindingInput[] = (bindingRows ?? []).flatMap((binding) => {
     const profile = profileMap.get(binding.profile_id);
     if (!profile?.is_active || profile.deleted_at) return [];
-    if (!isScheduled && (!allowedStoreIds.includes(profile.store_id) || (requestedStoreId && profile.store_id !== requestedStoreId))) return [];
-    if (isScheduled && requestedStoreId && profile.store_id !== requestedStoreId) return [];
-    return [{ corpId: binding.corp_id, dingtalkUserId: binding.dingtalk_user_id, profileId: binding.profile_id, storeId: profile.store_id }];
+    if (!isScheduled && (!allowedStoreIds.includes(binding.store_id) || (requestedStoreId && binding.store_id !== requestedStoreId))) return [];
+    if (isScheduled && requestedStoreId && binding.store_id !== requestedStoreId) return [];
+    return [{ corpId: binding.corp_id, dingtalkUserId: binding.dingtalk_user_id, profileId: binding.profile_id, storeId: binding.store_id }];
   });
 
   const { data: job, error: jobError } = await adminClient.from('attendance_sync_jobs').insert({
-    corp_id: corpId, sync_type: syncType, scope_type: requestedProfileId ? 'employee' : requestedStoreId ? 'store' : 'organization',
+    corp_id: jobCorpId, sync_type: syncType, scope_type: requestedProfileId ? 'employee' : requestedStoreId ? 'store' : 'organization',
     month_start: `${startDate.slice(0, 7)}-01`, range_start: startDate, range_end: endDate,
     store_id: requestedStoreId, profile_id: requestedProfileId, trigger_type: triggerType, initiated_by: actorId,
     status: 'running', started_at: new Date().toISOString(), progress_cursor: { totalEmployees: bindings.length, completedEmployees: 0 },
@@ -192,9 +198,13 @@ Deno.serve(async (request) => {
   if (actorId) await adminClient.from('attendance_audit_logs').insert({ actor_id: actorId, action: triggerType === 'retry' ? 'sync_retried' : 'sync_requested', entity_type: 'sync_job', entity_id: job.id, store_id: requestedStoreId, metadata: { startDate, endDate, employeeCount: bindings.length } });
 
   let successCount = 0; let failureCount = 0; let insertedCount = 0; let updatedCount = 0; let skippedCount = 0;
-  let schedules: Record<string, unknown>[] = [];
+  const schedulesByCorp = new Map<string, Record<string, unknown>[]>();
   try {
-    schedules = bindings.length ? await client.listSchedules(startDate, endDate) : [];
+    for (const corpId of unique(bindings.map((binding) => binding.corpId))) {
+      const client = clientByCorp.get(corpId);
+      if (!client) throw new Error(`DingTalk enterprise ${corpId} is not configured`);
+      schedulesByCorp.set(corpId, await client.listSchedules(startDate, endDate));
+    }
   } catch (error) {
     const message = publicError(error);
     await adminClient.from('attendance_sync_jobs').update({ status: 'failed', failure_count: bindings.length, error_summary: message, finished_at: new Date().toISOString() }).eq('id', job.id);
@@ -202,15 +212,18 @@ Deno.serve(async (request) => {
   }
   for (const binding of bindings) {
     try {
+      const client = clientByCorp.get(binding.corpId);
+      const config = configByCorp.get(binding.corpId);
+      if (!client || !config) throw new Error(`DingTalk enterprise ${binding.corpId} is not configured`);
       const bundle = await client.getAttendanceBundle([binding.dingtalkUserId], startDate, endDate);
-      bundle.schedules = schedules;
+      bundle.schedules = schedulesByCorp.get(binding.corpId) ?? [];
       const days = normalizeAttendanceBundle(binding, bundle);
       if (!days.length) skippedCount += 1;
       for (const day of days) {
         const { data: existing } = await adminClient.from('attendance_daily_records').select('id').eq('corp_id', day.corpId).eq('profile_id', day.profileId).eq('attendance_date', day.attendanceDate).maybeSingle();
         const { data: daily, error: dailyError } = await adminClient.from('attendance_daily_records').upsert({
           corp_id: day.corpId, profile_id: day.profileId, store_id: day.storeId, attendance_date: day.attendanceDate,
-          enterprise_timezone: timezone, shift_id: day.shiftId, shift_name: day.shiftName, planned_on_at: day.plannedOnAt,
+          enterprise_timezone: config.timezone, shift_id: day.shiftId, shift_name: day.shiftName, planned_on_at: day.plannedOnAt,
           planned_off_at: day.plannedOffAt, actual_on_at: day.actualOnAt, actual_off_at: day.actualOffAt,
           on_duty_result: day.onDutyResult, off_duty_result: day.offDutyResult, daily_status: day.dailyStatus,
           is_attended: day.isAttended, late_minutes: day.lateMinutes, early_minutes: day.earlyMinutes,

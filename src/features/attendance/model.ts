@@ -1,4 +1,4 @@
-export type AttendanceStatus = 'normal' | 'late' | 'early' | 'missing' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal';
+export type AttendanceStatus = 'normal' | 'late' | 'early' | 'missing' | 'pending' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal';
 
 export interface AttendancePunch {
   id: string;
@@ -8,6 +8,22 @@ export interface AttendancePunch {
   locationResult: string | null;
   locationName: string | null;
   isApprovedCorrection: boolean;
+  enterpriseName?: string;
+  storeName?: string;
+}
+
+export interface AttendanceDaySource {
+  corpId: string;
+  enterpriseName: string;
+  storeId: string;
+  storeName: string;
+  shiftId: string | null;
+  shiftName: string | null;
+  plannedOnAt: string | null;
+  plannedOffAt: string | null;
+  actualOnAt: string | null;
+  actualOffAt: string | null;
+  status: AttendanceStatus;
 }
 
 export interface AttendanceDay {
@@ -30,6 +46,9 @@ export interface AttendanceDay {
   exceptionNote: string | null;
   lastSyncedAt: string;
   punches: AttendancePunch[];
+  enterpriseCount?: number;
+  hasScheduleConflict?: boolean;
+  sources?: AttendanceDaySource[];
 }
 
 export interface AttendanceMonthSummary {
@@ -60,6 +79,7 @@ export const statusMeta: Record<AttendanceStatus, { label: string; tone: 'succes
   late: { label: '迟到', tone: 'warning' },
   early: { label: '早退', tone: 'warning' },
   missing: { label: '缺卡', tone: 'danger' },
+  pending: { label: '待打卡', tone: 'info' },
   rest: { label: '休息', tone: 'neutral' },
   leave: { label: '请假', tone: 'info' },
   business_trip: { label: '出差', tone: 'info' },
@@ -79,7 +99,7 @@ export const formatAttendanceTime = (value: string | null) => value
 
 export const filterAttendanceDays = (days: AttendanceDay[], filter: 'all' | 'exceptions') => filter === 'all'
   ? days
-  : days.filter((day) => !['normal', 'rest', 'leave', 'business_trip', 'fieldwork'].includes(day.status));
+  : days.filter((day) => !['normal', 'pending', 'rest', 'leave', 'business_trip', 'fieldwork'].includes(day.status));
 
 export const emptyAttendanceMonth = (): AttendanceMonthDetail => ({
   summary: { attendanceDates: [], attendanceDays: 0, lateCount: 0, lateMinutes: 0, missingCount: 0, abnormalCount: 0, lastSyncedAt: null },

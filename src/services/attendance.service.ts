@@ -8,13 +8,26 @@ type DirectoryRow = Database['public']['Tables']['dingtalk_employee_directory'][
 type BindingRow = Database['public']['Tables']['dingtalk_employee_bindings']['Row'];
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type StoreRow = Database['public']['Tables']['stores']['Row'];
+type EnterpriseRow = Database['public']['Tables']['dingtalk_enterprises']['Row'];
+type EnterpriseMappingRow = Database['public']['Tables']['dingtalk_store_enterprise_bindings']['Row'];
+
+export interface AttendanceEmployeeBinding {
+  binding: BindingRow;
+  employee: DirectoryRow | null;
+  enterpriseName: string;
+  storeName: string;
+}
 
 export interface AttendanceBindingCandidate {
   profile: ProfileRow;
   storeName: string;
-  binding: BindingRow | null;
-  boundEmployee: DirectoryRow | null;
+  bindings: AttendanceEmployeeBinding[];
   suggestedEmployees: DirectoryRow[];
+}
+
+export interface AttendanceEnterpriseSetup {
+  enterprises: EnterpriseRow[];
+  mappings: EnterpriseMappingRow[];
 }
 
 export type AttendanceSyncJob = Database['public']['Tables']['attendance_sync_jobs']['Row'] & {
@@ -61,41 +74,66 @@ export const loadAdminAttendanceMonth = async (client: Client, options: { month:
   return { items, total: numberAt(root.total) };
 };
 
-export const loadAttendanceBindings = async (client: Client): Promise<{ candidates: AttendanceBindingCandidate[]; directory: DirectoryRow[] }> => {
-  const [profilesResult, storesResult, bindingsResult, directoryResult] = await Promise.all([
+export const loadAttendanceBindings = async (client: Client): Promise<{ candidates: AttendanceBindingCandidate[]; directory: DirectoryRow[]; setup: AttendanceEnterpriseSetup }> => {
+  const [profilesResult, storesResult, bindingsResult, directoryResult, enterprisesResult, mappingsResult] = await Promise.all([
     client.from('profiles').select('*').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null).order('display_name'),
     client.from('stores').select('*').eq('is_active', true),
     client.from('dingtalk_employee_bindings').select('*').in('binding_status', ['active', 'error']).order('updated_at', { ascending: false }),
     client.from('dingtalk_employee_directory').select('*').eq('is_active', true).order('display_name'),
+    client.from('dingtalk_enterprises').select('*').eq('is_active', true).order('display_name'),
+    client.from('dingtalk_store_enterprise_bindings').select('*').eq('is_active', true),
   ]);
-  const error = profilesResult.error ?? storesResult.error ?? bindingsResult.error ?? directoryResult.error;
+  const error = profilesResult.error ?? storesResult.error ?? bindingsResult.error ?? directoryResult.error ?? enterprisesResult.error ?? mappingsResult.error;
   if (error) throw new Error('暂时无法加载钉钉员工绑定信息。');
   const directory = directoryResult.data ?? [];
   const employeeById = new Map(directory.map((employee) => [employee.id, employee]));
-  const bindingByProfile = new Map<string, BindingRow>();
-  for (const binding of bindingsResult.data ?? []) if (!bindingByProfile.has(binding.profile_id)) bindingByProfile.set(binding.profile_id, binding);
   const storeById = new Map((storesResult.data ?? []).map((store: StoreRow) => [store.id, store.name]));
+  const enterpriseByCorp = new Map((enterprisesResult.data ?? []).map((enterprise) => [enterprise.corp_id, enterprise.display_name]));
   return {
     directory,
+    setup: { enterprises: enterprisesResult.data ?? [], mappings: mappingsResult.data ?? [] },
     candidates: (profilesResult.data ?? []).map((profile) => {
-      const binding = bindingByProfile.get(profile.id) ?? null;
+      const bindings = (bindingsResult.data ?? []).filter((binding) => binding.profile_id === profile.id).map((binding) => ({
+        binding,
+        employee: employeeById.get(binding.directory_user_id) ?? null,
+        enterpriseName: enterpriseByCorp.get(binding.corp_id) ?? `钉钉企业 ${binding.corp_id.slice(-6)}`,
+        storeName: storeById.get(binding.store_id) ?? '未知门店',
+      }));
       return {
-        profile, binding, storeName: storeById.get(profile.store_id) ?? '未知门店',
-        boundEmployee: binding ? employeeById.get(binding.directory_user_id) ?? null : null,
-        suggestedEmployees: binding?.binding_status === 'active' ? [] : directory.filter((employee) => employee.display_name.trim() === profile.display_name.trim()),
+        profile, bindings, storeName: storeById.get(profile.store_id) ?? '未知门店',
+        suggestedEmployees: directory.filter((employee) => employee.display_name.trim() === profile.display_name.trim()),
       };
     }),
   };
 };
 
-export const bindAttendanceEmployee = async (client: Client, profileId: string, directoryUserId: string, suggested: boolean) => {
-  const { error } = await client.rpc('admin_bind_dingtalk_employee', { p_profile_id: profileId, p_directory_user_id: directoryUserId, p_match_source: suggested ? 'name_suggestion' : 'manual' });
-  if (error) throw new Error(error.message.includes('already') ? '该员工或钉钉账号已经绑定，请先解除原绑定。' : '绑定未完成，请确认员工和钉钉账号后重试。');
+export const bindAttendanceEmployee = async (client: Client, profileId: string, directoryUserId: string, storeId: string, suggested: boolean) => {
+  const { error } = await client.rpc('admin_bind_dingtalk_employee', { p_profile_id: profileId, p_directory_user_id: directoryUserId, p_store_id: storeId, p_match_source: suggested ? 'name_suggestion' : 'manual' });
+  if (error) throw new Error(error.message.includes('already') ? '该钉钉账号已经绑定到其他系统账号，请先解除原绑定。' : error.message.includes('map DingTalk') ? '请先在“企业门店”中建立该钉钉企业与门店的对应关系。' : '绑定未完成，请确认员工、企业和门店后重试。');
 };
 
-export const unbindAttendanceEmployee = async (client: Client, profileId: string) => {
-  const { error } = await client.rpc('admin_unbind_dingtalk_employee', { p_profile_id: profileId });
+export const unbindAttendanceEmployee = async (client: Client, bindingId: string) => {
+  const { error } = await client.rpc('admin_unbind_dingtalk_employee', { p_binding_id: bindingId });
   if (error) throw new Error('解除绑定未完成，请稍后重试。');
+};
+
+export const loadAttendanceEnterpriseSetup = async (client: Client): Promise<AttendanceEnterpriseSetup> => {
+  const [enterprises, mappings] = await Promise.all([
+    client.from('dingtalk_enterprises').select('*').eq('is_active', true).order('display_name'),
+    client.from('dingtalk_store_enterprise_bindings').select('*').eq('is_active', true),
+  ]);
+  if (enterprises.error ?? mappings.error) throw new Error('暂时无法加载企业与门店对应关系。');
+  return { enterprises: enterprises.data ?? [], mappings: mappings.data ?? [] };
+};
+
+export const saveAttendanceEnterpriseMapping = async (client: Client, corpId: string, displayName: string, storeId: string) => {
+  const { error } = await client.rpc('admin_save_dingtalk_store_enterprise', { p_corp_id: corpId, p_display_name: displayName, p_store_id: storeId });
+  if (error) throw new Error('企业与门店对应关系未能保存，请稍后重试。');
+};
+
+export const removeAttendanceEnterpriseMapping = async (client: Client, mappingId: string) => {
+  const { error } = await client.rpc('admin_remove_dingtalk_store_enterprise', { p_mapping_id: mappingId });
+  if (error) throw new Error(error.message.includes('unbind employees') ? '该对应关系仍有已绑定员工，请先解除相关员工绑定。' : '企业与门店对应关系未能移除。');
 };
 
 export const invokeAttendanceSync = async (client: Client, body: Record<string, unknown>) => {

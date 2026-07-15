@@ -1,4 +1,4 @@
-export type AttendanceStatus = 'normal' | 'late' | 'early' | 'missing' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal';
+export type AttendanceStatus = 'normal' | 'late' | 'early' | 'missing' | 'pending' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal';
 export type DutyResult = AttendanceStatus | 'unknown';
 
 export interface AttendanceBindingInput {
@@ -52,8 +52,11 @@ const text = (value: unknown) => typeof value === 'string' ? value.trim() : valu
 const number = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 const iso = (value: unknown) => {
   if (value === undefined || value === null || value === '') return null;
-  const numeric = typeof value === 'number' || /^\d{10,13}$/.test(text(value)) ? Number(value) : null;
-  const date = numeric === null ? new Date(text(value).replace(' ', 'T')) : new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
+  const raw = text(value);
+  const numeric = typeof value === 'number' || /^\d{10,13}$/.test(raw) ? Number(value) : null;
+  const hasExplicitTimezone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const normalized = raw.replace(' ', 'T') + (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(raw.replace(' ', 'T')) && !hasExplicitTimezone ? '+08:00' : '');
+  const date = numeric === null ? new Date(normalized) : new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 const localDate = (value: unknown, fallback?: string) => {
@@ -61,7 +64,8 @@ const localDate = (value: unknown, fallback?: string) => {
   const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
   if (match) return match[1];
   const timestamp = iso(value);
-  return timestamp?.slice(0, 10) ?? fallback ?? '';
+  if (!timestamp) return fallback ?? '';
+  return new Intl.DateTimeFormat('en-CA', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Shanghai', year: 'numeric' }).format(new Date(timestamp));
 };
 
 const resultMap: Record<string, DutyResult> = {
@@ -82,6 +86,7 @@ const strongerStatus = (statuses: DutyResult[]): AttendanceStatus => {
 export const normalizeAttendanceBundle = (
   binding: AttendanceBindingInput,
   source: { punches: Record<string, unknown>[]; results: Record<string, unknown>[]; schedules: Record<string, unknown>[] },
+  now = new Date(),
 ): NormalizedAttendanceDay[] => {
   const results = source.results.filter((item) => text(read(record(item), ['userId', 'userid', 'user_id'])) === binding.dingtalkUserId);
   const punches = source.punches.filter((item) => text(read(record(item), ['userId', 'userid', 'user_id'])) === binding.dingtalkUserId);
@@ -114,7 +119,8 @@ export const normalizeAttendanceBundle = (
     const onDutyResult = normalizeDutyResult(read(onResultRow ?? {}, ['timeResult','time_result','status']));
     const offDutyResult = normalizeDutyResult(read(offResultRow ?? {}, ['timeResult','time_result','status']));
     const scheduleStatus = normalizeDutyResult(read(schedule, ['status','attendanceStatus','attendance_status']));
-    const isRest = daySchedules.some((item) => read(item, ['isRest','is_rest']) === true || text(read(item, ['isRest','is_rest'])).toUpperCase() === 'Y');
+    const isRestValue = (value: unknown) => value === true || value === 1 || ['Y', 'TRUE', '1', 'REST'].includes(text(value).toUpperCase());
+    const isRest = daySchedules.some((item) => isRestValue(read(item, ['isRest','is_rest'])) || normalizeDutyResult(read(item, ['status','attendanceStatus','attendance_status'])) === 'rest');
     const statuses: DutyResult[] = [onDutyResult, offDutyResult, scheduleStatus];
     if (isRest) statuses.push('rest');
     const normalizedPunches: NormalizedPunch[] = dayPunches.map((item, index) => ({
@@ -134,12 +140,26 @@ export const normalizeAttendanceBundle = (
     const actualOffAt = iso(read(offResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? [...normalizedPunches].reverse().find((item) => item.checkType === 'off_duty')?.punchTime ?? null;
     const plannedOnAt = iso(read(onResultRow ?? onSchedule, ['baseCheckTime','planCheckTime','plan_check_time','plannedOnAt','checkBeginTime']));
     const plannedOffAt = iso(read(offResultRow ?? offSchedule, ['baseCheckTime','planCheckTime','plan_check_time','plannedOffAt','checkEndTime']));
-    const missingOn = onDutyResult === 'missing' || (!isRest && Boolean(plannedOnAt) && !actualOnAt);
-    const missingOff = offDutyResult === 'missing' || (!isRest && Boolean(plannedOffAt) && !actualOffAt);
+    const hasPassed = (value: string | null) => Boolean(value && new Date(value).getTime() <= now.getTime());
+    const missingOn = !isRest && hasPassed(plannedOnAt) && !actualOnAt && (onDutyResult === 'missing' || Boolean(plannedOnAt));
+    const missingOff = !isRest && hasPassed(plannedOffAt) && !actualOffAt && (offDutyResult === 'missing' || Boolean(plannedOffAt));
     const lateMinutes = Math.max(number(read(onResultRow ?? {}, ['lateMinutes','late_minutes','durationMinutes'])), onDutyResult === 'late' && plannedOnAt && actualOnAt ? Math.max(0, Math.round((new Date(actualOnAt).getTime() - new Date(plannedOnAt).getTime()) / 60_000)) : 0);
     const earlyMinutes = Math.max(number(read(offResultRow ?? {}, ['earlyMinutes','early_minutes','durationMinutes'])), offDutyResult === 'early' && plannedOffAt && actualOffAt ? Math.max(0, Math.round((new Date(plannedOffAt).getTime() - new Date(actualOffAt).getTime()) / 60_000)) : 0);
     if (missingOn || missingOff) statuses.push('missing');
-    const dailyStatus = strongerStatus(statuses);
+    const knownStatuses = statuses.filter((status) => status !== 'unknown');
+    const hasFuturePlan = [plannedOnAt, plannedOffAt].some((value) => value && new Date(value).getTime() > now.getTime());
+    const hasAttendanceEvidence = Boolean(actualOnAt || actualOffAt || normalizedPunches.length);
+    const dailyStatus: AttendanceStatus = isRest
+      ? 'rest'
+      : missingOn || missingOff
+        ? 'missing'
+        : knownStatuses.length
+          ? strongerStatus(knownStatuses)
+          : hasAttendanceEvidence
+            ? 'normal'
+            : hasFuturePlan
+              ? 'pending'
+              : 'rest';
     return {
       actualOffAt, actualOnAt, attendanceDate: date, corpId: binding.corpId, dailyStatus,
       dingtalkResultIds: dayResults.map((item) => text(read(item, ['id','recordId','record_id']))).filter(Boolean),

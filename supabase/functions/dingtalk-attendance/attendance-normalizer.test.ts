@@ -72,4 +72,40 @@ describe('DingTalk attendance normalization', () => {
       shiftId: 'shift-2',
     });
   });
+
+  it('treats timezone-free DingTalk schedule strings as China local time', () => {
+    const days = normalizeAttendanceBundle(binding, {
+      results: [],
+      punches: [
+        { id: 'p-on', userid: 'user-1', userCheckTime: 1784080323000, checkType: 'OnDuty' },
+        { id: 'p-off', userid: 'user-1', userCheckTime: 1784119876000, checkType: 'OffDuty' },
+      ],
+      schedules: [
+        { userid: 'user-1', workDate: '2026-07-15', check_type: 'OnDuty', plan_check_time: '2026-07-15 10:00:00' },
+        { userid: 'user-1', workDate: '2026-07-15', check_type: 'OffDuty', plan_check_time: '2026-07-15 20:00:00' },
+      ],
+    }, new Date('2026-07-16T00:00:00+08:00'));
+
+    expect(days[0]).toMatchObject({
+      attendanceDate: '2026-07-15',
+      plannedOnAt: '2026-07-15T02:00:00.000Z',
+      plannedOffAt: '2026-07-15T12:00:00.000Z',
+      dailyStatus: 'normal',
+    });
+  });
+
+  it('keeps future shifts pending and recognizes common rest-day values', () => {
+    const future = normalizeAttendanceBundle(binding, {
+      results: [], punches: [], schedules: [
+        { userid: 'user-1', workDate: '2026-07-16', check_type: 'OnDuty', plan_check_time: '2026-07-16 17:30:00' },
+        { userid: 'user-1', workDate: '2026-07-16', check_type: 'OffDuty', plan_check_time: '2026-07-17 02:30:00' },
+      ],
+    }, new Date('2026-07-16T16:00:00+08:00'));
+    const rest = normalizeAttendanceBundle(binding, {
+      results: [], punches: [], schedules: [{ userid: 'user-1', workDate: '2026-07-15', isRest: 'true' }],
+    }, new Date('2026-07-16T16:00:00+08:00'));
+
+    expect(future[0]).toMatchObject({ dailyStatus: 'pending', missingPunch: 'none' });
+    expect(rest[0]).toMatchObject({ dailyStatus: 'rest', missingPunch: 'none' });
+  });
 });

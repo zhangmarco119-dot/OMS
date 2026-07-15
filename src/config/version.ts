@@ -10,6 +10,16 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-07-15',
     highlights: [
+      '正式版本升级至 2.2，集中发布近期完成的 SOP、任务审核、货品管理和通知体验改造。',
+      '强化开发与正式 Supabase、Cloudflare Pages 和 Git 分支的环境隔离，正式发布前必须先完成数据库 Migration 与全量门禁。',
+      '新增正式合并版本规则：每次合并到 manage-system 都必须提升次版本号并将补丁位归零。',
+    ],
+    title: '正式版 2.2 重大升级',
+    version: 'StoreHub v2.2.0',
+  },
+  {
+    date: '2026-07-15',
+    highlights: [
       'SOP 管理新增实时检索框，可按名称、分类或说明筛选，并与分类查看条件同时生效。',
       '移除 SOP 页面顶部的标准作业流程说明与刷新卡片，集中保留实际管理操作。',
       '检索框支持一键清空、实时结果数量和无匹配结果提示。',

@@ -54,9 +54,10 @@ Seed 只允许位于 `supabase/seeds/development.sql`，发布正式环境时绝
 
 1. 在 `v2-development` 新增 Migration，并先应用到开发测试 Supabase。
 2. 在开发项目完成 RLS、业务测试和 `pnpm release:check`。
-3. 将 `v2-development` 合并到本地 `manage-system`，此时先不要推送正式分支。
-4. 切换本地正式环境变量，并安全 Link 正式 Supabase。
-5. 对正式项目执行 Dry Run，再显式确认 Push：
+3. 正式发布属于次版本升级：先在 `v2-development` 将 `src/config/version.ts` 和 `package.json` 从 `x.y.z` 提升到 `x.(y+1).0`，并在版本历史顶部填写本次中文更新摘要。每次合并到正式分支都必须提升次版本号。
+4. 将已经完成版本升级的 `v2-development` 合并到本地 `manage-system`，此时先不要推送正式分支。
+5. 切换本地正式环境变量，并安全 Link 正式 Supabase。
+6. 对正式项目执行 Dry Run，再显式确认 Push：
 
 ```powershell
 ./scripts/supabase-environment.ps1 -Environment Production -Action Link
@@ -65,7 +66,7 @@ Seed 只允许位于 `supabase/seeds/development.sql`，发布正式环境时绝
 pnpm release:check
 ```
 
-6. 若 Edge Function 有变化，使用安全脚本部署 `account-login`、`admin-users` 和 `task-template-images`：
+7. 若 Edge Function 有变化，使用安全脚本部署 `account-login`、`admin-users` 和 `task-template-images`：
 
 ```powershell
 ./scripts/supabase-environment.ps1 -Environment Production -Action DeployFunctions -ProductionFunctionConfirmation DEPLOY-PRODUCTION-FUNCTIONS
@@ -73,7 +74,7 @@ pnpm release:check
 
 脚本会对 `account-login` 使用 `--no-verify-jwt`，并在部署前复核分支、项目编号和 CLI Link。
 
-7. 正式库 Migration 和全部门禁通过后，才推送 `manage-system`，触发正式前端部署。
+8. 正式库 Migration、版本次级升级规则和全部门禁通过后，才推送 `manage-system`，触发正式前端部署。
 
 禁止在正式项目执行 `db reset`、Seed、DROP、TRUNCATE、测试清理或批量删除业务数据。
 
@@ -91,6 +92,7 @@ pnpm dev
 
 `pnpm release:check` 会依次校验：
 
+- 界面版本与 `package.json` 一致；`manage-system` 的每次合并都必须将次版本号提高一级并把补丁位归零；
 - 分支、应用环境、URL、Anon Key 和 CLI Link 的项目绑定；
 - 新增 Migration 的编号、不可变历史和破坏性 SQL；
 - 本地与当前远端 Migration 完全一致；

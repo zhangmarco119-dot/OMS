@@ -1,6 +1,6 @@
 # StoreHub 钉钉考勤接入与发布手册
 
-更新时间：2026-07-15
+更新时间：2026-07-16
 
 本文用于配置 StoreHub 的钉钉考勤数据源。真实 AppSecret、Access Token 和 Cron 密钥不得写入 Git、前端环境变量、Migration 或日志。
 
@@ -17,15 +17,18 @@
 - `POST https://api.dingtalk.com/v1.0/oauth2/accessToken`
 - `POST /topapi/v2/department/listsubid`
 - `POST /topapi/v2/user/list`
-- `POST /topapi/attendance/list`
+- `POST /attendance/list`
 - `POST /attendance/listRecord`
 - `POST /topapi/attendance/listschedule`
 
-实现按最多 50 人、7 天分片，兼容分页、超时、429/5xx 重试、Token 失效刷新和单个员工失败隔离。钉钉当前公开参考允许打卡结果日期跨度不超过一个月、用户不超过 100 人；本系统采用更保守的分片上限。
+打卡结果和打卡详情按最多 50 人、7 天分片；组织排班接口按工作日逐日查询，每页最多 200 条，并在服务端为每条排班补充所属工作日。实现兼容分页、超时、429/5xx 重试、Token 失效刷新和单个员工失败隔离。接口路径和请求字段已经使用当前企业内部应用完成真实只读调用验证。
 
 官方参考：
 
 - [钉钉开放平台](https://open.dingtalk.com/)
+- [获取打卡结果](https://open.dingtalk.com/document/development/open-attendance-clock-in-data)
+- [获取打卡详情](https://open.dingtalk.com/document/development/attendance-clock-in-record-is-open)
+- [全量查询企业考勤排班详情](https://open.dingtalk.com/document/development/interface-for-daily-full-query-of-attendance-scheduling-information)
 - [钉钉官方 Workspace CLI 考勤参考](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli/blob/main/skills/mono/references/products/attendance.md)
 
 ## 2. 钉钉开放平台一次性配置
@@ -35,7 +38,8 @@
 3. 在权限管理中搜索并申请以下只读能力；控制台文案可能随版本微调，以接口详情页显示的权限点为准：
    - 通讯录部门信息读取；
    - 通讯录成员基础信息读取；
-   - 企业考勤数据读取（考勤结果、打卡流水、排班）。
+   - `qyapi_get_attendance_data`：企业考勤数据读取（考勤结果和打卡流水）；
+   - `qyapi_base`：组织排班只读接口的基础调用权限。
 4. 确认企业已启用钉钉考勤，并且目标员工已进入考勤组或存在可查询记录。
 5. 记录 `CorpId`、应用 `AppKey` 和 `AppSecret`。不要发送到聊天、截图或提交到仓库；直接写入目标 Supabase 项目的 Function Secrets。
 
@@ -88,7 +92,9 @@ pnpm dlx supabase@latest functions deploy dingtalk-attendance --project-ref tpbj
 
 ## 5. 自动同步
 
-在 Supabase Dashboard 的 Cron/定时任务功能中创建两个 HTTP 调用。URL 均为：
+Development 已通过 `0052_dingtalk_attendance_cron_transport.sql` 启用 `pg_net`，并配置以下两个启用状态的 `pg_cron` 任务：`storehub-dingtalk-attendance-daily` 与 `storehub-dingtalk-attendance-month-start`。Cron Secret 同时保存在 Development Function Secrets 和 Vault，真实值不进入 Migration。首次 HTTP 试运行已返回 200。
+
+新环境或未来正式发布时，可在 Supabase Dashboard 的 Cron/定时任务功能中创建等价的两个 HTTP 调用；也可以采用同样的 `pg_cron + pg_net + Vault` 方案，但必须使用该环境自己的 URL 和独立 Secret，不得复制 Development 的值。URL 均为：
 
 ```text
 https://tpbjlzmxpxsydsheeswm.supabase.co/functions/v1/dingtalk-attendance

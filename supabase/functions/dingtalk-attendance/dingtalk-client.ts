@@ -58,6 +58,18 @@ const maskMobile = (value: unknown) => {
 
 const formatDateTime = (date: string, end = false) => `${date} ${end ? '23:59:59' : '00:00:00'}`;
 
+const eachDate = (startDate: string, endDate: string) => {
+  const dates: string[] = [];
+  let cursor = new Date(`${startDate}T00:00:00Z`);
+  const final = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(final.getTime()) || cursor > final) throw new Error('无效的考勤日期范围。');
+  while (cursor <= final) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor = new Date(cursor.getTime() + 86_400_000);
+  }
+  return dates;
+};
+
 export const splitDateRange = (startDate: string, endDate: string, maxDays = 7) => {
   const result: Array<{ startDate: string; endDate: string }> = [];
   let cursor = new Date(`${startDate}T00:00:00Z`);
@@ -233,7 +245,7 @@ export class DingTalkClient {
       const resultRecord = asRecord(result);
       const page = array(first(resultRecord, ['record', 'list', 'records'], first(body, ['recordresult'], []))).map(asRecord);
       records.push(...page);
-      hasMore = Boolean(first(resultRecord, ['hasMore', 'has_more'], page.length === 50));
+      hasMore = Boolean(first(resultRecord, ['hasMore', 'has_more'], first(body, ['hasMore', 'has_more'], page.length === 50)));
       offset += page.length;
       if (page.length === 0) hasMore = false;
     }
@@ -246,15 +258,37 @@ export class DingTalkClient {
       for (const users of chunk([...new Set(userIds)], 50)) {
         if (!users.length) continue;
         const common = { userIdList: users, workDateFrom: formatDateTime(dateRange.startDate), workDateTo: formatDateTime(dateRange.endDate, true), isI18n: false };
-        bundle.results.push(...await this.pagedAttendance('/topapi/attendance/list', common));
+        bundle.results.push(...await this.pagedAttendance('/attendance/list', common));
         const punchBody = await this.post('/attendance/listRecord', { userIds: users, checkDateFrom: common.workDateFrom, checkDateTo: common.workDateTo, isI18n: false });
         bundle.punches.push(...array(first(punchBody, ['recordresult', 'result'], [])).map(asRecord));
-        const scheduleBody = await this.post('/topapi/attendance/listschedule', { workDateFrom: common.workDateFrom, workDateTo: common.workDateTo, userIdList: users, offset: 0, size: 200 });
-        const scheduleResult = asRecord(first(scheduleBody, ['result'], {}));
-        bundle.schedules.push(...array(first(scheduleResult, ['schedules', 'list'], [])).map(asRecord));
       }
     }
     return bundle;
+  }
+
+  async listSchedules(startDate: string, endDate: string) {
+    const schedules: Record<string, unknown>[] = [];
+    for (const workDate of eachDate(startDate, endDate)) {
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const body = await this.post('/topapi/attendance/listschedule', {
+          workDate: formatDateTime(workDate),
+          offset,
+          size: 200,
+        });
+        const result = asRecord(first(body, ['result'], {}));
+        const page = array(first(result, ['schedules', 'list'], [])).map((item) => ({
+          ...asRecord(item),
+          workDate,
+        }));
+        schedules.push(...page);
+        hasMore = Boolean(first(result, ['has_more', 'hasMore'], false));
+        offset += page.length;
+        if (page.length === 0) hasMore = false;
+      }
+    }
+    return schedules;
   }
 }
 

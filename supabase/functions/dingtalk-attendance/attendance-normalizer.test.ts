@@ -34,7 +34,10 @@ describe('DingTalk attendance normalization', () => {
     const days = normalizeAttendanceBundle(binding, {
       results: [{ id: 'r1', userId: 'user-1', workDate: '2026-07-04', checkType: 'OnDuty', baseCheckTime: '2026-07-04 22:00:00+08:00', userCheckTime: '2026-07-04 22:02:00+08:00', timeResult: 'Normal' }],
       punches: [{ id: 'p1', userId: 'user-1', userCheckTime: '2026-07-05 06:00:00+08:00', checkType: 'OffDuty', sourceType: 'APPROVE' }],
-      schedules: [{ userId: 'user-1', workDate: '2026-07-04', checkEndTime: '2026-07-05 06:00:00+08:00', className: '夜班' }],
+      schedules: [
+        { userId: 'user-1', workDate: '2026-07-04', checkType: 'OnDuty', planCheckTime: '2026-07-04 22:00:00+08:00', className: '夜班' },
+        { userId: 'user-1', workDate: '2026-07-04', checkType: 'OffDuty', planCheckTime: '2026-07-05 06:00:00+08:00', className: '夜班' },
+      ],
     });
     expect(days).toHaveLength(1);
     expect(days[0]).toMatchObject({ attendanceDate: '2026-07-04', shiftName: '夜班', missingPunch: 'none' });
@@ -46,5 +49,27 @@ describe('DingTalk attendance normalization', () => {
       'normal','late','early','missing','rest','leave','business_trip','fieldwork','abnormal',
     ]);
     expect(normalizeDutyResult('future-value')).toBe('unknown');
+  });
+
+  it('uses separate on-duty and off-duty rows from the daily schedule endpoint', () => {
+    const days = normalizeAttendanceBundle(binding, {
+      results: [],
+      punches: [
+        { id: 'p-on', userid: 'user-1', userCheckTime: '2026-07-06 09:01:00+08:00', checkType: 'OnDuty' },
+        { id: 'p-off', userid: 'user-1', userCheckTime: '2026-07-06 18:02:00+08:00', checkType: 'OffDuty' },
+      ],
+      schedules: [
+        { userid: 'user-1', workDate: '2026-07-06', check_type: 'OnDuty', plan_check_time: '2026-07-06 09:00:00+08:00', class_id: 'shift-2' },
+        { userid: 'user-1', workDate: '2026-07-06', check_type: 'OffDuty', plan_check_time: '2026-07-06 18:00:00+08:00', class_id: 'shift-2' },
+      ],
+    });
+
+    expect(days[0]).toMatchObject({
+      attendanceDate: '2026-07-06',
+      plannedOnAt: '2026-07-06T01:00:00.000Z',
+      plannedOffAt: '2026-07-06T10:00:00.000Z',
+      missingPunch: 'none',
+      shiftId: 'shift-2',
+    });
   });
 });

@@ -55,6 +55,53 @@ describe('DingTalkClient', () => {
     const client = new DingTalkClient({ ...credentials, corpId: 'timeout' }, { fetchImpl: timeoutFetch, maxRetries: 0, timeoutMs: 1 });
     await expect(client.listDepartmentIds()).rejects.toMatchObject({ code: 'TIMEOUT', retryable: true });
   });
+
+  it('uses the current attendance endpoints and official request fields', async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response({ accessToken: 'token-attendance', expireIn: 7200 }))
+      .mockResolvedValueOnce(response({ errcode: 0, recordresult: [{ id: 'result-1', userid: 'u1' }], hasMore: false }))
+      .mockResolvedValueOnce(response({ errcode: 0, recordresult: [{ id: 'punch-1', userid: 'u1' }] }));
+    const client = new DingTalkClient({ ...credentials, corpId: 'attendance' }, { fetchImpl });
+
+    await expect(client.getAttendanceBundle(['u1'], '2026-07-01', '2026-07-01')).resolves.toMatchObject({
+      results: [{ id: 'result-1' }],
+      punches: [{ id: 'punch-1' }],
+      schedules: [],
+    });
+    expect(fetchImpl.mock.calls[1]?.[0]).toContain('/attendance/list?access_token=');
+    expect(fetchImpl.mock.calls[1]?.[0]).not.toContain('/topapi/attendance/list');
+    expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toMatchObject({
+      userIdList: ['u1'],
+      workDateFrom: '2026-07-01 00:00:00',
+      workDateTo: '2026-07-01 23:59:59',
+      offset: 0,
+      limit: 50,
+    });
+    expect(JSON.parse(String(fetchImpl.mock.calls[2]?.[1]?.body))).toMatchObject({
+      userIds: ['u1'],
+      checkDateFrom: '2026-07-01 00:00:00',
+      checkDateTo: '2026-07-01 23:59:59',
+    });
+  });
+
+  it('loads and annotates each day of organization schedules', async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response({ accessToken: 'token-schedule', expireIn: 7200 }))
+      .mockResolvedValueOnce(response({ errcode: 0, result: { schedules: [{ userid: 'u1', check_type: 'OnDuty', plan_check_time: '2026-07-01 09:00:00' }], has_more: false } }))
+      .mockResolvedValueOnce(response({ errcode: 0, result: { schedules: [], has_more: false } }));
+    const client = new DingTalkClient({ ...credentials, corpId: 'schedule' }, { fetchImpl });
+
+    await expect(client.listSchedules('2026-07-01', '2026-07-02')).resolves.toEqual([
+      expect.objectContaining({ userid: 'u1', workDate: '2026-07-01' }),
+    ]);
+    expect(fetchImpl.mock.calls[1]?.[0]).toContain('/topapi/attendance/listschedule?access_token=');
+    expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toEqual({
+      workDate: '2026-07-01 00:00:00',
+      offset: 0,
+      size: 200,
+    });
+    expect(JSON.parse(String(fetchImpl.mock.calls[2]?.[1]?.body))).toMatchObject({ workDate: '2026-07-02 00:00:00' });
+  });
 });
 
 describe('DingTalk batching helpers', () => {

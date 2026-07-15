@@ -192,9 +192,18 @@ Deno.serve(async (request) => {
   if (actorId) await adminClient.from('attendance_audit_logs').insert({ actor_id: actorId, action: triggerType === 'retry' ? 'sync_retried' : 'sync_requested', entity_type: 'sync_job', entity_id: job.id, store_id: requestedStoreId, metadata: { startDate, endDate, employeeCount: bindings.length } });
 
   let successCount = 0; let failureCount = 0; let insertedCount = 0; let updatedCount = 0; let skippedCount = 0;
+  let schedules: Record<string, unknown>[] = [];
+  try {
+    schedules = bindings.length ? await client.listSchedules(startDate, endDate) : [];
+  } catch (error) {
+    const message = publicError(error);
+    await adminClient.from('attendance_sync_jobs').update({ status: 'failed', failure_count: bindings.length, error_summary: message, finished_at: new Date().toISOString() }).eq('id', job.id);
+    return json({ jobId: job.id, status: 'failed', successCount: 0, failureCount: bindings.length, insertedCount: 0, updatedCount: 0, skippedCount: 0, message }, 502);
+  }
   for (const binding of bindings) {
     try {
       const bundle = await client.getAttendanceBundle([binding.dingtalkUserId], startDate, endDate);
+      bundle.schedules = schedules;
       const days = normalizeAttendanceBundle(binding, bundle);
       if (!days.length) skippedCount += 1;
       for (const day of days) {

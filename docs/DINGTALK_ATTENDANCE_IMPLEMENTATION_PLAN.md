@@ -1,6 +1,6 @@
 # StoreHub 钉钉考勤模块实施计划
 
-更新时间：2026-07-15  
+更新时间：2026-07-16
 开发分支：`v2-development`  
 目标环境：Development Supabase（`tpbjlzmxpxsydsheeswm`）
 
@@ -50,7 +50,7 @@
 
 ### B. 数据库与 RLS
 
-- `VERIFIED` 新增 `0050_dingtalk_attendance.sql` 与 `0051_dingtalk_attendance_scope_hardening.sql`，未修改任何旧 Migration。
+- `VERIFIED` 新增 `0050_dingtalk_attendance.sql`、`0051_dingtalk_attendance_scope_hardening.sql` 与 `0052_dingtalk_attendance_cron_transport.sql`，未修改任何旧 Migration。
 - `VERIFIED` 新增钉钉员工目录、账号绑定、每日考勤、原始打卡、同步任务和失败项。
 - `VERIFIED` 增加唯一约束、Check、外键和查询索引。
 - `VERIFIED` 新增安全月度汇总 View/RPC 与绑定操作 RPC。
@@ -89,8 +89,9 @@
 - `VERIFIED` 编写 `DINGTALK_ATTENDANCE_SETUP.md`。
 - `VERIFIED` 编写 `DINGTALK_ATTENDANCE_SYNC.md`。
 - `VERIFIED` 更新 Edge Function README、路由文档、数据库说明和版本记录。
-- `BLOCKED` 在钉钉开放平台创建企业内部应用并授权。
-- `BLOCKED` 在 Development Supabase 写入钉钉 Secrets并创建 Cron；函数代码已部署。
+- `VERIFIED` 已使用企业内部应用“自动考勤统计”完成 CLI 授权，并验证通讯录、打卡结果、打卡详情和组织排班只读接口。
+- `VERIFIED` 已将六项钉钉配置安全写入 Development Supabase Function Secrets；真实值未写入仓库或日志。
+- `VERIFIED` Development Supabase 已配置每日增量和月初回补 Cron，Cron Secret 同时安全保存在 Function Secrets 与 Vault；HTTP 试运行返回 200。
 
 ### H. 最终验证
 

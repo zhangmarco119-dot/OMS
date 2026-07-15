@@ -3,6 +3,48 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      attendance_audit_logs: {
+        Row: { action: 'binding_created' | 'binding_removed' | 'binding_replaced' | 'sync_requested' | 'sync_retried'; actor_id: string | null; created_at: string; entity_id: string; entity_type: 'binding' | 'sync_job'; id: string; metadata: Json; store_id: string | null };
+        Insert: { action: 'binding_created' | 'binding_removed' | 'binding_replaced' | 'sync_requested' | 'sync_retried'; actor_id?: string | null; created_at?: string; entity_id: string; entity_type: 'binding' | 'sync_job'; id?: string; metadata?: Json; store_id?: string | null };
+        Update: { action?: 'binding_created' | 'binding_removed' | 'binding_replaced' | 'sync_requested' | 'sync_retried'; actor_id?: string | null; created_at?: string; entity_id?: string; entity_type?: 'binding' | 'sync_job'; id?: string; metadata?: Json; store_id?: string | null };
+        Relationships: [];
+      };
+      attendance_daily_records: {
+        Row: { actual_off_at: string | null; actual_on_at: string | null; attendance_date: string; corp_id: string; created_at: string; daily_status: 'normal' | 'late' | 'early' | 'missing' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal'; data_source: 'dingtalk'; dingtalk_result_ids: string[]; early_minutes: number; enterprise_timezone: string; exception_note: string | null; id: string; is_attended: boolean; last_synced_at: string; late_minutes: number; missing_punch: 'none' | 'on' | 'off' | 'both'; off_duty_result: string; on_duty_result: string; planned_off_at: string | null; planned_on_at: string | null; profile_id: string; shift_id: string | null; shift_name: string | null; source_updated_at: string | null; store_id: string; updated_at: string };
+        Insert: { actual_off_at?: string | null; actual_on_at?: string | null; attendance_date: string; corp_id: string; created_at?: string; daily_status?: 'normal' | 'late' | 'early' | 'missing' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal'; data_source?: 'dingtalk'; dingtalk_result_ids?: string[]; early_minutes?: number; enterprise_timezone?: string; exception_note?: string | null; id?: string; is_attended?: boolean; last_synced_at?: string; late_minutes?: number; missing_punch?: 'none' | 'on' | 'off' | 'both'; off_duty_result?: string; on_duty_result?: string; planned_off_at?: string | null; planned_on_at?: string | null; profile_id: string; shift_id?: string | null; shift_name?: string | null; source_updated_at?: string | null; store_id: string; updated_at?: string };
+        Update: { actual_off_at?: string | null; actual_on_at?: string | null; attendance_date?: string; corp_id?: string; created_at?: string; daily_status?: 'normal' | 'late' | 'early' | 'missing' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal'; data_source?: 'dingtalk'; dingtalk_result_ids?: string[]; early_minutes?: number; enterprise_timezone?: string; exception_note?: string | null; id?: string; is_attended?: boolean; last_synced_at?: string; late_minutes?: number; missing_punch?: 'none' | 'on' | 'off' | 'both'; off_duty_result?: string; on_duty_result?: string; planned_off_at?: string | null; planned_on_at?: string | null; profile_id?: string; shift_id?: string | null; shift_name?: string | null; source_updated_at?: string | null; store_id?: string; updated_at?: string };
+        Relationships: [];
+      };
+      attendance_punch_records: {
+        Row: { check_type: 'on_duty' | 'off_duty' | 'unknown'; corp_id: string; created_at: string; daily_record_id: string; dingtalk_record_id: string; id: string; is_approved_correction: boolean; last_synced_at: string; location_name: string | null; location_result: string | null; profile_id: string; punch_time: string; source_type: string | null; store_id: string; time_result: string | null; updated_at: string };
+        Insert: { check_type?: 'on_duty' | 'off_duty' | 'unknown'; corp_id: string; created_at?: string; daily_record_id: string; dingtalk_record_id: string; id?: string; is_approved_correction?: boolean; last_synced_at?: string; location_name?: string | null; location_result?: string | null; profile_id: string; punch_time: string; source_type?: string | null; store_id: string; time_result?: string | null; updated_at?: string };
+        Update: { check_type?: 'on_duty' | 'off_duty' | 'unknown'; corp_id?: string; created_at?: string; daily_record_id?: string; dingtalk_record_id?: string; id?: string; is_approved_correction?: boolean; last_synced_at?: string; location_name?: string | null; location_result?: string | null; profile_id?: string; punch_time?: string; source_type?: string | null; store_id?: string; time_result?: string | null; updated_at?: string };
+        Relationships: [];
+      };
+      attendance_sync_failures: {
+        Row: { attempt_count: number; created_at: string; dingtalk_user_id: string | null; error_code: string | null; error_message: string; id: string; profile_id: string | null; resolved_at: string | null; retryable: boolean; stage: 'directory' | 'schedule' | 'result' | 'punch' | 'normalize' | 'persist'; sync_job_id: string };
+        Insert: { attempt_count?: number; created_at?: string; dingtalk_user_id?: string | null; error_code?: string | null; error_message: string; id?: string; profile_id?: string | null; resolved_at?: string | null; retryable?: boolean; stage: 'directory' | 'schedule' | 'result' | 'punch' | 'normalize' | 'persist'; sync_job_id: string };
+        Update: { attempt_count?: number; created_at?: string; dingtalk_user_id?: string | null; error_code?: string | null; error_message?: string; id?: string; profile_id?: string | null; resolved_at?: string | null; retryable?: boolean; stage?: 'directory' | 'schedule' | 'result' | 'punch' | 'normalize' | 'persist'; sync_job_id?: string };
+        Relationships: [];
+      };
+      attendance_sync_jobs: {
+        Row: { corp_id: string; created_at: string; error_summary: string | null; failure_count: number; finished_at: string | null; id: string; initiated_by: string | null; inserted_count: number; month_start: string | null; profile_id: string | null; progress_cursor: Json; range_end: string | null; range_start: string | null; scope_type: 'organization' | 'store' | 'employee'; skipped_count: number; started_at: string | null; status: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; store_id: string | null; success_count: number; sync_type: 'directory' | 'current_month' | 'month' | 'date_range' | 'employee'; trigger_type: 'manual' | 'scheduled' | 'retry'; updated_at: string; updated_count: number };
+        Insert: { corp_id: string; created_at?: string; error_summary?: string | null; failure_count?: number; finished_at?: string | null; id?: string; initiated_by?: string | null; inserted_count?: number; month_start?: string | null; profile_id?: string | null; progress_cursor?: Json; range_end?: string | null; range_start?: string | null; scope_type: 'organization' | 'store' | 'employee'; skipped_count?: number; started_at?: string | null; status?: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; store_id?: string | null; success_count?: number; sync_type: 'directory' | 'current_month' | 'month' | 'date_range' | 'employee'; trigger_type: 'manual' | 'scheduled' | 'retry'; updated_at?: string; updated_count?: number };
+        Update: { error_summary?: string | null; failure_count?: number; finished_at?: string | null; inserted_count?: number; progress_cursor?: Json; skipped_count?: number; started_at?: string | null; status?: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; success_count?: number; updated_at?: string; updated_count?: number };
+        Relationships: [];
+      };
+      dingtalk_employee_bindings: {
+        Row: { binding_status: 'active' | 'inactive' | 'error'; corp_id: string; created_at: string; created_by: string | null; dingtalk_user_id: string; directory_user_id: string; error_message: string | null; id: string; last_verified_at: string | null; match_source: 'manual' | 'name_suggestion' | 'imported'; profile_id: string; union_id: string | null; updated_at: string };
+        Insert: { binding_status?: 'active' | 'inactive' | 'error'; corp_id: string; created_at?: string; created_by?: string | null; dingtalk_user_id: string; directory_user_id: string; error_message?: string | null; id?: string; last_verified_at?: string | null; match_source?: 'manual' | 'name_suggestion' | 'imported'; profile_id: string; union_id?: string | null; updated_at?: string };
+        Update: { binding_status?: 'active' | 'inactive' | 'error'; error_message?: string | null; last_verified_at?: string | null; match_source?: 'manual' | 'name_suggestion' | 'imported'; updated_at?: string };
+        Relationships: [];
+      };
+      dingtalk_employee_directory: {
+        Row: { corp_id: string; created_at: string; department_ids: string[]; dingtalk_user_id: string; display_name: string; id: string; is_active: boolean; job_number: string | null; last_synced_at: string; mobile_masked: string | null; union_id: string | null; updated_at: string };
+        Insert: { corp_id: string; created_at?: string; department_ids?: string[]; dingtalk_user_id: string; display_name: string; id?: string; is_active?: boolean; job_number?: string | null; last_synced_at?: string; mobile_masked?: string | null; union_id?: string | null; updated_at?: string };
+        Update: { department_ids?: string[]; display_name?: string; is_active?: boolean; job_number?: string | null; last_synced_at?: string; mobile_masked?: string | null; union_id?: string | null; updated_at?: string };
+        Relationships: [];
+      };
       arrival_report_images: {
         Row: {
           bucket: string;
@@ -726,6 +768,10 @@ export type Database = {
       };
     };
     Views: {
+      attendance_monthly_summary: {
+        Row: { abnormal_count: number | null; attendance_dates: string[] | null; attendance_days: number | null; last_synced_at: string | null; late_count: number | null; late_minutes: number | null; missing_count: number | null; month_start: string | null; profile_id: string | null; store_id: string | null };
+        Relationships: [];
+      };
       arrival_daily_detail_view: {
         Row: {
           arrival_date: string | null;
@@ -762,6 +808,10 @@ export type Database = {
       };
     };
     Functions: {
+      admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
+      admin_bind_dingtalk_employee: { Args: { p_directory_user_id: string; p_match_source?: string; p_profile_id: string }; Returns: Json };
+      admin_unbind_dingtalk_employee: { Args: { p_profile_id: string }; Returns: Json };
+      get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string }; Returns: Json };
       attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };
       admin_set_product_permissions: { Args: { p_can_request_discontinued: boolean; p_can_request_incorrect: boolean; p_can_request_new: boolean; p_profile_id: string }; Returns: Json };
       acknowledge_v2_notice: { Args: { p_notice_id: string }; Returns: Json };

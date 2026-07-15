@@ -158,3 +158,9 @@ erDiagram
 - `scripts/validate-supabase-schema.mjs`：静态检查表结构、RLS、策略和 seed。
 
 所有数据库改动只通过 `supabase/migrations` 管理，并先应用到开发测试项目。双环境发布顺序与安全门禁见 `docs/ENVIRONMENT_ISOLATION.md`。
+
+## 钉钉考勤模块
+
+`0050_dingtalk_attendance.sql` 新增钉钉员工目录、人工确认绑定、日考勤、打卡流水、同步任务、失败项和审计日志。日记录和打卡流水使用第三方稳定 ID 唯一约束保证 Upsert 幂等；月度摘要由安全调用者权限的 View/RPC 聚合。
+
+考勤 RLS 独立于普通业务门店管理权限：员工和店长只能读本人，管理员只能读其现有授权门店，浏览器无考勤表写权限。接入和同步设计见 `docs/DINGTALK_ATTENDANCE_SETUP.md` 与 `docs/DINGTALK_ATTENDANCE_SYNC.md`。

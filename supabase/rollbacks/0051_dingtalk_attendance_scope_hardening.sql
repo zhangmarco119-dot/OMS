@@ -1,0 +1,3 @@
+-- Roll back by restoring the corresponding function definitions from
+-- 0050_dingtalk_attendance.sql. Do not run against production without an
+-- approved maintenance plan because the hardened definitions are safer.

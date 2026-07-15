@@ -1,0 +1,152 @@
+export type AttendanceStatus = 'normal' | 'late' | 'early' | 'missing' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal';
+export type DutyResult = AttendanceStatus | 'unknown';
+
+export interface AttendanceBindingInput {
+  corpId: string;
+  dingtalkUserId: string;
+  profileId: string;
+  storeId: string;
+}
+
+export interface NormalizedPunch {
+  checkType: 'on_duty' | 'off_duty' | 'unknown';
+  corpId: string;
+  dingtalkRecordId: string;
+  isApprovedCorrection: boolean;
+  locationName: string | null;
+  locationResult: string | null;
+  profileId: string;
+  punchTime: string;
+  sourceType: string | null;
+  storeId: string;
+  timeResult: string | null;
+}
+
+export interface NormalizedAttendanceDay {
+  actualOffAt: string | null;
+  actualOnAt: string | null;
+  attendanceDate: string;
+  corpId: string;
+  dailyStatus: AttendanceStatus;
+  dingtalkResultIds: string[];
+  earlyMinutes: number;
+  exceptionNote: string | null;
+  isAttended: boolean;
+  lateMinutes: number;
+  missingPunch: 'none' | 'on' | 'off' | 'both';
+  offDutyResult: DutyResult;
+  onDutyResult: DutyResult;
+  plannedOffAt: string | null;
+  plannedOnAt: string | null;
+  profileId: string;
+  punches: NormalizedPunch[];
+  shiftId: string | null;
+  shiftName: string | null;
+  sourceUpdatedAt: string | null;
+  storeId: string;
+}
+
+const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const read = (row: Record<string, unknown>, keys: string[]) => keys.find((key) => row[key] !== undefined && row[key] !== null) ? row[keys.find((key) => row[key] !== undefined && row[key] !== null)!] : undefined;
+const text = (value: unknown) => typeof value === 'string' ? value.trim() : value === undefined || value === null ? '' : String(value);
+const number = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const iso = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return null;
+  const numeric = typeof value === 'number' || /^\d{10,13}$/.test(text(value)) ? Number(value) : null;
+  const date = numeric === null ? new Date(text(value).replace(' ', 'T')) : new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+const localDate = (value: unknown, fallback?: string) => {
+  const raw = text(value);
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+  const timestamp = iso(value);
+  return timestamp?.slice(0, 10) ?? fallback ?? '';
+};
+
+const resultMap: Record<string, DutyResult> = {
+  normal: 'normal', late: 'late', early: 'early', absenteeism: 'abnormal', notsigned: 'missing',
+  rest: 'rest', leave: 'leave', vacation: 'leave', business_trip: 'business_trip', trip: 'business_trip',
+  fieldwork: 'fieldwork', outside: 'fieldwork', abnormal: 'abnormal',
+  '正常': 'normal', '迟到': 'late', '早退': 'early', '缺卡': 'missing', '休息': 'rest', '请假': 'leave',
+  '出差': 'business_trip', '外勤': 'fieldwork', '异常': 'abnormal',
+};
+
+export const normalizeDutyResult = (value: unknown): DutyResult => resultMap[text(value).toLowerCase().replace(/[\s_-]/g, '')] ?? 'unknown';
+
+const strongerStatus = (statuses: DutyResult[]): AttendanceStatus => {
+  const priority: AttendanceStatus[] = ['abnormal', 'missing', 'late', 'early', 'leave', 'business_trip', 'fieldwork', 'normal', 'rest'];
+  return priority.find((status) => statuses.includes(status)) ?? 'abnormal';
+};
+
+export const normalizeAttendanceBundle = (
+  binding: AttendanceBindingInput,
+  source: { punches: Record<string, unknown>[]; results: Record<string, unknown>[]; schedules: Record<string, unknown>[] },
+): NormalizedAttendanceDay[] => {
+  const results = source.results.filter((item) => text(read(record(item), ['userId', 'userid', 'user_id'])) === binding.dingtalkUserId);
+  const punches = source.punches.filter((item) => text(read(record(item), ['userId', 'userid', 'user_id'])) === binding.dingtalkUserId);
+  const schedules = source.schedules.filter((item) => text(read(record(item), ['userId', 'userid', 'user_id'])) === binding.dingtalkUserId);
+  const punchCheckType = (item: Record<string, unknown>) => text(read(item, ['checkType','check_type'])).toLowerCase();
+  const scheduleWorkDate = (item: Record<string, unknown>) => localDate(read(item, ['workDate','work_date','checkDate']));
+  const scheduleEndDate = (item: Record<string, unknown>) => localDate(read(item, ['checkEndTime','plannedOffAt','planOffTime']));
+  const dates = new Set<string>();
+  results.forEach((item) => { const value = localDate(read(record(item), ['workDate', 'work_date', 'baseCheckTime', 'planCheckTime'])); if (value) dates.add(value); });
+  schedules.forEach((item) => { const value = scheduleWorkDate(record(item)); if (value) dates.add(value); });
+  punches.forEach((item) => {
+    const punch = record(item);
+    const value = localDate(read(punch, ['userCheckTime', 'checkTime', 'check_time']));
+    const belongsToCrossDayShift = punchCheckType(punch) === 'offduty' && schedules.map(record).some((schedule) => scheduleEndDate(schedule) === value && scheduleWorkDate(schedule) !== value);
+    if (value && !belongsToCrossDayShift) dates.add(value);
+  });
+
+  return [...dates].sort().map((date): NormalizedAttendanceDay => {
+    const dayResults = results.map(record).filter((item) => localDate(read(item, ['workDate','work_date','baseCheckTime','planCheckTime'])) === date);
+    const schedule = schedules.map(record).find((item) => scheduleWorkDate(item) === date) ?? {};
+    const dayPunches = punches.map(record).filter((item) => {
+      const punchDate = localDate(read(item, ['userCheckTime','checkTime','check_time']));
+      return punchDate === date || (punchCheckType(item) === 'offduty' && scheduleEndDate(schedule) === punchDate && scheduleWorkDate(schedule) === date);
+    });
+    const onResultRow = dayResults.find((item) => text(read(item, ['checkType','check_type'])).toLowerCase() === 'onduty');
+    const offResultRow = dayResults.find((item) => text(read(item, ['checkType','check_type'])).toLowerCase() === 'offduty');
+    const onDutyResult = normalizeDutyResult(read(onResultRow ?? {}, ['timeResult','time_result','status']));
+    const offDutyResult = normalizeDutyResult(read(offResultRow ?? {}, ['timeResult','time_result','status']));
+    const scheduleStatus = normalizeDutyResult(read(schedule, ['status','attendanceStatus','attendance_status']));
+    const isRest = read(schedule, ['isRest','is_rest']) === true || text(read(schedule, ['isRest','is_rest'])).toUpperCase() === 'Y';
+    const statuses: DutyResult[] = [onDutyResult, offDutyResult, scheduleStatus];
+    if (isRest) statuses.push('rest');
+    const normalizedPunches: NormalizedPunch[] = dayPunches.map((item, index) => ({
+      checkType: text(read(item, ['checkType','check_type'])).toLowerCase() === 'onduty' ? 'on_duty' : text(read(item, ['checkType','check_type'])).toLowerCase() === 'offduty' ? 'off_duty' : 'unknown',
+      corpId: binding.corpId,
+      dingtalkRecordId: text(read(item, ['id','recordId','record_id'])) || `${binding.dingtalkUserId}:${date}:${text(read(item, ['userCheckTime','checkTime','check_time']))}:${index}`,
+      isApprovedCorrection: ['approve','approved','repair'].includes(text(read(item, ['sourceType','source_type'])).toLowerCase()),
+      locationName: text(read(item, ['userAddress','locationName','location_name'])) || null,
+      locationResult: text(read(item, ['locationResult','location_result'])) || null,
+      profileId: binding.profileId,
+      punchTime: iso(read(item, ['userCheckTime','checkTime','check_time'])) ?? `${date}T00:00:00.000Z`,
+      sourceType: text(read(item, ['sourceType','source_type'])) || null,
+      storeId: binding.storeId,
+      timeResult: text(read(item, ['timeResult','time_result'])) || null,
+    }));
+    const actualOnAt = iso(read(onResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? normalizedPunches.find((item) => item.checkType === 'on_duty')?.punchTime ?? null;
+    const actualOffAt = iso(read(offResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? [...normalizedPunches].reverse().find((item) => item.checkType === 'off_duty')?.punchTime ?? null;
+    const plannedOnAt = iso(read(onResultRow ?? schedule, ['baseCheckTime','planCheckTime','plannedOnAt','checkBeginTime']));
+    const plannedOffAt = iso(read(offResultRow ?? schedule, ['baseCheckTime','planCheckTime','plannedOffAt','checkEndTime']));
+    const missingOn = onDutyResult === 'missing' || (!isRest && Boolean(plannedOnAt) && !actualOnAt);
+    const missingOff = offDutyResult === 'missing' || (!isRest && Boolean(plannedOffAt) && !actualOffAt);
+    const lateMinutes = Math.max(number(read(onResultRow ?? {}, ['lateMinutes','late_minutes','durationMinutes'])), onDutyResult === 'late' && plannedOnAt && actualOnAt ? Math.max(0, Math.round((new Date(actualOnAt).getTime() - new Date(plannedOnAt).getTime()) / 60_000)) : 0);
+    const earlyMinutes = Math.max(number(read(offResultRow ?? {}, ['earlyMinutes','early_minutes','durationMinutes'])), offDutyResult === 'early' && plannedOffAt && actualOffAt ? Math.max(0, Math.round((new Date(plannedOffAt).getTime() - new Date(actualOffAt).getTime()) / 60_000)) : 0);
+    if (missingOn || missingOff) statuses.push('missing');
+    const dailyStatus = strongerStatus(statuses);
+    return {
+      actualOffAt, actualOnAt, attendanceDate: date, corpId: binding.corpId, dailyStatus,
+      dingtalkResultIds: dayResults.map((item) => text(read(item, ['id','recordId','record_id']))).filter(Boolean),
+      earlyMinutes, exceptionNote: text(read(schedule, ['exceptionNote','remark'])) || null,
+      isAttended: Boolean(actualOnAt || actualOffAt || normalizedPunches.length) && !['rest','leave','business_trip'].includes(dailyStatus),
+      lateMinutes, missingPunch: missingOn && missingOff ? 'both' : missingOn ? 'on' : missingOff ? 'off' : 'none',
+      offDutyResult, onDutyResult, plannedOffAt, plannedOnAt, profileId: binding.profileId,
+      punches: normalizedPunches, shiftId: text(read(schedule, ['classId','shiftId','class_id'])) || null,
+      shiftName: text(read(schedule, ['className','shiftName','class_name'])) || null,
+      sourceUpdatedAt: iso(read(schedule, ['gmtModified','updatedAt','updated_at'])), storeId: binding.storeId,
+    };
+  });
+};

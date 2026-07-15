@@ -37,3 +37,18 @@ POST /functions/v1/admin-users
 ```
 
 调用者必须已经登录，并且 `public.profiles.role = 'admin'`。
+
+## `dingtalk-attendance`
+
+钉钉员工目录与考勤同步函数。支持管理员更新通讯录、同步月份/门店/单个员工、重试任务，以及带独立密钥的 Cron 自动同步。
+
+- 网关 JWT 预校验关闭，函数内部会完整校验用户 JWT、管理员角色和门店范围。
+- 自动同步必须携带 `x-storehub-cron-secret`，普通匿名请求会被拒绝。
+- 钉钉 `AppSecret` 和 Access Token 只存在于服务端。
+- 函数按员工隔离失败并记录标准化错误，不记录 Token、完整手机号或完整响应。
+
+```bash
+supabase functions deploy dingtalk-attendance --no-verify-jwt
+```
+
+完整 Secrets、权限、首次绑定和 Cron 配置见 `docs/DINGTALK_ATTENDANCE_SETUP.md`。

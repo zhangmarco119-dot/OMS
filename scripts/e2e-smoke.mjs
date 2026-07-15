@@ -71,6 +71,9 @@ const runViewport = async (browser, viewport, label) => {
     '/app/admin/tasks/publish',
     '/app/admin/tasks/00000000-0000-4000-8000-000000000001',
     '/app/account/about',
+    '/app/attendance',
+    '/app/admin/attendance',
+    '/app/admin/attendance/00000000-0000-4000-8000-000000000001',
   ]) {
     await page.goto(`${baseUrl}${protectedPath}`, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(`${baseUrl}/login`, { timeout: 10000 });

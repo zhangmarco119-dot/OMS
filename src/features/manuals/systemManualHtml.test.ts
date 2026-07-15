@@ -22,5 +22,8 @@ describe('standalone system manuals', () => {
     expect(html).toContain('html{scroll-behavior:auto}');
     expect(html).not.toContain("onclick=\"location.hash='top'\"");
     expect(html).toContain('.toolbar{position:relative');
+    expect(html).toContain('body{line-height:1.62}');
+    expect(html).toContain('.manual-section{padding:20px;margin-bottom:12px');
+    expect(html).toContain('.page{padding:8px}.hero{padding:20px 16px');
   });
 });

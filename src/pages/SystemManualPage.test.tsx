@@ -23,7 +23,7 @@ describe('SystemManualPage', () => {
     mocks.loadSystemDocument.mockResolvedValue({
       audience: 'staff_manager',
       content_html: '<!doctype html><html><body><h1>在线说明正文</h1></body></html>',
-      document_version: '2.2.2',
+      document_version: '2.2.3',
       slug: 'staff-manager-guide',
       summary: '员工与店长说明',
       title: '员工与店长使用说明',
@@ -40,7 +40,7 @@ describe('SystemManualPage', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('文档版本 2.2.2', { exact: false })).toBeInTheDocument();
+    expect(await screen.findByText('文档版本 2.2.3', { exact: false })).toBeInTheDocument();
     expect(mocks.loadSystemDocument).toHaveBeenCalledWith(expect.anything(), 'staff-manager-guide');
     expect(screen.getByTitle('员工与店长使用说明正文')).toHaveAttribute('srcdoc', expect.stringContaining('在线说明正文'));
 

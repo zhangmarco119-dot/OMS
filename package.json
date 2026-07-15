@@ -1,12 +1,13 @@
 {
   "name": "mobile-store-inventory-ordering",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.2.0",
   "type": "module",
   "scripts": {
     "env:check": "node scripts/verify-environment.mjs",
     "migrations:check": "node scripts/check-migration-safety.mjs",
     "migrations:remote:check": "node scripts/verify-remote-migrations.mjs",
+    "release:version:check": "node scripts/check-release-version.mjs",
     "release:check": "node scripts/release-gate.mjs",
     "dev": "vite --host 0.0.0.0",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",

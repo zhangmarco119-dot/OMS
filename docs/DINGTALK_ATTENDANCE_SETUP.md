@@ -84,6 +84,8 @@ pnpm dlx supabase@latest secrets set `
 
 通过 `supabase secrets set DINGTALK_ENTERPRISE_CONFIGS='<压缩成一行的 JSON>' --project-ref <项目 ref>` 保存，禁止写入 `.env`、Migration 或 Git。更新通讯录后，管理员还必须在“考勤管理 → 企业门店”中把每个企业对应到门店，再到“员工绑定”为员工增加该企业身份。
 
+如果现有环境已经使用单企业密钥，并且无法再次读取原 AppSecret，可只设置 `DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS`。该变量使用相同的 JSON 数组格式，系统会保留现有的 `DINGTALK_CORP_ID`、`DINGTALK_APP_KEY`、`DINGTALK_APP_SECRET`，再追加数组中的企业，不会覆盖当前企业。
+
 Supabase 自动提供 `SUPABASE_URL`、`SUPABASE_ANON_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY`，无需手工复制。
 
 ## 4. 部署与首次同步

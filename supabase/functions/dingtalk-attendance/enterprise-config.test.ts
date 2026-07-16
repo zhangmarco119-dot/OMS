@@ -20,6 +20,14 @@ it('keeps legacy single-enterprise secrets compatible', () => {
   expect(loadDingTalkEnterpriseConfigs((key) => values[key])[0].displayName).toBe('当前钉钉企业');
 });
 
+it('adds enterprises without requiring the existing secret to be entered again', () => {
+  const values: Record<string, string> = {
+    DINGTALK_CORP_ID: 'existing-corp', DINGTALK_APP_KEY: 'existing-key', DINGTALK_APP_SECRET: 'existing-secret',
+    DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS: JSON.stringify([{ corpId: 'new-corp', appKey: 'new-key', appSecret: 'new-secret', displayName: '新企业' }]),
+  };
+  expect(loadDingTalkEnterpriseConfigs((key) => values[key]).map((item) => item.corpId)).toEqual(['existing-corp', 'new-corp']);
+});
+
 it('rejects duplicate enterprise identifiers', () => {
   const encoded = JSON.stringify([
     { corpId: 'same', appKey: 'a', appSecret: 'a', displayName: 'A' },

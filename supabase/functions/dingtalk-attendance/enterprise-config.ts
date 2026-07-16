@@ -21,10 +21,11 @@ const roots = (value: unknown, fallback = '1') => {
 
 export const loadDingTalkEnterpriseConfigs = (read: EnvironmentReader): DingTalkEnterpriseConfig[] => {
   const multi = read('DINGTALK_ENTERPRISE_CONFIGS')?.trim();
-  if (multi) {
-    const decoded = JSON.parse(multi) as unknown;
-    if (!Array.isArray(decoded) || decoded.length === 0) throw new Error('DINGTALK_ENTERPRISE_CONFIGS must be a non-empty JSON array');
-    const configs = decoded.map((entry, index) => {
+  const additional = read('DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS')?.trim();
+  const parseConfigs = (encoded: string, variableName: string) => {
+    const decoded = JSON.parse(encoded) as unknown;
+    if (!Array.isArray(decoded) || decoded.length === 0) throw new Error(`${variableName} must be a non-empty JSON array`);
+    return decoded.map((entry, index) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error(`enterprise config ${index + 1} is invalid`);
       const row = entry as Record<string, unknown>;
       return {
@@ -36,16 +37,22 @@ export const loadDingTalkEnterpriseConfigs = (read: EnvironmentReader): DingTalk
         timezone: typeof row.timezone === 'string' && row.timezone.trim() ? row.timezone.trim() : 'Asia/Shanghai',
       };
     });
+  };
+  if (multi) {
+    const configs = parseConfigs(multi, 'DINGTALK_ENTERPRISE_CONFIGS');
     if (new Set(configs.map((config) => config.corpId)).size !== configs.length) throw new Error('DingTalk enterprise corpId must be unique');
     return configs;
   }
 
-  return [{
+  const fallback = {
     corpId: requiredText(read('DINGTALK_CORP_ID'), 'DINGTALK_CORP_ID'),
     appKey: requiredText(read('DINGTALK_APP_KEY'), 'DINGTALK_APP_KEY'),
     appSecret: requiredText(read('DINGTALK_APP_SECRET'), 'DINGTALK_APP_SECRET'),
     displayName: read('DINGTALK_ENTERPRISE_NAME')?.trim() || '当前钉钉企业',
     rootDepartmentIds: roots(read('DINGTALK_ROOT_DEPARTMENT_IDS')),
     timezone: read('DINGTALK_ENTERPRISE_TIMEZONE')?.trim() || 'Asia/Shanghai',
-  }];
+  };
+  const configs = [fallback, ...(additional ? parseConfigs(additional, 'DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS') : [])];
+  if (new Set(configs.map((config) => config.corpId)).size !== configs.length) throw new Error('DingTalk enterprise corpId must be unique');
+  return configs;
 };

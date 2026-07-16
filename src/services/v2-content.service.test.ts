@@ -2,9 +2,41 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { archiveNotice, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, publishSop, removeSopStepImage, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
+import { archiveNotice, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, loadSopPage, publishSop, removeSopStepImage, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
 
 describe('v2 content drafts', () => {
+  it('loads an SOP card page with one lightweight query and one batched preview signing request', async () => {
+    const previewAsset = {
+      asset_kind: 'cover', bucket: 'v2-sop-assets', created_at: '2026-07-16T00:00:00Z', file_name: 'cover.jpg', id: 'asset-1', mime_type: 'image/jpeg', object_path: 'sop-1/cover.jpg', size_bytes: 100, sop_id: 'sop-1', sort_order: 0, step_text: '', uploaded_by: 'admin-1',
+    };
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        items: [{
+          attachmentCount: 2, body: 'SOP description', category: 'drink', created_at: '2026-07-16T00:00:00Z', created_by: 'admin-1', effective_at: null, expires_at: null, id: 'sop-1', isFavorite: false, previewAsset, published_at: null, roles: ['staff'], status: 'draft', stepCount: 6, storeIds: ['store-1'], task_template_id: null, title: 'Test SOP', updated_at: '2026-07-16T00:00:00Z', version: 1,
+        }],
+        total: 1,
+      },
+      error: null,
+    });
+    const createSignedUrls = vi.fn().mockResolvedValue({ data: [{ path: 'sop-1/cover.jpg', signedUrl: 'https://example.test/cover.jpg' }], error: null });
+    const storageFrom = vi.fn().mockReturnValue({ createSignedUrls });
+    const client = { rpc, storage: { from: storageFrom } } as unknown as SupabaseClient<Database>;
+
+    const page = await loadSopPage(client, { category: 'drink', limit: 16, offset: 0, search: 'Test' });
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('list_v2_sop_cards', {
+      p_archived: false, p_category: 'drink', p_favorites_only: false, p_limit: 16, p_offset: 0, p_search: 'Test',
+    });
+    expect(storageFrom).toHaveBeenCalledTimes(1);
+    expect(createSignedUrls).toHaveBeenCalledTimes(1);
+    expect(createSignedUrls).toHaveBeenCalledWith(['sop-1/cover.jpg'], 3600);
+    expect(page).toMatchObject({
+      items: [{ assetUrls: [{ signedUrl: 'https://example.test/cover.jpg' }], attachmentCount: 2, id: 'sop-1', stepCount: 6 }],
+      total: 1,
+    });
+  });
+
   it('starts an announcement as an unpinned draft for selected stores', () => {
     expect(createEmptyNoticeDraft(['store-1'])).toEqual({
       body: '', expiresAt: '', id: null, isPinned: false, recipientIds: [], requiresAcknowledgment: false, storeIds: ['store-1'], title: '',

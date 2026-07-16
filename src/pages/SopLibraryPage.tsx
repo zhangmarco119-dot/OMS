@@ -9,7 +9,7 @@ import { useSopCategoryFilter } from '../features/content/useSopCategoryFilter';
 import { supabase } from '../lib/supabase';
 import { loadSopCategories, loadSopLibraryPage, setSopFavorite, type SopLibraryEntry } from '../services/v2-content.service';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 16;
 
 export function SopLibraryPage() {
   const navigate = useNavigate();

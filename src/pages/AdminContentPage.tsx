@@ -8,8 +8,7 @@ import { BatchImportReportDialog } from '../components/feedback/BatchImportRepor
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { FeedbackBanner } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
-import { createSopBatchTemplate, importSopBatch, readSopBatchImageFileNames, type SopBatchImportProgress, type SopBatchImportResult } from '../features/content/sopBatchImport';
-import { downloadSopCollection } from '../features/content/sopExport';
+import type { SopBatchImportProgress, SopBatchImportResult } from '../features/content/sopBatchImport';
 import { formatSopActionError, type SopSaveStage } from '../features/content/sopFeedback';
 import { useSopCategoryFilter } from '../features/content/useSopCategoryFilter';
 import { SopImageUpload, type SopImageUploadStatus } from '../features/content/SopImageUpload';
@@ -31,6 +30,7 @@ import {
   deleteNotice,
   loadNotices,
   loadSopCategories,
+  loadSopArchiveCount,
   loadSopDetail,
   loadSopPage,
   publishNotice,
@@ -66,18 +66,21 @@ const sopBatchLifecycleCopy: Record<SopBatchLifecycleAction, { button: string; e
 const noticeStatus: Record<NoticeListItem['status'], string> = { archived: '已归档', draft: '待发布', published: '已发布', retracted: '待发布' };
 const sopStatus: Record<SopListItem['status'], string> = { archived: '已归档', draft: '待发布', published: '已发布' };
 const revokeLocalUrl = (url: string) => { if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url); };
+const SOP_PAGE_SIZE = 16;
 
 export function AdminContentPage({ section }: { section: AdminContentSection }) {
   const auth = useAuth();
   const navigate = useNavigate();
   const [sopCategoryFilter, setSopCategoryFilter] = useSopCategoryFilter();
   const [sopSearch, setSopSearch] = useState('');
+  const [debouncedSopSearch, setDebouncedSopSearch] = useState('');
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [sops, setSops] = useState<SopListItem[]>([]);
   const [archivedSops, setArchivedSops] = useState<SopListItem[]>([]);
   const [sopTotal, setSopTotal] = useState(0);
   const [archivedSopTotal, setArchivedSopTotal] = useState(0);
   const [loadingMoreSops, setLoadingMoreSops] = useState(false);
+  const [loadingMoreArchivedSops, setLoadingMoreArchivedSops] = useState(false);
   const [sopCategories, setSopCategories] = useState<SopCategoryRow[]>([]);
   const [recipientProfiles, setRecipientProfiles] = useState<ContentRecipient[]>([]);
   const [noticeDraft, setNoticeDraft] = useState<NoticeDraft | null>(null);
@@ -99,9 +102,12 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const sopDraftRef = useRef<SopDraft | null>(null);
   const sopsRef = useRef<SopListItem[]>([]);
   const sopLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const contentLoadedRef = useRef(false);
+  const refreshRequestRef = useRef(0);
 
   useEffect(() => { sopDraftRef.current = sopDraft; }, [sopDraft]);
   useEffect(() => { sopsRef.current = sops; }, [sops]);
+  useEffect(() => { const timer = window.setTimeout(() => setDebouncedSopSearch(sopSearch), 250); return () => window.clearTimeout(timer); }, [sopSearch]);
 
   const updateSopDraft = (nextDraft: SopDraft | null) => {
     sopDraftRef.current = nextDraft;
@@ -124,7 +130,8 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
 
   const refresh = useCallback(async () => {
     if (!supabase) { setStatus('error'); setMessage(`缺少 Supabase 配置，暂时无法管理${section === 'notices' ? '公告' : ' SOP'}。`); return; }
-    setStatus('loading');
+    const requestId = ++refreshRequestRef.current;
+    if (!contentLoadedRef.current) setStatus('loading');
     try {
       if (section === 'notices') {
         const [nextNotices, profiles] = await Promise.all([
@@ -132,40 +139,43 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
           supabase.from('profiles').select('id,display_name,role,store_id').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null),
         ]);
         if (profiles.error) throw new Error(profiles.error.message);
+        if (requestId !== refreshRequestRef.current) return;
         setNotices(nextNotices);
         setRecipientProfiles((profiles.data ?? []) as ContentRecipient[]);
       } else {
-        const [activePage, archivedPage, nextCategories] = await Promise.all([
-          loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: 20, search: sopSearch }),
-          loadSopPage(supabase, { archived: true, limit: 20 }),
+        const [activePage, archiveCount, nextCategories] = await Promise.all([
+          loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: SOP_PAGE_SIZE, search: debouncedSopSearch }),
+          loadSopArchiveCount(supabase),
           loadSopCategories(supabase),
         ]);
+        if (requestId !== refreshRequestRef.current) return;
         sopsRef.current = activePage.items;
         setSops(activePage.items);
         setSopTotal(activePage.total);
-        setArchivedSops(archivedPage.items);
-        setArchivedSopTotal(archivedPage.total);
+        setArchivedSopTotal(archiveCount);
         setSopCategories(nextCategories);
       }
+      contentLoadedRef.current = true;
       setStatus('ready');
       setMessage(null);
     } catch (error) {
+      if (requestId !== refreshRequestRef.current) return;
       setStatus('error');
       setMessage(error instanceof Error ? error.message : `加载${section === 'notices' ? '公告' : ' SOP'}失败。`);
     }
-  }, [section, sopCategoryFilter, sopSearch]);
+  }, [debouncedSopSearch, section, sopCategoryFilter]);
   useEffect(() => { void refresh(); }, [refresh]);
   const loadMoreSops = useCallback(async () => {
     if (!supabase || section !== 'sops' || loadingMoreSops || sopsRef.current.length >= sopTotal) return;
     setLoadingMoreSops(true);
     try {
-      const page = await loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: 20, offset: sopsRef.current.length, search: sopSearch });
+      const page = await loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: SOP_PAGE_SIZE, offset: sopsRef.current.length, search: debouncedSopSearch });
       const next = [...sopsRef.current, ...page.items.filter((entry) => !sopsRef.current.some((current) => current.id === entry.id))];
       updateSops(next);
       setSopTotal(page.total);
     } catch { setMessage('加载更多 SOP 失败，请稍后重试。'); }
     finally { setLoadingMoreSops(false); }
-  }, [loadingMoreSops, section, sopCategoryFilter, sopSearch, sopTotal]);
+  }, [debouncedSopSearch, loadingMoreSops, section, sopCategoryFilter, sopTotal]);
   useEffect(() => {
     const target = sopLoadMoreRef.current;
     if (!target || typeof IntersectionObserver === 'undefined') return;
@@ -401,17 +411,53 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       return false;
     } finally { setBusy(false); }
   };
+  const loadArchivedSopPage = async (reset = false) => {
+    const client = supabase;
+    if (!client || loadingMoreArchivedSops) return false;
+    setLoadingMoreArchivedSops(true);
+    try {
+      const offset = reset ? 0 : archivedSops.length;
+      const page = await loadSopPage(client, { archived: true, limit: SOP_PAGE_SIZE, offset });
+      setArchivedSops((current) => reset ? page.items : [...current, ...page.items.filter((entry) => !current.some((item) => item.id === entry.id))]);
+      setArchivedSopTotal(page.total);
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '加载已归档 SOP 失败。');
+      return false;
+    } finally { setLoadingMoreArchivedSops(false); }
+  };
+  const openArchivedSops = async () => {
+    setMessage(null);
+    if (await loadArchivedSopPage(true)) setShowSopArchiveManager(true);
+  };
   const removeArchivedSop = async (sop: SopListItem) => {
     const client = supabase;
     if (!client || sop.status !== 'archived') return;
     if (!window.confirm(`确定永久删除已归档 SOP“${sop.title}”吗？相关图片和附件也会删除，且无法恢复。`)) return;
-    await run(() => deleteArchivedSop(client, sop), `已归档 SOP“${sop.title}”已永久删除。`);
+    setBusy(true); setMessage(null);
+    try {
+      const detail = await loadSopDetail(client, sop.id);
+      if (!detail) throw new Error('找不到该 SOP。');
+      await deleteArchivedSop(client, detail);
+      setArchivedSops((current) => current.filter((entry) => entry.id !== sop.id));
+      setArchivedSopTotal((current) => Math.max(0, current - 1));
+      setSuccess(`已归档 SOP“${sop.title}”已永久删除。`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : '删除已归档 SOP 失败。'); }
+    finally { setBusy(false); }
   };
   const restoreArchivedSop = async (sop: SopListItem) => {
     const client = supabase;
     if (!client || sop.status !== 'archived') return;
     if (!window.confirm(`确定取消归档 SOP“${sop.title}”吗？恢复后会成为待发布草稿，不会自动通知员工。`)) return;
-    await run(() => unarchiveSop(client, sop.id), `SOP“${sop.title}”已取消归档并恢复为待发布草稿。`);
+    setBusy(true); setMessage(null);
+    try {
+      await unarchiveSop(client, sop.id);
+      setArchivedSops((current) => current.filter((entry) => entry.id !== sop.id));
+      setArchivedSopTotal((current) => Math.max(0, current - 1));
+      await refresh();
+      setSuccess(`SOP“${sop.title}”已取消归档并恢复为待发布草稿。`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : '取消归档失败。'); }
+    finally { setBusy(false); }
   };
   const removeArchivedNotice = async (notice: NoticeListItem) => {
     const client = supabase;
@@ -423,6 +469,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     if (!supabase || !auth.profile) return null;
     setBusy(true); setMessage(null);
     try {
+      const { importSopBatch } = await import('../features/content/sopBatchImport');
       const result = await importSopBatch(supabase, { imageFiles, onProgress, profileId: auth.profile.id, stores: auth.availableStores, workbookFile });
       await refresh();
       return result;
@@ -437,7 +484,10 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     if (!selected.length) { setMessage('请先勾选需要导出的 SOP。'); return; }
     setBusy(true); setMessage(null);
     try {
-      const result = await downloadSopCollection(selected, storeName);
+      const details = (await Promise.all(selected.map((sop) => loadSopDetail(supabase!, sop.id)))).filter((sop): sop is SopListItem => Boolean(sop));
+      if (details.length !== selected.length) throw new Error('部分 SOP 详情未能加载，请刷新后重试。');
+      const { downloadSopCollection } = await import('../features/content/sopExport');
+      const result = await downloadSopCollection(details, storeName);
       setSuccess(result.missingAssetCount
         ? `已导出 ${selected.length} 份 SOP；有 ${result.missingAssetCount} 个图片或附件未能写入，请检查网络后重试。`
         : `已将 ${selected.length} 份 SOP 导出为一个离线合集文件。`);
@@ -530,7 +580,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         <button className="ui-button-primary px-1 text-sm" onClick={() => { setMessage(null); setNoticeDraft(null); setSopDraft(createEmptySopDraft(defaultStores)); }} type="button"><Plus className="h-4 w-4" />新建 SOP</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopBatchOperations(true); }} type="button"><ListChecks className="h-4 w-4" />批量操作</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopCategoryManager(true); }} type="button"><FolderPlus className="h-4 w-4" />分类管理</button>
-        <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopArchiveManager(true); }} type="button"><Archive className="h-4 w-4" />已归档（{archivedSopTotal}）</button>
+        <button className="ui-button-secondary px-1 text-sm" disabled={loadingMoreArchivedSops} onClick={() => void openArchivedSops()} type="button"><Archive className="h-4 w-4" />{loadingMoreArchivedSops ? '加载归档' : `已归档（${archivedSopTotal}）`}</button>
         <button className={sopExportMode ? 'ui-button-primary col-span-2 px-1 text-sm' : 'ui-button-secondary col-span-2 px-1 text-sm'} onClick={() => { setMessage(null); setSopBatchAction(null); setSopExportMode((current) => !current); setSelectedSopIds([]); }} type="button"><Download className="h-4 w-4" />{sopExportMode ? '退出导出选择' : '导出 SOP'}</button>
       </div>
       <section className="ui-card space-y-2.5 p-3">
@@ -584,7 +634,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
               <div className="flex items-start justify-between gap-2"><p className="min-w-0 truncate text-xs font-bold text-brand-700">{sop.category}</p><div className="shrink-0 text-right text-[11px] leading-4 text-slate-500"><p className="font-bold text-slate-700">{sopStatus[sop.status]}</p><p>{sop.effective_at ? `${new Date(sop.effective_at).toLocaleDateString('zh-CN')} 生效` : '尚未设置生效时间'}</p></div></div>
               <h2 className="mt-1 truncate text-base font-bold text-slate-900">{sop.title}</h2>
               <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{sop.storeIds.map(storeName).join('、')} · {sop.roles.map((role) => role === 'staff' ? '员工' : '店长').join('、')}</p>
-              <p className="mt-1 text-xs text-slate-500">步骤 {sop.assetUrls.filter((asset) => asset.asset_kind === 'step').length} · 附件 {sop.assetUrls.filter((asset) => asset.asset_kind === 'attachment').length}</p>
+              <p className="mt-1 text-xs text-slate-500">步骤 {sop.stepCount ?? sop.assetUrls.filter((asset) => asset.asset_kind === 'step').length} · 附件 {sop.attachmentCount ?? sop.assetUrls.filter((asset) => asset.asset_kind === 'attachment').length}</p>
             </div>
           </div>
           {!sopSelectionMode ? <div className="mt-3 grid grid-cols-3 gap-2">
@@ -601,7 +651,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     {showSopBatchOperations ? <SopBatchOperationsMenu onAction={startSopBatchAction} onClose={() => setShowSopBatchOperations(false)} onImport={() => { setShowSopBatchOperations(false); setShowSopBatchImport(true); }} /> : null}
     {showSopBatchImport ? <SopBatchImporter busy={busy} errorMessage={message} onCancel={() => setShowSopBatchImport(false)} onImport={runSopBatchImport} /> : null}
     {showSopCategoryManager ? <SopCategoryManager busy={busy} categories={sopCategories} errorMessage={message} newCategoryName={newCategoryName} onChangeName={setNewCategoryName} onClose={() => { setMessage(null); setShowSopCategoryManager(false); }} onCreate={addSopCategory} onDelete={removeSopCategory} onRename={renameCategory} sops={sops} /> : null}
-    {showSopArchiveManager ? <SopArchiveManager busy={busy} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} onRestore={restoreArchivedSop} sops={archivedSops} /> : null}
+    {showSopArchiveManager ? <SopArchiveManager busy={busy} loadingMore={loadingMoreArchivedSops} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} onLoadMore={() => loadArchivedSopPage(false)} onRestore={restoreArchivedSop} sops={archivedSops} total={archivedSopTotal} /> : null}
     {showNoticeArchiveManager ? <NoticeArchiveManager busy={busy} notices={archivedNotices} onClose={() => { setMessage(null); setShowNoticeArchiveManager(false); }} onDelete={removeArchivedNotice} /> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title={message?.includes('请') || message?.includes('仍有') ? '请完善操作信息' : '操作未完成'} tone={message?.includes('请') || message?.includes('仍有') ? 'warning' : 'danger'} />
     <SuccessToast message={success} onClose={() => setSuccess(null)} />
@@ -665,12 +715,15 @@ export function SopCategoryManager({ busy, categories, errorMessage, newCategory
   </div>;
 }
 
-export function SopArchiveManager({ busy, onClose, onDelete, onRestore, sops }: {
+export function SopArchiveManager({ busy, loadingMore, onClose, onDelete, onLoadMore, onRestore, sops, total }: {
   busy: boolean;
+  loadingMore: boolean;
   onClose: () => void;
   onDelete: (sop: SopListItem) => Promise<void>;
+  onLoadMore: () => Promise<boolean>;
   onRestore: (sop: SopListItem) => Promise<void>;
   sops: SopListItem[];
+  total: number;
 }) {
   return <div aria-labelledby="sop-archive-title" aria-modal="true" className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog">
     <div className="mx-auto max-w-2xl space-y-3 pb-[calc(2rem+env(safe-area-inset-bottom))]">
@@ -682,13 +735,14 @@ export function SopArchiveManager({ busy, onClose, onDelete, onRestore, sops }: 
         const preview = getSopPreviewAsset(sop);
         return <article className="ui-card flex items-center gap-3 p-3" key={sop.id}>
           {preview?.signedUrl ? <img alt={`${sop.title} 归档预览`} className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover" src={preview.signedUrl} /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></div>}
-          <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-brand-700">{sop.category}</p><h3 className="mt-1 truncate font-bold text-slate-900">{sop.title}</h3><p className="mt-1 text-xs text-slate-500">已归档 · 步骤 {sop.assetUrls.filter((asset) => asset.asset_kind === 'step').length}</p></div>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-brand-700">{sop.category}</p><h3 className="mt-1 truncate font-bold text-slate-900">{sop.title}</h3><p className="mt-1 text-xs text-slate-500">已归档 · 步骤 {sop.stepCount ?? sop.assetUrls.filter((asset) => asset.asset_kind === 'step').length}</p></div>
           <div className="grid shrink-0 gap-1.5">
             <button aria-label={`取消归档 ${sop.title}`} className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg bg-brand-50 px-2 text-xs font-bold text-brand-800" disabled={busy} onClick={() => void onRestore(sop)} type="button"><ArchiveRestore className="h-3.5 w-3.5" />取消归档</button>
             <button aria-label={`永久删除 ${sop.title}`} className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg bg-red-50 px-2 text-xs font-bold text-red-700" disabled={busy} onClick={() => void onDelete(sop)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button>
           </div>
         </article>;
       })}</section> : <p className="ui-card p-6 text-center text-sm text-slate-500">暂无已归档 SOP。</p>}
+      {sops.length < total ? <button className="ui-button-secondary w-full" disabled={loadingMore} onClick={() => void onLoadMore()} type="button">{loadingMore ? '正在加载' : `加载更多（已显示 ${sops.length}/${total}）`}</button> : null}
       <p className="px-2 text-xs leading-5 text-slate-500">取消归档会恢复为待发布草稿，不会自动通知员工；永久删除会同时清理产品图、制作步骤图片和附件，且无法恢复。</p>
     </div>
   </div>;
@@ -1143,7 +1197,8 @@ export function SopBatchImporter({ busy, errorMessage, onCancel, onImport }: { b
   const [progress, setProgress] = useState<SopBatchImportProgress | null>(null);
   const [report, setReport] = useState<SopBatchImportResult | null>(null);
   const fallbackDirectoryInputRef = useRef<HTMLInputElement>(null);
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const { createSopBatchTemplate } = await import('../features/content/sopBatchImport');
     const url = URL.createObjectURL(new Blob([createSopBatchTemplate()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     const anchor = document.createElement('a');
     anchor.href = url; anchor.download = 'SOP批量导入模板.xlsx'; anchor.click();
@@ -1154,6 +1209,7 @@ export function SopBatchImporter({ busy, errorMessage, onCancel, onImport }: { b
     setLocalError(null);
     let referencedNames: string[];
     try {
+      const { readSopBatchImageFileNames } = await import('../features/content/sopBatchImport');
       referencedNames = await readSopBatchImageFileNames(workbookFile);
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : '无法读取 Excel 中的图片文件名。');

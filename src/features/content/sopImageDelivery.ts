@@ -30,7 +30,7 @@ const pruneCache = () => {
 };
 
 const transformFor = (variant: SopImageVariant) => {
-  if (variant === 'thumbnail') return { quality: 55, resize: 'contain' as const, width: 160 };
+  if (variant === 'thumbnail') return { height: 160, quality: 55, resize: 'cover' as const, width: 160 };
   if (variant === 'detail') return { quality: 72, resize: 'contain' as const, width: 960 };
   return undefined;
 };

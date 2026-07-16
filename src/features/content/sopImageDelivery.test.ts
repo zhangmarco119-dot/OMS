@@ -13,7 +13,7 @@ describe('SOP progressive image delivery', () => {
 
     await expect(loadSopImageUrl(client, 'sop-1/cover.jpg', 'thumbnail')).resolves.toBe('https://example.test/thumb');
     expect(createSignedUrl).toHaveBeenCalledWith('sop-1/cover.jpg', 3600, {
-      transform: { quality: 55, resize: 'contain', width: 160 },
+      transform: { height: 160, quality: 55, resize: 'cover', width: 160 },
     });
   });
 

@@ -90,7 +90,7 @@ if (sample?.object_path) {
   const signStart = performance.now();
   const [original, thumbnail, detailImage] = await Promise.all([
     storage.createSignedUrl(sample.object_path, 300),
-    storage.createSignedUrl(sample.object_path, 300, { transform: { quality: 55, resize: 'contain', width: 160 } }),
+    storage.createSignedUrl(sample.object_path, 300, { transform: { height: 160, quality: 55, resize: 'cover', width: 160 } }),
     storage.createSignedUrl(sample.object_path, 300, { transform: { quality: 72, resize: 'contain', width: 960 } }),
   ]);
   const signElapsedMs = Math.round(performance.now() - signStart);

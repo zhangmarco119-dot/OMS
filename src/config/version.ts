@@ -10,6 +10,16 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-07-16',
     highlights: [
+      '修正钉钉 UTC 工作日字段的时区换算，避免次日班次被误归到前一天。',
+      '重复排班仅在同日确实存在多企业有效排班时提醒，并自动清理重新同步后的过期日记录。',
+      '企业门店映射不再覆盖钉钉同步得到的正确企业名称。',
+    ],
+    title: '修正考勤归日与排班冲突判断',
+    version: 'StoreHub v2.2.9',
+  },
+  {
+    date: '2026-07-16',
+    highlights: [
       '新增 Base64 UTF-8 多企业安全配置，避免 Windows 命令行破坏密钥 JSON。',
       '第二个钉钉企业可在不替换现有企业凭据的情况下安全接入。',
     ],

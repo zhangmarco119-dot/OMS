@@ -19,6 +19,7 @@ describe('AttendanceMonthView', () => {
     expect(screen.getByText('实际 09:12')).toBeInTheDocument();
     expect(screen.getByText('非常长的门店早班名称用于验证小屏展示')).toBeInTheDocument();
     expect(screen.getByText('同一天在多个钉钉企业中都有排班，请确认是否存在重复排班。')).toBeInTheDocument();
+    expect(screen.getByText('查看 2 个企业的考勤来源')).toBeInTheDocument();
     expect(screen.getAllByText('查看打卡（0 次）')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: '迟到与异常' }));
     expect(screen.queryByText('2026-07-14')).not.toBeInTheDocument();

@@ -94,6 +94,25 @@ describe('DingTalk attendance normalization', () => {
     });
   });
 
+  it('converts explicitly zoned UTC work dates before assigning the attendance day', () => {
+    const days = normalizeAttendanceBundle(binding, {
+      results: [
+        { id: 'result-on', userId: 'user-1', workDate: '2026-07-13T16:00:00.000Z', checkType: 'OnDuty', baseCheckTime: '2026-07-14 10:00:00+08:00', userCheckTime: '2026-07-14 09:58:00+08:00', timeResult: 'Normal' },
+        { id: 'result-off', userId: 'user-1', workDate: '2026-07-13T16:00:00.000Z', checkType: 'OffDuty', baseCheckTime: '2026-07-14 20:00:00+08:00', userCheckTime: '2026-07-14 20:01:00+08:00', timeResult: 'Normal' },
+      ],
+      punches: [],
+      schedules: [],
+    });
+
+    expect(days).toHaveLength(1);
+    expect(days[0]).toMatchObject({
+      attendanceDate: '2026-07-14',
+      plannedOnAt: '2026-07-14T02:00:00.000Z',
+      plannedOffAt: '2026-07-14T12:00:00.000Z',
+      dailyStatus: 'normal',
+    });
+  });
+
   it('keeps future shifts pending and recognizes common rest-day values', () => {
     const future = normalizeAttendanceBundle(binding, {
       results: [], punches: [], schedules: [

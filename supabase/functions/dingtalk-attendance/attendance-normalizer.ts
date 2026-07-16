@@ -61,8 +61,11 @@ const iso = (value: unknown) => {
 };
 const localDate = (value: unknown, fallback?: string) => {
   const raw = text(value);
-  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (match) return match[1];
+  const dateOnly = raw.match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (dateOnly) return dateOnly[1];
+  const localDateTime = raw.match(/^(\d{4}-\d{2}-\d{2})[ T]\d{2}:\d{2}/);
+  const hasExplicitTimezone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  if (localDateTime && !hasExplicitTimezone) return localDateTime[1];
   const timestamp = iso(value);
   if (!timestamp) return fallback ?? '';
   return new Intl.DateTimeFormat('en-CA', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Shanghai', year: 'numeric' }).format(new Date(timestamp));

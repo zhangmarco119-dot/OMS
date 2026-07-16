@@ -218,6 +218,26 @@ Deno.serve(async (request) => {
       const bundle = await client.getAttendanceBundle([binding.dingtalkUserId], startDate, endDate);
       bundle.schedules = schedulesByCorp.get(binding.corpId) ?? [];
       const days = normalizeAttendanceBundle(binding, bundle);
+      const normalizedDates = new Set(days.map((day) => day.attendanceDate));
+      const { data: persistedDays, error: persistedDaysError } = await adminClient.from('attendance_daily_records')
+        .select('id,attendance_date,enterprise_timezone,planned_on_at,planned_off_at')
+        .eq('corp_id', binding.corpId)
+        .eq('profile_id', binding.profileId)
+        .gte('attendance_date', startDate)
+        .lte('attendance_date', endDate);
+      if (persistedDaysError) throw new Error(persistedDaysError.message);
+      const staleDailyIds = (persistedDays ?? []).filter((item) => {
+        if (normalizedDates.has(item.attendance_date)) return false;
+        const recordTimezone = item.enterprise_timezone || config.timezone;
+        const plannedDates = [item.planned_on_at, item.planned_off_at]
+          .filter(Boolean)
+          .map((value) => datePart(new Date(value), recordTimezone));
+        return plannedDates.length > 0 && plannedDates.every((plannedDate) => plannedDate !== item.attendance_date);
+      }).map((item) => item.id);
+      for (const ids of chunk(staleDailyIds, 100)) {
+        const { error: staleDeleteError } = await adminClient.from('attendance_daily_records').delete().in('id', ids);
+        if (staleDeleteError) throw new Error(staleDeleteError.message);
+      }
       if (!days.length) skippedCount += 1;
       for (const day of days) {
         const { data: existing } = await adminClient.from('attendance_daily_records').select('id').eq('corp_id', day.corpId).eq('profile_id', day.profileId).eq('attendance_date', day.attendanceDate).maybeSingle();

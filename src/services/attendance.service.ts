@@ -144,6 +144,12 @@ export const invokeAttendanceSync = async (client: Client, body: Record<string, 
   return response;
 };
 
+export const configureAttendanceAutomation = async (client: Client) => {
+  const { data, error } = await client.rpc('configure_attendance_automation');
+  if (error) throw new Error('每小时自动同步暂时无法启用，请稍后重试。');
+  return objectAt(data);
+};
+
 export const loadAttendanceSyncJobs = async (client: Client): Promise<AttendanceSyncJob[]> => {
   const { data: jobs, error } = await client.from('attendance_sync_jobs').select('*').order('created_at', { ascending: false }).limit(30);
   if (error) throw new Error('暂时无法加载同步日志。');

@@ -28,8 +28,8 @@ export type Database = {
         Relationships: [];
       };
       attendance_sync_jobs: {
-        Row: { corp_id: string; created_at: string; error_summary: string | null; failure_count: number; finished_at: string | null; id: string; initiated_by: string | null; inserted_count: number; month_start: string | null; profile_id: string | null; progress_cursor: Json; range_end: string | null; range_start: string | null; scope_type: 'organization' | 'store' | 'employee'; skipped_count: number; started_at: string | null; status: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; store_id: string | null; success_count: number; sync_type: 'directory' | 'current_month' | 'month' | 'date_range' | 'employee'; trigger_type: 'manual' | 'scheduled' | 'retry'; updated_at: string; updated_count: number };
-        Insert: { corp_id: string; created_at?: string; error_summary?: string | null; failure_count?: number; finished_at?: string | null; id?: string; initiated_by?: string | null; inserted_count?: number; month_start?: string | null; profile_id?: string | null; progress_cursor?: Json; range_end?: string | null; range_start?: string | null; scope_type: 'organization' | 'store' | 'employee'; skipped_count?: number; started_at?: string | null; status?: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; store_id?: string | null; success_count?: number; sync_type: 'directory' | 'current_month' | 'month' | 'date_range' | 'employee'; trigger_type: 'manual' | 'scheduled' | 'retry'; updated_at?: string; updated_count?: number };
+        Row: { corp_id: string; created_at: string; error_summary: string | null; failure_count: number; finished_at: string | null; id: string; initiated_by: string | null; inserted_count: number; month_start: string | null; profile_id: string | null; progress_cursor: Json; range_end: string | null; range_start: string | null; scope_type: 'organization' | 'store' | 'employee'; skipped_count: number; started_at: string | null; status: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; store_id: string | null; success_count: number; sync_type: 'directory' | 'current_month' | 'month' | 'date_range' | 'employee' | 'history_month'; trigger_type: 'manual' | 'scheduled' | 'retry'; updated_at: string; updated_count: number };
+        Insert: { corp_id: string; created_at?: string; error_summary?: string | null; failure_count?: number; finished_at?: string | null; id?: string; initiated_by?: string | null; inserted_count?: number; month_start?: string | null; profile_id?: string | null; progress_cursor?: Json; range_end?: string | null; range_start?: string | null; scope_type: 'organization' | 'store' | 'employee'; skipped_count?: number; started_at?: string | null; status?: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; store_id?: string | null; success_count?: number; sync_type: 'directory' | 'current_month' | 'month' | 'date_range' | 'employee' | 'history_month'; trigger_type: 'manual' | 'scheduled' | 'retry'; updated_at?: string; updated_count?: number };
         Update: { error_summary?: string | null; failure_count?: number; finished_at?: string | null; inserted_count?: number; progress_cursor?: Json; skipped_count?: number; started_at?: string | null; status?: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; success_count?: number; updated_at?: string; updated_count?: number };
         Relationships: [];
       };
@@ -395,6 +395,12 @@ export type Database = {
         Row: { body: string; category: string; created_at: string; created_by: string; effective_at: string | null; id: string; published_at: string | null; status: 'draft' | 'published' | 'archived'; task_template_id: string | null; title: string; updated_at: string; version: number; };
         Insert: { body?: string; category?: string; created_at?: string; created_by: string; effective_at?: string | null; id?: string; published_at?: string | null; status?: 'draft' | 'published' | 'archived'; task_template_id?: string | null; title: string; updated_at?: string; version?: number; };
         Update: { body?: string; category?: string; created_at?: string; created_by?: string; effective_at?: string | null; id?: string; published_at?: string | null; status?: 'draft' | 'published' | 'archived'; task_template_id?: string | null; title?: string; updated_at?: string; version?: number; };
+        Relationships: [];
+      };
+      v2_sop_favorites: {
+        Row: { created_at: string; profile_id: string; sop_id: string };
+        Insert: { created_at?: string; profile_id: string; sop_id: string };
+        Update: { created_at?: string; profile_id?: string; sop_id?: string };
         Relationships: [];
       };
       v2_system_documents: {
@@ -821,6 +827,7 @@ export type Database = {
     };
     Functions: {
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
+      configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
       get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string }; Returns: Json };
       attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };
       admin_set_product_permissions: { Args: { p_can_request_discontinued: boolean; p_can_request_incorrect: boolean; p_can_request_new: boolean; p_profile_id: string }; Returns: Json };

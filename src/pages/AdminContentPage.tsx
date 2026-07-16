@@ -31,7 +31,8 @@ import {
   deleteNotice,
   loadNotices,
   loadSopCategories,
-  loadSops,
+  loadSopDetail,
+  loadSopPage,
   publishNotice,
   publishSop,
   renameSopCategory,
@@ -73,6 +74,10 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [sopSearch, setSopSearch] = useState('');
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [sops, setSops] = useState<SopListItem[]>([]);
+  const [archivedSops, setArchivedSops] = useState<SopListItem[]>([]);
+  const [sopTotal, setSopTotal] = useState(0);
+  const [archivedSopTotal, setArchivedSopTotal] = useState(0);
+  const [loadingMoreSops, setLoadingMoreSops] = useState(false);
   const [sopCategories, setSopCategories] = useState<SopCategoryRow[]>([]);
   const [recipientProfiles, setRecipientProfiles] = useState<ContentRecipient[]>([]);
   const [noticeDraft, setNoticeDraft] = useState<NoticeDraft | null>(null);
@@ -93,6 +98,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [busy, setBusy] = useState(false);
   const sopDraftRef = useRef<SopDraft | null>(null);
   const sopsRef = useRef<SopListItem[]>([]);
+  const sopLoadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { sopDraftRef.current = sopDraft; }, [sopDraft]);
   useEffect(() => { sopsRef.current = sops; }, [sops]);
@@ -129,12 +135,16 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         setNotices(nextNotices);
         setRecipientProfiles((profiles.data ?? []) as ContentRecipient[]);
       } else {
-        const [nextSops, nextCategories] = await Promise.all([
-          loadSops(supabase),
+        const [activePage, archivedPage, nextCategories] = await Promise.all([
+          loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: 20, search: sopSearch }),
+          loadSopPage(supabase, { archived: true, limit: 20 }),
           loadSopCategories(supabase),
         ]);
-        sopsRef.current = nextSops;
-        setSops(nextSops);
+        sopsRef.current = activePage.items;
+        setSops(activePage.items);
+        setSopTotal(activePage.total);
+        setArchivedSops(archivedPage.items);
+        setArchivedSopTotal(archivedPage.total);
         setSopCategories(nextCategories);
       }
       setStatus('ready');
@@ -143,8 +153,26 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       setStatus('error');
       setMessage(error instanceof Error ? error.message : `加载${section === 'notices' ? '公告' : ' SOP'}失败。`);
     }
-  }, [section]);
+  }, [section, sopCategoryFilter, sopSearch]);
   useEffect(() => { void refresh(); }, [refresh]);
+  const loadMoreSops = useCallback(async () => {
+    if (!supabase || section !== 'sops' || loadingMoreSops || sopsRef.current.length >= sopTotal) return;
+    setLoadingMoreSops(true);
+    try {
+      const page = await loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: 20, offset: sopsRef.current.length, search: sopSearch });
+      const next = [...sopsRef.current, ...page.items.filter((entry) => !sopsRef.current.some((current) => current.id === entry.id))];
+      updateSops(next);
+      setSopTotal(page.total);
+    } catch { setMessage('加载更多 SOP 失败，请稍后重试。'); }
+    finally { setLoadingMoreSops(false); }
+  }, [loadingMoreSops, section, sopCategoryFilter, sopSearch, sopTotal]);
+  useEffect(() => {
+    const target = sopLoadMoreRef.current;
+    if (!target || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => { if (entries[0]?.isIntersecting) void loadMoreSops(); }, { rootMargin: '500px 0px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [loadMoreSops]);
   useEffect(() => {
     if (section === 'sops' && status === 'ready' && sopCategoryFilter !== 'all' && !sopCategories.some((category) => category.name === sopCategoryFilter)) {
       setSopCategoryFilter('all');
@@ -463,7 +491,6 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   };
 
   const activeSops = sops.filter((sop) => sop.status !== 'archived');
-  const archivedSops = sops.filter((sop) => sop.status === 'archived');
   const activeNotices = notices.filter((notice) => notice.status !== 'archived');
   const archivedNotices = notices.filter((notice) => notice.status === 'archived');
   const normalizedSopSearch = sopSearch.trim().toLocaleLowerCase('zh-CN');
@@ -503,7 +530,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         <button className="ui-button-primary px-1 text-sm" onClick={() => { setMessage(null); setNoticeDraft(null); setSopDraft(createEmptySopDraft(defaultStores)); }} type="button"><Plus className="h-4 w-4" />新建 SOP</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopBatchOperations(true); }} type="button"><ListChecks className="h-4 w-4" />批量操作</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopCategoryManager(true); }} type="button"><FolderPlus className="h-4 w-4" />分类管理</button>
-        <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopArchiveManager(true); }} type="button"><Archive className="h-4 w-4" />已归档（{archivedSops.length}）</button>
+        <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopArchiveManager(true); }} type="button"><Archive className="h-4 w-4" />已归档（{archivedSopTotal}）</button>
         <button className={sopExportMode ? 'ui-button-primary col-span-2 px-1 text-sm' : 'ui-button-secondary col-span-2 px-1 text-sm'} onClick={() => { setMessage(null); setSopBatchAction(null); setSopExportMode((current) => !current); setSelectedSopIds([]); }} type="button"><Download className="h-4 w-4" />{sopExportMode ? '退出导出选择' : '导出 SOP'}</button>
       </div>
       <section className="ui-card space-y-2.5 p-3">
@@ -534,7 +561,18 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       {visibleSops.length === 0 ? <p className="ui-card p-6 text-center text-sm text-slate-500">{normalizedSopSearch ? '没有符合检索条件的 SOP。' : '当前分类暂无 SOP。'}</p> : null}
       {visibleSops.map((sop) => {
         const preview = getSopPreviewAsset(sop);
-        const edit = () => { setMessage(null); setSopDraft({ body: sop.body, category: sop.category, effectiveAt: sop.effective_at?.slice(0, 16) ?? '', id: sop.id, roles: sop.roles, storeIds: sop.storeIds, taskTemplateId: sop.taskTemplateId, title: sop.title }); };
+        const edit = async () => {
+          setMessage(null);
+          if (!supabase) return;
+          setBusy(true);
+          try {
+            const detail = await loadSopDetail(supabase, sop.id);
+            if (!detail) throw new Error('找不到该 SOP。');
+            updateSops(sopsRef.current.map((entry) => entry.id === detail.id ? detail : entry));
+            setSopDraft({ body: detail.body, category: detail.category, effectiveAt: detail.effective_at?.slice(0, 16) ?? '', id: detail.id, roles: detail.roles, storeIds: detail.storeIds, taskTemplateId: detail.taskTemplateId, title: detail.title });
+          } catch (error) { setMessage(error instanceof Error ? error.message : 'SOP 详情加载失败。'); }
+          finally { setBusy(false); }
+        };
         const openPreview = () => navigate(`/app/sops/${sop.id}`);
         const batchEligible = !sopBatchAction || sop.status === sopBatchLifecycleCopy[sopBatchAction].eligibleStatus;
         const toggleSelectedSop = () => { if (batchEligible) setSelectedSopIds((current) => current.includes(sop.id) ? current.filter((id) => id !== sop.id) : [...current, sop.id]); };
@@ -550,12 +588,13 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
             </div>
           </div>
           {!sopSelectionMode ? <div className="mt-3 grid grid-cols-3 gap-2">
-            <button className="ui-button-secondary min-h-10 px-2 text-sm" disabled={busy} onClick={edit} type="button">编辑</button>
+            <button className="ui-button-secondary min-h-10 px-2 text-sm" disabled={busy} onClick={() => void edit()} type="button">编辑</button>
             {sop.status === 'draft' ? <button className="ui-button-primary min-h-10 px-2 text-sm" disabled={busy} onClick={() => navigate(`/app/sops/${sop.id}`)} type="button"><Rocket className="h-4 w-4" />发布</button> : <button className="ui-button-secondary min-h-10 px-1 text-sm text-amber-800" disabled={busy} onClick={() => { if (window.confirm(`确定撤销发布 SOP“${sop.title}”吗？撤销后员工将无法查看，并恢复为待发布草稿。`)) void run(() => retractSop(supabase!, sop.id), 'SOP 已撤销发布并恢复为待发布草稿。'); }} type="button"><Undo2 className="h-4 w-4" />撤销发布</button>}
             <button className={`min-h-10 rounded-lg border px-2 text-sm font-bold ${sop.status === 'published' ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 bg-white text-slate-700'}`} disabled={busy || sop.status === 'published'} onClick={() => { if (window.confirm(`确定归档 SOP“${sop.title}”吗？归档后请到“已归档”中管理。`)) void run(() => archiveSop(supabase!, sop.id), 'SOP 已归档。'); }} type="button"><span className="inline-flex items-center justify-center gap-1"><Archive className="h-4 w-4" />归档</span></button>
           </div> : null}
         </article>;
       })}
+      {sops.length < sopTotal ? <><div className="h-px" ref={sopLoadMoreRef} /><button className="ui-button-secondary w-full" disabled={loadingMoreSops} onClick={() => void loadMoreSops()} type="button">{loadingMoreSops ? '正在预加载更多 SOP' : `加载更多（已显示 ${sops.length}/${sopTotal}）`}</button></> : null}
     </section> : null}
     {noticeDraft ? <NoticeEditor busy={busy} draft={noticeDraft} onCancel={() => setNoticeDraft(null)} onChange={setNoticeDraft} onPublish={() => void saveNoticeDraft(true)} onSave={() => void saveNoticeDraft()} onUpload={uploadNotice} recipients={recipientProfiles} stores={auth.availableStores} /> : null}
     {sopDraft ? <SopEditor busy={busy} categories={sopCategories.map((entry) => entry.name)} draft={sopDraft} errorMessage={message} existingAssets={sops.find((sop) => sop.id === sopDraft.id)?.assetUrls ?? []} onCancel={() => updateSopDraft(null)} onChange={updateSopDraft} onDeleteAsset={removeSopAsset} onPublish={saveAndPreviewSop} onReorderImages={reorderSopImages} onReplaceImage={replaceSopImage} onSave={saveSopDraft} onUploadCover={uploadSopCover} onUploadImage={uploadSopImage} status={sops.find((sop) => sop.id === sopDraft.id)?.status ?? 'new'} /> : null}

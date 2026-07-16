@@ -48,6 +48,7 @@ export interface AttendanceDay {
   punches: AttendancePunch[];
   enterpriseCount?: number;
   hasScheduleConflict?: boolean;
+  hasFieldwork?: boolean;
   sources?: AttendanceDaySource[];
 }
 

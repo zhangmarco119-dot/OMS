@@ -10,7 +10,7 @@ import { SectionCard } from '../components/ui/Surface';
 import { currentMonth } from '../features/attendance/model';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
-import { bindAttendanceEmployee, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceSyncJobs, removeAttendanceEnterpriseMapping, saveAttendanceEnterpriseMapping, unbindAttendanceEmployee, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceSyncJob } from '../services/attendance.service';
+import { bindAttendanceEmployee, configureAttendanceAutomation, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceSyncJobs, removeAttendanceEnterpriseMapping, saveAttendanceEnterpriseMapping, unbindAttendanceEmployee, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceSyncJob } from '../services/attendance.service';
 
 type Tab = 'overview' | 'enterprises' | 'bindings' | 'logs';
 
@@ -31,6 +31,8 @@ export function AdminAttendancePage() {
 function AttendanceOverview() {
   const auth = useAuth();
   const [month, setMonth] = useState(currentMonth());
+  const [historyStart, setHistoryStart] = useState(`${new Date().getFullYear() - 1}-01`);
+  const [historyEnd, setHistoryEnd] = useState(currentMonth());
   const [storeId, setStoreId] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -39,6 +41,7 @@ function AttendanceOverview() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [syncing, setSyncing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [automationReady, setAutomationReady] = useState(false);
   const [feedback, setFeedback] = useState<{ title: string; message: string; tone: ActionFeedbackTone } | null>(null);
   const load = useCallback(async () => {
     if (!supabase) { setStatus('error'); return; }
@@ -47,6 +50,10 @@ function AttendanceOverview() {
     catch { setStatus('error'); }
   }, [month, search, statusFilter, storeId]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
+  useEffect(() => {
+    if (!supabase) return;
+    void configureAttendanceAutomation(supabase).then(() => setAutomationReady(true)).catch(() => setAutomationReady(false));
+  }, []);
   const sync = async () => {
     if (!supabase) return;
     setSyncing(true);
@@ -55,6 +62,19 @@ function AttendanceOverview() {
       setFeedback({ title: response?.status === 'partial' ? '同步部分完成' : '同步完成', message: response?.message ?? '考勤数据已同步。', tone: response?.status === 'partial' ? 'warning' : 'success' });
       await load();
     } catch (error) { setFeedback({ title: '同步未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'warning' }); }
+    finally { setSyncing(false); }
+  };
+  const syncHistory = async () => {
+    if (!supabase) return;
+    if (!historyStart || !historyEnd || historyStart > historyEnd) {
+      setFeedback({ title: '请选择正确的时间段', message: '开始月份不能晚于结束月份。', tone: 'warning' });
+      return;
+    }
+    setSyncing(true);
+    try {
+      const response = await invokeAttendanceSync(supabase, { action: 'enqueue-history-sync', startMonth: historyStart, endMonth: historyEnd, ...(storeId ? { storeId } : {}) });
+      setFeedback({ title: '历史同步已进入队列', message: response?.message ?? '后台将按月份依次同步，不需要停留在本页面。', tone: 'success' });
+    } catch (error) { setFeedback({ title: '历史同步未建立', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'warning' }); }
     finally { setSyncing(false); }
   };
   const loadMore = async () => {
@@ -72,6 +92,13 @@ function AttendanceOverview() {
       <label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => setSearch(event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label>
       <div className="mt-2 grid grid-cols-5 gap-1">{[['all', '全部'], ['normal', '正常'], ['late', '迟到'], ['missing', '缺卡'], ['abnormal', '异常']] .map(([value, label]) => <button className={`min-h-9 rounded-md text-xs font-bold ${statusFilter === value ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-600'}`} key={value} onClick={() => setStatusFilter(value)} type="button">{label}</button>)}</div>
       <button className="ui-button-primary mt-3 w-full" disabled={syncing} onClick={() => void sync()} type="button"><RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />{syncing ? '正在同步' : `同步${month}考勤`}</button>
+      <details className="mt-3 rounded-lg border border-slate-200 p-3">
+        <summary className="cursor-pointer text-sm font-bold text-brand-700">同步全部时间段</summary>
+        <p className="mt-2 text-xs leading-5 text-slate-500">可选择任意开始和结束月份。系统会按月排队在后台同步，避免钉钉单次范围限制。</p>
+        <div className="mt-2 grid grid-cols-2 gap-2"><label className="text-xs font-semibold text-slate-600">开始月份<input className="ui-input mt-1" max={historyEnd} onChange={(event) => setHistoryStart(event.target.value)} type="month" value={historyStart} /></label><label className="text-xs font-semibold text-slate-600">结束月份<input className="ui-input mt-1" max={currentMonth()} min={historyStart} onChange={(event) => setHistoryEnd(event.target.value)} type="month" value={historyEnd} /></label></div>
+        <button className="ui-button-secondary mt-2 w-full" disabled={syncing} onClick={() => void syncHistory()} type="button">建立时间段同步队列</button>
+      </details>
+      <p className={`mt-2 text-xs ${automationReady ? 'text-emerald-700' : 'text-amber-700'}`}>{automationReady ? '每小时自动同步已启用；历史队列每 10 分钟处理一个月份。' : '正在确认每小时自动同步设置。'}</p>
     </SectionCard>
     {status === 'loading' ? <LoadingState label="正在汇总员工考勤" /> : null}
     {status === 'error' ? <ErrorState message="暂时无法加载门店考勤汇总。" onRetry={() => void load()} /> : null}

@@ -18,11 +18,20 @@ describe('AttendanceMonthView', () => {
     expect(screen.getByText('12', { selector: 'p' })).toBeInTheDocument();
     expect(screen.getByText('实际 09:12')).toBeInTheDocument();
     expect(screen.getByText('非常长的门店早班名称用于验证小屏展示')).toBeInTheDocument();
-    expect(screen.getByText('同一天在多个钉钉企业中都有排班，请确认是否存在重复排班。')).toBeInTheDocument();
+    expect(screen.getByText('异常：同一天在两个门店都有有效排班，请管理员核对。')).toBeInTheDocument();
     expect(screen.getByText('查看 2 个企业的考勤来源')).toBeInTheDocument();
     expect(screen.getAllByText('查看打卡（0 次）')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: '迟到与异常' }));
     expect(screen.queryByText('2026-07-14')).not.toBeInTheDocument();
     expect(screen.getByText('迟到 12 分钟')).toBeInTheDocument();
+  });
+
+  it('identifies the missing punch and shows a fieldwork badge', () => {
+    render(<AttendanceMonthView detail={{
+      summary: { attendanceDates: ['2026-07-16'], attendanceDays: 1, lateCount: 0, lateMinutes: 0, missingCount: 1, abnormalCount: 0, lastSyncedAt: null },
+      days: [{ ...detail.days[0], id: 'fieldwork-missing', date: '2026-07-16', hasFieldwork: true, hasScheduleConflict: false, missingPunch: 'off', status: 'missing' }],
+    }} />);
+    expect(screen.getByText('外勤打卡')).toBeInTheDocument();
+    expect(screen.getByText('缺下班卡')).toBeInTheDocument();
   });
 });

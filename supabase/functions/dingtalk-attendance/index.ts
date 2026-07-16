@@ -8,7 +8,8 @@ import { summarizeAttendanceSync } from './sync-result.ts';
 type AttendanceAction =
   | { action: 'refresh-directory'; rootDepartmentIds?: string[] }
   | { action: 'sync'; month?: string; profileId?: string; storeId?: string }
-  | { action: 'scheduled-sync'; mode?: 'daily' | 'month-start' }
+  | { action: 'enqueue-history-sync'; startMonth: string; endMonth: string; storeId?: string }
+  | { action: 'scheduled-sync'; mode?: 'hourly' | 'history-queue' | 'daily' | 'month-start' }
   | { action: 'retry-job'; jobId: string };
 
 const corsHeaders = {
@@ -35,6 +36,18 @@ const unique = <T>(items: T[]) => [...new Set(items)];
 const datePart = (date: Date, timezone: string) => new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 const shiftDate = (date: string, days: number) => new Date(new Date(`${date}T12:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 const monthEnd = (month: string) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+const monthsBetween = (start: string, end: string) => {
+  const result: string[] = [];
+  let year = Number(start.slice(0, 4));
+  let month = Number(start.slice(5, 7));
+  const last = Number(end.slice(0, 4)) * 12 + Number(end.slice(5, 7));
+  while (year * 12 + month <= last) {
+    result.push(`${year}-${String(month).padStart(2, '0')}`);
+    month += 1;
+    if (month > 12) { month = 1; year += 1; }
+  }
+  return result;
+};
 
 const publicError = (error: unknown) => {
   if (error instanceof DingTalkApiError) {
@@ -66,12 +79,19 @@ Deno.serve(async (request) => {
   let allowedStoreIds: string[] = [];
 
   if (isScheduled) {
-    if (!cronSecret || suppliedCronSecret.length !== cronSecret.length) return json({ error: 'Scheduled sync authentication failed' }, 401);
-    const left = new TextEncoder().encode(suppliedCronSecret);
-    const right = new TextEncoder().encode(cronSecret);
-    let difference = 0;
-    left.forEach((value, index) => { difference |= value ^ right[index]; });
-    if (difference !== 0) return json({ error: 'Scheduled sync authentication failed' }, 401);
+    let authenticated = false;
+    if (cronSecret && suppliedCronSecret.length === cronSecret.length) {
+      const left = new TextEncoder().encode(suppliedCronSecret);
+      const right = new TextEncoder().encode(cronSecret);
+      let difference = 0;
+      left.forEach((value, index) => { difference |= value ^ right[index]; });
+      authenticated = difference === 0;
+    }
+    if (!authenticated && suppliedCronSecret) {
+      const verification = await adminClient.rpc('verify_attendance_cron_token', { p_token: suppliedCronSecret });
+      authenticated = verification.error === null && verification.data === true;
+    }
+    if (!authenticated) return json({ error: 'Scheduled sync authentication failed' }, 401);
   } else {
     const authorization = request.headers.get('Authorization');
     if (!authorization) return json({ error: '请先登录。' }, 401);
@@ -95,6 +115,33 @@ Deno.serve(async (request) => {
   const clientByCorp = new Map(enterpriseConfigs.map((config) => [config.corpId, new DingTalkClient(config)]));
   const configByCorp = new Map(enterpriseConfigs.map((config) => [config.corpId, config]));
   const jobCorpId = enterpriseConfigs.length === 1 ? enterpriseConfigs[0].corpId : 'multi-enterprise';
+
+  if (payload.action === 'enqueue-history-sync') {
+    if (!monthPattern.test(payload.startMonth) || !monthPattern.test(payload.endMonth) || payload.startMonth > payload.endMonth) {
+      return json({ error: '请选择正确的开始月份和结束月份。' }, 400);
+    }
+    if (payload.storeId && (!uuidPattern.test(payload.storeId) || !allowedStoreIds.includes(payload.storeId))) {
+      return json({ error: '当前管理员无权同步该门店。' }, 403);
+    }
+    const months = monthsBetween(payload.startMonth, payload.endMonth);
+    if (months.length > 120) return json({ error: '单次最多可建立 120 个月的历史同步任务。' }, 400);
+    const rows = months.map((month) => ({
+      corp_id: jobCorpId,
+      sync_type: 'history_month' as const,
+      scope_type: payload.storeId ? 'store' as const : 'organization' as const,
+      month_start: `${month}-01`,
+      range_start: `${month}-01`,
+      range_end: month === datePart(new Date(), timezone).slice(0, 7) ? datePart(new Date(), timezone) : monthEnd(month),
+      store_id: payload.storeId ?? null,
+      trigger_type: 'manual' as const,
+      initiated_by: actorId,
+      status: 'queued' as const,
+      progress_cursor: { queuedByRange: true },
+    }));
+    const { data: queued, error } = await adminClient.from('attendance_sync_jobs').insert(rows).select('id');
+    if (error) return json({ error: '无法建立历史考勤同步队列。' }, 500);
+    return json({ status: 'queued', queuedCount: queued?.length ?? 0, message: `已建立 ${queued?.length ?? 0} 个月的同步队列，后台将按月份自动处理。` });
+  }
 
   if (payload.action === 'refresh-directory') {
     const { data: job, error: jobError } = await adminClient.from('attendance_sync_jobs').insert({
@@ -139,10 +186,11 @@ Deno.serve(async (request) => {
 
   let startDate: string;
   let endDate: string;
-  let syncType: 'current_month' | 'month' | 'date_range' | 'employee';
+  let syncType: 'current_month' | 'month' | 'date_range' | 'employee' | 'history_month';
   const triggerType: 'manual' | 'scheduled' | 'retry' = isScheduled ? 'scheduled' : payload.action === 'retry-job' ? 'retry' : 'manual';
   let requestedStoreId: string | null = null;
   let requestedProfileId: string | null = null;
+  let claimedHistoryJob: Record<string, unknown> | null = null;
   const today = datePart(new Date(), timezone);
 
   if (payload.action === 'retry-job') {
@@ -161,11 +209,23 @@ Deno.serve(async (request) => {
     startDate = `${month}-01`; endDate = month === today.slice(0, 7) ? today : monthEnd(month);
     syncType = requestedProfileId ? 'employee' : month === today.slice(0, 7) ? 'current_month' : 'month';
   } else if (payload.action === 'scheduled-sync') {
+    if (payload.mode === 'history-queue') {
+      const claimed = await adminClient.rpc('claim_attendance_history_sync_job');
+      if (claimed.error) return json({ error: '无法读取历史同步队列。' }, 500);
+      if (!claimed.data) return json({ status: 'skipped', message: '历史同步队列当前为空。' });
+      claimedHistoryJob = claimed.data as Record<string, unknown>;
+      startDate = String(claimedHistoryJob.range_start);
+      endDate = String(claimedHistoryJob.range_end);
+      requestedStoreId = claimedHistoryJob.store_id ? String(claimedHistoryJob.store_id) : null;
+      requestedProfileId = claimedHistoryJob.profile_id ? String(claimedHistoryJob.profile_id) : null;
+      syncType = 'history_month';
+    } else {
     if (payload.mode === 'month-start' && today.slice(8, 10) !== '01') {
       return json({ status: 'skipped', message: '当前企业日期不是每月 1 日，月初回补任务已安全跳过。' });
     }
     startDate = payload.mode === 'month-start' ? shiftDate(today.slice(0, 7) + '-01', -5) : shiftDate(today, -6);
     endDate = today; syncType = 'date_range';
+    }
   } else {
     return json({ error: '未知考勤操作。' }, 400);
   }
@@ -188,13 +248,17 @@ Deno.serve(async (request) => {
     return [{ corpId: binding.corp_id, dingtalkUserId: binding.dingtalk_user_id, profileId: binding.profile_id, storeId: binding.store_id }];
   });
 
-  const { data: job, error: jobError } = await adminClient.from('attendance_sync_jobs').insert({
-    corp_id: jobCorpId, sync_type: syncType, scope_type: requestedProfileId ? 'employee' : requestedStoreId ? 'store' : 'organization',
-    month_start: `${startDate.slice(0, 7)}-01`, range_start: startDate, range_end: endDate,
-    store_id: requestedStoreId, profile_id: requestedProfileId, trigger_type: triggerType, initiated_by: actorId,
-    status: 'running', started_at: new Date().toISOString(), progress_cursor: { totalEmployees: bindings.length, completedEmployees: 0 },
-  }).select('id').single();
-  if (jobError || !job) return json({ error: '无法创建考勤同步任务。' }, 500);
+  const createdJob = claimedHistoryJob
+    ? { data: { id: String(claimedHistoryJob.id) }, error: null }
+    : await adminClient.from('attendance_sync_jobs').insert({
+      corp_id: jobCorpId, sync_type: syncType, scope_type: requestedProfileId ? 'employee' : requestedStoreId ? 'store' : 'organization',
+      month_start: `${startDate.slice(0, 7)}-01`, range_start: startDate, range_end: endDate,
+      store_id: requestedStoreId, profile_id: requestedProfileId, trigger_type: triggerType, initiated_by: actorId,
+      status: 'running', started_at: new Date().toISOString(), progress_cursor: { totalEmployees: bindings.length, completedEmployees: 0 },
+    }).select('id').single();
+  const job = createdJob.data;
+  if (createdJob.error || !job) return json({ error: '无法创建考勤同步任务。' }, 500);
+  if (claimedHistoryJob) await adminClient.from('attendance_sync_jobs').update({ progress_cursor: { totalEmployees: bindings.length, completedEmployees: 0 } }).eq('id', job.id);
   if (actorId) await adminClient.from('attendance_audit_logs').insert({ actor_id: actorId, action: triggerType === 'retry' ? 'sync_retried' : 'sync_requested', entity_type: 'sync_job', entity_id: job.id, store_id: requestedStoreId, metadata: { startDate, endDate, employeeCount: bindings.length } });
 
   let successCount = 0; let failureCount = 0; let insertedCount = 0; let updatedCount = 0; let skippedCount = 0;

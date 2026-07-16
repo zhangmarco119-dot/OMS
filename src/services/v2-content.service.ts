@@ -30,7 +30,9 @@ export interface SopListItem extends SopRow {
   taskTemplateId: string | null;
 }
 
-export type SopLibraryEntry = Pick<SopRow, 'category' | 'effective_at' | 'id' | 'status' | 'title' | 'version'> & { previewUrl: string | null };
+export type SopLibraryEntry = Pick<SopRow, 'category' | 'effective_at' | 'id' | 'status' | 'title' | 'version'> & { isFavorite: boolean; previewUrl: string | null };
+export interface SopPage { items: SopListItem[]; total: number }
+export interface SopLibraryPage { items: SopLibraryEntry[]; total: number }
 
 export interface NoticeDraft {
   body: string;
@@ -184,6 +186,48 @@ export const loadSops = async (client: Client): Promise<SopListItem[]> => {
   })));
 };
 
+const escapePostgrestSearch = (value: string) => value.replace(/[,%()]/g, ' ').trim();
+
+export const loadSopPage = async (client: Client, options: { archived?: boolean; category?: string; limit?: number; offset?: number; search?: string } = {}): Promise<SopPage> => {
+  const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+  const offset = Math.max(options.offset ?? 0, 0);
+  let query = client.from('v2_sops').select('*', { count: 'exact' })
+    .order('updated_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  query = options.archived ? query.eq('status', 'archived') : query.neq('status', 'archived');
+  if (options.category && options.category !== 'all') query = query.eq('category', options.category);
+  const search = escapePostgrestSearch(options.search ?? '');
+  if (search) query = query.or(`title.ilike.%${search}%,category.ilike.%${search}%,body.ilike.%${search}%`);
+  const sops = await query;
+  throwIfError(sops.error);
+  if (!sops.data?.length) return { items: [], total: sops.count ?? 0 };
+  const ids = sops.data.map((sop) => sop.id);
+  const [assignments, roles, assets] = await Promise.all([
+    client.from('v2_sop_stores').select('*').in('sop_id', ids),
+    client.from('v2_sop_roles').select('*').in('sop_id', ids),
+    client.from('v2_sop_assets').select('*').in('sop_id', ids).order('sort_order').order('created_at'),
+  ]);
+  throwIfError(assignments.error); throwIfError(roles.error); throwIfError(assets.error);
+  const items = await Promise.all(sops.data.map(async (sop): Promise<SopListItem> => {
+    const sopAssets = (assets.data ?? []).filter((asset) => asset.sop_id === sop.id);
+    const preview = selectSopPreviewAsset(sopAssets);
+    let previewUrl: string | null = null;
+    if (preview?.object_path) {
+      const signed = await client.storage.from('v2-sop-assets').createSignedUrl(preview.object_path, 3600);
+      throwIfError(signed.error);
+      previewUrl = signed.data?.signedUrl ?? null;
+    }
+    return {
+      ...sop,
+      assetUrls: sopAssets.map((asset) => ({ ...asset, signedUrl: asset.id === preview?.id ? previewUrl : null })),
+      roles: (roles.data ?? []).filter((entry) => entry.sop_id === sop.id).map((entry) => entry.role),
+      storeIds: (assignments.data ?? []).filter((entry) => entry.sop_id === sop.id).map((entry) => entry.store_id),
+      taskTemplateId: sop.task_template_id,
+    };
+  }));
+  return { items, total: sops.count ?? items.length };
+};
+
 export const archiveNotice = async (client: Client, noticeId: string) => {
   const { data, error } = await client.rpc('archive_v2_notice', { p_notice_id: noticeId });
   throwIfError(error);
@@ -201,12 +245,53 @@ export const loadSopLibraryEntries = async (client: Client): Promise<SopLibraryE
   return Promise.all(sops.data.map(async (sop) => {
     const candidates = bySop.get(sop.id) ?? [];
     const preview = selectSopPreviewAsset(candidates);
-    if (!preview) return { ...sop, previewUrl: null };
-    if (!preview.object_path) return { ...sop, previewUrl: null };
+    if (!preview) return { ...sop, isFavorite: false, previewUrl: null };
+    if (!preview.object_path) return { ...sop, isFavorite: false, previewUrl: null };
     const signed = await client.storage.from('v2-sop-assets').createSignedUrl(preview.object_path, 3600);
     throwIfError(signed.error);
-    return { ...sop, previewUrl: signed.data?.signedUrl ?? null };
+    return { ...sop, isFavorite: false, previewUrl: signed.data?.signedUrl ?? null };
   }));
+};
+
+export const loadSopLibraryPage = async (client: Client, options: { category?: string; favoritesOnly?: boolean; limit?: number; offset?: number; search?: string } = {}): Promise<SopLibraryPage> => {
+  const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+  const offset = Math.max(options.offset ?? 0, 0);
+  const user = await client.auth.getUser();
+  const profileId = user.data.user?.id;
+  if (!profileId) throw new Error('登录状态已失效，请重新登录。');
+  const favorites = await client.from('v2_sop_favorites').select('sop_id').eq('profile_id', profileId);
+  throwIfError(favorites.error);
+  const favoriteIds = new Set((favorites.data ?? []).map((entry) => entry.sop_id));
+  if (options.favoritesOnly && favoriteIds.size === 0) return { items: [], total: 0 };
+  let query = client.from('v2_sops').select('id,title,category,status,effective_at,version', { count: 'exact' })
+    .eq('status', 'published').order('category').order('title').range(offset, offset + limit - 1);
+  if (options.category && options.category !== 'all') query = query.eq('category', options.category);
+  const search = escapePostgrestSearch(options.search ?? '');
+  if (search) query = query.or(`title.ilike.%${search}%,category.ilike.%${search}%`);
+  if (options.favoritesOnly) query = query.in('id', [...favoriteIds]);
+  const sops = await query;
+  throwIfError(sops.error);
+  if (!sops.data?.length) return { items: [], total: sops.count ?? 0 };
+  const assets = await client.from('v2_sop_assets').select('*').in('sop_id', sops.data.map((sop) => sop.id)).in('asset_kind', ['cover', 'step']).order('sort_order').order('created_at');
+  throwIfError(assets.error);
+  const items = await Promise.all(sops.data.map(async (sop): Promise<SopLibraryEntry> => {
+    const preview = selectSopPreviewAsset((assets.data ?? []).filter((asset) => asset.sop_id === sop.id));
+    if (!preview?.object_path) return { ...sop, isFavorite: favoriteIds.has(sop.id), previewUrl: null };
+    const signed = await client.storage.from('v2-sop-assets').createSignedUrl(preview.object_path, 3600);
+    throwIfError(signed.error);
+    return { ...sop, isFavorite: favoriteIds.has(sop.id), previewUrl: signed.data?.signedUrl ?? null };
+  }));
+  return { items, total: sops.count ?? items.length };
+};
+
+export const setSopFavorite = async (client: Client, sopId: string, favorite: boolean) => {
+  const user = await client.auth.getUser();
+  const profileId = user.data.user?.id;
+  if (!profileId) throw new Error('登录状态已失效，请重新登录。');
+  const result = favorite
+    ? await client.from('v2_sop_favorites').insert({ profile_id: profileId, sop_id: sopId })
+    : await client.from('v2_sop_favorites').delete().eq('profile_id', profileId).eq('sop_id', sopId);
+  throwIfError(result.error);
 };
 
 export const loadSopDetail = async (client: Client, sopId: string): Promise<SopListItem | null> => {

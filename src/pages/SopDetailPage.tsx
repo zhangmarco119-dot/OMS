@@ -7,9 +7,11 @@ import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialo
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
+import { SopProgressiveImage } from '../features/content/SopProgressiveImage';
+import { loadSopImageUrl } from '../features/content/sopImageDelivery';
 import { supabase } from '../lib/supabase';
 import { loadTaskTemplates, type TaskTemplateListItem } from '../services/task-templates.service';
-import { loadSopDetail, publishSop, saveSop, type SopListItem } from '../services/v2-content.service';
+import { loadSopDetail, publishSop, saveSop, type SopAssetRow, type SopListItem } from '../services/v2-content.service';
 
 type PublishSettings = {
   effectiveAt: string;
@@ -25,13 +27,29 @@ const toLocalDateTimeInput = (value: string | null) => {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
 
+function SopAttachmentLink({ asset }: { asset: SopAssetRow & { signedUrl: string | null } }) {
+  const [url, setUrl] = useState(asset.signedUrl);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (url || !asset.object_path || !supabase) return;
+    let active = true;
+    void loadSopImageUrl(supabase, asset.object_path, 'original')
+      .then((nextUrl) => { if (active) setUrl(nextUrl); })
+      .catch(() => { if (active) setFailed(true); });
+    return () => { active = false; };
+  }, [asset.object_path, url]);
+  if (failed) return <span className="ui-button-secondary opacity-60">附件加载失败</span>;
+  if (!url) return <span className="ui-button-secondary animate-pulse opacity-60">正在准备附件</span>;
+  return <a className="ui-button-secondary" href={url} rel="noreferrer" target="_blank"><ExternalLink className="h-4 w-4" />{asset.file_name}</a>;
+}
+
 export function SopDetailPage() {
   const auth = useAuth();
   const { sopId } = useParams();
   const [sop, setSop] = useState<SopListItem | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
-  const [activeImage, setActiveImage] = useState<{ alt: string; url: string } | null>(null);
+  const [activeImage, setActiveImage] = useState<{ alt: string; objectPath: string | null; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
@@ -43,7 +61,7 @@ export function SopDetailPage() {
     const generation = ++loadGenerationRef.current;
     setStatus('loading');
     try {
-      const loaded = await loadSopDetail(supabase, sopId);
+      const loaded = await loadSopDetail(supabase, sopId, { cacheMetadata: true, signAssets: false });
       if (generation !== loadGenerationRef.current) return;
       const found = loaded && (loaded.status === 'published' || auth.profile?.role === 'admin') ? loaded : null;
       setSop(found);
@@ -77,6 +95,15 @@ export function SopDetailPage() {
   }, [auth.profile?.role, sopId]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => () => { loadGenerationRef.current += 1; }, []);
+  useEffect(() => {
+    if (!activeImage?.objectPath || !supabase) return;
+    const objectPath = activeImage.objectPath;
+    let active = true;
+    void loadSopImageUrl(supabase, objectPath, 'original')
+      .then((url) => { if (active) setActiveImage((current) => current?.objectPath === objectPath ? { ...current, url } : current); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [activeImage?.objectPath]);
 
   const steps = sop?.assetUrls.filter((asset) => asset.asset_kind === 'step').sort((left, right) => left.sort_order - right.sort_order) ?? [];
   const documents = sop?.assetUrls.filter((asset) => asset.asset_kind === 'attachment') ?? [];
@@ -121,8 +148,8 @@ export function SopDetailPage() {
     {status === 'ready' && !sop ? <EmptyState description="该 SOP 可能尚未发布、已归档，或不适用于当前门店。" icon={BookOpenCheck} title="无法查看 SOP" /> : null}
     {sop ? <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {sop.body ? <section className="border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-900">整体说明</h2><p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{sop.body}</p></section> : null}
-      {steps.length ? <div className="grid grid-cols-2 gap-px bg-slate-200" data-testid="sop-detail-step-grid">{steps.map((asset, index) => <section className="min-w-0 bg-white" key={asset.id}><div className="bg-slate-50 px-2 py-1.5 text-xs font-bold text-brand-700">步骤 {index + 1}</div>{asset.step_text ? <p className="min-h-12 whitespace-pre-wrap px-2 py-2 text-xs leading-5 text-slate-800 sm:text-sm">{asset.step_text}</p> : null}{asset.signedUrl ? <button aria-label={`放大查看步骤 ${index + 1} 图片`} className="block w-full bg-white" onClick={() => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: asset.signedUrl! })} type="button"><img alt={`${sop.title} 步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-contain" decoding="async" loading={index < 4 ? 'eager' : 'lazy'} src={asset.signedUrl} /></button> : null}</section>)}</div> : <section className="p-5"><p className="text-sm text-slate-500">该 SOP 暂无制作步骤。</p></section>}
-      {documents.length ? <section className="border-t border-slate-100 p-4"><h2 className="text-sm font-bold">附件</h2><div className="mt-2 flex flex-wrap gap-2">{documents.map((asset) => asset.signedUrl ? <a className="ui-button-secondary" href={asset.signedUrl} key={asset.id} rel="noreferrer" target="_blank"><ExternalLink className="h-4 w-4" />{asset.file_name}</a> : null)}</div></section> : null}
+      {steps.length ? <div className="grid grid-cols-2 gap-px bg-slate-200" data-testid="sop-detail-step-grid">{steps.map((asset, index) => <section className="min-w-0 bg-white" key={asset.id}><div className="bg-slate-50 px-2 py-1.5 text-xs font-bold text-brand-700">步骤 {index + 1}</div>{asset.step_text ? <p className="min-h-12 whitespace-pre-wrap px-2 py-2 text-xs leading-5 text-slate-800 sm:text-sm">{asset.step_text}</p> : null}{asset.object_path && supabase ? <SopProgressiveImage alt={`${sop.title} 步骤 ${index + 1}`} client={supabase} containerClassName="aspect-[4/3] w-full" eager={index < 4} imageClassName="h-full w-full object-contain" initialUrl={asset.signedUrl} objectPath={asset.object_path} onActivate={(url) => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, objectPath: asset.object_path!, url })} variant="detail" /> : asset.signedUrl ? <button aria-label={`放大查看步骤 ${index + 1} 图片`} className="block w-full bg-white" onClick={() => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, objectPath: null, url: asset.signedUrl! })} type="button"><img alt={`${sop.title} 步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-contain" decoding="async" loading={index < 4 ? 'eager' : 'lazy'} src={asset.signedUrl} /></button> : null}</section>)}</div> : <section className="p-5"><p className="text-sm text-slate-500">该 SOP 暂无制作步骤。</p></section>}
+      {documents.length ? <section className="border-t border-slate-100 p-4"><h2 className="text-sm font-bold">附件</h2><div className="mt-2 flex flex-wrap gap-2">{documents.map((asset) => <SopAttachmentLink asset={asset} key={asset.id} />)}</div></section> : null}
     </article> : null}
     {canPublish ? <section className="ui-card space-y-4 p-4" id="sop-publish-settings">
       <div><p className="text-xs font-bold text-brand-700">发布前最后一步</p><h2 className="mt-1 text-lg font-bold text-slate-900">发布基本设置</h2><p className="mt-1 text-sm leading-6 text-slate-500">上方内容就是员工看到的 SOP。确认预览无误后，再设置生效时间和可见范围。</p></div>

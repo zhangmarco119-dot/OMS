@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   loadCategories: vi.fn(),
   loadPage: vi.fn(),
+  prefetchDetail: vi.fn(),
   setFavorite: vi.fn(),
 }));
 
@@ -12,6 +13,7 @@ vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../services/v2-content.service', () => ({
   loadSopCategories: mocks.loadCategories,
   loadSopLibraryPage: mocks.loadPage,
+  prefetchSopDetail: mocks.prefetchDetail,
   setSopFavorite: mocks.setFavorite,
 }));
 
@@ -26,6 +28,7 @@ describe('SopLibraryPage previews', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.loadCategories.mockResolvedValue([{ name: '酸奶碗' }]);
+    mocks.prefetchDetail.mockResolvedValue(null);
     mocks.loadPage.mockResolvedValue({ items: [{ category: '酸奶碗', id: 'sop-1', isFavorite: false, previewUrl: 'https://example.test/cover.jpg', status: 'published', title: '芒果酸奶碗' }], total: 1 });
   });
 

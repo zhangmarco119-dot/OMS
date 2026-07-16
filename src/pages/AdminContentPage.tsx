@@ -66,7 +66,9 @@ const sopBatchLifecycleCopy: Record<SopBatchLifecycleAction, { button: string; e
 const noticeStatus: Record<NoticeListItem['status'], string> = { archived: '已归档', draft: '待发布', published: '已发布', retracted: '待发布' };
 const sopStatus: Record<SopListItem['status'], string> = { archived: '已归档', draft: '待发布', published: '已发布' };
 const revokeLocalUrl = (url: string) => { if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url); };
-const SOP_PAGE_SIZE = 16;
+const SOP_PAGE_SIZE = 5;
+const SOP_ARCHIVE_PAGE_SIZE = 16;
+const SOP_AUTO_LOAD_DELAY_MS = 350;
 
 export function AdminContentPage({ section }: { section: AdminContentSection }) {
   const auth = useAuth();
@@ -80,6 +82,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [sopTotal, setSopTotal] = useState(0);
   const [archivedSopTotal, setArchivedSopTotal] = useState(0);
   const [loadingMoreSops, setLoadingMoreSops] = useState(false);
+  const [sopAutoLoadPaused, setSopAutoLoadPaused] = useState(false);
   const [loadingMoreArchivedSops, setLoadingMoreArchivedSops] = useState(false);
   const [sopCategories, setSopCategories] = useState<SopCategoryRow[]>([]);
   const [recipientProfiles, setRecipientProfiles] = useState<ContentRecipient[]>([]);
@@ -101,7 +104,6 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [busy, setBusy] = useState(false);
   const sopDraftRef = useRef<SopDraft | null>(null);
   const sopsRef = useRef<SopListItem[]>([]);
-  const sopLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const contentLoadedRef = useRef(false);
   const refreshRequestRef = useRef(0);
 
@@ -143,17 +145,22 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         setNotices(nextNotices);
         setRecipientProfiles((profiles.data ?? []) as ContentRecipient[]);
       } else {
-        const [activePage, archiveCount, nextCategories] = await Promise.all([
-          loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: SOP_PAGE_SIZE, search: debouncedSopSearch }),
-          loadSopArchiveCount(supabase),
-          loadSopCategories(supabase),
-        ]);
+        const activePageRequest = loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: SOP_PAGE_SIZE, search: debouncedSopSearch });
+        const metadataRequest = Promise.all([loadSopArchiveCount(supabase), loadSopCategories(supabase)]);
+        const activePage = await activePageRequest;
         if (requestId !== refreshRequestRef.current) return;
         sopsRef.current = activePage.items;
         setSops(activePage.items);
         setSopTotal(activePage.total);
+        setSopAutoLoadPaused(false);
+        contentLoadedRef.current = true;
+        setStatus('ready');
+        setMessage(null);
+        const [archiveCount, nextCategories] = await metadataRequest;
+        if (requestId !== refreshRequestRef.current) return;
         setArchivedSopTotal(archiveCount);
         setSopCategories(nextCategories);
+        return;
       }
       contentLoadedRef.current = true;
       setStatus('ready');
@@ -167,22 +174,22 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   useEffect(() => { void refresh(); }, [refresh]);
   const loadMoreSops = useCallback(async () => {
     if (!supabase || section !== 'sops' || loadingMoreSops || sopsRef.current.length >= sopTotal) return;
+    const requestId = refreshRequestRef.current;
     setLoadingMoreSops(true);
     try {
       const page = await loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: SOP_PAGE_SIZE, offset: sopsRef.current.length, search: debouncedSopSearch });
+      if (requestId !== refreshRequestRef.current) return;
       const next = [...sopsRef.current, ...page.items.filter((entry) => !sopsRef.current.some((current) => current.id === entry.id))];
       updateSops(next);
       setSopTotal(page.total);
-    } catch { setMessage('加载更多 SOP 失败，请稍后重试。'); }
+    } catch { setSopAutoLoadPaused(true); setMessage('加载更多 SOP 失败，请稍后重试。'); }
     finally { setLoadingMoreSops(false); }
   }, [debouncedSopSearch, loadingMoreSops, section, sopCategoryFilter, sopTotal]);
   useEffect(() => {
-    const target = sopLoadMoreRef.current;
-    if (!target || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver((entries) => { if (entries[0]?.isIntersecting) void loadMoreSops(); }, { rootMargin: '500px 0px' });
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [loadMoreSops]);
+    if (section !== 'sops' || status !== 'ready' || loadingMoreSops || sopAutoLoadPaused || sops.length >= sopTotal) return;
+    const timer = window.setTimeout(() => void loadMoreSops(), SOP_AUTO_LOAD_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [loadMoreSops, loadingMoreSops, section, sopAutoLoadPaused, sopTotal, sops.length, status]);
   useEffect(() => {
     if (section === 'sops' && status === 'ready' && sopCategoryFilter !== 'all' && !sopCategories.some((category) => category.name === sopCategoryFilter)) {
       setSopCategoryFilter('all');
@@ -417,7 +424,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     setLoadingMoreArchivedSops(true);
     try {
       const offset = reset ? 0 : archivedSops.length;
-      const page = await loadSopPage(client, { archived: true, limit: SOP_PAGE_SIZE, offset });
+      const page = await loadSopPage(client, { archived: true, limit: SOP_ARCHIVE_PAGE_SIZE, offset });
       setArchivedSops((current) => reset ? page.items : [...current, ...page.items.filter((entry) => !current.some((item) => item.id === entry.id))]);
       setArchivedSopTotal(page.total);
       return true;
@@ -591,7 +598,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
             {sopCategories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
             </select>
           </label>
-          <span className="pb-3 text-xs font-semibold text-brand-700">{visibleSops.length} 个 SOP</span>
+          <span className="pb-3 text-xs font-semibold text-brand-700">{sopTotal} 个 SOP</span>
         </div>
         <label className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-400 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100">
           <Search className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
@@ -644,7 +651,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
           </div> : null}
         </article>;
       })}
-      {sops.length < sopTotal ? <><div className="h-px" ref={sopLoadMoreRef} /><button className="ui-button-secondary w-full" disabled={loadingMoreSops} onClick={() => void loadMoreSops()} type="button">{loadingMoreSops ? '正在预加载更多 SOP' : `加载更多（已显示 ${sops.length}/${sopTotal}）`}</button></> : null}
+      {sops.length < sopTotal ? <button className="ui-button-secondary w-full" disabled={loadingMoreSops} onClick={() => { setSopAutoLoadPaused(false); void loadMoreSops(); }} type="button">{loadingMoreSops ? '正在加载更多 SOP' : `继续加载（已显示 ${sops.length}/${sopTotal}）`}</button> : null}
     </section> : null}
     {noticeDraft ? <NoticeEditor busy={busy} draft={noticeDraft} onCancel={() => setNoticeDraft(null)} onChange={setNoticeDraft} onPublish={() => void saveNoticeDraft(true)} onSave={() => void saveNoticeDraft()} onUpload={uploadNotice} recipients={recipientProfiles} stores={auth.availableStores} /> : null}
     {sopDraft ? <SopEditor busy={busy} categories={sopCategories.map((entry) => entry.name)} draft={sopDraft} errorMessage={message} existingAssets={sops.find((sop) => sop.id === sopDraft.id)?.assetUrls ?? []} onCancel={() => updateSopDraft(null)} onChange={updateSopDraft} onDeleteAsset={removeSopAsset} onPublish={saveAndPreviewSop} onReorderImages={reorderSopImages} onReplaceImage={replaceSopImage} onSave={saveSopDraft} onUploadCover={uploadSopCover} onUploadImage={uploadSopImage} status={sops.find((sop) => sop.id === sopDraft.id)?.status ?? 'new'} /> : null}

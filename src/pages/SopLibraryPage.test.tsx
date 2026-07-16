@@ -35,6 +35,24 @@ describe('SopLibraryPage previews', () => {
     expect(screen.getByRole('link', { name: /芒果酸奶碗/ })).toHaveClass('min-h-20');
   });
 
+  it('renders five SOPs first and then automatically appends the next five-item page', async () => {
+    const entries = Array.from({ length: 8 }, (_, index) => ({
+      category: '测试分类', id: `sop-${index + 1}`, isFavorite: false, previewUrl: null, status: 'published', title: `测试 SOP ${index + 1}`,
+    }));
+    mocks.loadPage.mockImplementation(async (_client, options) => ({
+      items: entries.slice(options.offset ?? 0, (options.offset ?? 0) + options.limit),
+      total: entries.length,
+    }));
+
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><SopLibraryPage /></MemoryRouter>);
+
+    expect(await screen.findByRole('link', { name: /测试 SOP 1/ })).toBeInTheDocument();
+    expect(mocks.loadPage).toHaveBeenNthCalledWith(1, {}, expect.objectContaining({ limit: 5 }));
+    await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(2), { timeout: 1500 });
+    expect(mocks.loadPage).toHaveBeenNthCalledWith(2, {}, expect.objectContaining({ limit: 5, offset: 5 }));
+    expect(await screen.findByRole('link', { name: /测试 SOP 8/ })).toBeInTheDocument();
+  });
+
   it('lets an employee favorite a SOP directly from its card', async () => {
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><SopLibraryPage /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: '收藏 芒果酸奶碗' }));

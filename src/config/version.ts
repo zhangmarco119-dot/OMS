@@ -10,6 +10,15 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-07-16',
     highlights: [
+      '新增 Base64 UTF-8 多企业安全配置，避免 Windows 命令行破坏密钥 JSON。',
+      '第二个钉钉企业可在不替换现有企业凭据的情况下安全接入。',
+    ],
+    title: '强化多企业密钥配置',
+    version: 'StoreHub v2.2.8',
+  },
+  {
+    date: '2026-07-16',
+    highlights: [
       '钉钉考勤支持在保留现有企业密钥的情况下追加第二个及后续企业。',
       '追加企业使用独立加密配置，不需要重新输入或迁移现有企业的 AppSecret。',
     ],

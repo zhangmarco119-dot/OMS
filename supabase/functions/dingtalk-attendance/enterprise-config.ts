@@ -22,6 +22,13 @@ const roots = (value: unknown, fallback = '1') => {
 export const loadDingTalkEnterpriseConfigs = (read: EnvironmentReader): DingTalkEnterpriseConfig[] => {
   const multi = read('DINGTALK_ENTERPRISE_CONFIGS')?.trim();
   const additional = read('DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS')?.trim();
+  const additionalBase64 = read('DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS_BASE64')?.trim();
+  if (additional && additionalBase64) {
+    throw new Error('Set only one additional DingTalk enterprise config variable');
+  }
+  const decodedAdditional = additionalBase64
+    ? new TextDecoder().decode(Uint8Array.from(atob(additionalBase64), (character) => character.charCodeAt(0)))
+    : additional;
   const parseConfigs = (encoded: string, variableName: string) => {
     const decoded = JSON.parse(encoded) as unknown;
     if (!Array.isArray(decoded) || decoded.length === 0) throw new Error(`${variableName} must be a non-empty JSON array`);
@@ -52,7 +59,7 @@ export const loadDingTalkEnterpriseConfigs = (read: EnvironmentReader): DingTalk
     rootDepartmentIds: roots(read('DINGTALK_ROOT_DEPARTMENT_IDS')),
     timezone: read('DINGTALK_ENTERPRISE_TIMEZONE')?.trim() || 'Asia/Shanghai',
   };
-  const configs = [fallback, ...(additional ? parseConfigs(additional, 'DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS') : [])];
+  const configs = [fallback, ...(decodedAdditional ? parseConfigs(decodedAdditional, additionalBase64 ? 'DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS_BASE64' : 'DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS') : [])];
   if (new Set(configs.map((config) => config.corpId)).size !== configs.length) throw new Error('DingTalk enterprise corpId must be unique');
   return configs;
 };

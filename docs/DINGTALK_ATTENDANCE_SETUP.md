@@ -86,6 +86,8 @@ pnpm dlx supabase@latest secrets set `
 
 如果现有环境已经使用单企业密钥，并且无法再次读取原 AppSecret，可只设置 `DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS`。该变量使用相同的 JSON 数组格式，系统会保留现有的 `DINGTALK_CORP_ID`、`DINGTALK_APP_KEY`、`DINGTALK_APP_SECRET`，再追加数组中的企业，不会覆盖当前企业。
 
+Windows CLI 或 CI 中建议把同一行 JSON 数组按 UTF-8 转换为 Base64，并写入 `DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS_BASE64`。这可避免命令行破坏 JSON 引号。`DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS` 和 `DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS_BASE64` 只能配置其中一个。
+
 Supabase 自动提供 `SUPABASE_URL`、`SUPABASE_ANON_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY`，无需手工复制。
 
 ## 4. 部署与首次同步

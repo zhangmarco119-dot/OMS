@@ -28,6 +28,17 @@ it('adds enterprises without requiring the existing secret to be entered again',
   expect(loadDingTalkEnterpriseConfigs((key) => values[key]).map((item) => item.corpId)).toEqual(['existing-corp', 'new-corp']);
 });
 
+it('loads a base64 UTF-8 additional enterprise config without command-line JSON escaping', () => {
+  const additional = JSON.stringify([{ corpId: 'new-corp', appKey: 'new-key', appSecret: 'new-secret', displayName: '北京微风喜喜餐饮服务有限公司' }]);
+  const values: Record<string, string> = {
+    DINGTALK_CORP_ID: 'existing-corp', DINGTALK_APP_KEY: 'existing-key', DINGTALK_APP_SECRET: 'existing-secret',
+    DINGTALK_ADDITIONAL_ENTERPRISE_CONFIGS_BASE64: Buffer.from(additional, 'utf8').toString('base64'),
+  };
+  const configs = loadDingTalkEnterpriseConfigs((key) => values[key]);
+  expect(configs.map((item) => item.corpId)).toEqual(['existing-corp', 'new-corp']);
+  expect(configs[1].displayName).toBe('北京微风喜喜餐饮服务有限公司');
+});
+
 it('rejects duplicate enterprise identifiers', () => {
   const encoded = JSON.stringify([
     { corpId: 'same', appKey: 'a', appSecret: 'a', displayName: 'A' },

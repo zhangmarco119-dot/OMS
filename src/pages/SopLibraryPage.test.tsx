@@ -35,6 +35,7 @@ describe('SopLibraryPage previews', () => {
   it('shows a compact product thumbnail on the employee SOP entry', async () => {
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><SopLibraryPage /></MemoryRouter>);
     expect(await screen.findByAltText('芒果酸奶碗 预览')).toHaveAttribute('src', 'https://example.test/cover.jpg');
+    expect(screen.getByAltText('芒果酸奶碗 预览')).toHaveClass('object-contain');
     expect(screen.getByRole('link', { name: /芒果酸奶碗/ })).toHaveClass('min-h-20');
   });
 

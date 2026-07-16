@@ -36,6 +36,7 @@ describe('SopLibraryPage previews', () => {
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><SopLibraryPage /></MemoryRouter>);
     expect(await screen.findByAltText('芒果酸奶碗 预览')).toHaveAttribute('src', 'https://example.test/cover.jpg');
     expect(screen.getByAltText('芒果酸奶碗 预览')).toHaveClass('object-cover');
+    expect(screen.getByAltText('芒果酸奶碗 预览')).toHaveStyle({ aspectRatio: '1 / 1', objectFit: 'cover', objectPosition: '50% 50%' });
     expect(screen.getByRole('link', { name: /芒果酸奶碗/ })).toHaveClass('min-h-20');
   });
 

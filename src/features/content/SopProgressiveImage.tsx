@@ -83,11 +83,13 @@ export function SopProgressiveImage({
   const image = url ? <img
     alt={alt}
     className={`${imageClassName} ${state === 'loaded' ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200`}
+    data-thumbnail-crop={variant === 'thumbnail' ? 'center-square' : undefined}
     decoding="async"
     loading={eager ? 'eager' : 'lazy'}
     onError={() => { invalidateSopImageUrl(objectPath, variant); setState('error'); }}
     onLoad={() => setState('loaded')}
     src={url}
+    style={variant === 'thumbnail' ? { aspectRatio: '1 / 1', objectFit: 'cover', objectPosition: '50% 50%' } : undefined}
   /> : null;
 
   return <div className={`relative overflow-hidden bg-slate-100 ${containerClassName}`} ref={rootRef}>

@@ -828,7 +828,7 @@ export type Database = {
     Functions: {
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
-      get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string }; Returns: Json };
+      get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
       get_v2_sop_detail: { Args: { p_sop_id: string }; Returns: Json };
       list_v2_sop_cards: { Args: { p_archived?: boolean; p_category?: string; p_favorites_only?: boolean; p_limit?: number; p_offset?: number; p_search?: string }; Returns: Json };
       attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };

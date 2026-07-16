@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { currentMonth, filterAttendanceDays, formatAttendanceTime, type AttendanceDay } from './model';
+import { currentMonth, filterAttendanceDays, formatAttendanceHours, formatAttendanceTime, type AttendanceDay } from './model';
 
 const day = (status: AttendanceDay['status']): AttendanceDay => ({
   id: status, date: '2026-07-15', timezone: 'Asia/Shanghai', shiftId: null, shiftName: null,
@@ -14,6 +14,7 @@ describe('attendance view model', () => {
   it('uses the enterprise timezone for month and time formatting', () => {
     expect(currentMonth(new Date('2026-07-31T16:30:00Z'))).toBe('2026-08');
     expect(formatAttendanceTime('2026-07-15T01:05:00Z')).toBe('09:05');
+    expect(formatAttendanceHours(630)).toBe('10.5');
   });
 
   it('keeps only actionable exceptions in the exception filter', () => {

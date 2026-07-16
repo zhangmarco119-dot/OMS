@@ -43,14 +43,14 @@ const parseSummary = (value: Json | undefined): AttendanceMonthSummary => {
   const source = objectAt(value);
   return {
     attendanceDates: arrayAt(source.attendanceDates).filter((item): item is string => typeof item === 'string'),
-    attendanceDays: numberAt(source.attendanceDays), lateCount: numberAt(source.lateCount), lateMinutes: numberAt(source.lateMinutes),
+    attendanceDays: numberAt(source.attendanceDays), workedMinutes: numberAt(source.workedMinutes), lateCount: numberAt(source.lateCount), lateMinutes: numberAt(source.lateMinutes),
     missingCount: numberAt(source.missingCount), abnormalCount: numberAt(source.abnormalCount),
     lastSyncedAt: typeof source.lastSyncedAt === 'string' ? source.lastSyncedAt : null,
   };
 };
 
-export const loadAttendanceMonth = async (client: Client, profileId: string, month: string): Promise<AttendanceMonthDetail> => {
-  const { data, error } = await client.rpc('get_attendance_month_detail', { p_profile_id: profileId, p_month: `${month}-01` });
+export const loadAttendanceMonth = async (client: Client, profileId: string, month: string, storeId?: string): Promise<AttendanceMonthDetail> => {
+  const { data, error } = await client.rpc('get_attendance_month_detail', { p_profile_id: profileId, p_month: `${month}-01`, p_store_id: storeId || null });
   if (error) throw new Error('暂时无法加载考勤数据，请稍后重试。');
   const root = objectAt(data);
   if (!root.summary) return emptyAttendanceMonth();

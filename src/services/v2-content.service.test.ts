@@ -30,7 +30,7 @@ describe('v2 content drafts', () => {
     });
     expect(storageFrom).toHaveBeenCalledTimes(1);
     expect(createSignedUrl).toHaveBeenCalledTimes(1);
-    expect(createSignedUrl).toHaveBeenCalledWith('sop-1/cover.jpg', 3600, { transform: { height: 160, quality: 55, resize: 'cover', width: 160 } });
+    expect(createSignedUrl).toHaveBeenCalledWith('sop-1/cover.jpg', 3600, { transform: { height: 256, quality: 60, resize: 'cover', width: 256 } });
     expect(page).toMatchObject({
       items: [{ assetUrls: [{ signedUrl: 'https://example.test/cover.jpg' }], attachmentCount: 2, id: 'sop-1', stepCount: 6 }],
       total: 1,

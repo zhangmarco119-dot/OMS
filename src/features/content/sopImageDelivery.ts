@@ -9,13 +9,14 @@ export type SopImageVariant = 'detail' | 'original' | 'thumbnail';
 const SIGNED_URL_SECONDS = 60 * 60;
 const CACHE_TTL_MS = 50 * 60 * 1_000;
 const MAX_CACHE_ENTRIES = 400;
+const THUMBNAIL_TRANSFORM_VERSION = 'square-center-v2';
 
 type CachedUrl = { expiresAt: number; url: string };
 
 const urlCache = new Map<string, CachedUrl>();
 const pendingUrls = new Map<string, Promise<string>>();
 
-const keyFor = (path: string, variant: SopImageVariant) => `${variant}:${path}`;
+const keyFor = (path: string, variant: SopImageVariant) => `${variant === 'thumbnail' ? `${variant}:${THUMBNAIL_TRANSFORM_VERSION}` : variant}:${path}`;
 
 const pruneCache = () => {
   const now = Date.now();
@@ -30,7 +31,7 @@ const pruneCache = () => {
 };
 
 const transformFor = (variant: SopImageVariant) => {
-  if (variant === 'thumbnail') return { height: 160, quality: 55, resize: 'cover' as const, width: 160 };
+  if (variant === 'thumbnail') return { height: 256, quality: 60, resize: 'cover' as const, width: 256 };
   if (variant === 'detail') return { quality: 72, resize: 'contain' as const, width: 960 };
   return undefined;
 };

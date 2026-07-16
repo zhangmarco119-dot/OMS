@@ -1,4 +1,4 @@
-import { BarChart3, Bell, BookOpenCheck, CalendarClock, ClipboardList, History, PackageCheck, PackagePlus, ShoppingBag, Users } from 'lucide-react';
+import { BarChart3, Bell, BookOpenCheck, CalendarClock, CircleDollarSign, ClipboardList, History, PackageCheck, PackagePlus, ShoppingBag, Users } from 'lucide-react';
 import { PageShell } from '../components/layout/PageShell';
 import { FeatureCard } from '../components/ui/Surface';
 import { featureFlags } from '../config/featureFlags';
@@ -17,6 +17,7 @@ export function AppMenuPage() {
     { icon: ShoppingBag, label: '货品管理', note: '货品维护、导入与导出', to: '/app/admin/products' },
     { icon: Users, label: '账号管理', note: '账号资料与使用权限', to: '/app/admin/users' },
     { icon: CalendarClock, label: '考勤管理', note: '同步钉钉考勤、绑定员工与查看异常', to: '/app/admin/attendance' },
+    { icon: CircleDollarSign, label: '实时薪资', note: '预估工资、参数、提成与处罚管理', to: '/app/admin/payroll' },
     { icon: BarChart3, label: '运营统计', note: '到货、任务、巡店与历史摘要', to: '/app/admin/analytics' },
     { icon: History, label: '点货订货记录', note: '查看已提交的点货与订货单据', to: '/app/history' },
   ] : [
@@ -26,6 +27,7 @@ export function AppMenuPage() {
     ...(featureFlags.taskTemplates && canUseV2 ? [{ icon: ClipboardList, label: '任务中心', note: '处理周清、月清和临时任务', to: '/app/tasks' }] : []),
     ...(featureFlags.noticesAndSops && canUseV2 ? [{ icon: Bell, label: '门店公告', note: '查看公告和已读状态', to: '/app/notices' }, { icon: BookOpenCheck, label: 'SOP 手册', note: '查看标准作业流程', to: '/app/sops' }] : []),
     { icon: CalendarClock, label: '我的考勤', note: '查看月度出勤、迟到与异常记录', to: '/app/attendance' },
+    { icon: CircleDollarSign, label: '我的预估工资', note: '查看截至今日的工资累计与明细', to: '/app/payroll' },
     { icon: History, label: '运营历史', note: '点货、订货、到货和任务记录', to: '/app/operations-history' },
   ];
   return <PageShell eyebrow="门店运营系统" title="工作台" contentGapClassName="gap-3"><section className="grid grid-cols-3 gap-2 sm:gap-3">{items.map((item) => <FeatureCard {...item} key={item.to} />)}</section></PageShell>;

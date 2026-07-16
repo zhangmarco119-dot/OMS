@@ -43,7 +43,7 @@ const parseSummary = (value: Json | undefined): AttendanceMonthSummary => {
   const source = objectAt(value);
   return {
     attendanceDates: arrayAt(source.attendanceDates).filter((item): item is string => typeof item === 'string'),
-    attendanceDays: numberAt(source.attendanceDays), workedMinutes: numberAt(source.workedMinutes), lateCount: numberAt(source.lateCount), lateMinutes: numberAt(source.lateMinutes),
+    attendanceDays: numberAt(source.attendanceDays), lateCount: numberAt(source.lateCount), lateMinutes: numberAt(source.lateMinutes),
     missingCount: numberAt(source.missingCount), abnormalCount: numberAt(source.abnormalCount),
     lastSyncedAt: typeof source.lastSyncedAt === 'string' ? source.lastSyncedAt : null,
   };

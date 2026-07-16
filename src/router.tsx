@@ -7,6 +7,7 @@ import { AboutSystemPage } from './pages/AboutSystemPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAttendanceDetailPage } from './pages/AdminAttendanceDetailPage';
 import { AdminAttendancePage } from './pages/AdminAttendancePage';
+import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminLegacyRedirect } from './pages/AdminLegacyRedirect';
 import { AdminProductsPage, AdminUsersPage } from './pages/AdminPage';
 import { AdminAnnouncementsPage, AdminSopsPage } from './pages/AdminContentPage';
@@ -26,6 +27,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { MyAttendancePage } from './pages/MyAttendancePage';
+import { MyPayrollPage } from './pages/MyPayrollPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
@@ -75,6 +77,7 @@ export const router = createBrowserRouter([
       { path: 'history', element: <HistoryPage /> },
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'attendance', element: <MyAttendancePage /> },
+      { path: 'payroll', element: <MyPayrollPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/about', element: <ProtectedRoute requireAdmin><AboutSystemPage /></ProtectedRoute> },
       { path: 'account/about/manual/:manualSlug', element: <ProtectedRoute requireAdmin><SystemManualPage /></ProtectedRoute> },
@@ -116,6 +119,7 @@ export const router = createBrowserRouter([
       { path: 'admin/analytics', element: <ProtectedRoute requireAdmin><AdminAnalyticsPage /></ProtectedRoute> },
       { path: 'admin/attendance', element: <ProtectedRoute requireAdmin><AdminAttendancePage /></ProtectedRoute> },
       { path: 'admin/attendance/:profileId', element: <ProtectedRoute requireAdmin><AdminAttendanceDetailPage /></ProtectedRoute> },
+      { path: 'admin/payroll', element: <ProtectedRoute requireAdmin><AdminPayrollPage /></ProtectedRoute> },
     ],
   },
   {

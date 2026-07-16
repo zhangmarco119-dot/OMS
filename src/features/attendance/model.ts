@@ -23,7 +23,6 @@ export interface AttendanceDaySource {
   plannedOffAt: string | null;
   actualOnAt: string | null;
   actualOffAt: string | null;
-  workedMinutes?: number;
   status: AttendanceStatus;
 }
 
@@ -41,7 +40,6 @@ export interface AttendanceDay {
   offDutyResult: string;
   status: AttendanceStatus;
   isAttended: boolean;
-  workedMinutes?: number;
   lateMinutes: number;
   earlyMinutes: number;
   missingPunch: 'none' | 'on' | 'off' | 'both';
@@ -57,7 +55,6 @@ export interface AttendanceDay {
 export interface AttendanceMonthSummary {
   attendanceDates: string[];
   attendanceDays: number;
-  workedMinutes: number;
   lateCount: number;
   lateMinutes: number;
   missingCount: number;
@@ -101,16 +98,11 @@ export const formatAttendanceTime = (value: string | null) => value
   ? new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Shanghai' }).format(new Date(value))
   : '--:--';
 
-export const formatAttendanceHours = (minutes: number) => {
-  const hours = Math.max(0, minutes) / 60;
-  return Number.isInteger(hours) ? `${hours}` : hours.toFixed(1);
-};
-
 export const filterAttendanceDays = (days: AttendanceDay[], filter: 'all' | 'exceptions') => filter === 'all'
   ? days
   : days.filter((day) => !['normal', 'pending', 'rest', 'leave', 'business_trip', 'fieldwork'].includes(day.status));
 
 export const emptyAttendanceMonth = (): AttendanceMonthDetail => ({
-  summary: { attendanceDates: [], attendanceDays: 0, workedMinutes: 0, lateCount: 0, lateMinutes: 0, missingCount: 0, abnormalCount: 0, lastSyncedAt: null },
+  summary: { attendanceDates: [], attendanceDays: 0, lateCount: 0, lateMinutes: 0, missingCount: 0, abnormalCount: 0, lastSyncedAt: null },
   days: [],
 });

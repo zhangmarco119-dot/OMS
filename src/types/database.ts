@@ -559,6 +559,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      payroll_employee_rules: {
+        Row: { commission_enabled: boolean; commission_rate: number | null; confirmed: boolean; created_at: string; created_by: string | null; effective_from: string; effective_to: string | null; full_performance_amount: number | null; housing_enabled: boolean; id: string; monthly_base_salary: number; monthly_housing_allowance: number; performance_enabled: boolean; profile_id: string; change_reason: string };
+        Insert: { commission_enabled?: boolean; commission_rate?: number | null; confirmed?: boolean; created_at?: string; created_by?: string | null; effective_from: string; effective_to?: string | null; full_performance_amount?: number | null; housing_enabled?: boolean; id?: string; monthly_base_salary: number; monthly_housing_allowance?: number; performance_enabled?: boolean; profile_id: string; change_reason: string };
+        Update: { commission_enabled?: boolean; commission_rate?: number | null; confirmed?: boolean; created_at?: string; created_by?: string | null; effective_from?: string; effective_to?: string | null; full_performance_amount?: number | null; housing_enabled?: boolean; id?: string; monthly_base_salary?: number; monthly_housing_allowance?: number; performance_enabled?: boolean; profile_id?: string; change_reason?: string };
+        Relationships: [];
+      };
+      payroll_employee_commission_stores: {
+        Row: { created_at: string; rule_id: string; store_id: string };
+        Insert: { created_at?: string; rule_id: string; store_id: string };
+        Update: { created_at?: string; rule_id?: string; store_id?: string };
+        Relationships: [];
+      };
+      payroll_performance_rules: {
+        Row: { attendance_weight: number; change_reason: string; created_at: string; created_by: string | null; discipline_weight: number; effective_from: string; effective_to: string | null; grade_a_coefficient: number; grade_a_min: number; grade_b_coefficient: number; grade_b_min: number; grade_c_coefficient: number; grade_c_min: number; grade_d_coefficient: number; id: string; late_deduction_1_10: number; late_deduction_11_20: number; late_deduction_21_30: number; late_deduction_31_plus: number; task_weight: number };
+        Insert: { attendance_weight?: number; change_reason: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
+        Update: { attendance_weight?: number; change_reason?: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from?: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
+        Relationships: [];
+      };
+      payroll_store_revenues: {
+        Row: { confirmed_amount: number; created_at: string; id: string; note: string; revenue_date: string; store_id: string; updated_at: string; updated_by: string };
+        Insert: { confirmed_amount: number; created_at?: string; id?: string; note?: string; revenue_date: string; store_id: string; updated_at?: string; updated_by: string };
+        Update: { confirmed_amount?: number; id?: string; note?: string; revenue_date?: string; store_id?: string; updated_at?: string; updated_by?: string };
+        Relationships: [];
+      };
+      payroll_penalties: {
+        Row: { amount: number; created_at: string; created_by: string; event_date: string; event_level: 'reminder' | 'warning' | 'formal_warning' | 'serious'; id: string; performance_deduction: number; profile_id: string; reason: string; revoke_reason: string | null; status: 'active' | 'revoked'; updated_at: string };
+        Insert: { amount?: number; created_at?: string; created_by: string; event_date: string; event_level: 'reminder' | 'warning' | 'formal_warning' | 'serious'; id?: string; performance_deduction?: number; profile_id: string; reason: string; revoke_reason?: string | null; status?: 'active' | 'revoked'; updated_at?: string };
+        Update: { amount?: number; event_date?: string; event_level?: 'reminder' | 'warning' | 'formal_warning' | 'serious'; performance_deduction?: number; profile_id?: string; reason?: string; revoke_reason?: string | null; status?: 'active' | 'revoked'; updated_at?: string };
+        Relationships: [];
+      };
       profile_store_access: {
         Row: {
           created_at: string;
@@ -827,8 +857,12 @@ export type Database = {
     };
     Functions: {
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
+      admin_payroll_estimates: { Args: { p_as_of?: string; p_search?: string; p_store_id?: string | null }; Returns: Json };
+      admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };
+      admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
       get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
+      get_payroll_estimate: { Args: { p_as_of?: string; p_profile_id: string }; Returns: Json };
       get_v2_sop_detail: { Args: { p_sop_id: string }; Returns: Json };
       list_v2_sop_cards: { Args: { p_archived?: boolean; p_category?: string; p_favorites_only?: boolean; p_limit?: number; p_offset?: number; p_search?: string }; Returns: Json };
       attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };

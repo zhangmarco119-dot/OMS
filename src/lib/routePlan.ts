@@ -11,6 +11,8 @@ export const routePlan: RoutePlanItem[] = [
   { path: '/app/history', phase: 7, purpose: '历史单据和重新导出' },
   { path: '/app/account', phase: 8, purpose: '本人修改密码' },
   { path: '/app/account/about', phase: 9, purpose: '管理员查看系统版本与更新记录' },
+  { path: '/app/payroll', phase: 9, purpose: '员工查看截至今日的实时预估工资' },
+  { path: '/app/admin/payroll', phase: 9, purpose: '管理员查看工资合计并维护工资计算参数' },
   { path: '/app/admin/products', phase: 8, purpose: '独立的货品维护与 Excel 导入导出页面' },
   { path: '/app/admin/users', phase: 8, purpose: '独立的账号资料与权限管理页面' },
   { path: '/app/admin/announcements', phase: 9, purpose: '独立的管理员公告发布与已读管理页面' },

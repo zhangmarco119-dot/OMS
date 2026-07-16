@@ -5,12 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { PageShell } from '../components/layout/PageShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/Feedback';
 import { SectionCard } from '../components/ui/Surface';
+import { scheduleSopBackgroundLoad } from '../features/content/sopBackgroundLoad';
 import { useSopCategoryFilter } from '../features/content/useSopCategoryFilter';
 import { supabase } from '../lib/supabase';
 import { loadSopCategories, loadSopLibraryPage, setSopFavorite, type SopLibraryEntry } from '../services/v2-content.service';
 
 const PAGE_SIZE = 5;
-const AUTO_LOAD_DELAY_MS = 350;
 
 export function SopLibraryPage() {
   const navigate = useNavigate();
@@ -26,8 +26,10 @@ export function SopLibraryPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [autoLoadPaused, setAutoLoadPaused] = useState(false);
   const requestGenerationRef = useRef(0);
+  const backgroundLoadAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => { const timer = window.setTimeout(() => setDebouncedQuery(query), 250); return () => window.clearTimeout(timer); }, [query]);
+  useEffect(() => () => backgroundLoadAbortRef.current?.abort(), []);
   useEffect(() => {
     if (!supabase) return;
     void loadSopCategories(supabase).then((rows) => setCategoryNames(rows.map((entry) => entry.name))).catch(() => undefined);
@@ -35,6 +37,7 @@ export function SopLibraryPage() {
 
   const loadFirstPage = useCallback(async () => {
     if (!supabase) { setStatus('error'); setMessage('缺少 Supabase 配置，暂时无法加载 SOP。'); return; }
+    backgroundLoadAbortRef.current?.abort();
     const generation = ++requestGenerationRef.current;
     setStatus('loading');
     try {
@@ -51,20 +54,22 @@ export function SopLibraryPage() {
   const loadMore = useCallback(async () => {
     if (!supabase || loadingMore || sops.length >= total) return;
     const generation = requestGenerationRef.current;
+    const controller = new AbortController();
+    backgroundLoadAbortRef.current?.abort();
+    backgroundLoadAbortRef.current = controller;
     setLoadingMore(true);
     try {
-      const page = await loadSopLibraryPage(supabase, { category, favoritesOnly, limit: PAGE_SIZE, offset: sops.length, search: debouncedQuery });
-      if (generation !== requestGenerationRef.current) return;
+      const page = await loadSopLibraryPage(supabase, { category, favoritesOnly, limit: PAGE_SIZE, offset: sops.length, search: debouncedQuery, signal: controller.signal });
+      if (controller.signal.aborted || generation !== requestGenerationRef.current) return;
       setSops((current) => [...current, ...page.items.filter((entry) => !current.some((item) => item.id === entry.id))]);
       setTotal(page.total);
-    } catch { setAutoLoadPaused(true); setMessage('加载更多 SOP 失败，请稍后重试。'); }
-    finally { setLoadingMore(false); }
+    } catch { if (!controller.signal.aborted) { setAutoLoadPaused(true); setMessage('加载更多 SOP 失败，请稍后重试。'); } }
+    finally { if (backgroundLoadAbortRef.current === controller) backgroundLoadAbortRef.current = null; setLoadingMore(false); }
   }, [category, debouncedQuery, favoritesOnly, loadingMore, sops.length, total]);
 
   useEffect(() => {
     if (status !== 'ready' || loadingMore || autoLoadPaused || sops.length >= total) return;
-    const timer = window.setTimeout(() => void loadMore(), AUTO_LOAD_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    return scheduleSopBackgroundLoad(() => void loadMore());
   }, [autoLoadPaused, loadMore, loadingMore, sops.length, status, total]);
 
   const toggleFavorite = async (sop: SopLibraryEntry) => {
@@ -90,7 +95,7 @@ export function SopLibraryPage() {
     {status === 'error' && message ? <ErrorState message={message} onRetry={() => void loadFirstPage()} /> : null}
     {status === 'loading' ? <LoadingState label="正在加载 SOP" /> : null}
     {status === 'ready' && sops.length === 0 ? <EmptyState description={filtered ? '请尝试其他关键词、分类或收藏条件。' : '管理员发布并生效后，会按门店和角色显示在这里。'} icon={BookOpenCheck} title={favoritesOnly ? '还没有收藏 SOP' : filtered ? '没有找到 SOP' : '暂无适用 SOP'} /> : null}
-    <div className="space-y-2">{sops.map((sop) => <article className="ui-card ui-interactive flex min-h-20 w-full items-center gap-3 p-2.5" key={sop.id} onClick={() => navigate(`/app/sops/${sop.id}`)} role="link" tabIndex={0}>{sop.previewUrl ? <img alt={`${sop.title} 预览`} className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover" src={sop.previewUrl} /> : <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></span>}<span className="min-w-0 flex-1"><span className="block truncate font-bold text-slate-900">{sop.title}</span><span className="mt-1 block truncate text-xs text-slate-500">{sop.category}</span></span><button aria-label={`${sop.isFavorite ? '取消收藏' : '收藏'} ${sop.title}`} className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${sop.isFavorite ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'}`} onClick={(event) => { event.stopPropagation(); void toggleFavorite(sop); }} type="button"><Star className={`h-5 w-5 ${sop.isFavorite ? 'fill-current' : ''}`} /></button><ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" /></article>)}</div>
+    <div className="space-y-2">{sops.map((sop, index) => <article className="ui-card ui-interactive flex min-h-20 w-full items-center gap-3 p-2.5" key={sop.id} onClick={() => { backgroundLoadAbortRef.current?.abort(); navigate(`/app/sops/${sop.id}`); }} role="link" tabIndex={0}>{sop.previewUrl ? <img alt={`${sop.title} 预览`} className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover" decoding="async" loading={index < 2 ? 'eager' : 'lazy'} src={sop.previewUrl} /> : <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></span>}<span className="min-w-0 flex-1"><span className="block truncate font-bold text-slate-900">{sop.title}</span><span className="mt-1 block truncate text-xs text-slate-500">{sop.category}</span></span><button aria-label={`${sop.isFavorite ? '取消收藏' : '收藏'} ${sop.title}`} className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${sop.isFavorite ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'}`} onClick={(event) => { event.stopPropagation(); void toggleFavorite(sop); }} type="button"><Star className={`h-5 w-5 ${sop.isFavorite ? 'fill-current' : ''}`} /></button><ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" /></article>)}</div>
     {status === 'ready' && sops.length < total ? <button className="ui-button-secondary w-full" disabled={loadingMore} onClick={() => { setAutoLoadPaused(false); void loadMore(); }} type="button">{loadingMore ? '正在加载更多 SOP' : `继续加载（已显示 ${sops.length}/${total}）`}</button> : null}
     {status === 'ready' && sops.length > 0 ? <p className="px-1 text-center text-xs text-slate-400">已显示 {sops.length}/{total} 个 SOP</p> : null}
   </PageShell>;

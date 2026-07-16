@@ -1,5 +1,5 @@
 import { BookOpenCheck, ExternalLink, Rocket, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -36,33 +36,47 @@ export function SopDetailPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
   const [publishSettings, setPublishSettings] = useState<PublishSettings>({ effectiveAt: '', roles: ['staff', 'manager'], silent: true, storeIds: [], taskTemplateId: null });
+  const loadGenerationRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!supabase || !sopId) { setStatus('error'); setMessage('无法识别该 SOP。'); return; }
+    const generation = ++loadGenerationRef.current;
     setStatus('loading');
     try {
-      const [loaded, nextTemplates] = await Promise.all([
-        loadSopDetail(supabase, sopId),
-        auth.profile?.role === 'admin' ? loadTaskTemplates(supabase) : Promise.resolve([]),
-      ]);
+      const loaded = await loadSopDetail(supabase, sopId);
+      if (generation !== loadGenerationRef.current) return;
       const found = loaded && (loaded.status === 'published' || auth.profile?.role === 'admin') ? loaded : null;
       setSop(found);
-      setTemplates(nextTemplates);
       if (found) setPublishSettings({
         effectiveAt: toLocalDateTimeInput(found.effective_at),
         roles: found.roles,
         silent: true,
         storeIds: found.storeIds,
-        taskTemplateId: nextTemplates.some((template) => template.id === found.taskTemplateId && template.status === 'published') ? found.taskTemplateId : null,
+        taskTemplateId: found.taskTemplateId,
       });
       setStatus('ready');
       setMessage(null);
+      if (auth.profile?.role === 'admin') {
+        try {
+          const nextTemplates = await loadTaskTemplates(supabase);
+          if (generation !== loadGenerationRef.current) return;
+          setTemplates(nextTemplates);
+          if (found) setPublishSettings((current) => ({
+            ...current,
+            taskTemplateId: nextTemplates.some((template) => template.id === found.taskTemplateId && template.status === 'published') ? found.taskTemplateId : null,
+          }));
+        } catch {
+          if (generation === loadGenerationRef.current) setTemplates([]);
+        }
+      }
     } catch (error) {
+      if (generation !== loadGenerationRef.current) return;
       setStatus('error');
       setMessage(error instanceof Error ? error.message : '加载 SOP 详情失败。');
     }
   }, [auth.profile?.role, sopId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => () => { loadGenerationRef.current += 1; }, []);
 
   const steps = sop?.assetUrls.filter((asset) => asset.asset_kind === 'step').sort((left, right) => left.sort_order - right.sort_order) ?? [];
   const documents = sop?.assetUrls.filter((asset) => asset.asset_kind === 'attachment') ?? [];
@@ -107,7 +121,7 @@ export function SopDetailPage() {
     {status === 'ready' && !sop ? <EmptyState description="该 SOP 可能尚未发布、已归档，或不适用于当前门店。" icon={BookOpenCheck} title="无法查看 SOP" /> : null}
     {sop ? <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {sop.body ? <section className="border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-900">整体说明</h2><p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{sop.body}</p></section> : null}
-      {steps.length ? <div className="grid grid-cols-2 gap-px bg-slate-200" data-testid="sop-detail-step-grid">{steps.map((asset, index) => <section className="min-w-0 bg-white" key={asset.id}><div className="bg-slate-50 px-2 py-1.5 text-xs font-bold text-brand-700">步骤 {index + 1}</div>{asset.step_text ? <p className="min-h-12 whitespace-pre-wrap px-2 py-2 text-xs leading-5 text-slate-800 sm:text-sm">{asset.step_text}</p> : null}{asset.signedUrl ? <button aria-label={`放大查看步骤 ${index + 1} 图片`} className="block w-full bg-white" onClick={() => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: asset.signedUrl! })} type="button"><img alt={`${sop.title} 步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-contain" src={asset.signedUrl} /></button> : null}</section>)}</div> : <section className="p-5"><p className="text-sm text-slate-500">该 SOP 暂无制作步骤。</p></section>}
+      {steps.length ? <div className="grid grid-cols-2 gap-px bg-slate-200" data-testid="sop-detail-step-grid">{steps.map((asset, index) => <section className="min-w-0 bg-white" key={asset.id}><div className="bg-slate-50 px-2 py-1.5 text-xs font-bold text-brand-700">步骤 {index + 1}</div>{asset.step_text ? <p className="min-h-12 whitespace-pre-wrap px-2 py-2 text-xs leading-5 text-slate-800 sm:text-sm">{asset.step_text}</p> : null}{asset.signedUrl ? <button aria-label={`放大查看步骤 ${index + 1} 图片`} className="block w-full bg-white" onClick={() => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: asset.signedUrl! })} type="button"><img alt={`${sop.title} 步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-contain" decoding="async" loading={index < 4 ? 'eager' : 'lazy'} src={asset.signedUrl} /></button> : null}</section>)}</div> : <section className="p-5"><p className="text-sm text-slate-500">该 SOP 暂无制作步骤。</p></section>}
       {documents.length ? <section className="border-t border-slate-100 p-4"><h2 className="text-sm font-bold">附件</h2><div className="mt-2 flex flex-wrap gap-2">{documents.map((asset) => asset.signedUrl ? <a className="ui-button-secondary" href={asset.signedUrl} key={asset.id} rel="noreferrer" target="_blank"><ExternalLink className="h-4 w-4" />{asset.file_name}</a> : null)}</div></section> : null}
     </article> : null}
     {canPublish ? <section className="ui-card space-y-4 p-4" id="sop-publish-settings">
@@ -119,7 +133,7 @@ export function SopDetailPage() {
       <label className="flex min-h-12 items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm"><input checked={publishSettings.silent} className="mt-1" onChange={(event) => setPublishSettings((current) => ({ ...current, silent: event.target.checked }))} type="checkbox" /><span><span className="block font-bold text-brand-900">静默发布</span><span className="mt-1 block leading-5 text-brand-800">默认勾选。员工可以查看 SOP，但不会收到发布通知。</span></span></label>
       <button className="ui-button-primary w-full" disabled={busy} onClick={() => void confirmPublish()} type="button"><Rocket className="h-4 w-4" />{busy ? '正在发布' : '确认发布 SOP'}</button>
     </section> : null}
-    {activeImage ? <div aria-label="SOP 步骤图片全屏预览" className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4" onClick={() => setActiveImage(null)} role="dialog"><button aria-label="关闭图片预览" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setActiveImage(null)} type="button"><X className="h-6 w-6" /></button><img alt={activeImage.alt} className="max-h-full max-w-full object-contain" onClick={() => setActiveImage(null)} src={activeImage.url} /></div> : null}
+    {activeImage ? <div aria-label="SOP 步骤图片全屏预览" className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4" onClick={() => setActiveImage(null)} role="dialog"><button aria-label="关闭图片预览" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setActiveImage(null)} type="button"><X className="h-6 w-6" /></button><img alt={activeImage.alt} className="max-h-full max-w-full object-contain" decoding="async" onClick={() => setActiveImage(null)} src={activeImage.url} /></div> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status === 'ready' && Boolean(message)} title="暂时无法发布" tone="warning" />
     <SuccessToast message={success} onClose={() => setSuccess(null)} />
   </PageShell>;

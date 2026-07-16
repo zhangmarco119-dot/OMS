@@ -41,6 +41,20 @@ describe('SopDetailPage compact employee preview', () => {
     const firstDescription = screen.getByText('步骤 1 说明');
     const firstImage = screen.getByAltText('六步酸奶碗 步骤 1');
     expect(firstDescription.compareDocumentPosition(firstImage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(firstImage).toHaveAttribute('loading', 'eager');
+    expect(screen.getByAltText('六步酸奶碗 步骤 5')).toHaveAttribute('loading', 'lazy');
+  });
+
+  it('shows the SOP immediately without waiting for administrator task templates', async () => {
+    let resolveTemplates: (value: Array<{ id: string; name: string; status: string }>) => void = () => undefined;
+    mocks.loadSopDetail.mockResolvedValue(detail('draft'));
+    mocks.loadTaskTemplates.mockReturnValue(new Promise((resolve) => { resolveTemplates = resolve; }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: '六步酸奶碗' })).toBeInTheDocument();
+    expect(screen.getByAltText('六步酸奶碗 步骤 1')).toBeInTheDocument();
+    resolveTemplates([{ id: 'template-1', name: '开店检查', status: 'published' }]);
+    await waitFor(() => expect(mocks.loadTaskTemplates).toHaveBeenCalledTimes(1));
   });
 
   it('shows the same two-column layout to staff for a published SOP', async () => {

@@ -226,11 +226,11 @@ const signSopPreviewAssets = async (client: Client, items: SopCardRpcItem[]) => 
   return items.map((item) => ({ item, previewUrl: item.previewAsset?.object_path ? signedByPath.get(item.previewAsset.object_path) ?? null : null }));
 };
 
-export const loadSopPage = async (client: Client, options: { archived?: boolean; category?: string; limit?: number; offset?: number; search?: string } = {}): Promise<SopPage> => {
+export const loadSopPage = async (client: Client, options: { archived?: boolean; category?: string; limit?: number; offset?: number; search?: string; signal?: AbortSignal } = {}): Promise<SopPage> => {
   const limit = Math.min(Math.max(options.limit ?? 16, 1), 50);
   const offset = Math.max(options.offset ?? 0, 0);
   const search = escapePostgrestSearch(options.search ?? '');
-  const response = await client.rpc('list_v2_sop_cards', {
+  const request = client.rpc('list_v2_sop_cards', {
     p_archived: options.archived ?? false,
     p_category: options.category ?? 'all',
     p_favorites_only: false,
@@ -238,6 +238,7 @@ export const loadSopPage = async (client: Client, options: { archived?: boolean;
     p_offset: offset,
     p_search: search,
   });
+  const response = await (options.signal ? request.abortSignal(options.signal) : request);
   throwIfError(response.error);
   const page = parseSopCardPage(response.data);
   const signed = await signSopPreviewAssets(client, page.items);
@@ -284,11 +285,11 @@ export const loadSopLibraryEntries = async (client: Client): Promise<SopLibraryE
   }));
 };
 
-export const loadSopLibraryPage = async (client: Client, options: { category?: string; favoritesOnly?: boolean; limit?: number; offset?: number; search?: string } = {}): Promise<SopLibraryPage> => {
+export const loadSopLibraryPage = async (client: Client, options: { category?: string; favoritesOnly?: boolean; limit?: number; offset?: number; search?: string; signal?: AbortSignal } = {}): Promise<SopLibraryPage> => {
   const limit = Math.min(Math.max(options.limit ?? 16, 1), 50);
   const offset = Math.max(options.offset ?? 0, 0);
   const search = escapePostgrestSearch(options.search ?? '');
-  const response = await client.rpc('list_v2_sop_cards', {
+  const request = client.rpc('list_v2_sop_cards', {
     p_archived: false,
     p_category: options.category ?? 'all',
     p_favorites_only: options.favoritesOnly ?? false,
@@ -296,6 +297,7 @@ export const loadSopLibraryPage = async (client: Client, options: { category?: s
     p_offset: offset,
     p_search: search,
   });
+  const response = await (options.signal ? request.abortSignal(options.signal) : request);
   throwIfError(response.error);
   const page = parseSopCardPage(response.data);
   const signed = await signSopPreviewAssets(client, page.items);

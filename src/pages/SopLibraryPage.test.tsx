@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -51,6 +51,25 @@ describe('SopLibraryPage previews', () => {
     await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(2), { timeout: 1500 });
     expect(mocks.loadPage).toHaveBeenNthCalledWith(2, {}, expect.objectContaining({ limit: 5, offset: 5 }));
     expect(await screen.findByRole('link', { name: /测试 SOP 8/ })).toBeInTheDocument();
+  });
+
+  it('aborts a background page request when the employee opens a visible SOP', async () => {
+    const firstPage = Array.from({ length: 5 }, (_, index) => ({
+      category: '测试分类', id: `sop-${index + 1}`, isFavorite: false, previewUrl: null, status: 'published', title: `优先查看 SOP ${index + 1}`,
+    }));
+    let resolveBackground: (value: { items: never[]; total: number }) => void = () => undefined;
+    mocks.loadPage
+      .mockResolvedValueOnce({ items: firstPage, total: 6 })
+      .mockImplementationOnce(async () => new Promise((resolve) => { resolveBackground = resolve; }));
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><SopLibraryPage /></MemoryRouter>);
+
+    const visibleCard = await screen.findByRole('link', { name: /优先查看 SOP 1/ });
+    await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(2), { timeout: 1500 });
+    const backgroundOptions = mocks.loadPage.mock.calls[1]?.[1];
+    expect(backgroundOptions.signal).toBeInstanceOf(AbortSignal);
+    fireEvent.click(visibleCard);
+    expect(backgroundOptions.signal.aborted).toBe(true);
+    await act(async () => { resolveBackground({ items: [], total: 6 }); });
   });
 
   it('lets an employee favorite a SOP directly from its card', async () => {

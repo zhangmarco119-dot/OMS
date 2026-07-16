@@ -5,6 +5,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { loadTodoSummary } from '../../services/todo.service';
+import { RouteScrollReset } from './RouteScrollReset';
 
 const staffNavItems = [
   { to: '/app', label: '首页', icon: Home },
@@ -64,8 +65,9 @@ export function AppLayout() {
   }, [auth.profile, refreshTodoCount]);
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <main className="mx-auto min-h-screen w-full max-w-5xl pb-[calc(5.25rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-[100dvh] bg-canvas">
+      <RouteScrollReset />
+      <main className="app-content mx-auto w-full max-w-5xl">
         <Outlet />
       </main>
       <nav aria-label="主导航" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pt-1.5 shadow-[0_-6px_24px_rgba(15,23,42,0.06)] backdrop-blur">

@@ -21,7 +21,7 @@ export function PageShell({ eyebrow, title, children, backTo, contentGapClassNam
     if (backTo) navigate(backTo);
   };
   return (
-    <section className="min-h-screen px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8">
+    <section className="app-page-min-height px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8">
       <div className={cn('mx-auto flex max-w-5xl flex-col', contentGapClassName)}>
         <header className="relative flex min-h-14 items-center justify-center border-b border-slate-200 pb-3 text-center">
           {onBack || backTo ? (

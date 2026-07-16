@@ -15,13 +15,33 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html {
+  background: #f5f7f5;
+  overscroll-behavior-y: none;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background: #f5f7f5;
   color: #16212f;
   overflow-wrap: anywhere;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+.app-content {
+  min-height: 100dvh;
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+}
+
+.app-page-min-height {
+  min-height: calc(100dvh - 5.25rem - env(safe-area-inset-bottom));
 }
 
 button,

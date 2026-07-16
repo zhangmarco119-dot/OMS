@@ -113,7 +113,7 @@ function StaffDashboard() {
   };
 
   return (
-    <section className="min-h-screen bg-canvas px-4 pb-8 pt-4 sm:px-6">
+    <section className="app-page-min-height bg-canvas px-4 pb-8 pt-4 sm:px-6">
       <div className="mx-auto flex max-w-5xl flex-col gap-3">
         <header className="ui-card flex items-start justify-between gap-3 p-4">
           <div className="min-w-0 flex-1">
@@ -194,7 +194,7 @@ function AdminDashboard() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <section className="min-h-screen bg-canvas px-4 pb-8 pt-4 sm:px-6">
+    <section className="app-page-min-height bg-canvas px-4 pb-8 pt-4 sm:px-6">
       <div className="mx-auto flex max-w-5xl flex-col gap-3">
         <header className="ui-card flex items-start justify-between p-4">
           <div><p className="text-xs font-bold text-brand-700">门店运营系统 · 管理员</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">运营概览</h1><p className="mt-1 text-sm text-slate-500">优先查看异常和待处理事项。</p></div>

@@ -41,6 +41,8 @@ export interface PayrollEstimate {
   performanceScore: number | null;
   performanceGrade: string | null;
   revenueTotal: number;
+  revenueEffectiveDate: string | null;
+  revenueCarriedForward: boolean;
   performanceReady: boolean;
   commissionReady: boolean;
   dataComplete: boolean;

@@ -1,6 +1,6 @@
 import { Banknote, Camera, Clock3, ClipboardPen, RefreshCw, Search, Settings2, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
@@ -32,7 +32,7 @@ const penaltyDefaults = { reminder: 0, warning: 3, formal_warning: 5, serious: 1
 export function AdminPayrollPage() {
   const [params, setParams] = useSearchParams();
   const tab = (tabs.some((item) => item.key === params.get('tab')) ? params.get('tab') : 'overview') as Tab;
-  const changeTab = (nextTab: Tab) => { const next = new URLSearchParams(params); next.set('tab', nextTab); next.delete('employee'); setParams(next); };
+  const changeTab = (nextTab: Tab) => { const next = new URLSearchParams(params); next.set('tab', nextTab); next.delete('employee'); next.delete('profile'); setParams(next); };
   return <PageShell eyebrow="门店运营系统 · 管理员" title="实时薪资" backTo="/app/workbench" contentGapClassName="gap-3">
     <nav className="ui-card grid grid-cols-3 gap-1 p-1.5 sm:grid-cols-6" aria-label="实时薪资功能">{tabs.map((item) => <button className={`min-h-10 rounded-lg px-1 text-[11px] font-bold ${tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600'}`} key={item.key} onClick={() => changeTab(item.key)} type="button">{item.label}</button>)}</nav>
     {tab === 'overview' ? <PayrollOverview /> : null}
@@ -46,13 +46,22 @@ export function AdminPayrollPage() {
 
 function PayrollOverview() {
   const auth = useAuth(); const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const asOf = params.get('date') || todayInChina(); const storeId = params.get('store') || ''; const search = params.get('q') || ''; const employeeId = params.get('employee') || '';
   const [result, setResult] = useState<AdminPayrollSummary | null>(null); const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const update = (key: string, value: string, replace = true) => { const next = new URLSearchParams(params); if (value) next.set(key, value); else next.delete(key); setParams(next, { replace }); };
   const load = useCallback(async () => { if (!supabase) return; setStatus('loading'); try { setResult(await loadAdminPayrollEstimates(supabase, { asOf, storeId, search })); setStatus('ready'); } catch { setStatus('error'); } }, [asOf, search, storeId]);
   useEffect(() => { const id = window.setTimeout(() => void load(), 180); return () => window.clearTimeout(id); }, [load]);
   const selected = result?.items.find((item) => item.profileId === employeeId);
-  if (employeeId && selected) return <><button className="ui-button-secondary" onClick={() => update('employee', '', true)} type="button">返回工资列表</button><PayrollEstimateView estimate={selected} /></>;
+  const resolveIssue = (issue: string) => {
+    if (issue.includes('任务数据')) { void navigate('/app/admin/tasks'); return; }
+    const next = new URLSearchParams(params);
+    next.delete('employee');
+    if (issue.includes('营业收入')) next.set('tab', 'revenue');
+    else { next.set('tab', 'employees'); next.set('profile', employeeId); }
+    setParams(next);
+  };
+  if (employeeId && selected) return <><button className="ui-button-secondary" onClick={() => update('employee', '', true)} type="button">返回工资列表</button><PayrollEstimateView estimate={selected} onResolveIssue={resolveIssue} /></>;
   return <>
     <SectionCard className="p-3"><div className="grid grid-cols-2 gap-2"><label className="text-xs font-semibold text-slate-600">截止日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => update('date', event.target.value)} type="date" value={asOf} /></label><label className="text-xs font-semibold text-slate-600">门店范围<select className="ui-input mt-1" onChange={(event) => update('store', event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => update('q', event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label></SectionCard>
     {result ? <section className="grid grid-cols-2 gap-2"><SummaryMetric label="预估合计（已知项）" value={formatMoney(result.knownEstimatedTotal)} /><SummaryMetric label="数据完整员工" value={`${result.completeCount}/${result.employeeCount}`} /></section> : null}
@@ -63,8 +72,9 @@ function PayrollOverview() {
 
 function EmployeeRules() {
   const auth = useAuth(); const [setup, setSetup] = useState<Setup | null>(null); const [profileId, setProfileId] = useState('');
+  const [params] = useSearchParams(); const requestedProfileId = params.get('profile') || '';
   const [form, setForm] = useState(ruleToForm(undefined, [])); const [feedback, setFeedback] = useState<Feedback | null>(null); const [busy, setBusy] = useState(false);
-  const load = useCallback(async () => { if (!supabase) return; const data = await loadPayrollAdminSetup(supabase, monthStart()); setSetup(data); setProfileId((value) => value || data.profiles[0]?.id || ''); }, []);
+  const load = useCallback(async () => { if (!supabase) return; const data = await loadPayrollAdminSetup(supabase, monthStart()); setSetup(data); setProfileId((value) => value || data.profiles.find((profile) => profile.id === requestedProfileId)?.id || data.profiles[0]?.id || ''); }, [requestedProfileId]);
   useEffect(() => { void load().catch((error) => setFeedback({ title: '加载失败', message: error instanceof Error ? error.message : '暂时无法加载。', tone: 'danger' })); }, [load]);
   useEffect(() => { if (!setup || !profileId) return; const rule = setup.rules.find((item) => item.profile_id === profileId); setForm(ruleToForm(rule, setup.commissionStores.filter((item) => item.rule_id === rule?.id).map((item) => item.store_id))); }, [profileId, setup]);
   const save = async () => {
@@ -110,7 +120,21 @@ function PerformanceRules() {
   const load = useCallback(async () => { if (!supabase) return; const setup = await loadPayrollAdminSetup(supabase, monthStart()); const rule = setup.performanceRules[0] ?? null; setCurrent(rule); if (rule) setForm(performanceToForm(rule)); }, []);
   useEffect(() => { void load().catch(() => setFeedback({ title: '加载失败', message: '暂时无法加载绩效规则。', tone: 'danger' })); }, [load]);
   const save = async () => { if (!supabase) return; const weight = Number(form.taskWeight) + Number(form.attendanceWeight) + Number(form.disciplineWeight); if (weight !== 100 || !form.reason.trim()) { setFeedback({ title: '请完善绩效规则', message: weight !== 100 ? '任务、考勤和纪律三项权重合计必须等于 100。' : '请填写修改原因。', tone: 'warning' }); return; } setBusy(true); try { await savePayrollPerformanceRule(supabase, { taskWeight: Number(form.taskWeight), attendanceWeight: Number(form.attendanceWeight), disciplineWeight: Number(form.disciplineWeight), lateDeduction1To10: Number(form.late1), lateDeduction11To20: Number(form.late2), lateDeduction21To30: Number(form.late3), lateDeduction31Plus: Number(form.late4), gradeAMin: Number(form.aMin), gradeBMin: Number(form.bMin), gradeCMin: Number(form.cMin), gradeACoefficient: Number(form.aRate) / 100, gradeBCoefficient: Number(form.bRate) / 100, gradeCCoefficient: Number(form.cRate) / 100, gradeDCoefficient: Number(form.dRate) / 100, effectiveFrom: form.effectiveFrom, changeReason: form.reason.trim() }); setFeedback({ title: '绩效规则已保存', message: '新规则将按生效日期用于实时工资计算。', tone: 'success' }); await load(); } catch (error) { setFeedback({ title: '保存未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); } finally { setBusy(false); } };
-  return <><SectionCard><SectionHeader icon={ShieldCheck} title="绩效评分规则" description={`当前规则：${current?.effective_from ?? '尚未配置'}`} /><h3 className="mt-4 text-sm font-bold">评分权重（合计 100）</h3><div className="mt-2 grid grid-cols-3 gap-2"><Field label="任务" value={form.taskWeight} onChange={(taskWeight) => setForm((v) => ({ ...v, taskWeight }))} /><Field label="考勤" value={form.attendanceWeight} onChange={(attendanceWeight) => setForm((v) => ({ ...v, attendanceWeight }))} /><Field label="纪律" value={form.disciplineWeight} onChange={(disciplineWeight) => setForm((v) => ({ ...v, disciplineWeight }))} /></div><h3 className="mt-4 text-sm font-bold">迟到绩效扣分</h3><div className="mt-2 grid grid-cols-2 gap-2"><Field label="1–10 分钟" value={form.late1} onChange={(late1) => setForm((v) => ({ ...v, late1 }))} /><Field label="11–20 分钟" value={form.late2} onChange={(late2) => setForm((v) => ({ ...v, late2 }))} /><Field label="21–30 分钟" value={form.late3} onChange={(late3) => setForm((v) => ({ ...v, late3 }))} /><Field label="31 分钟以上" value={form.late4} onChange={(late4) => setForm((v) => ({ ...v, late4 }))} /></div><h3 className="mt-4 text-sm font-bold">等级最低分 / 金额系数</h3><div className="mt-2 grid grid-cols-2 gap-2"><Field label="A 最低分" value={form.aMin} onChange={(aMin) => setForm((v) => ({ ...v, aMin }))} /><Field label="A 系数 %" value={form.aRate} onChange={(aRate) => setForm((v) => ({ ...v, aRate }))} /><Field label="B 最低分" value={form.bMin} onChange={(bMin) => setForm((v) => ({ ...v, bMin }))} /><Field label="B 系数 %" value={form.bRate} onChange={(bRate) => setForm((v) => ({ ...v, bRate }))} /><Field label="C 最低分" value={form.cMin} onChange={(cMin) => setForm((v) => ({ ...v, cMin }))} /><Field label="C 系数 %" value={form.cRate} onChange={(cRate) => setForm((v) => ({ ...v, cRate }))} /><Field label="D 系数 %" value={form.dRate} onChange={(dRate) => setForm((v) => ({ ...v, dRate }))} /></div><label className="mt-3 block text-sm font-semibold">生效日期<input className="ui-input mt-1" onChange={(event) => setForm((v) => ({ ...v, effectiveFrom: event.target.value }))} type="date" value={form.effectiveFrom} /></label><label className="mt-3 block text-sm font-semibold">修改原因<input className="ui-input mt-1" onChange={(event) => setForm((v) => ({ ...v, reason: event.target.value }))} value={form.reason} /></label><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">保存绩效规则</button></SectionCard><FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+  return <><SectionCard><SectionHeader icon={ShieldCheck} title="绩效评分规则" description={`当前规则：${current?.effective_from ?? '尚未配置'}`} /><h3 className="mt-4 text-sm font-bold">评分权重（合计 100）</h3><div className="mt-2 grid grid-cols-3 gap-2"><Field label="任务" value={form.taskWeight} onChange={(taskWeight) => setForm((v) => ({ ...v, taskWeight }))} /><Field label="考勤" value={form.attendanceWeight} onChange={(attendanceWeight) => setForm((v) => ({ ...v, attendanceWeight }))} /><Field label="纪律" value={form.disciplineWeight} onChange={(disciplineWeight) => setForm((v) => ({ ...v, disciplineWeight }))} /></div><h3 className="mt-4 text-sm font-bold">迟到绩效扣分</h3><div className="mt-2 grid grid-cols-2 gap-2"><Field label="1–10 分钟" value={form.late1} onChange={(late1) => setForm((v) => ({ ...v, late1 }))} /><Field label="11–20 分钟" value={form.late2} onChange={(late2) => setForm((v) => ({ ...v, late2 }))} /><Field label="21–30 分钟" value={form.late3} onChange={(late3) => setForm((v) => ({ ...v, late3 }))} /><Field label="31 分钟以上" value={form.late4} onChange={(late4) => setForm((v) => ({ ...v, late4 }))} /></div><h3 className="mt-4 text-sm font-bold">等级最低分 / 金额系数</h3><div className="mt-2 grid grid-cols-2 gap-2"><Field label="A 最低分" value={form.aMin} onChange={(aMin) => setForm((v) => ({ ...v, aMin }))} /><Field label="A 系数 %" value={form.aRate} onChange={(aRate) => setForm((v) => ({ ...v, aRate }))} /><Field label="B 最低分" value={form.bMin} onChange={(bMin) => setForm((v) => ({ ...v, bMin }))} /><Field label="B 系数 %" value={form.bRate} onChange={(bRate) => setForm((v) => ({ ...v, bRate }))} /><Field label="C 最低分" value={form.cMin} onChange={(cMin) => setForm((v) => ({ ...v, cMin }))} /><Field label="C 系数 %" value={form.cRate} onChange={(cRate) => setForm((v) => ({ ...v, cRate }))} /><Field label="D 系数 %" value={form.dRate} onChange={(dRate) => setForm((v) => ({ ...v, dRate }))} /></div><label className="mt-3 block text-sm font-semibold">生效日期<input className="ui-input mt-1" onChange={(event) => setForm((v) => ({ ...v, effectiveFrom: event.target.value }))} type="date" value={form.effectiveFrom} /></label><label className="mt-3 block text-sm font-semibold">修改原因<input className="ui-input mt-1" onChange={(event) => setForm((v) => ({ ...v, reason: event.target.value }))} value={form.reason} /></label><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">保存绩效规则</button></SectionCard><PerformanceRuleExplanation form={form} /><FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+}
+
+function PerformanceRuleExplanation({ form }: { form: ReturnType<typeof defaultPerformanceForm> }) {
+  return <SectionCard>
+    <SectionHeader title="绩效分计算细则" description="以下说明会随上方当前填写的规则同步变化。" />
+    <ol className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+      <li><b>1. 任务得分：</b>当月已通过任务数 ÷ 应完成任务数 × {form.taskWeight} 分；没有足够任务数据时，绩效暂不定级。</li>
+      <li><b>2. 考勤得分：</b>从 {form.attendanceWeight} 分开始计算，迟到 1–10、11–20、21–30、31 分钟以上分别扣 {form.late1}、{form.late2}、{form.late3}、{form.late4} 分，最低为 0 分。</li>
+      <li><b>3. 纪律得分：</b>从 {form.disciplineWeight} 分开始计算，再减去处罚记录中的绩效扣分，最低为 0 分。</li>
+      <li><b>4. 最终绩效分：</b>任务得分 + 考勤得分 + 纪律得分，三项满分合计 100 分。</li>
+      <li><b>5. 绩效金额：</b>A 级（≥{form.aMin}）按满绩效的 {form.aRate}%；B 级（≥{form.bMin}）按 {form.bRate}%；C 级（≥{form.cMin}）按 {form.cRate}%；其余 D 级按 {form.dRate}% 计算，再按当月累计出勤天数折算。</li>
+      <li><b>6. 全勤奖：</b>员工启用全勤奖后，累计出勤达到当月满勤天数，奖励金额会另外并入累计绩效。</li>
+    </ol>
+  </SectionCard>;
 }
 
 function RevenueManager() {

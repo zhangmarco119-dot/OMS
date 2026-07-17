@@ -10,7 +10,7 @@ function AmountRow({ label, note, value }: { label: string; note: string; value:
   return <div className="flex items-start justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0"><div><b className="text-sm text-slate-800">{label}</b><p className="mt-0.5 text-xs leading-4 text-slate-500">{note}</p></div><span className="shrink-0 text-sm font-bold tabular-nums text-slate-900">{formatMoney(value)}</span></div>;
 }
 
-export function PayrollEstimateView({ estimate }: { estimate: PayrollEstimate }) {
+export function PayrollEstimateView({ estimate, onResolveIssue }: { estimate: PayrollEstimate; onResolveIssue?: (issue: string) => void }) {
   const payable = estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable;
   const performanceNote = estimate.performanceReady
     ? `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分`
@@ -26,7 +26,7 @@ export function PayrollEstimateView({ estimate }: { estimate: PayrollEstimate })
       <p className="mt-3 text-xs leading-5 text-emerald-100">仅累计本月 1 日至所选日期的已产生金额，不预测月末工资；最终工资以管理员月末确认为准。</p>
     </SectionCard>
 
-    {estimate.dataIssues.length ? <SectionCard className="border-amber-200 bg-amber-50 p-3.5"><div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div><b className="text-sm text-amber-900">仍有数据待完善</b><ul className="mt-1 list-inside list-disc text-xs leading-5 text-amber-800">{estimate.dataIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div></div></SectionCard> : null}
+    {estimate.dataIssues.length ? <SectionCard className="border-amber-200 bg-amber-50 p-3.5"><div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div className="min-w-0 flex-1"><b className="text-sm text-amber-900">仍有数据待完善</b><div className="mt-2 space-y-1.5">{estimate.dataIssues.map((issue) => onResolveIssue ? <button className="flex min-h-10 w-full items-center justify-between rounded-lg border border-amber-200 bg-white px-3 text-left text-xs font-semibold text-amber-900" key={issue} onClick={() => onResolveIssue(issue)} type="button"><span>{issue}</span><span className="ml-2 shrink-0 text-brand-700">去更新</span></button> : <p className="text-xs leading-5 text-amber-800" key={issue}>• {issue}</p>)}</div></div></div></SectionCard> : null}
 
     <SectionCard><SectionHeader icon={CalendarDays} title="出勤与计薪口径" /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="累计出勤" value={`${estimate.attendanceDays} 天`} /><Metric label="全勤标准" value={`${estimate.fullAttendanceDays} 天`} /><Metric label="迟到" value={`${estimate.lateCount} 次`} /></div></SectionCard>
 
@@ -34,7 +34,7 @@ export function PayrollEstimateView({ estimate }: { estimate: PayrollEstimate })
       <AmountRow label="累计基本工资" note={`${formatMoney(estimate.monthlyBaseSalary)}（含社保补贴） ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedBaseSalary} />
       <AmountRow label="累计房补" note={estimate.housingEnabled ? `按 ${estimate.attendanceDays} 个出勤日折算` : '该员工未启用房补'} value={estimate.accruedHousingAllowance} />
       <AmountRow label="累计绩效（含全勤奖）" note={`${performanceNote}${attendanceBonusNote}`} value={estimate.accruedPerformance} />
-      <AmountRow label="累计提成" note={estimate.commissionEnabled ? `本月累计营业额 ${formatMoney(estimate.revenueTotal)} × ${((estimate.commissionRate ?? 0) * 100).toFixed(2)}%` : '该员工未启用营业收入提成'} value={estimate.accruedCommission} />
+      <AmountRow label="累计提成" note={estimate.commissionEnabled ? `本月累计提成基数 ${formatMoney(estimate.revenueTotal)} × ${((estimate.commissionRate ?? 0) * 100).toFixed(2)}%${estimate.revenueCarriedForward && estimate.revenueEffectiveDate ? ` · 沿用截至 ${estimate.revenueEffectiveDate} 的已有基数` : ''}` : '该员工未启用营业收入提成'} value={estimate.accruedCommission} />
       <AmountRow label="已审批加班" note={`${estimate.overtimeHours} 小时 · 当前参考时薪 ${formatMoney(estimate.overtimeHourlyRate)}/小时`} value={estimate.accruedOvertime} />
       <AmountRow label="罚款合计" note={`迟到 ${formatMoney(estimate.lateFine)} + 其他 ${formatMoney(estimate.otherFine)}`} value={-estimate.fineTotal} />
     </div></SectionCard>

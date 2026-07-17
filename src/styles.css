@@ -145,10 +145,14 @@ input[type="date"],
 input[type="month"],
 input[type="time"],
 input[type="datetime-local"] {
-  color-scheme: light !important;
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: light;
   border-color: #cbd5e1 !important;
   background-color: #fff !important;
   color: #16212f !important;
+  -webkit-text-fill-color: #16212f !important;
+  box-shadow: inset 0 0 0 1000px #fff !important;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
@@ -157,6 +161,42 @@ input[type="time"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: none !important;
   opacity: 0.72;
+}
+
+/* Keep the field itself identical to the other white application inputs, but
+   let the phone's native date/month/time picker use a high-contrast dark
+   surface when the operating system is in night mode. */
+@media (prefers-color-scheme: dark) {
+  input[type="date"],
+  input[type="month"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+    color-scheme: dark;
+    border-color: #cbd5e1 !important;
+    background-color: #fff !important;
+    color: #16212f !important;
+    -webkit-text-fill-color: #16212f !important;
+    box-shadow: inset 0 0 0 1000px #fff !important;
+  }
+
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="month"]::-webkit-datetime-edit,
+  input[type="time"]::-webkit-datetime-edit,
+  input[type="datetime-local"]::-webkit-datetime-edit {
+    color: #16212f !important;
+  }
+}
+
+input[type="date"]:disabled,
+input[type="month"]:disabled,
+input[type="time"]:disabled,
+input[type="datetime-local"]:disabled {
+  background-color: #e2e8f0 !important;
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  box-shadow: inset 0 0 0 1000px #e2e8f0 !important;
 }
 
 /* Keep legacy business screens visually aligned while their business markup stays intact. */

@@ -173,4 +173,6 @@ erDiagram
 
 `0071_full_attendance_bonus.sql` 为员工工资规则增加可选全勤奖开关和金额，并包装实时薪资计算：累计出勤达到当月满勤天数后，全勤奖自动并入累计绩效奖和薪资合计。员工工资参数继续按生效日期保留历史。
 
+`0072_payroll_revenue_carry_forward.sql` 调整提成数据完整性口径：所选截止日期没有当天收入时，按门店沿用同一自然月内最近一次手动累计基数，或累计到最近一次收银同步日期的每日营业额。返回值同时标明基数有效日期，且不会跨月沿用。
+
 收银平台 App ID、App Key 不进入数据库业务表、前端环境变量或 Git，只存放在对应 Supabase 环境的 Edge Function Secret。开发与正式环境必须分别设置各自 Secret，并依照 `docs/POS_SALES_SYNC.md` 的顺序先验证 Migration、再部署函数和前端。

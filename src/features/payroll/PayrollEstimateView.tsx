@@ -12,6 +12,14 @@ function AmountRow({ label, note, value }: { label: string; note: string; value:
 
 export function PayrollEstimateView({ estimate }: { estimate: PayrollEstimate }) {
   const payable = estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable;
+  const performanceNote = estimate.performanceReady
+    ? `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分`
+    : '任务数据或满绩效金额待完善';
+  const attendanceBonusNote = estimate.fullAttendanceBonusEnabled
+    ? estimate.fullAttendanceBonusAwarded
+      ? ` · 已含全勤奖 ${formatMoney(estimate.accruedFullAttendanceBonus)}`
+      : ` · 达到 ${estimate.fullAttendanceDays} 天后增加全勤奖 ${formatMoney(estimate.fullAttendanceBonusAmount)}`
+    : '';
   return <>
     <SectionCard className="border-brand-100 bg-gradient-to-br from-brand-700 to-emerald-800 text-white">
       <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-emerald-100">截至 {estimate.asOf} 的预估工资</p><p className="mt-2 text-3xl font-bold tabular-nums">{formatMoney(payable)}</p></div><StatusBadge tone={estimate.dataComplete ? 'success' : 'warning'}>{estimate.dataComplete ? '数据完整' : '部分待更新'}</StatusBadge></div>
@@ -23,9 +31,9 @@ export function PayrollEstimateView({ estimate }: { estimate: PayrollEstimate })
     <SectionCard><SectionHeader icon={CalendarDays} title="出勤与计薪口径" /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="累计出勤" value={`${estimate.attendanceDays} 天`} /><Metric label="全勤标准" value={`${estimate.fullAttendanceDays} 天`} /><Metric label="迟到" value={`${estimate.lateCount} 次`} /></div></SectionCard>
 
     <SectionCard><SectionHeader icon={CircleDollarSign} title="工资明细" description="每项金额均按截至当前日期的实际数据计算。" /><div className="mt-2">
-      <AmountRow label="累计基本工资" note={`${formatMoney(estimate.monthlyBaseSalary)} ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedBaseSalary} />
+      <AmountRow label="累计基本工资" note={`${formatMoney(estimate.monthlyBaseSalary)}（含社保补贴） ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedBaseSalary} />
       <AmountRow label="累计房补" note={estimate.housingEnabled ? `按 ${estimate.attendanceDays} 个出勤日折算` : '该员工未启用房补'} value={estimate.accruedHousingAllowance} />
-      <AmountRow label="累计绩效" note={estimate.performanceReady ? `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分` : '任务数据或满绩效金额待完善'} value={estimate.accruedPerformance} />
+      <AmountRow label="累计绩效（含全勤奖）" note={`${performanceNote}${attendanceBonusNote}`} value={estimate.accruedPerformance} />
       <AmountRow label="累计提成" note={estimate.commissionEnabled ? `本月累计营业额 ${formatMoney(estimate.revenueTotal)} × ${((estimate.commissionRate ?? 0) * 100).toFixed(2)}%` : '该员工未启用营业收入提成'} value={estimate.accruedCommission} />
       <AmountRow label="已审批加班" note={`${estimate.overtimeHours} 小时 · 当前参考时薪 ${formatMoney(estimate.overtimeHourlyRate)}/小时`} value={estimate.accruedOvertime} />
       <AmountRow label="罚款合计" note={`迟到 ${formatMoney(estimate.lateFine)} + 其他 ${formatMoney(estimate.otherFine)}`} value={-estimate.fineTotal} />

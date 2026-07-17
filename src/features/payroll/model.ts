@@ -17,6 +17,10 @@ export interface PayrollEstimate {
   housingEnabled: boolean;
   performanceEnabled: boolean;
   commissionEnabled: boolean;
+  fullAttendanceBonusEnabled: boolean;
+  fullAttendanceBonusAmount: number;
+  fullAttendanceBonusAwarded: boolean;
+  accruedFullAttendanceBonus: number;
   accruedBaseSalary: number;
   accruedHousingAllowance: number;
   accruedPerformance: number | null;

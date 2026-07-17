@@ -6,7 +6,7 @@ const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8,
 
 describe('payroll service', () => {
   it('parses nullable pending amounts without treating them as final zero', () => {
-    expect(parsePayrollEstimate({ ...estimate, accruedCommission: null, estimatedPayable: null })).toMatchObject({ attendanceDays: 8, accruedCommission: null, estimatedPayable: null, dataIssues: ['营业收入待更新'] });
+    expect(parsePayrollEstimate({ ...estimate, accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0 })).toMatchObject({ attendanceDays: 8, accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, dataIssues: ['营业收入待更新'] });
   });
 
   it('loads the current employee estimate with an explicit cutoff date', async () => {

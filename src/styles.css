@@ -139,35 +139,22 @@ textarea:focus-visible {
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  input[type="date"],
-  input[type="month"],
-  input[type="time"],
-  input[type="datetime-local"] {
-    color-scheme: dark;
-    border-color: #475569 !important;
-    background-color: #0f172a !important;
-    color: #f8fafc !important;
-  }
-
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="month"]::-webkit-calendar-picker-indicator,
-  input[type="time"]::-webkit-calendar-picker-indicator,
-  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    filter: invert(1);
-    opacity: 0.9;
-  }
-}
-
-/* Payroll cutoff controls stay visually consistent with the light application
-   card while the operating system date picker remains available. */
-input.payroll-date-control {
+/* The application always uses a light form surface. Keep every native date,
+   month and time control readable even when the phone itself uses dark mode. */
+input[type="date"],
+input[type="month"],
+input[type="time"],
+input[type="datetime-local"] {
+  color-scheme: light !important;
   border-color: #cbd5e1 !important;
   background-color: #fff !important;
   color: #16212f !important;
 }
 
-input.payroll-date-control::-webkit-calendar-picker-indicator {
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: none !important;
   opacity: 0.72;
 }

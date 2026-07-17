@@ -6,10 +6,12 @@ import { IconButton } from '../components/ui/Actions';
 import { EmptyState, FeedbackBanner, StatusBadge } from '../components/ui/Feedback';
 import { MetricCard, SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
+import { formatMoney, todayInChina, type AdminPayrollSummary } from '../features/payroll/model';
 import { v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
 import { loadAdminOperationOverview, type AdminOperationOverview } from '../services/admin-operation-overview.service';
 import { loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
+import { loadAdminPayrollEstimates } from '../services/payroll.service';
 import { loadTodoSummary, type TodoSummary } from '../services/todo.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
@@ -178,16 +180,19 @@ function AdminDashboard() {
   const auth = useAuth();
   const [overview, setOverview] = useState<AdminOperationOverview | null>(null);
   const [summary, setSummary] = useState<TodoSummary | null>(null);
+  const [payrollSummary, setPayrollSummary] = useState<AdminPayrollSummary | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const load = useCallback(async () => {
     if (!supabase || !auth.profile) return;
     try {
-      const [nextOverview, nextSummary] = await Promise.all([
+      const [nextOverview, nextSummary, nextPayrollSummary] = await Promise.all([
         loadAdminOperationOverview(supabase),
         loadTodoSummary(supabase, { isAdmin: true, profileId: auth.profile.id }),
+        loadAdminPayrollEstimates(supabase, { asOf: todayInChina() }),
       ]);
       setOverview(nextOverview);
       setSummary(nextSummary);
+      setPayrollSummary(nextPayrollSummary);
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '运营概览加载失败。');
@@ -203,11 +208,12 @@ function AdminDashboard() {
           <IconButton aria-label="退出登录" onClick={() => void auth.signOut()}><LogOut className="h-5 w-5" /></IconButton>
         </header>
         {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
-        <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
           <MetricCard label="待处理" note="货品申请与任务审核" tone="danger" to="/app/todos" value={summary?.count ?? '—'} />
           <MetricCard label="到货待看" note={`今日到货 ${overview?.arrival_today ?? '—'}`} tone="warning" to="/app/admin/arrivals" value={overview?.arrival_pending ?? '—'} />
           <MetricCard label="今日盘点" note={`进行中 ${overview?.inventory_pending ?? '—'}`} tone="info" to="/app/history" value={overview?.inventory_completed_today ?? '—'} />
           <MetricCard label="执行中任务" note={`已完成 ${overview?.v2_task_completed ?? '—'}`} to="/app/admin/tasks" value={overview?.v2_task_active ?? '—'} />
+          <MetricCard label="实时薪资成本" note={`数据完整 ${payrollSummary?.completeCount ?? '—'}/${payrollSummary?.employeeCount ?? '—'}`} tone="brand" to="/app/admin/payroll" value={payrollSummary ? formatMoney(payrollSummary.knownEstimatedTotal) : '—'} />
         </section>
         <Link className="ui-card ui-interactive flex min-h-14 items-center justify-between px-4 font-bold text-slate-800 hover:border-brand-200" to="/app/admin/analytics"><span>查看运营统计</span><ChevronRight className="h-5 w-5 text-slate-400" /></Link>
         {!message && !overview ? <EmptyState description="数据加载完成后会显示门店运营摘要。" title="正在准备运营数据" /> : null}

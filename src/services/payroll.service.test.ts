@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, loadAdminPayrollEstimates, loadMyPayrollEstimate, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, submitOvertimeRequest } from './payroll.service';
+import { addPayrollPenalty, loadAdminPayrollEstimates, loadMyPayrollEstimate, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -32,6 +32,17 @@ describe('payroll service', () => {
     await expect(reviewOvertimeRequest({ rpc } as never, 'o1', 'approved', '')).resolves.toMatchObject({ status: 'approved' });
     expect(rpc).toHaveBeenNthCalledWith(1, 'submit_payroll_overtime_request', { p_store_id: 's1', p_overtime_date: '2026-07-17', p_hours: 2, p_reason: '闭店盘点' });
     expect(rpc).toHaveBeenNthCalledWith(2, 'review_payroll_overtime_request', { p_request_id: 'o1', p_action: 'approved', p_note: '' });
+  });
+
+  it('allows an optional description and sends revisions back through approval', async () => {
+    const request = { id: 'o1', profile_id: 'p1', store_id: 's1', overtime_date: '2026-07-17', hours: 1.5, reason: '', status: 'pending' };
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: request, error: null })
+      .mockResolvedValueOnce({ data: { ...request, hours: 2 }, error: null });
+    await submitOvertimeRequest({ rpc } as never, { storeId: 's1', overtimeDate: '2026-07-17', hours: 1.5 });
+    await updateOvertimeRequest({ rpc } as never, 'o1', { storeId: 's1', overtimeDate: '2026-07-17', hours: 2 });
+    expect(rpc).toHaveBeenNthCalledWith(1, 'submit_payroll_overtime_request', { p_store_id: 's1', p_overtime_date: '2026-07-17', p_hours: 1.5, p_reason: undefined });
+    expect(rpc).toHaveBeenNthCalledWith(2, 'update_payroll_overtime_request', { p_request_id: 'o1', p_store_id: 's1', p_overtime_date: '2026-07-17', p_hours: 2, p_reason: undefined });
   });
 
   it('saves the configurable overtime rate and publishes penalties through RPCs', async () => {

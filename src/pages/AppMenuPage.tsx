@@ -28,7 +28,7 @@ export function AppMenuPage() {
     ...(featureFlags.noticesAndSops && canUseV2 ? [{ icon: Bell, label: '门店公告', note: '查看公告和已读状态', to: '/app/notices' }, { icon: BookOpenCheck, label: 'SOP 手册', note: '查看标准作业流程', to: '/app/sops' }] : []),
     { icon: CalendarClock, label: '我的考勤', note: '查看月度出勤、迟到与异常记录', to: '/app/attendance' },
     { icon: CircleDollarSign, label: '预估工资', note: '查看截至今日的工资累计与明细', to: '/app/payroll' },
-    { icon: CalendarClock, label: '加班填报', note: '提交加班记录并查看审批进度', to: '/app/overtime' },
+    { icon: CalendarClock, label: '加班管理', note: '填报加班并查看记录与工资汇总', to: '/app/overtime' },
     { icon: History, label: '运营历史', note: '点货、订货、到货和任务记录', to: '/app/operations-history' },
   ];
   return <PageShell eyebrow="门店运营系统" title="工作台" contentGapClassName="gap-3"><section className="grid grid-cols-3 gap-2 sm:gap-3">{items.map((item) => <FeatureCard {...item} key={item.to} />)}</section></PageShell>;

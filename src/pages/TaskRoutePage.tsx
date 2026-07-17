@@ -17,7 +17,7 @@ interface TaskRoutePageProps {
 
 const copy = {
   inventory: {
-    title: '门店运营系统',
+    title: '点货',
     modeLabel: '盘点',
     quantityLabel: '盘点数量',
     processedLabel: '已点',
@@ -27,7 +27,7 @@ const copy = {
     summaryBody: '货品已清点完毕，可以返回修改或继续补充临时货品。',
   },
   order: {
-    title: '门店运营系统',
+    title: '订货',
     modeLabel: '订货',
     quantityLabel: '订货数量',
     processedLabel: '已订',
@@ -90,6 +90,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const auth = useAuth();
   const navigate = useNavigate();
   const text = copy[mode];
+  const compact = mode === 'inventory';
   const task = useTaskSession(mode);
   const [showSummary, setShowSummary] = useState(false);
   const [showExtraForm, setShowExtraForm] = useState(false);
@@ -301,23 +302,23 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   };
 
   return (
-    <section className="min-h-screen bg-slate-50 px-4 py-4">
-      <div className="mx-auto flex max-w-5xl flex-col gap-4">
-        <header className="rounded-2xl bg-white p-4 shadow-sm">
+    <section className={`min-h-screen bg-slate-50 ${compact ? 'px-3 py-2.5' : 'px-4 py-4'}`}>
+      <div className={`mx-auto flex max-w-5xl flex-col ${compact ? 'gap-2.5' : 'gap-4'}`}>
+        <header className={`rounded-2xl bg-white shadow-sm ${compact ? 'p-3' : 'p-4'}`}>
           <div className="flex items-start justify-between gap-4">
             <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={() => navigate('/app/workbench', { replace: true })} type="button"><ArrowLeft className="h-5 w-5" /></button>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-slate-500">{auth.store?.name ?? '当前门店'}</p>
-              <h1 className="mt-1 text-xl font-bold text-slate-900">{text.title}</h1>
+              <h1 className={`${compact ? 'text-lg' : 'mt-1 text-xl'} font-bold text-slate-900`}>{text.title}</h1>
             </div>
             <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
               {task.stats.processed}/{task.stats.total}
             </div>
           </div>
-          <div className="mt-3 h-2 rounded-full bg-slate-100">
+          <div className={`${compact ? 'mt-2 h-1.5' : 'mt-3 h-2'} rounded-full bg-slate-100`}>
             <div className="h-2 rounded-full bg-brand-600 transition-all" style={progressStyle} />
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+          <div className={`${compact ? 'mt-2' : 'mt-3'} flex items-center justify-between text-xs text-slate-500`}>
             <span>{text.modeLabel}进度 {task.stats.percent}%</span>
             {mode === 'inventory' ? (
               <button className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700" onClick={() => void openInventoryImport()} type="button">
@@ -386,13 +387,13 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
               </button>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[230px_1fr_230px]">
+            <div className={`grid lg:grid-cols-[230px_1fr_230px] ${compact ? 'gap-2.5' : 'gap-4'}`}>
               <aside className="hidden rounded-2xl bg-white p-4 shadow-sm lg:block">
                 <h2 className="font-semibold text-slate-900">{text.processedLabel}列表</h2>
                 <ItemList currentId={task.currentItem?.id} items={task.processedItems} onSelect={task.goToIndex} sourceItems={task.items} />
               </aside>
 
-              <section className="rounded-2xl bg-white p-5 shadow-sm">
+              <section className={`rounded-2xl bg-white shadow-sm ${compact ? 'p-3.5' : 'p-5'}`}>
                 {task.message ? (
                   <p className="mb-4 rounded-xl bg-accent-50 p-3 text-sm leading-6 text-accent-700">{task.message}</p>
                 ) : null}
@@ -402,9 +403,9 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   <span>{task.stats.total ? task.currentIndex + 1 : 0}/{task.stats.total}</span>
                 </div>
 
-                <div className="mt-6 min-h-36 text-center">
-                  <h2 className="text-3xl font-bold leading-tight text-slate-900">{snapshot?.name ?? '暂无货品'}</h2>
-                  <p className="mt-3 text-base text-slate-500">{snapshot?.spec || '无规格'}</p>
+                <div className={`${compact ? 'mt-2 min-h-20' : 'mt-6 min-h-36'} text-center`}>
+                  <h2 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold leading-tight text-slate-900`}>{snapshot?.name ?? '暂无货品'}</h2>
+                  <p className={`${compact ? 'mt-1.5 text-sm' : 'mt-3 text-base'} text-slate-500`}>{snapshot?.spec || '无规格'}</p>
                   {task.currentItem?.status === 'no_order_needed' ? (
                     <span className="mt-4 inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">已标记无需订货</span>
                   ) : null}
@@ -416,10 +417,10 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   ) : null}
                 </div>
 
-                <div className="mt-5 flex items-center justify-center gap-3">
+                <div className={`${compact ? 'mt-2.5 gap-2' : 'mt-5 gap-3'} flex items-center justify-center`}>
                   <button
                     aria-label="减少数量"
-                    className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 active:scale-95 disabled:text-slate-300"
+                    className={`flex items-center justify-center rounded-2xl bg-slate-100 text-slate-700 active:scale-95 disabled:text-slate-300 ${compact ? 'h-12 w-12' : 'h-14 w-14'}`}
                     disabled={deletionActionLocked}
                     onClick={() => updateQuantity(-1)}
                     type="button"
@@ -429,7 +430,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   <label className="min-w-0 flex-1">
                     <span className="sr-only">{text.quantityLabel}</span>
                     <input
-                      className="h-24 w-full rounded-2xl border-2 border-slate-200 bg-slate-50 text-center text-5xl font-bold text-slate-900 outline-none transition focus:border-brand-500 focus:bg-white"
+                      className={`${compact ? 'h-16 text-4xl' : 'h-24 text-5xl'} w-full rounded-2xl border-2 border-slate-200 bg-slate-50 text-center font-bold text-slate-900 outline-none transition focus:border-brand-500 focus:bg-white`}
                       disabled={deletionActionLocked}
                       inputMode="decimal"
                       min="0"
@@ -441,7 +442,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   </label>
                   <button
                     aria-label="增加数量"
-                    className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 active:scale-95 disabled:text-slate-300"
+                    className={`flex items-center justify-center rounded-2xl bg-slate-100 text-slate-700 active:scale-95 disabled:text-slate-300 ${compact ? 'h-12 w-12' : 'h-14 w-14'}`}
                     disabled={deletionActionLocked}
                     onClick={() => updateQuantity(1)}
                     type="button"
@@ -449,9 +450,9 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                     <ChevronUp className="h-7 w-7" aria-hidden="true" />
                   </button>
                 </div>
-                <p className="mt-3 text-center text-sm font-semibold text-slate-500">{snapshot?.count_unit || '单位'}</p>
+                <p className={`${compact ? 'mt-1.5' : 'mt-3'} text-center text-sm font-semibold text-slate-500`}>{snapshot?.count_unit || '单位'}</p>
 
-                <div className="mt-6 grid grid-cols-2 gap-3">
+                <div className={`${compact ? 'mt-3 gap-2' : 'mt-6 gap-3'} grid grid-cols-2`}>
                   <button
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 font-semibold text-slate-700 disabled:text-slate-300"
                     disabled={!canGoPrevious}
@@ -472,7 +473,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   </button>
                 </div>
 
-                <button className="mt-3 min-h-12 w-full rounded-xl bg-slate-900 px-4 font-bold text-white active:scale-[0.99]" onClick={task.goNextPending} type="button">
+                <button className={`${compact ? 'mt-2 min-h-10 text-sm' : 'mt-3 min-h-12'} w-full rounded-xl bg-slate-900 px-4 font-bold text-white active:scale-[0.99]`} onClick={task.goNextPending} type="button">
                   下一项未处理
                 </button>
 
@@ -484,13 +485,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                 ) : null}
 
                 {task.currentItem?.product_id ? (
-                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-                    <textarea
-                      className="min-h-20 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-brand-500"
-                      onChange={(event) => setFeedbackNote(event.target.value)}
-                      placeholder="货品操作说明，可选"
-                      value={feedbackNote}
-                    />
+                  <div className={`${compact ? 'mt-3 p-3' : 'mt-5 p-4'} rounded-2xl bg-slate-50`}>
                     {feedbackActionMessage ? (
                       <p className="mt-3 rounded-xl bg-white p-3 text-sm leading-6 text-slate-700">{feedbackActionMessage}</p>
                     ) : null}
@@ -499,7 +494,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                         已提交删除此货品，等待管理员确认。
                       </p>
                     ) : null}
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
                         disabled={feedbackBusy || deletionActionLocked}
@@ -522,12 +517,12 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   </div>
                 ) : null}
 
-                <div className="mt-5 grid grid-cols-[minmax(0,1.6fr)_minmax(8.5rem,1fr)] gap-3">
-                  <button className="min-h-16 rounded-xl bg-brand-600 px-5 text-lg font-bold text-white shadow-lg shadow-brand-100 active:scale-[0.99]" onClick={finishTask} type="button">
+                <div className={`${compact ? 'mt-3 gap-2' : 'mt-5 gap-3'} grid grid-cols-[minmax(0,1.6fr)_minmax(8.5rem,1fr)]`}>
+                  <button className={`${compact ? 'min-h-12 text-base' : 'min-h-16 text-lg'} rounded-xl bg-brand-600 px-5 font-bold text-white shadow-lg shadow-brand-100 active:scale-[0.99]`} onClick={finishTask} type="button">
                     {text.complete}
                   </button>
                   {isManager || productPermissions.new ? <button
-                    className="inline-flex min-h-16 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-800"
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-800 ${compact ? 'min-h-12 text-sm' : 'min-h-16'}`}
                     onClick={() => {
                       setExtraFormMessage(null);
                       setShowExtraForm(true);

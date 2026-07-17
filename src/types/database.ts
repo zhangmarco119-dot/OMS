@@ -589,6 +589,24 @@ export type Database = {
         Update: { amount?: number; event_date?: string; event_level?: 'reminder' | 'warning' | 'formal_warning' | 'serious'; performance_deduction?: number; profile_id?: string; reason?: string; revoke_reason?: string | null; status?: 'active' | 'revoked'; updated_at?: string };
         Relationships: [];
       };
+      payroll_overtime_rates: {
+        Row: { change_reason: string; created_at: string; created_by: string | null; effective_from: string; effective_to: string | null; hourly_rate: number; id: string };
+        Insert: { change_reason?: string; created_at?: string; created_by?: string | null; effective_from: string; effective_to?: string | null; hourly_rate: number; id?: string };
+        Update: { change_reason?: string; created_at?: string; created_by?: string | null; effective_from?: string; effective_to?: string | null; hourly_rate?: number; id?: string };
+        Relationships: [];
+      };
+      payroll_overtime_requests: {
+        Row: { approved_hourly_rate: number | null; created_at: string; hours: number; id: string; overtime_date: string; profile_id: string; reason: string; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; status: 'pending' | 'approved' | 'rejected' | 'cancelled'; store_id: string; updated_at: string };
+        Insert: { approved_hourly_rate?: number | null; created_at?: string; hours: number; id?: string; overtime_date: string; profile_id: string; reason: string; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; status?: 'pending' | 'approved' | 'rejected' | 'cancelled'; store_id: string; updated_at?: string };
+        Update: { approved_hourly_rate?: number | null; hours?: number; overtime_date?: string; profile_id?: string; reason?: string; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; status?: 'pending' | 'approved' | 'rejected' | 'cancelled'; store_id?: string; updated_at?: string };
+        Relationships: [];
+      };
+      payroll_penalty_assets: {
+        Row: { bucket: 'payroll-evidence'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
+        Insert: { bucket?: 'payroll-evidence'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
+        Update: { bucket?: 'payroll-evidence'; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp'; object_path?: string; penalty_id?: string; size_bytes?: number; uploaded_by?: string };
+        Relationships: [];
+      };
       profile_store_access: {
         Row: {
           created_at: string;
@@ -858,11 +876,15 @@ export type Database = {
     Functions: {
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
       admin_payroll_estimates: { Args: { p_as_of?: string; p_search?: string; p_store_id?: string | null }; Returns: Json };
+      admin_create_payroll_penalty: { Args: { p_fields: Json }; Returns: Json };
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };
+      admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
       admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
       get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
       get_payroll_estimate: { Args: { p_as_of?: string; p_profile_id: string }; Returns: Json };
+      review_payroll_overtime_request: { Args: { p_action: string; p_note?: string; p_request_id: string }; Returns: Json };
+      submit_payroll_overtime_request: { Args: { p_hours: number; p_overtime_date: string; p_reason: string; p_store_id: string }; Returns: Json };
       get_v2_sop_detail: { Args: { p_sop_id: string }; Returns: Json };
       list_v2_sop_cards: { Args: { p_archived?: boolean; p_category?: string; p_favorites_only?: boolean; p_limit?: number; p_offset?: number; p_search?: string }; Returns: Json };
       attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };

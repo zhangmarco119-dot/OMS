@@ -52,7 +52,7 @@ describe('DashboardPage notification unread count', () => {
       notification('notification-3', '第三条通知'),
     ]);
     vi.mocked(loadV2Tasks).mockResolvedValue([]);
-    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0 });
+    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0, overtime: 0 });
     vi.mocked(markNotificationRead).mockReturnValue(new Promise(() => undefined));
   });
 

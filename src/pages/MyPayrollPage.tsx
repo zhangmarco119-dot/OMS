@@ -20,10 +20,9 @@ export function MyPayrollPage() {
     catch (error) { setMessage(error instanceof Error ? error.message : '暂时无法计算预估工资。'); setStatus('error'); }
   }, [auth.profile]);
   useEffect(() => { void load(); }, [load]);
-  return <PageShell eyebrow="个人薪资" title="我的预估工资" backTo="/app/menu" contentGapClassName="gap-3">
+  return <PageShell eyebrow="个人薪资" title="预估工资" backTo="/app/menu" contentGapClassName="gap-3">
     {status === 'loading' ? <LoadingState label="正在计算截至今日的预估工资" /> : null}
     {status === 'error' ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'ready' && estimate ? <PayrollEstimateView estimate={estimate} /> : null}
   </PageShell>;
 }
-

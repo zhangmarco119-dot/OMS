@@ -30,6 +30,7 @@ import { MyAttendancePage } from './pages/MyAttendancePage';
 import { MyPayrollPage } from './pages/MyPayrollPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
+import { OvertimePage } from './pages/OvertimePage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
 import { SopDetailPage } from './pages/SopDetailPage';
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'attendance', element: <MyAttendancePage /> },
       { path: 'payroll', element: <MyPayrollPage /> },
+      { path: 'overtime', element: <OvertimePage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/about', element: <ProtectedRoute requireAdmin><AboutSystemPage /></ProtectedRoute> },
       { path: 'account/about/manual/:manualSlug', element: <ProtectedRoute requireAdmin><SystemManualPage /></ProtectedRoute> },

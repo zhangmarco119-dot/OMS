@@ -18,6 +18,8 @@ const notificationLink = (notification: UserNotification) => {
   if (notification.entity_type === 'v2_notice') return `/app/notices/${notification.entity_id}`;
   if (notification.entity_type === 'v2_task') return `/app/tasks/${notification.entity_id}`;
   if (notification.entity_type === 'v2_sop') return `/app/sops/${notification.entity_id}`;
+  if (notification.entity_type === 'payroll_penalty') return '/app/payroll';
+  if (notification.entity_type === 'payroll_overtime') return '/app/overtime';
   return '/app/todos';
 };
 
@@ -46,7 +48,7 @@ function StaffDashboard() {
         loadNotices(supabase),
         loadNotifications(supabase),
         loadV2Tasks(supabase, auth.store?.id),
-        loadTodoSummary(supabase, { isAdmin: false, profileId: auth.profile.id, storeId: auth.store?.id }),
+        loadTodoSummary(supabase, { isAdmin: false, isManager: auth.profile.role === 'manager', profileId: auth.profile.id, storeId: auth.store?.id, storeIds: auth.availableStores.map((store) => store.id) }),
       ]);
       if (requestId !== loadRequestIdRef.current) return;
       const now = Date.now();
@@ -59,7 +61,7 @@ function StaffDashboard() {
       if (requestId !== loadRequestIdRef.current) return;
       setMessage(error instanceof Error ? error.message : '首页信息加载失败。');
     }
-  }, [auth.profile, auth.store?.id]);
+  }, [auth.availableStores, auth.profile, auth.store?.id]);
 
   useEffect(() => {
     void load();

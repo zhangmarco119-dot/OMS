@@ -21,6 +21,9 @@ export interface PayrollEstimate {
   accruedHousingAllowance: number;
   accruedPerformance: number | null;
   accruedCommission: number | null;
+  overtimeHours: number;
+  overtimeHourlyRate: number | null;
+  accruedOvertime: number;
   lateCount: number;
   lateMinutes: number;
   lateFine: number;
@@ -44,6 +47,7 @@ export interface PayrollEstimate {
   tasksUpdatedAt: string | null;
   revenueUpdatedAt: string | null;
   penaltiesUpdatedAt: string | null;
+  overtimeUpdatedAt: string | null;
   dataIssues: string[];
 }
 
@@ -61,4 +65,3 @@ export const formatMoney = (value: number | null | undefined) => value == null
   : `¥${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export const todayInChina = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date());
-

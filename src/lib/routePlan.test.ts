@@ -29,7 +29,7 @@ describe('routePlan', () => {
   });
 
   it('registers employee and administrator realtime payroll pages', () => {
-    expect(routePlan.map((item) => item.path)).toEqual(expect.arrayContaining(['/app/payroll', '/app/admin/payroll']));
+    expect(routePlan.map((item) => item.path)).toEqual(expect.arrayContaining(['/app/payroll', '/app/overtime', '/app/admin/payroll']));
   });
 
   it('keeps administrator content, products, and users on independent routes', () => {

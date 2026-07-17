@@ -26,7 +26,7 @@ export function PayrollEstimateView({ estimate }: { estimate: PayrollEstimate })
       <AmountRow label="累计基本工资" note={`${formatMoney(estimate.monthlyBaseSalary)} ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedBaseSalary} />
       <AmountRow label="累计房补" note={estimate.housingEnabled ? `按 ${estimate.attendanceDays} 个出勤日折算` : '该员工未启用房补'} value={estimate.accruedHousingAllowance} />
       <AmountRow label="累计绩效" note={estimate.performanceReady ? `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分` : '任务数据或满绩效金额待完善'} value={estimate.accruedPerformance} />
-      <AmountRow label="累计提成" note={estimate.commissionEnabled ? `已确认营业收入 ${formatMoney(estimate.revenueTotal)} × ${((estimate.commissionRate ?? 0) * 100).toFixed(2)}%` : '该员工未启用营业收入提成'} value={estimate.accruedCommission} />
+      <AmountRow label="累计提成" note={estimate.commissionEnabled ? `本月累计营业额 ${formatMoney(estimate.revenueTotal)} × ${((estimate.commissionRate ?? 0) * 100).toFixed(2)}%` : '该员工未启用营业收入提成'} value={estimate.accruedCommission} />
       <AmountRow label="已审批加班" note={`${estimate.overtimeHours} 小时 · 当前参考时薪 ${formatMoney(estimate.overtimeHourlyRate)}/小时`} value={estimate.accruedOvertime} />
       <AmountRow label="罚款合计" note={`迟到 ${formatMoney(estimate.lateFine)} + 其他 ${formatMoney(estimate.otherFine)}`} value={-estimate.fineTotal} />
     </div></SectionCard>

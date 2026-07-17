@@ -169,4 +169,6 @@ erDiagram
 
 `0068_pos_sales_revenue_sync.sql` 新增收银系统门店映射、更新计划、同步任务和最小化单据表，并为每日营业收入增加来源追踪。管理员只能管理授权门店的连接计划与读取同步日志；浏览器不能读写标准化单据，只有后端 Service Role 可用事务函数替换某门店某日单据并刷新营业收入。
 
+`0070_monthly_revenue_sources.sql` 新增门店截止日期营业额来源表。提成计算会按门店选择使用“本月每日营业额合计”或“管理员手动设置的本月累计营业额”，不会把单日营业额误当整月基数，也不会同时叠加两个来源。银豹月累计同步由 Service Role 在事务中替换所选月区间的标准化单据，并为无单据日期写入零值确认记录。
+
 收银平台 App ID、App Key 不进入数据库业务表、前端环境变量或 Git，只存放在对应 Supabase 环境的 Edge Function Secret。开发与正式环境必须分别设置各自 Secret，并依照 `docs/POS_SALES_SYNC.md` 的顺序先验证 Migration、再部署函数和前端。

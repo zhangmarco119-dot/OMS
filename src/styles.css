@@ -159,6 +159,19 @@ textarea:focus-visible {
   }
 }
 
+/* Payroll cutoff controls stay visually consistent with the light application
+   card while the operating system date picker remains available. */
+input.payroll-date-control {
+  border-color: #cbd5e1 !important;
+  background-color: #fff !important;
+  color: #16212f !important;
+}
+
+input.payroll-date-control::-webkit-calendar-picker-indicator {
+  filter: none !important;
+  opacity: 0.72;
+}
+
 /* Keep legacy business screens visually aligned while their business markup stays intact. */
 .rounded-lg.bg-white.shadow-sm,
 .rounded-xl.bg-white.shadow-sm,

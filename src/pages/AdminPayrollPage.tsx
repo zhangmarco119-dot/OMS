@@ -12,9 +12,9 @@ import { formatMoney, todayInChina, type AdminPayrollSummary } from '../features
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
-  addPayrollPenalty, configurePosSalesIntegration, invokePospalSalesSync, loadAdminPayrollEstimates,
+  addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
   loadPayrollAdminSetup, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate,
-  savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenue, uploadPayrollEvidence,
+  savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
 
@@ -54,7 +54,7 @@ function PayrollOverview() {
   const selected = result?.items.find((item) => item.profileId === employeeId);
   if (employeeId && selected) return <><button className="ui-button-secondary" onClick={() => update('employee', '', true)} type="button">返回工资列表</button><PayrollEstimateView estimate={selected} /></>;
   return <>
-    <SectionCard className="p-3"><div className="grid grid-cols-2 gap-2"><label className="text-xs font-semibold text-slate-600">截止日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => update('date', event.target.value)} type="date" value={asOf} /></label><label className="text-xs font-semibold text-slate-600">门店范围<select className="ui-input mt-1" onChange={(event) => update('store', event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => update('q', event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label></SectionCard>
+    <SectionCard className="p-3"><div className="grid grid-cols-2 gap-2"><label className="text-xs font-semibold text-slate-600">截止日期<input className="payroll-date-control ui-input mt-1" max={todayInChina()} onChange={(event) => update('date', event.target.value)} type="date" value={asOf} /></label><label className="text-xs font-semibold text-slate-600">门店范围<select className="ui-input mt-1" onChange={(event) => update('store', event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => update('q', event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label></SectionCard>
     {result ? <section className="grid grid-cols-2 gap-2"><SummaryMetric label="预估合计（已知项）" value={formatMoney(result.knownEstimatedTotal)} /><SummaryMetric label="数据完整员工" value={`${result.completeCount}/${result.employeeCount}`} /></section> : null}
     {status === 'loading' ? <LoadingState label="正在计算实时预估工资" /> : null}{status === 'error' ? <ErrorState message="暂时无法加载实时工资。" onRetry={() => void load()} /> : null}{status === 'ready' && !result?.items.length ? <EmptyState title="暂无符合条件的员工" /> : null}
     {status === 'ready' ? <section className="space-y-2">{result?.items.map((item) => <button className="ui-interactive ui-card w-full p-3.5 text-left" key={item.profileId} onClick={() => update('employee', item.profileId, false)} type="button"><div className="flex items-start justify-between gap-3"><div><b>{item.displayName}</b><p className="mt-0.5 text-xs text-slate-500">出勤 {item.attendanceDays} 天 · 加班 {item.overtimeHours} 小时 · 迟到 {item.lateCount} 次</p></div><StatusBadge tone={item.dataComplete ? 'success' : 'warning'}>{item.dataComplete ? '数据完整' : '待完善'}</StatusBadge></div><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Mini label="基本工资" value={formatMoney(item.accruedBaseSalary)} /><Mini label="加班" value={formatMoney(item.accruedOvertime)} /><Mini label="预估可发" value={formatMoney(item.dataComplete ? item.estimatedPayable : item.knownEstimatedPayable)} /></div></button>)}</section> : null}
@@ -86,6 +86,7 @@ function RevenueManager() {
   const [posSetup, setPosSetup] = useState<Awaited<ReturnType<typeof loadPosSalesSetup>> | null>(null);
   const [storeId, setStoreId] = useState(auth.availableStores[0]?.id ?? '');
   const [date, setDate] = useState(todayInChina());
+  const [inputMode, setInputMode] = useState<'pos_sync' | 'manual'>('manual');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -102,18 +103,54 @@ function RevenueManager() {
   }, [date]);
   useEffect(() => { void load().catch(() => undefined); }, [load]);
 
-  const save = async () => {
+  const integration = posSetup?.integrations.find((item) => item.store_id === storeId);
+  const savedInput = setup?.revenueInputs.find((item) => item.store_id === storeId && item.as_of_date === date);
+  const dailyMonthTotal = setup?.revenues
+    .filter((item) => item.store_id === storeId && item.revenue_date >= monthStart(date) && item.revenue_date <= date)
+    .reduce((total, item) => total + Number(item.confirmed_amount), 0) ?? 0;
+  const cumulativeRevenue = savedInput?.input_mode === 'manual'
+    ? Number(savedInput.manual_cumulative_amount ?? 0)
+    : dailyMonthTotal;
+  useEffect(() => {
+    const nextMode = savedInput?.input_mode ?? (integration?.provider === 'pospal' ? 'pos_sync' : 'manual');
+    setInputMode(nextMode);
+    setAmount(savedInput?.input_mode === 'manual' ? String(savedInput.manual_cumulative_amount ?? '') : '');
+    setNote(savedInput?.note ?? '');
+  }, [date, integration?.provider, savedInput, storeId]);
+
+  const saveManual = async () => {
     if (!supabase || !auth.profile || !storeId || amount === '') {
-      setFeedback({ title: '请完善营业收入', message: '请选择门店并填写已确认的当日营业收入。', tone: 'warning' });
+      setFeedback({ title: '请完善累计营业额', message: '请选择门店并填写本月 1 日至截止日期的累计营业额。', tone: 'warning' });
       return;
     }
-    setBusyAction('manual-revenue');
+    setBusyAction('manual-cumulative');
     try {
-      await savePayrollRevenue(supabase, { store_id: storeId, revenue_date: date, confirmed_amount: Number(amount), note: note.trim(), updated_by: auth.profile.id });
-      setFeedback({ title: '营业收入已保存', message: '该金额已纳入员工截至当前日期的提成预估。', tone: 'success' });
-      setAmount(''); setNote(''); await load();
+      await savePayrollRevenueInput(supabase, { asOfDate: date, mode: 'manual', manualCumulativeAmount: Number(amount), note, storeId });
+      setFeedback({ title: '本月累计营业额已保存', message: `${date.slice(0, 7)}-01 至 ${date} 的累计营业额已作为提成计算基数。`, tone: 'success' });
+      await load();
     } catch (error) {
       setFeedback({ title: '保存未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setBusyAction(''); }
+  };
+
+  const syncMonth = async () => {
+    if (!supabase || !integration || integration.provider !== 'pospal') {
+      setFeedback({ title: '当前门店未接入收银系统', message: '请选择已经接入银豹的西直门店，或改用手动设置。', tone: 'warning' });
+      return;
+    }
+    setBusyAction(`sync-month:${integration.id}`);
+    try {
+      const result = await invokePospalMonthlySalesSync(supabase, integration.id, date);
+      await savePayrollRevenueInput(supabase, { asOfDate: date, mode: 'pos_sync', storeId });
+      setFeedback({
+        title: '本月累计营业额已同步',
+        message: `${date.slice(0, 7)}-01 至 ${date} 共读取 ${result.ticketCount ?? 0} 张单据，累计营业额为 ${formatMoney(result.revenueAmount ?? 0)}，使用 ${result.apiCallCount ?? 0} 次接口调用。`,
+        tone: 'success',
+      });
+      await load();
+    } catch (error) {
+      setFeedback({ title: '本月累计同步未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+      await load().catch(() => undefined);
     } finally { setBusyAction(''); }
   };
 
@@ -168,17 +205,20 @@ function RevenueManager() {
     </SectionCard>
 
     <SectionCard>
-      <SectionHeader icon={Banknote} title="每日已确认营业收入" description="银豹门店可自动或手动同步；其他门店仍可手工录入。" />
+      <SectionHeader icon={Banknote} title="本月累计营业额" description="提成始终按本月 1 日至所选截止日期的累计营业额计算，不使用单日营业额作为累计基数。" />
       <div className="mt-3 grid grid-cols-2 gap-2">
         <label className="text-sm font-semibold">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
-        <label className="text-sm font-semibold">日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
+        <label className="text-sm font-semibold">截止日期<input className="payroll-date-control ui-input mt-1" max={todayInChina()} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
       </div>
-      <Field label="确认金额" value={amount} onChange={setAmount} />
-      <label className="mt-3 block text-sm font-semibold">备注<input className="ui-input mt-1" onChange={(event) => setNote(event.target.value)} value={note} /></label>
-      <button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void save()} type="button">保存营业收入</button>
+      <div className="mt-3 rounded-xl bg-brand-50 p-3 text-center"><p className="text-xs font-semibold text-brand-700">{date.slice(0, 7)}-01 至 {date} 累计提成基数</p><p className="mt-1 text-2xl font-bold tabular-nums text-brand-900">{formatMoney(cumulativeRevenue)}</p></div>
+      <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="营业额更新方式">
+        <button className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${inputMode === 'pos_sync' ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} disabled={!integration || integration.provider !== 'pospal'} onClick={() => setInputMode('pos_sync')} type="button">收银系统同步</button>
+        <button className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${inputMode === 'manual' ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} onClick={() => setInputMode('manual')} type="button">手动设置</button>
+      </div>
+      {inputMode === 'pos_sync' ? <div className="mt-3 rounded-xl border border-brand-100 bg-emerald-50/60 p-3"><p className="text-sm font-semibold text-slate-800">从银豹同步本月累计营业额</p><p className="mt-1 text-xs leading-5 text-slate-600">银豹接口每次最多查询 1 天；系统会分小批读取本月全部有效销售与退货单，完成后统一更新每日明细。</p><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void syncMonth()} type="button">{busyAction.startsWith('sync-month:') ? '正在同步本月数据' : '同步本月累计营业额'}</button></div> : <div className="mt-3"><Field label={`本月累计营业额（截至 ${date}）`} value={amount} onChange={setAmount} /><label className="mt-3 block text-sm font-semibold">备注（选填）<input className="ui-input mt-1" onChange={(event) => setNote(event.target.value)} value={note} /></label><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void saveManual()} type="button">{busyAction === 'manual-cumulative' ? '正在保存' : '保存手动累计营业额'}</button></div>}
     </SectionCard>
 
-    <section className="space-y-2">{setup?.revenues.slice(0, 30).map((row) => <SectionCard className="p-3" key={row.id}><div className="flex items-start justify-between gap-3"><span><b>{auth.availableStores.find((store) => store.id === row.store_id)?.short_name ?? '门店'}</b><small className="mt-0.5 block text-slate-500">{row.revenue_date}</small><StatusBadge tone={row.source === 'pospal' ? 'success' : row.source === 'qmai' ? 'info' : 'warning'}>{row.source === 'pospal' ? '银豹同步' : row.source === 'qmai' ? '企迈同步' : '手动录入'}</StatusBadge></span><b>{formatMoney(row.confirmed_amount)}</b></div></SectionCard>)}</section>
+    <section className="space-y-2"><h3 className="px-1 text-sm font-bold text-slate-700">每日营业额明细</h3>{setup?.revenues.slice(0, 30).map((row) => <SectionCard className="p-3" key={row.id}><div className="flex items-start justify-between gap-3"><span><b>{auth.availableStores.find((store) => store.id === row.store_id)?.short_name ?? '门店'}</b><small className="mt-0.5 block text-slate-500">{row.revenue_date}</small><StatusBadge tone={row.source === 'pospal' ? 'success' : row.source === 'qmai' ? 'info' : 'warning'}>{row.source === 'pospal' ? '银豹同步' : row.source === 'qmai' ? '企迈同步' : '历史手动明细'}</StatusBadge></span><b>{formatMoney(row.confirmed_amount)}</b></div></SectionCard>)}</section>
     <FeedbackDialog feedback={feedback} close={() => setFeedback(null)} />
   </>;
 }

@@ -64,20 +64,21 @@ export async function loadAdminPayrollEstimates(client: Client, options: { asOf:
 }
 
 export async function loadPayrollAdminSetup(client: Client, monthStart: string) {
-  const [profiles, rules, commissionStores, performanceRules, revenues, penalties, penaltyAssets, overtimeRates, overtimeRequests] = await Promise.all([
+  const [profiles, rules, commissionStores, performanceRules, revenues, revenueInputs, penalties, penaltyAssets, overtimeRates, overtimeRequests] = await Promise.all([
     client.from('profiles').select('*').in('role', ['staff', 'manager']).is('deleted_at', null).order('display_name'),
     client.from('payroll_employee_rules').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_employee_commission_stores').select('*'),
     client.from('payroll_performance_rules').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_store_revenues').select('*').gte('revenue_date', monthStart).order('revenue_date', { ascending: false }),
+    client.from('payroll_store_revenue_inputs').select('*').gte('as_of_date', monthStart).order('as_of_date', { ascending: false }),
     client.from('payroll_penalties').select('*').gte('event_date', monthStart).order('event_date', { ascending: false }),
     client.from('payroll_penalty_assets').select('*').order('created_at', { ascending: true }),
     client.from('payroll_overtime_rates').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', monthStart).order('created_at', { ascending: false }),
   ]);
-  const error = profiles.error ?? rules.error ?? commissionStores.error ?? performanceRules.error ?? revenues.error ?? penalties.error ?? penaltyAssets.error ?? overtimeRates.error ?? overtimeRequests.error;
+  const error = profiles.error ?? rules.error ?? commissionStores.error ?? performanceRules.error ?? revenues.error ?? revenueInputs.error ?? penalties.error ?? penaltyAssets.error ?? overtimeRates.error ?? overtimeRequests.error;
   if (error) throw new Error(error.message || '暂时无法加载工资设置。');
-  return { profiles: profiles.data ?? [], rules: rules.data ?? [], commissionStores: commissionStores.data ?? [], performanceRules: performanceRules.data ?? [], revenues: revenues.data ?? [], penalties: penalties.data ?? [], penaltyAssets: penaltyAssets.data ?? [], overtimeRates: overtimeRates.data ?? [], overtimeRequests: overtimeRequests.data ?? [] };
+  return { profiles: profiles.data ?? [], rules: rules.data ?? [], commissionStores: commissionStores.data ?? [], performanceRules: performanceRules.data ?? [], revenues: revenues.data ?? [], revenueInputs: revenueInputs.data ?? [], penalties: penalties.data ?? [], penaltyAssets: penaltyAssets.data ?? [], overtimeRates: overtimeRates.data ?? [], overtimeRequests: overtimeRequests.data ?? [] };
 }
 
 export async function savePayrollEmployeeRule(client: Client, profileId: string, fields: Record<string, Json | undefined>, storeIds: string[]) {
@@ -100,6 +101,24 @@ export async function savePayrollRevenue(client: Client, input: Pick<RevenueRow,
     source_updated_at: new Date().toISOString(),
   }, { onConflict: 'store_id,revenue_date' });
   if (error) throw new Error(error.message || '营业收入保存失败。');
+}
+
+export async function savePayrollRevenueInput(client: Client, input: {
+  asOfDate: string;
+  mode: 'pos_sync' | 'manual';
+  manualCumulativeAmount?: number | null;
+  note?: string;
+  storeId: string;
+}) {
+  const { data, error } = await client.rpc('save_payroll_store_revenue_input', {
+    p_as_of_date: input.asOfDate,
+    p_input_mode: input.mode,
+    p_manual_cumulative_amount: input.mode === 'manual' ? input.manualCumulativeAmount ?? null : null,
+    p_note: input.note?.trim() ?? '',
+    p_store_id: input.storeId,
+  });
+  if (error) throw new Error(error.message || '营业收入来源保存失败。');
+  return data;
 }
 
 export async function loadPosSalesSetup(client: Client) {
@@ -139,6 +158,18 @@ export async function invokePospalSalesSync(client: Client, integrationId: strin
   if (result?.error) throw new Error(result.error);
   const first = result?.results?.[0];
   if (!first || first.status !== 'succeeded') throw new Error('银豹营业收入同步未返回成功结果。');
+  return first;
+}
+
+export async function invokePospalMonthlySalesSync(client: Client, integrationId: string, endDate: string) {
+  const { data, error } = await client.functions.invoke('pospal-sales', {
+    body: { action: 'manual-sync-month', integrationId, endDate },
+  });
+  if (error) throw new Error(error.message || '银豹本月累计营业收入同步失败。');
+  const result = data as { error?: string; results?: Array<{ apiCallCount?: number; revenueAmount?: number; status: string; syncDate?: string; syncEndDate?: string; ticketCount?: number }> } | null;
+  if (result?.error) throw new Error(result.error);
+  const first = result?.results?.[0];
+  if (!first || first.status !== 'succeeded') throw new Error('银豹本月累计营业收入同步未返回成功结果。');
   return first;
 }
 

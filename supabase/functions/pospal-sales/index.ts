@@ -11,6 +11,7 @@ import {
 
 type SalesAction =
   | { action: 'manual-sync'; date?: string; integrationId: string }
+  | { action: 'manual-sync-month'; endDate?: string; integrationId: string }
   | { action: 'scheduled-sync' };
 
 type IntegrationRow = {
@@ -143,6 +144,15 @@ class PospalClient {
 
     return [...new Map(tickets.map((ticket) => [ticket.externalKey, ticket])).values()];
   }
+
+  async queryDays(dates: string[]) {
+    const tickets: NormalizedPospalTicket[] = [];
+    for (let offset = 0; offset < dates.length; offset += 3) {
+      const batch = await Promise.all(dates.slice(offset, offset + 3).map((date) => this.queryDay(date)));
+      tickets.push(...batch.flat());
+    }
+    return [...new Map(tickets.map((ticket) => [ticket.externalKey, ticket])).values()];
+  }
 }
 
 Deno.serve(async (request) => {
@@ -196,7 +206,7 @@ Deno.serve(async (request) => {
       (item) =>
         minute >= item.sync_start_hour * 60 && minute <= item.sync_end_hour * 60,
     ) as IntegrationRow[];
-  } else if (payload.action === 'manual-sync') {
+  } else if (payload.action === 'manual-sync' || payload.action === 'manual-sync-month') {
     if (!uuidPattern.test(payload.integrationId)) {
       return json({ error: '收银系统连接编号无效。' }, 400);
     }
@@ -253,10 +263,17 @@ Deno.serve(async (request) => {
     return json({ status: 'skipped', message: '当前没有到达同步时间的银豹门店。', results: [] });
   }
 
-  const requestedDate = payload.action === 'manual-sync' ? payload.date ?? chinaDate() : chinaDate();
-  if (!datePattern.test(requestedDate) || requestedDate > chinaDate()) {
+  const requestedEndDate = payload.action === 'manual-sync'
+    ? payload.date ?? chinaDate()
+    : payload.action === 'manual-sync-month'
+      ? payload.endDate ?? chinaDate()
+      : chinaDate();
+  if (!datePattern.test(requestedEndDate) || requestedEndDate > chinaDate()) {
     return json({ error: '同步日期格式不正确或晚于今天。' }, 400);
   }
+  const requestedStartDate = payload.action === 'manual-sync-month'
+    ? `${requestedEndDate.slice(0, 7)}-01`
+    : requestedEndDate;
 
   const results: Record<string, unknown>[] = [];
   for (const integration of integrationRows) {
@@ -268,7 +285,8 @@ Deno.serve(async (request) => {
         store_id: integration.store_id,
         provider: 'pospal',
         trigger_type: scheduled ? 'scheduled' : 'manual',
-        sync_date: requestedDate,
+        sync_date: requestedStartDate,
+        sync_end_date: requestedEndDate,
         initiated_by: actorId,
         status: 'running',
       })
@@ -289,15 +307,28 @@ Deno.serve(async (request) => {
     try {
       if (!config) throw new Error('当前门店尚未配置银豹安全凭据。');
       client = new PospalClient(config);
-      const tickets = await client.queryDay(requestedDate);
+      const dates: string[] = [];
+      for (let cursor = new Date(`${requestedStartDate}T00:00:00Z`); cursor <= new Date(`${requestedEndDate}T00:00:00Z`); cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+        dates.push(cursor.toISOString().slice(0, 10));
+      }
+      const tickets = dates.length === 1 ? await client.queryDay(dates[0]) : await client.queryDays(dates);
       calls = client.calls;
-      const replaced = await adminClient.rpc('replace_pos_sales_day', {
-        p_integration_id: integration.id,
-        p_sync_job_id: job.data.id,
-        p_sync_date: requestedDate,
-        p_tickets: tickets,
-        p_api_call_count: calls,
-      });
+      const replaced = requestedStartDate === requestedEndDate
+        ? await adminClient.rpc('replace_pos_sales_day', {
+            p_integration_id: integration.id,
+            p_sync_job_id: job.data.id,
+            p_sync_date: requestedEndDate,
+            p_tickets: tickets,
+            p_api_call_count: calls,
+          })
+        : await adminClient.rpc('replace_pos_sales_range', {
+            p_integration_id: integration.id,
+            p_sync_job_id: job.data.id,
+            p_start_date: requestedStartDate,
+            p_end_date: requestedEndDate,
+            p_tickets: tickets,
+            p_api_call_count: calls,
+          });
       if (replaced.error) throw new Error(replaced.error.message);
       const result =
         replaced.data && typeof replaced.data === 'object'

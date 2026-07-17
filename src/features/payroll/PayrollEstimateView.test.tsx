@@ -24,5 +24,6 @@ describe('PayrollEstimateView', () => {
     expect(screen.getByText(/截至 2026-07-17 的预估工资/)).toBeInTheDocument();
     expect(screen.getByText('营业收入待更新')).toBeInTheDocument();
     expect(screen.queryByText(/出勤工时/)).not.toBeInTheDocument();
+    expect(screen.getByText(/本月累计营业额/)).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, configurePosSalesIntegration, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
+import { addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -79,5 +79,19 @@ describe('payroll service', () => {
       body: { action: 'manual-sync', integrationId: 'pos-1', date: '2026-07-17' },
     });
     expect(result).toMatchObject({ status: 'succeeded', ticketCount: 47, apiCallCount: 1 });
+  });
+
+  it('syncs month-to-date revenue and can select a manual cumulative source', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      data: { results: [{ status: 'succeeded', syncDate: '2026-07-01', syncEndDate: '2026-07-17', ticketCount: 500, revenueAmount: 12000, apiCallCount: 5 }] },
+      error: null,
+    });
+    const rpc = vi.fn().mockResolvedValue({ data: { input_mode: 'manual', manual_cumulative_amount: 11800 }, error: null });
+    await expect(invokePospalMonthlySalesSync({ functions: { invoke } } as never, 'pos-1', '2026-07-17')).resolves.toMatchObject({ revenueAmount: 12000 });
+    await savePayrollRevenueInput({ rpc } as never, { storeId: 's1', asOfDate: '2026-07-17', mode: 'manual', manualCumulativeAmount: 11800, note: '人工核对' });
+    expect(invoke).toHaveBeenCalledWith('pospal-sales', { body: { action: 'manual-sync-month', integrationId: 'pos-1', endDate: '2026-07-17' } });
+    expect(rpc).toHaveBeenCalledWith('save_payroll_store_revenue_input', {
+      p_as_of_date: '2026-07-17', p_input_mode: 'manual', p_manual_cumulative_amount: 11800, p_note: '人工核对', p_store_id: 's1',
+    });
   });
 });

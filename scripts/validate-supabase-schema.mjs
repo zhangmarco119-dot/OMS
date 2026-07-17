@@ -108,6 +108,7 @@ const requiredTables = [
   'v2_system_documents',
   'dingtalk_employee_directory', 'dingtalk_employee_bindings', 'attendance_daily_records', 'attendance_punch_records',
   'attendance_sync_jobs', 'attendance_sync_failures', 'attendance_audit_logs',
+  'pos_sales_integrations', 'pos_sales_sync_jobs', 'pos_sales_tickets',
 ];
 
 const storeScopedTables = [
@@ -122,6 +123,7 @@ const storeScopedTables = [
   'v2_tasks',
   'v2_task_images',
   'attendance_daily_records', 'attendance_punch_records',
+  'pos_sales_integrations', 'pos_sales_sync_jobs', 'pos_sales_tickets',
 ];
 
 const requiredPolicies = [
@@ -173,6 +175,7 @@ const requiredPolicies = [
   'dingtalk_employee_directory_select_admin', 'dingtalk_employee_bindings_select_allowed',
   'attendance_daily_records_select_allowed', 'attendance_punch_records_select_allowed',
   'attendance_sync_jobs_select_admin', 'attendance_sync_failures_select_admin', 'attendance_audit_logs_select_admin',
+  'pos_sales_integrations_admin_all', 'pos_sales_sync_jobs_admin_read',
 ];
 
 const requiredFunctions = [
@@ -218,6 +221,7 @@ const requiredFunctions = [
   'can_request_product_feedback', 'admin_set_product_permissions', 'resume_v2_task_schedule',
   'acknowledge_v2_notice',
   'archive_v2_notice', 'delete_v2_notice', 'admin_v2_analytics',
+  'configure_pos_sales_integration', 'replace_pos_sales_day',
 ];
 
 const failures = [];

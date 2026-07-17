@@ -19,7 +19,7 @@
 1. 实时工资：查看员工明细、已知项预估合计和数据完整状态。
 2. 员工参数：设置基本工资、房补、满绩效、提成比例、提成门店及生效日期。
 3. 绩效规则：设置三项权重、迟到扣分、等级区间和金额系数。
-4. 营业收入：按门店和日期录入已确认收入。
+4. 营业收入：按门店和日期录入已确认收入；西直门店可从银豹手动更新，或按管理员设置的时段和频率自动更新。
 5. 处罚：事件等级自动带出默认绩效扣分，可上传处罚图片；发布后通知员工，并支持保留原因后撤销。
 6. 加班：配置默认 25 元/小时的加班时薪，并查看全部加班申请和审批状态。
 
@@ -32,7 +32,10 @@
 - `payroll_employee_rules`：员工工资参数历史。
 - `payroll_employee_commission_stores`：员工提成门店。
 - `payroll_performance_rules`：绩效规则历史。
-- `payroll_store_revenues`：每日已确认营业收入。
+- `payroll_store_revenues`：每日已确认营业收入，同时记录手动、银豹或企迈来源。
+- `pos_sales_integrations`：收银系统与门店的映射、启停状态和自动更新计划，不保存 App Key。
+- `pos_sales_sync_jobs`：每次手动或自动更新的结果、单据数量、接口调用次数与错误摘要。
+- `pos_sales_tickets`：用于核算收入的最小化单据记录；无效单据不计收入，退货单从收入中扣减。
 - `payroll_penalties`：其他罚款和纪律扣分。
 - `payroll_penalty_assets`：处罚图片元数据，原图保存在私有 Storage。
 - `payroll_overtime_rates`：加班时薪生效历史。
@@ -41,3 +44,5 @@
 - `admin_payroll_estimates`：管理员读取人员列表与合计。
 
 截止日期统一使用北京时间，避免 Supabase UTC 日期在北京时间凌晨误判为未来日期。
+
+西直门银豹接入、凭据配置、手动更新和自动计划的部署说明见 `docs/POS_SALES_SYNC.md`。

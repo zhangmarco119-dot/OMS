@@ -65,6 +65,14 @@ const forbiddenPatterns = [
     pattern: /SUPABASE_ACCESS_TOKEN\s*=\s*\S+/i,
     reason: 'Supabase access token must not be committed',
   },
+  {
+    pattern: /(?:appId|appID)\s*[:=]\s*['"][a-f0-9]{32}['"]/i,
+    reason: 'possible committed POS application id',
+  },
+  {
+    pattern: /appKey\s*[:=]\s*['"][a-z0-9]{12,}['"]/i,
+    reason: 'possible committed POS application key',
+  },
 ];
 
 const walk = async (directory) => {

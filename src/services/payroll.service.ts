@@ -10,6 +10,8 @@ type PerformanceRuleRow = Database['public']['Tables']['payroll_performance_rule
 type RevenueRow = Database['public']['Tables']['payroll_store_revenues']['Row'];
 type PenaltyRow = Database['public']['Tables']['payroll_penalties']['Row'];
 type OvertimeRequestRow = Database['public']['Tables']['payroll_overtime_requests']['Row'];
+export type PosSalesIntegration = Database['public']['Tables']['pos_sales_integrations']['Row'];
+export type PosSalesSyncJob = Database['public']['Tables']['pos_sales_sync_jobs']['Row'];
 
 const objectAt = (value: Json | null | undefined): Record<string, Json | undefined> => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const numberAt = (value: Json | undefined) => typeof value === 'number' ? value : typeof value === 'string' && value !== '' ? Number(value) : 0;
@@ -91,8 +93,53 @@ export async function savePayrollPerformanceRule(client: Client, fields: Record<
 }
 
 export async function savePayrollRevenue(client: Client, input: Pick<RevenueRow, 'store_id' | 'revenue_date' | 'confirmed_amount' | 'note' | 'updated_by'>) {
-  const { error } = await client.from('payroll_store_revenues').upsert(input, { onConflict: 'store_id,revenue_date' });
+  const { error } = await client.from('payroll_store_revenues').upsert({
+    ...input,
+    source: 'manual',
+    source_reference_id: null,
+    source_updated_at: new Date().toISOString(),
+  }, { onConflict: 'store_id,revenue_date' });
   if (error) throw new Error(error.message || '营业收入保存失败。');
+}
+
+export async function loadPosSalesSetup(client: Client) {
+  const [integrations, jobs] = await Promise.all([
+    client.from('pos_sales_integrations').select('*').order('display_name'),
+    client.from('pos_sales_sync_jobs').select('*').order('created_at', { ascending: false }).limit(20),
+  ]);
+  const error = integrations.error ?? jobs.error;
+  if (error) throw new Error(error.message || '暂时无法加载收银系统同步状态。');
+  return { integrations: integrations.data ?? [], jobs: jobs.data ?? [] };
+}
+
+export async function configurePosSalesIntegration(client: Client, input: {
+  enabled: boolean;
+  endHour: number;
+  id: string;
+  intervalMinutes: number;
+  startHour: number;
+}) {
+  const { data, error } = await client.rpc('configure_pos_sales_integration', {
+    p_enabled: input.enabled,
+    p_end_hour: input.endHour,
+    p_integration_id: input.id,
+    p_interval_minutes: input.intervalMinutes,
+    p_start_hour: input.startHour,
+  });
+  if (error) throw new Error(error.message || '收银系统同步设置保存失败。');
+  return data;
+}
+
+export async function invokePospalSalesSync(client: Client, integrationId: string, date: string) {
+  const { data, error } = await client.functions.invoke('pospal-sales', {
+    body: { action: 'manual-sync', integrationId, date },
+  });
+  if (error) throw new Error(error.message || '银豹营业收入同步失败。');
+  const result = data as { error?: string; results?: Array<{ apiCallCount?: number; revenueAmount?: number; status: string; ticketCount?: number }> } | null;
+  if (result?.error) throw new Error(result.error);
+  const first = result?.results?.[0];
+  if (!first || first.status !== 'succeeded') throw new Error('银豹营业收入同步未返回成功结果。');
+  return first;
 }
 
 export async function addPayrollPenalty(client: Client, input: { profileId: string; eventDate: string; reason: string; amount: number; eventLevel: PenaltyRow['event_level']; performanceDeduction: number }) {

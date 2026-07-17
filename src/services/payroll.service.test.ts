@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, loadAdminPayrollEstimates, loadMyPayrollEstimate, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
+import { addPayrollPenalty, configurePosSalesIntegration, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -53,5 +53,31 @@ describe('payroll service', () => {
     await expect(addPayrollPenalty({ rpc } as never, { profileId: 'p1', eventDate: '2026-07-17', reason: '测试', amount: 0, eventLevel: 'warning', performanceDeduction: 3 })).resolves.toMatchObject({ id: 'penalty-1' });
     expect(rpc).toHaveBeenNthCalledWith(1, 'admin_save_payroll_overtime_rate', { p_hourly_rate: 25, p_effective_from: '2026-07-17', p_change_reason: '' });
     expect(rpc).toHaveBeenNthCalledWith(2, 'admin_create_payroll_penalty', { p_fields: { profileId: 'p1', eventDate: '2026-07-17', reason: '测试', amount: 0, eventLevel: 'warning', performanceDeduction: 3 } });
+  });
+
+  it('saves a permission-protected POS schedule with the selected interval', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { id: 'pos-1', enabled: true }, error: null });
+    await configurePosSalesIntegration({ rpc } as never, {
+      id: 'pos-1', enabled: true, startHour: 10, endHour: 22, intervalMinutes: 30,
+    });
+    expect(rpc).toHaveBeenCalledWith('configure_pos_sales_integration', {
+      p_enabled: true,
+      p_end_hour: 22,
+      p_integration_id: 'pos-1',
+      p_interval_minutes: 30,
+      p_start_hour: 10,
+    });
+  });
+
+  it('requests a one-day Pospal sync and returns the verified result', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      data: { results: [{ status: 'succeeded', ticketCount: 47, revenueAmount: 1006.51, apiCallCount: 1 }] },
+      error: null,
+    });
+    const result = await invokePospalSalesSync({ functions: { invoke } } as never, 'pos-1', '2026-07-17');
+    expect(invoke).toHaveBeenCalledWith('pospal-sales', {
+      body: { action: 'manual-sync', integrationId: 'pos-1', date: '2026-07-17' },
+    });
+    expect(result).toMatchObject({ status: 'succeeded', ticketCount: 47, apiCallCount: 1 });
   });
 });

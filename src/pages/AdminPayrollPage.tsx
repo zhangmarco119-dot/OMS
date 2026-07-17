@@ -1,4 +1,4 @@
-import { Banknote, Camera, Clock3, ClipboardPen, Search, Settings2, ShieldCheck, X } from 'lucide-react';
+import { Banknote, Camera, Clock3, ClipboardPen, RefreshCw, Search, Settings2, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -12,9 +12,10 @@ import { formatMoney, todayInChina, type AdminPayrollSummary } from '../features
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
-  addPayrollPenalty, loadAdminPayrollEstimates, loadPayrollAdminSetup, revokePayrollPenalty,
-  reviewOvertimeRequest, saveOvertimeRate, savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenue,
-  uploadPayrollEvidence, type PayrollEmployeeRule, type PayrollPerformanceRule,
+  addPayrollPenalty, configurePosSalesIntegration, invokePospalSalesSync, loadAdminPayrollEstimates,
+  loadPayrollAdminSetup, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate,
+  savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenue, uploadPayrollEvidence,
+  type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
 
 type Tab = 'overview' | 'employees' | 'performance' | 'revenue' | 'penalties' | 'overtime';
@@ -80,10 +81,144 @@ function PerformanceRules() {
 }
 
 function RevenueManager() {
-  const auth = useAuth(); const [setup, setSetup] = useState<Setup | null>(null); const [storeId, setStoreId] = useState(auth.availableStores[0]?.id ?? ''); const [date, setDate] = useState(todayInChina()); const [amount, setAmount] = useState(''); const [note, setNote] = useState(''); const [feedback, setFeedback] = useState<Feedback | null>(null); const [busy, setBusy] = useState(false);
-  const load = useCallback(async () => { if (supabase) setSetup(await loadPayrollAdminSetup(supabase, monthStart(date))); }, [date]); useEffect(() => { void load().catch(() => undefined); }, [load]);
-  const save = async () => { if (!supabase || !auth.profile || !storeId || amount === '') { setFeedback({ title: '请完善营业收入', message: '请选择门店并填写已确认的当日营业收入。', tone: 'warning' }); return; } setBusy(true); try { await savePayrollRevenue(supabase, { store_id: storeId, revenue_date: date, confirmed_amount: Number(amount), note: note.trim(), updated_by: auth.profile.id }); setFeedback({ title: '营业收入已保存', message: '该金额已纳入员工截至当前日期的提成预估。', tone: 'success' }); setAmount(''); setNote(''); await load(); } catch (error) { setFeedback({ title: '保存未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); } finally { setBusy(false); } };
-  return <><SectionCard><SectionHeader icon={Banknote} title="每日已确认营业收入" description="提成按本月 1 日至截止日期的每日金额累计，不预测月末。" /><div className="mt-3 grid grid-cols-2 gap-2"><label className="text-sm font-semibold">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label><label className="text-sm font-semibold">日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label></div><Field label="确认金额" value={amount} onChange={setAmount} /><label className="mt-3 block text-sm font-semibold">备注<input className="ui-input mt-1" onChange={(event) => setNote(event.target.value)} value={note} /></label><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">保存营业收入</button></SectionCard><section className="space-y-2">{setup?.revenues.slice(0, 30).map((row) => <SectionCard className="p-3" key={row.id}><div className="flex justify-between gap-3"><span><b>{auth.availableStores.find((store) => store.id === row.store_id)?.short_name ?? '门店'}</b><small className="block text-slate-500">{row.revenue_date}</small></span><b>{formatMoney(row.confirmed_amount)}</b></div></SectionCard>)}</section><FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+  const auth = useAuth();
+  const [setup, setSetup] = useState<Setup | null>(null);
+  const [posSetup, setPosSetup] = useState<Awaited<ReturnType<typeof loadPosSalesSetup>> | null>(null);
+  const [storeId, setStoreId] = useState(auth.availableStores[0]?.id ?? '');
+  const [date, setDate] = useState(todayInChina());
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [busyAction, setBusyAction] = useState('');
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const [payroll, sales] = await Promise.all([
+      loadPayrollAdminSetup(supabase, monthStart(date)),
+      loadPosSalesSetup(supabase),
+    ]);
+    setSetup(payroll);
+    setPosSetup(sales);
+  }, [date]);
+  useEffect(() => { void load().catch(() => undefined); }, [load]);
+
+  const save = async () => {
+    if (!supabase || !auth.profile || !storeId || amount === '') {
+      setFeedback({ title: '请完善营业收入', message: '请选择门店并填写已确认的当日营业收入。', tone: 'warning' });
+      return;
+    }
+    setBusyAction('manual-revenue');
+    try {
+      await savePayrollRevenue(supabase, { store_id: storeId, revenue_date: date, confirmed_amount: Number(amount), note: note.trim(), updated_by: auth.profile.id });
+      setFeedback({ title: '营业收入已保存', message: '该金额已纳入员工截至当前日期的提成预估。', tone: 'success' });
+      setAmount(''); setNote(''); await load();
+    } catch (error) {
+      setFeedback({ title: '保存未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setBusyAction(''); }
+  };
+
+  const syncNow = async (integration: PosSalesIntegration) => {
+    if (!supabase) return;
+    setBusyAction(`sync:${integration.id}`);
+    try {
+      const result = await invokePospalSalesSync(supabase, integration.id, date);
+      setFeedback({
+        title: '银豹营业收入已更新',
+        message: `${date} 共读取 ${result.ticketCount ?? 0} 张单据，营业收入为 ${formatMoney(result.revenueAmount ?? 0)}，使用 ${result.apiCallCount ?? 0} 次接口调用。`,
+        tone: 'success',
+      });
+      await load();
+    } catch (error) {
+      setFeedback({ title: '银豹同步未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+      await load().catch(() => undefined);
+    } finally { setBusyAction(''); }
+  };
+
+  const saveSettings = async (integration: PosSalesIntegration, settings: { enabled: boolean; startHour: number; endHour: number; intervalMinutes: number }) => {
+    if (!supabase) return;
+    if (settings.endHour < settings.startHour) {
+      setFeedback({ title: '自动同步时段不正确', message: '结束时间不能早于开始时间。', tone: 'warning' });
+      return;
+    }
+    setBusyAction(`settings:${integration.id}`);
+    try {
+      await configurePosSalesIntegration(supabase, { id: integration.id, ...settings });
+      setFeedback({ title: '自动同步设置已保存', message: settings.enabled ? `每天 ${settings.startHour}:00–${settings.endHour}:00，每 ${settings.intervalMinutes} 分钟检查一次银豹营业收入。` : '该门店的自动同步已暂停，仍可手动更新。', tone: 'success' });
+      await load();
+    } catch (error) {
+      setFeedback({ title: '设置未保存', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setBusyAction(''); }
+  };
+
+  return <>
+    <SectionCard>
+      <SectionHeader icon={RefreshCw} title="收银系统自动同步" description="西直门店使用银豹；五道口店将单独使用企迈，两个门店的数据不会混用。" />
+      <div className="mt-3 space-y-3">
+        {posSetup?.integrations.map((integration) => <PosSalesIntegrationCard
+          busyAction={busyAction}
+          integration={integration}
+          job={posSetup.jobs.find((job) => job.integration_id === integration.id)}
+          key={integration.id}
+          onSave={saveSettings}
+          onSync={() => void syncNow(integration)}
+          syncDate={date}
+        />)}
+        {posSetup && !posSetup.integrations.length ? <EmptyState title="尚未配置收银系统连接" /> : null}
+      </div>
+    </SectionCard>
+
+    <SectionCard>
+      <SectionHeader icon={Banknote} title="每日已确认营业收入" description="银豹门店可自动或手动同步；其他门店仍可手工录入。" />
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <label className="text-sm font-semibold">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+        <label className="text-sm font-semibold">日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
+      </div>
+      <Field label="确认金额" value={amount} onChange={setAmount} />
+      <label className="mt-3 block text-sm font-semibold">备注<input className="ui-input mt-1" onChange={(event) => setNote(event.target.value)} value={note} /></label>
+      <button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void save()} type="button">保存营业收入</button>
+    </SectionCard>
+
+    <section className="space-y-2">{setup?.revenues.slice(0, 30).map((row) => <SectionCard className="p-3" key={row.id}><div className="flex items-start justify-between gap-3"><span><b>{auth.availableStores.find((store) => store.id === row.store_id)?.short_name ?? '门店'}</b><small className="mt-0.5 block text-slate-500">{row.revenue_date}</small><StatusBadge tone={row.source === 'pospal' ? 'success' : row.source === 'qmai' ? 'info' : 'warning'}>{row.source === 'pospal' ? '银豹同步' : row.source === 'qmai' ? '企迈同步' : '手动录入'}</StatusBadge></span><b>{formatMoney(row.confirmed_amount)}</b></div></SectionCard>)}</section>
+    <FeedbackDialog feedback={feedback} close={() => setFeedback(null)} />
+  </>;
+}
+
+function PosSalesIntegrationCard({ busyAction, integration, job, onSave, onSync, syncDate }: {
+  busyAction: string;
+  integration: PosSalesIntegration;
+  job?: PosSalesSyncJob;
+  onSave: (integration: PosSalesIntegration, settings: { enabled: boolean; startHour: number; endHour: number; intervalMinutes: number }) => Promise<void>;
+  onSync: () => void;
+  syncDate: string;
+}) {
+  const [enabled, setEnabled] = useState(integration.enabled);
+  const [startHour, setStartHour] = useState(integration.sync_start_hour);
+  const [endHour, setEndHour] = useState(integration.sync_end_hour);
+  const [intervalMinutes, setIntervalMinutes] = useState(integration.sync_interval_minutes);
+  useEffect(() => {
+    setEnabled(integration.enabled); setStartHour(integration.sync_start_hour); setEndHour(integration.sync_end_hour); setIntervalMinutes(integration.sync_interval_minutes);
+  }, [integration]);
+  const settingsBusy = busyAction === `settings:${integration.id}`;
+  const syncBusy = busyAction === `sync:${integration.id}`;
+  const hours = Array.from({ length: 24 }, (_, index) => index);
+  return <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+    <div className="flex items-start justify-between gap-3">
+      <div><b>{integration.display_name}</b><p className="mt-0.5 text-xs text-slate-500">银豹账号：{integration.external_account || '已安全配置'}</p></div>
+      <StatusBadge tone={integration.last_error ? 'danger' : integration.last_success_at ? 'success' : 'warning'}>{integration.last_error ? '同步异常' : integration.last_success_at ? '连接正常' : '等待首次同步'}</StatusBadge>
+    </div>
+    {integration.last_error ? <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-2 text-xs text-red-700">{integration.last_error}</p> : null}
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      <label className="text-xs font-semibold">开始时间<select className="ui-input mt-1 min-h-10 py-1" onChange={(event) => setStartHour(Number(event.target.value))} value={startHour}>{hours.map((hour) => <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>)}</select></label>
+      <label className="text-xs font-semibold">结束时间<select className="ui-input mt-1 min-h-10 py-1" onChange={(event) => setEndHour(Number(event.target.value))} value={endHour}>{hours.map((hour) => <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>)}</select></label>
+      <label className="text-xs font-semibold">更新频率<select className="ui-input mt-1 min-h-10 py-1" onChange={(event) => setIntervalMinutes(Number(event.target.value))} value={intervalMinutes}><option value="15">每 15 分钟</option><option value="30">每 30 分钟</option><option value="60">每 1 小时</option><option value="120">每 2 小时</option></select></label>
+      <label className="flex min-h-10 items-center gap-2 self-end rounded-lg bg-white px-3 text-xs font-semibold"><input checked={enabled} onChange={(event) => setEnabled(event.target.checked)} type="checkbox" />启用自动更新</label>
+    </div>
+    <div className="mt-2 grid grid-cols-2 gap-2">
+      <button className="ui-button-secondary min-h-10 text-xs" disabled={Boolean(busyAction)} onClick={() => void onSave(integration, { enabled, startHour, endHour, intervalMinutes })} type="button">{settingsBusy ? '正在保存' : '保存更新设置'}</button>
+      <button className="ui-button-primary min-h-10 text-xs" disabled={Boolean(busyAction)} onClick={onSync} type="button"><RefreshCw className={`h-3.5 w-3.5 ${syncBusy ? 'animate-spin' : ''}`} />{syncBusy ? '正在同步' : `更新 ${syncDate}`}</button>
+    </div>
+    <p className="mt-2 text-[11px] leading-5 text-slate-500">{integration.last_success_at ? `上次成功：${new Date(integration.last_success_at).toLocaleString('zh-CN')}` : '尚无成功同步记录'}{job ? ` · 最近读取 ${job.fetched_count} 张单据 · API ${job.api_call_count} 次` : ''}</p>
+  </article>;
 }
 
 function PenaltyManager() {

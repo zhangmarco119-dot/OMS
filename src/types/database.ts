@@ -578,9 +578,9 @@ export type Database = {
         Relationships: [];
       };
       payroll_store_revenues: {
-        Row: { confirmed_amount: number; created_at: string; id: string; note: string; revenue_date: string; store_id: string; updated_at: string; updated_by: string };
-        Insert: { confirmed_amount: number; created_at?: string; id?: string; note?: string; revenue_date: string; store_id: string; updated_at?: string; updated_by: string };
-        Update: { confirmed_amount?: number; id?: string; note?: string; revenue_date?: string; store_id?: string; updated_at?: string; updated_by?: string };
+        Row: { confirmed_amount: number; created_at: string; id: string; note: string; revenue_date: string; source: 'manual' | 'pospal' | 'qmai'; source_reference_id: string | null; source_updated_at: string | null; store_id: string; updated_at: string; updated_by: string };
+        Insert: { confirmed_amount: number; created_at?: string; id?: string; note?: string; revenue_date: string; source?: 'manual' | 'pospal' | 'qmai'; source_reference_id?: string | null; source_updated_at?: string | null; store_id: string; updated_at?: string; updated_by: string };
+        Update: { confirmed_amount?: number; id?: string; note?: string; revenue_date?: string; source?: 'manual' | 'pospal' | 'qmai'; source_reference_id?: string | null; source_updated_at?: string | null; store_id?: string; updated_at?: string; updated_by?: string };
         Relationships: [];
       };
       payroll_penalties: {
@@ -605,6 +605,24 @@ export type Database = {
         Row: { bucket: 'payroll-evidence'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
         Insert: { bucket?: 'payroll-evidence'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
         Update: { bucket?: 'payroll-evidence'; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp'; object_path?: string; penalty_id?: string; size_bytes?: number; uploaded_by?: string };
+        Relationships: [];
+      };
+      pos_sales_integrations: {
+        Row: { configured_at: string; configured_by: string; created_at: string; display_name: string; enabled: boolean; external_account: string; id: string; last_error: string | null; last_success_at: string | null; last_sync_at: string | null; next_sync_at: string | null; provider: 'pospal' | 'qmai'; store_id: string; sync_end_hour: number; sync_interval_minutes: number; sync_start_hour: number; updated_at: string };
+        Insert: { configured_at?: string; configured_by: string; created_at?: string; display_name: string; enabled?: boolean; external_account?: string; id?: string; last_error?: string | null; last_success_at?: string | null; last_sync_at?: string | null; next_sync_at?: string | null; provider: 'pospal' | 'qmai'; store_id: string; sync_end_hour?: number; sync_interval_minutes?: number; sync_start_hour?: number; updated_at?: string };
+        Update: { configured_at?: string; configured_by?: string; display_name?: string; enabled?: boolean; external_account?: string; id?: string; last_error?: string | null; last_success_at?: string | null; last_sync_at?: string | null; next_sync_at?: string | null; provider?: 'pospal' | 'qmai'; store_id?: string; sync_end_hour?: number; sync_interval_minutes?: number; sync_start_hour?: number; updated_at?: string };
+        Relationships: [];
+      };
+      pos_sales_sync_jobs: {
+        Row: { api_call_count: number; created_at: string; error_message: string | null; fetched_count: number; finished_at: string | null; id: string; initiated_by: string | null; integration_id: string; page_count: number; provider: 'pospal' | 'qmai'; revenue_amount: number | null; started_at: string; status: 'running' | 'succeeded' | 'failed'; store_id: string; sync_date: string; trigger_type: 'manual' | 'scheduled'; valid_count: number };
+        Insert: { api_call_count?: number; created_at?: string; error_message?: string | null; fetched_count?: number; finished_at?: string | null; id?: string; initiated_by?: string | null; integration_id: string; page_count?: number; provider: 'pospal' | 'qmai'; revenue_amount?: number | null; started_at?: string; status?: 'running' | 'succeeded' | 'failed'; store_id: string; sync_date: string; trigger_type: 'manual' | 'scheduled'; valid_count?: number };
+        Update: { api_call_count?: number; error_message?: string | null; fetched_count?: number; finished_at?: string | null; page_count?: number; revenue_amount?: number | null; status?: 'running' | 'succeeded' | 'failed'; valid_count?: number };
+        Relationships: [];
+      };
+      pos_sales_tickets: {
+        Row: { created_at: string; external_key: string; external_sn: string | null; id: string; integration_id: string; invalid: boolean; occurred_at: string; order_source: string | null; revenue_date: string; source_updated_at: string | null; store_id: string; sync_job_id: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at: string };
+        Insert: { created_at?: string; external_key: string; external_sn?: string | null; id?: string; integration_id: string; invalid?: boolean; occurred_at: string; order_source?: string | null; revenue_date: string; source_updated_at?: string | null; store_id: string; sync_job_id?: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at?: string };
+        Update: { external_key?: string; external_sn?: string | null; id?: string; integration_id?: string; invalid?: boolean; occurred_at?: string; order_source?: string | null; revenue_date?: string; source_updated_at?: string | null; store_id?: string; sync_job_id?: string | null; ticket_type?: 'SELL' | 'SELL_RETURN'; total_amount?: number; updated_at?: string };
         Relationships: [];
       };
       profile_store_access: {
@@ -881,6 +899,7 @@ export type Database = {
       admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
       admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
+      configure_pos_sales_integration: { Args: { p_enabled: boolean; p_end_hour: number; p_integration_id: string; p_interval_minutes: number; p_start_hour: number }; Returns: Json };
       get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
       get_payroll_estimate: { Args: { p_as_of?: string; p_profile_id: string }; Returns: Json };
       payroll_overtime_todo_count: { Args: Record<PropertyKey, never>; Returns: number };

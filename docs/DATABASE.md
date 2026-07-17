@@ -164,3 +164,9 @@ erDiagram
 `0050_dingtalk_attendance.sql` 新增钉钉员工目录、人工确认绑定、日考勤、打卡流水、同步任务、失败项和审计日志。日记录和打卡流水使用第三方稳定 ID 唯一约束保证 Upsert 幂等；月度摘要由安全调用者权限的 View/RPC 聚合。
 
 考勤 RLS 独立于普通业务门店管理权限：员工和店长只能读本人，管理员只能读其现有授权门店，浏览器无考勤表写权限。接入和同步设计见 `docs/DINGTALK_ATTENDANCE_SETUP.md` 与 `docs/DINGTALK_ATTENDANCE_SYNC.md`。
+
+## 收银营业收入同步
+
+`0068_pos_sales_revenue_sync.sql` 新增收银系统门店映射、更新计划、同步任务和最小化单据表，并为每日营业收入增加来源追踪。管理员只能管理授权门店的连接计划与读取同步日志；浏览器不能读写标准化单据，只有后端 Service Role 可用事务函数替换某门店某日单据并刷新营业收入。
+
+收银平台 App ID、App Key 不进入数据库业务表、前端环境变量或 Git，只存放在对应 Supabase 环境的 Edge Function Secret。开发与正式环境必须分别设置各自 Secret，并依照 `docs/POS_SALES_SYNC.md` 的顺序先验证 Migration、再部署函数和前端。

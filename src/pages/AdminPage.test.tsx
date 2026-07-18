@@ -18,6 +18,7 @@ import { AdminPage } from './AdminPage';
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
 vi.mock('../features/admin/adminProductsService', () => ({
   archiveProduct: vi.fn(),
+  archiveProducts: vi.fn(),
   createAllProductsExportFile: vi.fn(),
   createProduct: vi.fn(),
   deleteProduct: vi.fn(),
@@ -67,6 +68,7 @@ const makeUser = (overrides: Partial<AdminUserRow>): AdminUserRow => ({
   created_at: '2026-02-01T00:00:00Z',
   deleted_at: null,
   display_name: '测试员工',
+  employment_type: 'full_time',
   email: 'internal-staff@accounts.invalid',
   id: '00000000-0000-4000-8000-000000000003',
   is_active: true,
@@ -129,8 +131,8 @@ describe('AdminPage account management', () => {
 
   it('shows a detailed modal report after a mixed product import', async () => {
     vi.mocked(parseProductImportFile).mockResolvedValue([
-      { count_unit: '杯', is_active: true, name: '成功货品', product_code: null, row_number: 2, sort_order: 1, spec: '100g' },
-      { count_unit: '', is_active: true, name: '失败货品', product_code: null, row_number: 3, sort_order: 2, spec: '120g' },
+      { count_unit: '杯', name: '成功货品', product_code: null, row_number: 2, sort_order: 1, spec: '100g' },
+      { count_unit: '', name: '失败货品', product_code: null, row_number: 3, sort_order: 2, spec: '120g' },
     ]);
     vi.mocked(importProducts).mockResolvedValue({
       failed: 1,

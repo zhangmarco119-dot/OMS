@@ -10,6 +10,7 @@ export interface PayrollDeductionItem {
 }
 
 export interface PayrollEstimate {
+  employmentType: 'full_time' | 'part_time';
   profileId: string;
   displayName: string;
   username: string;
@@ -17,6 +18,9 @@ export interface PayrollEstimate {
   asOf: string;
   monthStart: string;
   monthEnd: string;
+  partTimeHours: number;
+  partTimeHourlyRate: number | null;
+  accruedPartTimeWage: number;
   fullAttendanceDays: number;
   attendanceDays: number;
   ruleId: string | null;

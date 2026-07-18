@@ -6,6 +6,7 @@ type AdminAction =
       email?: string;
       password: string;
       displayName: string;
+      employmentType: 'full_time' | 'part_time';
       username: string;
       role: 'staff' | 'manager' | 'admin';
       storeIds: string[];
@@ -107,6 +108,7 @@ Deno.serve(async (request) => {
     const username = payload.username?.trim();
 
     const storeIds = Array.from(new Set(payload.storeIds ?? []));
+    const employmentType = payload.role === 'staff' && payload.employmentType === 'part_time' ? 'part_time' : 'full_time';
 
     if (!username || !payload.displayName?.trim() || !payload.password || storeIds.length === 0) {
       return json({ error: 'Missing required account fields' }, 400);
@@ -157,6 +159,7 @@ Deno.serve(async (request) => {
       store_id: storeIds[0],
       username,
       display_name: payload.displayName.trim(),
+      employment_type: employmentType,
       role: payload.role,
       is_active: true,
     });

@@ -11,7 +11,8 @@ import { v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
 import { loadAdminOperationOverview, type AdminOperationOverview } from '../services/admin-operation-overview.service';
 import { loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
-import { loadAdminPayrollEstimates } from '../services/payroll.service';
+import { loadAdminPayrollEstimates, loadMyPayrollEstimate } from '../services/payroll.service';
+import type { PayrollEstimate } from '../features/payroll/model';
 import { loadTodoSummary, type TodoSummary } from '../services/todo.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
@@ -37,6 +38,7 @@ function StaffDashboard() {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [tasks, setTasks] = useState<V2TaskRow[]>([]);
   const [summary, setSummary] = useState<TodoSummary | null>(null);
+  const [partTimePayroll, setPartTimePayroll] = useState<PayrollEstimate | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
   const loadRequestIdRef = useRef(0);
@@ -47,11 +49,12 @@ function StaffDashboard() {
     if (!supabase || !auth.profile) return;
     const requestId = ++loadRequestIdRef.current;
     try {
-      const [nextNotices, nextNotifications, nextTasks, nextSummary] = await Promise.all([
+      const [nextNotices, nextNotifications, nextTasks, nextSummary, nextPartTimePayroll] = await Promise.all([
         loadNotices(supabase),
         loadNotifications(supabase),
         loadV2Tasks(supabase, auth.store?.id),
         loadTodoSummary(supabase, { isAdmin: false, isManager: auth.profile.role === 'manager', profileId: auth.profile.id, storeId: auth.store?.id, storeIds: auth.availableStores.map((store) => store.id) }),
+        auth.profile.employment_type === 'part_time' ? loadMyPayrollEstimate(supabase, auth.profile.id, todayInChina()) : Promise.resolve(null),
       ]);
       if (requestId !== loadRequestIdRef.current) return;
       const now = Date.now();
@@ -59,6 +62,7 @@ function StaffDashboard() {
       setNotifications(nextNotifications);
       setTasks(nextTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status)).slice(0, 3));
       setSummary(nextSummary);
+      setPartTimePayroll(nextPartTimePayroll);
       setMessage(null);
     } catch (error) {
       if (requestId !== loadRequestIdRef.current) return;
@@ -128,7 +132,7 @@ function StaffDashboard() {
                 {auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
               </select>
             ) : <h1 className="mt-1 break-words text-xl font-bold tracking-tight text-slate-900">{auth.store?.name ?? '未绑定门店'}</h1>}
-            <p className="mt-1 text-sm text-slate-500">{auth.profile?.role === 'manager' ? '店长' : '员工'} · {auth.profile?.display_name ?? auth.user?.email}</p>
+            <p className="mt-1 text-sm text-slate-500">{auth.profile?.employment_type === 'part_time' ? '兼职员工' : auth.profile?.role === 'manager' ? '店长' : '员工'} · {auth.profile?.display_name ?? auth.user?.email}</p>
           </div>
           <IconButton aria-label="退出登录" onClick={() => void auth.signOut()}><LogOut className="h-5 w-5" /></IconButton>
         </header>
@@ -141,6 +145,8 @@ function StaffDashboard() {
         ) : null}
 
         {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
+
+        {auth.profile?.employment_type === 'part_time' ? <section className="grid grid-cols-2 gap-2.5"><MetricCard label="本月兼职工时" note="仅统计已审批工时" tone="brand" to="/app/overtime?tab=records" value={partTimePayroll ? `${partTimePayroll.partTimeHours} 小时` : '—'} /><MetricCard label="本月累计薪资" note="兼职工资实时汇总" tone="brand" to="/app/payroll" value={partTimePayroll ? formatMoney(partTimePayroll.accruedPartTimeWage) : '—'} /></section> : null}
 
         <section className="grid grid-cols-2 gap-2.5">
           <MetricCard label="今日待办" note="任务及需确认公告" to="/app/todos" value={summary?.count ?? '—'} />

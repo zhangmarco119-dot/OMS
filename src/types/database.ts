@@ -540,6 +540,7 @@ export type Database = {
           created_at: string;
           deleted_at: string | null;
           display_name: string;
+          employment_type: 'full_time' | 'part_time';
           id: string;
           is_active: boolean;
           role: 'staff' | 'manager' | 'admin';
@@ -551,6 +552,7 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           display_name: string;
+          employment_type?: 'full_time' | 'part_time';
           id: string;
           is_active?: boolean;
           role: 'staff' | 'manager' | 'admin';
@@ -562,6 +564,7 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           display_name?: string;
+          employment_type?: 'full_time' | 'part_time';
           id?: string;
           is_active?: boolean;
           role?: 'staff' | 'manager' | 'admin';

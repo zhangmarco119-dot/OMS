@@ -32,11 +32,15 @@ export function V2TaskExecutionPage() {
   const dirty = useRef(false);
   const activeUploads = useRef(new Set<Promise<void>>());
   const uploadedItemIds = useRef(new Set<string>());
+  const contentSignature = useRef('');
+
+  const taskContentSignature = (task: Pick<V2TaskDetail['task'], 'due_at' | 'name' | 'snapshot'>) => JSON.stringify([task.name, task.due_at, task.snapshot]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
       const next = await loadV2TaskDetail(supabase, taskId);
+      contentSignature.current = taskContentSignature(next.task);
       setDetail(next);
       uploadedItemIds.current = new Set(next.images.map((image) => image.item_id));
       setAnswers(next.answers);
@@ -53,15 +57,19 @@ export function V2TaskExecutionPage() {
     const client = supabase;
     if (typeof client.channel !== 'function') return;
     let timer = 0;
-    const refresh = () => {
+    const refresh = (payload: { new?: Record<string, unknown> }) => {
+      const next = payload.new;
+      if (!next || typeof next.name !== 'string' || typeof next.due_at !== 'string' || !('snapshot' in next)) return;
+      const signature = JSON.stringify([next.name, next.due_at, next.snapshot]);
+      if (signature === contentSignature.current) return;
+      contentSignature.current = signature;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         void load().then(() => setSuccessMessage('管理员已更新任务内容，当前页面已同步'));
       }, 180);
     };
     const channel = client.channel(`v2-task-live-${taskId}`)
-      .on('postgres_changes', { event: 'UPDATE', filter: `id=eq.${taskId}`, schema: 'public', table: 'v2_tasks' }, refresh)
-      .on('postgres_changes', { event: 'UPDATE', filter: `task_id=eq.${taskId}`, schema: 'public', table: 'v2_task_answers' }, refresh)
+      .on('postgres_changes', { event: 'UPDATE', filter: `id=eq.${taskId}`, schema: 'public', table: 'v2_tasks' }, (payload) => refresh(payload as unknown as { new?: Record<string, unknown> }))
       .subscribe();
     return () => { window.clearTimeout(timer); void client.removeChannel(channel); };
   }, [load, taskId]);

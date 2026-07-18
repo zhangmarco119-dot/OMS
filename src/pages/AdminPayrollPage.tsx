@@ -17,9 +17,9 @@ import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
-  generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, updatePayrollPayslip, withdrawPayrollPayslip,
+  generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPerformanceOverride, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, updatePayrollPayslip, withdrawPayrollPayslip,
   savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
-  savePayrollVisibilitySettings,
+  savePayrollPerformanceOverride, savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
 
@@ -198,9 +198,21 @@ function EmployeeRules() {
   const auth = useAuth(); const [setup, setSetup] = useState<Setup | null>(null); const [profileId, setProfileId] = useRememberedPageState('employee-rule-profile', '');
   const [params] = useSearchParams(); const requestedProfileId = params.get('profile') || '';
   const [form, setForm] = useState(ruleToForm(undefined, [])); const [feedback, setFeedback] = useState<Feedback | null>(null); const [busy, setBusy] = useState(false);
+  const [performanceMonth, setPerformanceMonth] = useRememberedPageState('employee-performance-month', todayInChina().slice(0, 7));
+  const [performanceMode, setPerformanceMode] = useState<'automatic' | 'override'>('automatic');
+  const [performanceScore, setPerformanceScore] = useState('');
+  const [performanceBusy, setPerformanceBusy] = useState(false);
   const load = useCallback(async () => { if (!supabase) return; const data = await loadPayrollAdminSetup(supabase, monthStart()); setSetup(data); setProfileId((value) => value || data.profiles.find((profile) => profile.id === requestedProfileId)?.id || data.profiles[0]?.id || ''); }, [requestedProfileId, setProfileId]);
   useEffect(() => { void load().catch((error) => setFeedback({ title: '加载失败', message: error instanceof Error ? error.message : '暂时无法加载。', tone: 'danger' })); }, [load]);
   useEffect(() => { if (!setup || !profileId) return; const rule = setup.rules.find((item) => item.profile_id === profileId); setForm(ruleToForm(rule, setup.commissionStores.filter((item) => item.rule_id === rule?.id).map((item) => item.store_id))); }, [profileId, setup]);
+  useEffect(() => {
+    let active = true;
+    if (!supabase || !profileId) return undefined;
+    void loadPayrollPerformanceOverride(supabase, profileId, performanceMonth)
+      .then((score) => { if (!active) return; setPerformanceMode(score == null ? 'automatic' : 'override'); setPerformanceScore(score == null ? '' : String(score)); })
+      .catch((error) => { if (active) setFeedback({ title: '绩效设置加载失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); });
+    return () => { active = false; };
+  }, [performanceMonth, profileId]);
   const save = async () => {
     if (!supabase || !profileId) return;
     if (!form.base) { setFeedback({ title: '请完善工资参数', message: '月基本工资不能为空。', tone: 'warning' }); return; }
@@ -212,18 +224,12 @@ function EmployeeRules() {
       setFeedback({ title: '请填写工龄奖金额', message: '启用工龄奖后，月度金额必须大于 0。', tone: 'warning' });
       return;
     }
-    if (form.performanceEnabled && form.performanceMode === 'override' && (!Number.isFinite(Number(form.performanceOverride)) || Number(form.performanceOverride) < 0)) {
-      setFeedback({ title: '请填写覆盖绩效金额', message: '强制覆盖的绩效金额必须是大于或等于 0 的数字。', tone: 'warning' });
-      return;
-    }
     setBusy(true);
     try {
       await savePayrollEmployeeRule(supabase, profileId, {
         monthlyBaseSalary: Number(form.base), monthlyHousingAllowance: Number(form.housing || 0), fullPerformanceAmount: form.performance,
         commissionRate: form.commission ? Number(form.commission) / 100 : '', housingEnabled: form.housingEnabled,
         performanceEnabled: form.performanceEnabled, commissionEnabled: form.commissionEnabled,
-        performanceOverrideEnabled: form.performanceEnabled && form.performanceMode === 'override',
-        performanceOverrideAmount: Number(form.performanceOverride || 0),
         fullAttendanceBonusEnabled: form.fullAttendanceBonusEnabled,
         fullAttendanceBonusAmount: Number(form.fullAttendanceBonus || 0),
         serviceAwardEnabled: form.serviceAwardEnabled, serviceAwardAmount: Number(form.serviceAward || 100),
@@ -237,6 +243,21 @@ function EmployeeRules() {
       setFeedback({ title: '保存未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
     } finally { setBusy(false); }
   };
+  const saveMonthlyPerformance = async () => {
+    if (!supabase || !profileId) return;
+    const score = Number(performanceScore);
+    if (performanceMode === 'override' && (!Number.isFinite(score) || score < 0 || score > 100)) {
+      setFeedback({ title: '请检查绩效分', message: '本月绩效分必须是 0 到 100 之间的数字。', tone: 'warning' });
+      return;
+    }
+    setPerformanceBusy(true);
+    try {
+      await savePayrollPerformanceOverride(supabase, profileId, performanceMonth, performanceMode === 'override' ? score : null);
+      setFeedback({ title: '本月绩效设置已保存', message: performanceMode === 'override' ? `${performanceMonth.slice(0, 4)}年${Number(performanceMonth.slice(5, 7))}月绩效分已设置为 ${score} 分，只影响该月份。` : `${performanceMonth.slice(0, 4)}年${Number(performanceMonth.slice(5, 7))}月已恢复自动计算绩效分。`, tone: 'success' });
+    } catch (error) {
+      setFeedback({ title: '绩效设置保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setPerformanceBusy(false); }
+  };
   if (!setup) return <LoadingState label="正在加载员工工资参数" />;
   const selectedProfile = setup.profiles.find((profile) => profile.id === profileId);
   if (selectedProfile?.employment_type === 'part_time') return <SectionCard><SectionHeader icon={Settings2} title="兼职员工工资参数" description="兼职账号只按审批通过的兼职工时计薪。" /><label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{setup.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollProfileLabel(profile)}</option>)}</select></label><p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">兼职工资 = 审批通过的兼职工时 × 审批时锁定的时薪。请在“加班”菜单统一设置时薪，在店长审批通过后自动计入。</p></SectionCard>;
@@ -246,7 +267,6 @@ function EmployeeRules() {
     <div className="mt-3 grid grid-cols-2 gap-2"><Field label="月基本工资（含社保补贴）" value={form.base} onChange={(base) => setForm((value) => ({ ...value, base }))} /><Field label="月房补" value={form.housing} onChange={(housing) => setForm((value) => ({ ...value, housing }))} /><Field label="满绩效金额" value={form.performance} onChange={(performance) => setForm((value) => ({ ...value, performance }))} /><Field label="提成比例（%）" value={form.commission} onChange={(commission) => setForm((value) => ({ ...value, commission }))} /><Field label="额外奖励" value={form.extraReward} onChange={(extraReward) => setForm((value) => ({ ...value, extraReward }))} /></div>
     <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">超勤奖由系统自动计算：超过当月全勤标准后，每超勤 1 天奖励 300 元。额外奖励可在此预设，也可生成工资单后单独修改。</p>
     <div className="mt-3 grid grid-cols-2 gap-2">{([['housingEnabled', '启用房补'], ['performanceEnabled', '启用绩效'], ['commissionEnabled', '启用提成'], ['fullAttendanceBonusEnabled', '启用全勤奖'], ['serviceAwardEnabled', '启用工龄奖']] as const).map(([key, label]) => <label className="rounded-lg bg-slate-50 p-2 text-xs font-semibold" key={key}><input checked={form[key]} className="mr-1.5" onChange={(event) => setForm((value) => ({ ...value, [key]: event.target.checked }))} type="checkbox" />{label}</label>)}</div>
-    {form.performanceEnabled ? <div className="mt-2 rounded-lg bg-violet-50 p-3"><label className="block text-sm font-semibold">绩效计算方式<select className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, performanceMode: event.target.value as 'automatic' | 'override' }))} value={form.performanceMode}><option value="automatic">按任务、考勤和纪律自动计算</option><option value="override">管理员强制覆盖绩效结果</option></select></label>{form.performanceMode === 'override' ? <Field label="强制覆盖绩效金额" value={form.performanceOverride} onChange={(performanceOverride) => setForm((value) => ({ ...value, performanceOverride }))} /> : <p className="mt-2 text-xs leading-5 text-violet-800">自动模式会继续使用当前绩效规则计算分数、等级和绩效金额。</p>}</div> : null}
     {form.fullAttendanceBonusEnabled ? <div className="mt-2 rounded-lg bg-emerald-50 px-3 pb-3"><Field label="全勤奖金额" value={form.fullAttendanceBonus} onChange={(fullAttendanceBonus) => setForm((value) => ({ ...value, fullAttendanceBonus }))} /><p className="mt-1 text-xs leading-5 text-emerald-800">达到当月满勤天数后独立产生全勤奖，不计入绩效金额。</p></div> : null}
     {form.serviceAwardEnabled ? <div className="mt-2 rounded-lg bg-blue-50 px-3 pb-3"><Field label="月度工龄奖" value={form.serviceAward} onChange={(serviceAward) => setForm((value) => ({ ...value, serviceAward }))} /><p className="mt-1 text-xs leading-5 text-blue-800">默认 100 元，按当月累计出勤天数折算。</p></div> : null}
     {form.commissionEnabled ? <div className="mt-3"><p className="text-sm font-semibold">提成门店</p><div className="mt-1 grid grid-cols-2 gap-2">{auth.availableStores.map((store) => <label className="rounded-lg border p-2 text-xs" key={store.id}><input checked={form.storeIds.includes(store.id)} className="mr-1.5" onChange={(event) => setForm((value) => ({ ...value, storeIds: event.target.checked ? [...value.storeIds, store.id] : value.storeIds.filter((id) => id !== store.id) }))} type="checkbox" />{store.short_name}</label>)}</div></div> : null}
@@ -256,7 +276,7 @@ function EmployeeRules() {
     <label className="mt-3 block text-sm font-semibold">修改原因（选填）<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, reason: event.target.value }))} placeholder="例如：转正调薪" value={form.reason} /></label>
     <label className="mt-3 flex items-center rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={form.confirmed} className="mr-2" onChange={(event) => setForm((value) => ({ ...value, confirmed: event.target.checked }))} type="checkbox" />我已核对并确认本员工工资参数</label>
     <button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">{busy ? '正在保存' : '保存员工工资参数'}</button>
-  </SectionCard><FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+  </SectionCard>{form.performanceEnabled ? <SectionCard><SectionHeader icon={ShieldCheck} title="按月设置绩效分" description="只调整所选月份的最终绩效分，其他月份仍按任务、考勤和纪律自动计算。" /><div className="mt-3 grid grid-cols-2 gap-2"><MonthPicker label="绩效月份" onChange={setPerformanceMonth} value={performanceMonth} /><label className="text-sm font-semibold">计算方式<select className="ui-input mt-1" onChange={(event) => setPerformanceMode(event.target.value as 'automatic' | 'override')} value={performanceMode}><option value="automatic">自动计算</option><option value="override">手动设置本月绩效分</option></select></label></div>{performanceMode === 'override' ? <div className="mt-3"><Field label="本月绩效分（0–100）" value={performanceScore} onChange={setPerformanceScore} /></div> : <p className="mt-3 rounded-lg bg-violet-50 p-3 text-xs leading-5 text-violet-800">该月将按任务、考勤和纪律规则自动计算绩效分及等级。</p>}<button className="ui-button-primary mt-3 w-full" disabled={performanceBusy} onClick={() => void saveMonthlyPerformance()} type="button">{performanceBusy ? '正在保存' : '保存本月绩效设置'}</button></SectionCard> : null}<FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
 }
 
 function PerformanceRules() {
@@ -485,6 +505,6 @@ function FeedbackDialog({ close, feedback }: { close: () => void; feedback: Feed
 function Field({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) { return <label className="mt-3 block text-sm font-semibold">{label}<input className="ui-input mt-1" min="0" onChange={(event) => onChange(event.target.value)} step="0.01" type="number" value={value} /></label>; }
 function Mini({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-slate-50 p-2"><b className="block truncate text-xs tabular-nums">{value}</b><span className="text-[10px] text-slate-500">{label}</span></div>; }
 function SummaryMetric({ label, value }: { label: string; value: string }) { return <SectionCard className="p-3"><b className="block text-lg tabular-nums text-slate-900">{value}</b><span className="text-xs text-slate-500">{label}</span></SectionCard>; }
-function ruleToForm(rule: PayrollEmployeeRule | undefined, storeIds: string[]) { return { base: rule ? String(rule.monthly_base_salary) : '', housing: rule ? String(rule.monthly_housing_allowance) : '', performance: rule?.full_performance_amount == null ? '' : String(rule.full_performance_amount), performanceMode: rule?.performance_override_enabled ? 'override' as const : 'automatic' as const, performanceOverride: rule ? String(rule.performance_override_amount) : '0', commission: rule?.commission_rate == null ? '' : String(rule.commission_rate * 100), extraReward: rule ? String(rule.extra_reward_amount) : '0', fullAttendanceBonus: rule ? String(rule.full_attendance_bonus_amount) : '', serviceAward: rule ? String(rule.service_award_amount) : '100', regularizationDate: rule?.regularization_date ?? '', effectiveFrom: rule?.effective_from ?? todayInChina(), reason: '', housingEnabled: rule?.housing_enabled ?? true, performanceEnabled: rule?.performance_enabled ?? true, commissionEnabled: rule?.commission_enabled ?? false, fullAttendanceBonusEnabled: rule?.full_attendance_bonus_enabled ?? false, serviceAwardEnabled: rule?.service_award_enabled ?? false, confirmed: rule?.confirmed ?? false, storeIds }; }
+function ruleToForm(rule: PayrollEmployeeRule | undefined, storeIds: string[]) { return { base: rule ? String(rule.monthly_base_salary) : '', housing: rule ? String(rule.monthly_housing_allowance) : '', performance: rule?.full_performance_amount == null ? '' : String(rule.full_performance_amount), commission: rule?.commission_rate == null ? '' : String(rule.commission_rate * 100), extraReward: rule ? String(rule.extra_reward_amount) : '0', fullAttendanceBonus: rule ? String(rule.full_attendance_bonus_amount) : '', serviceAward: rule ? String(rule.service_award_amount) : '100', regularizationDate: rule?.regularization_date ?? '', effectiveFrom: rule?.effective_from ?? todayInChina(), reason: '', housingEnabled: rule?.housing_enabled ?? true, performanceEnabled: rule?.performance_enabled ?? true, commissionEnabled: rule?.commission_enabled ?? false, fullAttendanceBonusEnabled: rule?.full_attendance_bonus_enabled ?? false, serviceAwardEnabled: rule?.service_award_enabled ?? false, confirmed: rule?.confirmed ?? false, storeIds }; }
 function defaultPerformanceForm() { return { taskWeight: '60', attendanceWeight: '25', disciplineWeight: '15', late1: '1', late2: '3', late3: '5', late4: '10', aMin: '90', bMin: '80', cMin: '70', aRate: '100', bRate: '80', cRate: '50', dRate: '20', effectiveFrom: todayInChina(), reason: '' }; }
 function performanceToForm(rule: PayrollPerformanceRule) { return { taskWeight: String(rule.task_weight), attendanceWeight: String(rule.attendance_weight), disciplineWeight: String(rule.discipline_weight), late1: String(rule.late_deduction_1_10), late2: String(rule.late_deduction_11_20), late3: String(rule.late_deduction_21_30), late4: String(rule.late_deduction_31_plus), aMin: String(rule.grade_a_min), bMin: String(rule.grade_b_min), cMin: String(rule.grade_c_min), aRate: String(rule.grade_a_coefficient * 100), bRate: String(rule.grade_b_coefficient * 100), cRate: String(rule.grade_c_coefficient * 100), dRate: String(rule.grade_d_coefficient * 100), effectiveFrom: rule.effective_from, reason: '' }; }

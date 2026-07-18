@@ -33,6 +33,7 @@ export interface PayrollEstimate {
   performanceEnabled: boolean;
   performanceOverrideEnabled: boolean;
   performanceOverrideAmount: number;
+  performanceOverrideScore: number | null;
   performanceCalculationMode: 'automatic' | 'override';
   commissionEnabled: boolean;
   fullAttendanceBonusEnabled: boolean;

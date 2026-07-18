@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
+import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -14,6 +14,14 @@ describe('payroll service', () => {
     const result = await loadMyPayrollEstimate({ rpc } as never, 'p1', '2026-07-17');
     expect(rpc).toHaveBeenCalledWith('get_payroll_estimate', { p_profile_id: 'p1', p_as_of: '2026-07-17' });
     expect(result.displayName).toBe('李天欣');
+  });
+
+  it('saves a performance score for one month and restores automatic calculation with null', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { mode: 'override' }, error: null });
+    await savePayrollPerformanceOverride({ rpc } as never, 'p1', '2026-07', 88);
+    await savePayrollPerformanceOverride({ rpc } as never, 'p1', '2026-07', null);
+    expect(rpc).toHaveBeenNthCalledWith(1, 'admin_save_payroll_performance_override', { p_profile_id: 'p1', p_payroll_month: '2026-07-01', p_performance_score: 88 });
+    expect(rpc).toHaveBeenNthCalledWith(2, 'admin_save_payroll_performance_override', { p_profile_id: 'p1', p_payroll_month: '2026-07-01', p_performance_score: null });
   });
 
   it('loads itemized payroll deductions for an employee or administrator', async () => {

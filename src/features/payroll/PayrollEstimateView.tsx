@@ -17,7 +17,7 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
   }
   const payable = estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable;
   const performanceNote = estimate.performanceReady
-    ? estimate.performanceCalculationMode === 'override' ? '管理员强制覆盖绩效结果' : `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分`
+    ? `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分`
     : '任务数据或满绩效金额待完善';
   const regularizationNote = estimate.regularizationDate?.slice(0, 7) === estimate.monthStart.slice(0, 7)
     ? estimate.regularizationFactor < 1
@@ -47,7 +47,7 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
       <PayrollDeductionRow estimate={estimate} label="罚款合计" total={estimate.fineTotal} />
     </div></SectionCard>
 
-    <SectionCard><SectionHeader icon={ClipboardCheck} title="绩效评分" description={estimate.performanceCalculationMode === 'override' ? `当前使用管理员强制覆盖结果 ${formatMoney(estimate.accruedPerformance)}` : estimate.performanceReady ? `${estimate.performanceScore} 分 · ${estimate.performanceGrade} 级` : '当前待评分'} /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="任务完成" value={`${estimate.taskCompletedCount}/${estimate.taskDueCount}`} /><Metric label="考勤得分" value={`${estimate.attendanceScore}`} /><Metric label="纪律得分" value={`${estimate.disciplineScore}`} /></div><p className="mt-3 text-xs text-slate-500">迟到共 {estimate.lateMinutes} 分钟，迟到罚款 {formatMoney(estimate.lateFine)}；其他罚款 {formatMoney(estimate.otherFine)}。</p></SectionCard>
+    <SectionCard><SectionHeader icon={ClipboardCheck} title="绩效评分" description={estimate.performanceReady ? `${estimate.performanceScore} 分 · ${estimate.performanceGrade} 级` : '当前待评分'} /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="任务完成" value={`${estimate.taskCompletedCount}/${estimate.taskDueCount}`} /><Metric label="考勤得分" value={`${estimate.attendanceScore}`} /><Metric label="纪律得分" value={`${estimate.disciplineScore}`} /></div><p className="mt-3 text-xs text-slate-500">迟到共 {estimate.lateMinutes} 分钟，迟到罚款 {formatMoney(estimate.lateFine)}；其他罚款 {formatMoney(estimate.otherFine)}。</p></SectionCard>
 
     <SectionCard><SectionHeader icon={Database} title="数据更新时间" description="用于判断预估结果是否已包含最新业务数据。" /><div className="mt-3 space-y-1.5 text-xs text-slate-600"><p><Clock3 className="mr-1 inline h-3.5 w-3.5" />考勤：{updated(estimate.attendanceUpdatedAt)}</p><p>任务：{updated(estimate.tasksUpdatedAt)}</p><p>营业收入：{updated(estimate.revenueUpdatedAt)}</p><p>处罚：{updated(estimate.penaltiesUpdatedAt)}</p><p>加班：{updated(estimate.overtimeUpdatedAt)}</p></div></SectionCard>
   </>;

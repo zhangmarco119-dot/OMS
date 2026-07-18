@@ -37,6 +37,15 @@ import { useRememberedPageState } from '../lib/useRememberedPageState';
 
 export type AdminSection = 'products' | 'users';
 type ProductTab = 'catalog' | 'batch' | 'archived';
+type AccountType = 'staff' | 'manager' | 'part_time' | 'admin';
+
+const accountTypeOf = (role: CreateUserInput['role'], employmentType: CreateUserInput['employmentType']): AccountType =>
+  role === 'staff' && employmentType === 'part_time' ? 'part_time' : role;
+
+const accountTypeFields = (accountType: AccountType) => ({
+  employmentType: accountType === 'part_time' ? 'part_time' as const : 'full_time' as const,
+  role: accountType === 'part_time' ? 'staff' as const : accountType,
+});
 
 const emptyProductDraft = (storeId = ''): ProductDraft => ({
   count_unit: '',
@@ -549,14 +558,11 @@ export function AdminPage({ section }: { section: AdminSection }) {
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))} placeholder="账号名" value={newUser.username} />
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} placeholder="姓名" value={newUser.displayName} />
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} placeholder="初始密码" type={showPassword ? 'text' : 'password'} value={newUser.password} />
-              <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, employmentType: event.target.value === 'staff' ? current.employmentType : 'full_time', role: event.target.value as CreateUserInput['role'] }))} value={newUser.role}>
+              <select aria-label="账号类型" className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, ...accountTypeFields(event.target.value as AccountType) }))} value={accountTypeOf(newUser.role, newUser.employmentType)}>
                 <option value="staff">员工</option>
                 <option value="manager">店长</option>
+                <option value="part_time">兼职</option>
                 <option value="admin">管理员</option>
-              </select>
-              <select aria-label="用工类型" className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400" disabled={newUser.role !== 'staff'} onChange={(event) => setNewUser((current) => ({ ...current, employmentType: event.target.value as CreateUserInput['employmentType'] }))} value={newUser.role === 'staff' ? newUser.employmentType : 'full_time'}>
-                <option value="full_time">全职员工</option>
-                <option value="part_time">兼职员工</option>
               </select>
             </div>
             <fieldset className="mt-3">
@@ -590,14 +596,11 @@ export function AdminPage({ section }: { section: AdminSection }) {
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, display_name: event.target.value } : entry))} placeholder="姓名" value={user.display_name} />
                   {user.id === initialAdminId ? <input aria-label="初始管理员邮箱" className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" inputMode="email" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, email: event.target.value } : entry))} placeholder="初始管理员邮箱" type="email" value={user.email} /> : null}
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setPasswordDrafts((current) => ({ ...current, [user.id]: event.target.value }))} placeholder="新密码（留空不修改）" type={showPassword ? 'text' : 'password'} value={passwordDrafts[user.id] ?? ''} />
-                  <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, employment_type: event.target.value === 'staff' ? entry.employment_type : 'full_time', role: event.target.value as AdminUserRow['role'] } : entry))} value={user.role}>
+                  <select aria-label={`${user.display_name}账号类型`} className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, employment_type: accountTypeFields(event.target.value as AccountType).employmentType, role: accountTypeFields(event.target.value as AccountType).role } : entry))} value={accountTypeOf(user.role, user.employment_type)}>
                     <option value="staff">员工</option>
                     <option value="manager">店长</option>
+                    <option value="part_time">兼职</option>
                     <option value="admin">管理员</option>
-                  </select>
-                  <select aria-label={`${user.display_name}用工类型`} className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400" disabled={user.role !== 'staff'} onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, employment_type: event.target.value as AdminUserRow['employment_type'] } : entry))} value={user.role === 'staff' ? user.employment_type : 'full_time'}>
-                    <option value="full_time">全职员工</option>
-                    <option value="part_time">兼职员工</option>
                   </select>
                   <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, is_active: event.target.value === 'true' } : entry))} value={String(user.is_active)}>
                     <option value="true">启用</option>

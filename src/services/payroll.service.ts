@@ -76,6 +76,7 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     monthlyHousingAllowance: nullableNumberAt(item.monthlyHousingAllowance), fullPerformanceAmount: nullableNumberAt(item.fullPerformanceAmount),
     commissionRate: nullableNumberAt(item.commissionRate), housingEnabled: boolAt(item.housingEnabled), performanceEnabled: boolAt(item.performanceEnabled),
     performanceOverrideEnabled: boolAt(item.performanceOverrideEnabled), performanceOverrideAmount: numberAt(item.performanceOverrideAmount),
+    performanceOverrideScore: nullableNumberAt(item.performanceOverrideScore),
     performanceCalculationMode: item.performanceCalculationMode === 'override' ? 'override' : 'automatic',
     commissionEnabled: boolAt(item.commissionEnabled), fullAttendanceBonusEnabled: boolAt(item.fullAttendanceBonusEnabled),
     fullAttendanceBonusAmount: numberAt(item.fullAttendanceBonusAmount), fullAttendanceBonusAwarded: boolAt(item.fullAttendanceBonusAwarded),
@@ -108,6 +109,27 @@ export async function loadMyPayrollEstimate(client: Client, profileId: string, a
   const { data, error } = await client.rpc('get_payroll_estimate', { p_profile_id: profileId, p_as_of: asOf });
   if (error) throw new Error(error.message || '暂时无法计算预估工资。');
   return parsePayrollEstimate(data);
+}
+
+export async function loadPayrollPerformanceOverride(client: Client, profileId: string, month: string) {
+  const { data, error } = await client
+    .from('payroll_performance_overrides')
+    .select('performance_score')
+    .eq('profile_id', profileId)
+    .eq('payroll_month', `${month.slice(0, 7)}-01`)
+    .maybeSingle();
+  if (error) throw new Error(error.message || '暂时无法加载该月绩效设置。');
+  return data?.performance_score ?? null;
+}
+
+export async function savePayrollPerformanceOverride(client: Client, profileId: string, month: string, score: number | null) {
+  const { data, error } = await client.rpc('admin_save_payroll_performance_override', {
+    p_profile_id: profileId,
+    p_payroll_month: `${month.slice(0, 7)}-01`,
+    p_performance_score: score,
+  });
+  if (error) throw new Error(error.message || '本月绩效分设置保存失败。');
+  return data;
 }
 
 export async function loadPayrollDeductionItems(client: Client, profileId: string, from: string, to: string) {

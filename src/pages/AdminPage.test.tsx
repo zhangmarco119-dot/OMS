@@ -196,6 +196,8 @@ describe('AdminPage account management', () => {
     render(<MemoryRouter initialEntries={['/app/admin/users']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="users" /></MemoryRouter>);
 
     await screen.findByRole('heading', { name: '创建账号' });
+    expect(screen.getByRole('combobox', { name: '账号类型' })).toHaveTextContent('员工店长兼职管理员');
+    expect(screen.queryByRole('combobox', { name: '用工类型' })).not.toBeInTheDocument();
     expect(loadAdminProductsData).not.toHaveBeenCalled();
     expect(screen.queryByPlaceholderText('联系邮箱（选填）')).not.toBeInTheDocument();
     expect(screen.getAllByRole('textbox').filter((input) => input.getAttribute('type') === 'email')).toHaveLength(1);

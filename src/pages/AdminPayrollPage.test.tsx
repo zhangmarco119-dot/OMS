@@ -27,7 +27,7 @@ const setup = {
 const estimate = {
   profileId: 'profile-1', displayName: '测试员工', username: 'staff', primaryStoreId: 'store-1', asOf: '2026-07-18', monthStart: '2026-07-01', monthEnd: '2026-07-31',
   fullAttendanceDays: 27, attendanceDays: 10, ruleId: 'rule-1', ruleConfirmed: true, monthlyBaseSalary: 5500, monthlyHousingAllowance: 0,
-  fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: false, performanceEnabled: true, performanceOverrideEnabled: false, performanceOverrideAmount: 0, performanceCalculationMode: 'automatic', commissionEnabled: true,
+  fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: false, performanceEnabled: true, performanceOverrideEnabled: false, performanceOverrideAmount: 0, performanceOverrideScore: null, performanceCalculationMode: 'automatic', commissionEnabled: true,
   fullAttendanceBonusEnabled: false, fullAttendanceBonusAmount: 0, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0,
   extraAttendanceDays: 0, extraAttendanceBonusRate: 300, accruedExtraAttendanceBonus: 0,
   serviceAwardEnabled: false, serviceAwardAmount: 100, accruedServiceAward: 0, extraRewardAmount: 0, accruedExtraReward: 0,

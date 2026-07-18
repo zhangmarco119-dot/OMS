@@ -592,6 +592,12 @@ export type Database = {
         Update: { attendance_weight?: number; change_reason?: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from?: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
         Relationships: [];
       };
+      payroll_performance_overrides: {
+        Row: { created_at: string; created_by: string; id: string; payroll_month: string; performance_score: number; profile_id: string; updated_at: string };
+        Insert: { created_at?: string; created_by: string; id?: string; payroll_month: string; performance_score: number; profile_id: string; updated_at?: string };
+        Update: { created_at?: string; created_by?: string; id?: string; payroll_month?: string; performance_score?: number; profile_id?: string; updated_at?: string };
+        Relationships: [];
+      };
       payroll_store_revenues: {
         Row: { confirmed_amount: number; created_at: string; id: string; note: string; revenue_date: string; source: 'manual' | 'pospal' | 'qmai'; source_reference_id: string | null; source_updated_at: string | null; store_id: string; updated_at: string; updated_by: string };
         Insert: { confirmed_amount: number; created_at?: string; id?: string; note?: string; revenue_date: string; source?: 'manual' | 'pospal' | 'qmai'; source_reference_id?: string | null; source_updated_at?: string | null; store_id: string; updated_at?: string; updated_by: string };
@@ -940,6 +946,7 @@ export type Database = {
       admin_save_payroll_visibility_settings: { Args: { p_history_available_until_day: number; p_history_months: number }; Returns: Json };
       admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
       admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
+      admin_save_payroll_performance_override: { Args: { p_payroll_month: string; p_performance_score?: number | null; p_profile_id: string }; Returns: Json };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
       configure_pos_sales_integration: { Args: { p_enabled: boolean; p_end_hour: number; p_integration_id: string; p_interval_minutes: number; p_start_hour: number }; Returns: Json };
       replace_pos_sales_range: { Args: { p_api_call_count: number; p_end_date: string; p_integration_id: string; p_start_date: string; p_sync_job_id: string; p_tickets: Json }; Returns: Json };

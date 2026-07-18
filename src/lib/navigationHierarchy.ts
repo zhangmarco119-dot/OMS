@@ -1,6 +1,7 @@
 import type { UserRole } from '../types/domain';
 
 const STORAGE_PREFIX = 'storehub:last-route:';
+const PARENT_PREFIX = 'storehub:parent-route:';
 
 const normalizedPath = (path: string) => path.replace(/\/$/, '') || '/';
 
@@ -19,6 +20,31 @@ export function rememberedRoute(pathname: string) {
   } catch {
     return normalized;
   }
+}
+
+export function rememberParentRoute(pathname: string, parentRoute: string) {
+  try {
+    sessionStorage.setItem(`${PARENT_PREFIX}${normalizedPath(pathname)}`, parentRoute);
+  } catch {
+    // Storage may be unavailable in private or restricted browser contexts.
+  }
+}
+
+export function rememberedParentRoute(pathname: string) {
+  try {
+    return sessionStorage.getItem(`${PARENT_PREFIX}${normalizedPath(pathname)}`);
+  } catch {
+    return null;
+  }
+}
+
+export function queryDetailParentRoute(pathname: string, search: string) {
+  const params = new URLSearchParams(search);
+  const childKeys = pathname === '/app/admin/payroll' ? ['employee'] : pathname === '/app/payroll' ? ['payslip'] : pathname === '/app/notices' ? ['notice'] : [];
+  if (!childKeys.some((key) => params.has(key))) return null;
+  childKeys.forEach((key) => params.delete(key));
+  const next = params.toString();
+  return `${normalizedPath(pathname)}${next ? `?${next}` : ''}`;
 }
 
 export function logicalParentPath(pathname: string, role?: UserRole) {
@@ -46,5 +72,5 @@ export function logicalParentPath(pathname: string, role?: UserRole) {
 
 export function logicalParentRoute(pathname: string, role?: UserRole) {
   const parent = logicalParentPath(pathname, role);
-  return parent ? rememberedRoute(parent) : null;
+  return parent ? rememberedParentRoute(pathname) ?? rememberedRoute(parent) : null;
 }

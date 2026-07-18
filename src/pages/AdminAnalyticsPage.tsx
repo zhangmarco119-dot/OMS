@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { PageShell } from '../components/layout/PageShell';
 import { ErrorState, LoadingState } from '../components/ui/Feedback';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { loadV2Analytics, type V2Analytics } from '../services/v2-analytics.service';
 
 const localIsoDate = (date = new Date()) => {
@@ -16,10 +17,10 @@ const empty: V2Analytics = { arrival: { pending: 0, product_kinds: 0, quantity_t
 
 export function AdminAnalyticsPage() {
   const [data, setData] = useState<V2Analytics>(empty);
-  const [dateMode, setDateMode] = useState<'day' | 'range'>('range');
-  const [date, setDate] = useState(localIsoDate());
-  const [dateFrom, setDateFrom] = useState(() => { const start = new Date(); start.setDate(start.getDate() - 6); return localIsoDate(start); });
-  const [dateTo, setDateTo] = useState(localIsoDate());
+  const [dateMode, setDateMode] = useRememberedPageState<'day' | 'range'>('date-mode', 'range');
+  const [date, setDate] = useRememberedPageState('date', localIsoDate());
+  const [dateFrom, setDateFrom] = useRememberedPageState('date-from', (() => { const start = new Date(); start.setDate(start.getDate() - 6); return localIsoDate(start); })());
+  const [dateTo, setDateTo] = useRememberedPageState('date-to', localIsoDate());
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const load = useCallback(async () => {

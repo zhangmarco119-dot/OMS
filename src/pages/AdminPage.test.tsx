@@ -92,6 +92,7 @@ describe('AdminPage account management', () => {
   const staff = makeUser({});
 
   beforeEach(() => {
+    sessionStorage.clear();
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ profile: { id: initialAdmin.id, role: 'admin' } } as ReturnType<typeof useAuth>);
     vi.mocked(loadAdminProductsData).mockResolvedValue({ products: [], selectedStoreId: store.id, stores: [store] });

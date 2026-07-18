@@ -6,11 +6,12 @@ import { AttendanceMonthView } from '../features/attendance/AttendanceMonthView'
 import { currentMonth, emptyAttendanceMonth, type AttendanceMonthDetail } from '../features/attendance/model';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { loadAttendanceMonth } from '../services/attendance.service';
 
 export function MyAttendancePage() {
   const auth = useAuth();
-  const [month, setMonth] = useState(currentMonth());
+  const [month, setMonth] = useRememberedPageState('month', currentMonth());
   const [detail, setDetail] = useState<AttendanceMonthDetail>(emptyAttendanceMonth());
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');

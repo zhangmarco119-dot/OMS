@@ -32,6 +32,7 @@ import {
   type StoreRow,
 } from '../features/admin/adminUsersService';
 import { useAuth } from '../features/auth/AuthContext';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 
 export type AdminSection = 'products' | 'users';
 type ProductTab = 'catalog' | 'batch' | 'archived';
@@ -58,13 +59,13 @@ const productToDraft = (product: ProductRow): ProductDraft => ({
 
 export function AdminPage({ section }: { section: AdminSection }) {
   const auth = useAuth();
-  const [productTab, setProductTab] = useState<ProductTab>('catalog');
+  const [productTab, setProductTab] = useRememberedPageState<ProductTab>('product-tab', 'catalog');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
-  const [productSearch, setProductSearch] = useState('');
+  const [productSearch, setProductSearch] = useRememberedPageState('product-search', '');
   const [selectedArchivedProductIds, setSelectedArchivedProductIds] = useState<string[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState('');
+  const [selectedStoreId, setSelectedStoreId] = useRememberedPageState('selected-store', '');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPassword, setShowPassword] = useState(false);

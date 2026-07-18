@@ -29,6 +29,8 @@ const estimate = {
   fullAttendanceDays: 27, attendanceDays: 10, ruleId: 'rule-1', ruleConfirmed: true, monthlyBaseSalary: 5500, monthlyHousingAllowance: 0,
   fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: false, performanceEnabled: true, commissionEnabled: true,
   fullAttendanceBonusEnabled: false, fullAttendanceBonusAmount: 0, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0,
+  extraAttendanceDays: 0, extraAttendanceBonusRate: 300, accruedExtraAttendanceBonus: 0,
+  serviceAwardEnabled: false, serviceAwardAmount: 100, accruedServiceAward: 0, extraRewardAmount: 0, accruedExtraReward: 0,
   accruedBaseSalary: 2037.04, accruedHousingAllowance: 0, accruedPerformance: 500, accruedCommission: null,
   overtimeHours: 0, overtimeHourlyRate: 25, accruedOvertime: 0, lateCount: 0, lateMinutes: 0, lateFine: 0, otherFine: 0, fineTotal: 0,
   taskDueCount: 1, taskCompletedCount: 1, taskScore: 60, attendanceScore: 25, disciplineScore: 15, performanceScore: 100, performanceGrade: 'A',

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { logicalParentPath, logicalParentRoute, rememberRoute } from './navigationHierarchy';
+import { logicalParentPath, logicalParentRoute, queryDetailParentRoute, rememberParentRoute, rememberRoute } from './navigationHierarchy';
 
 describe('navigation hierarchy', () => {
   beforeEach(() => sessionStorage.clear());
@@ -19,5 +19,17 @@ describe('navigation hierarchy', () => {
     expect(logicalParentPath('/app/admin/attendance/person-1', 'admin')).toBe('/app/admin/attendance');
     expect(logicalParentPath('/app/overtime', 'manager')).toBe('/app/workbench');
     expect(logicalParentPath('/app/account/about', 'admin')).toBe('/app/account');
+  });
+
+  it('returns to the actual menu used to open a page', () => {
+    rememberParentRoute('/app/admin/payroll', '/app/workbench?section=payroll');
+    expect(logicalParentRoute('/app/admin/payroll', 'admin')).toBe('/app/workbench?section=payroll');
+  });
+
+  it('removes only query parameters that represent a child view', () => {
+    expect(queryDetailParentRoute('/app/admin/payroll', '?tab=overview&date=2026-06-30&store=s1&employee=p1')).toBe('/app/admin/payroll?tab=overview&date=2026-06-30&store=s1');
+    expect(queryDetailParentRoute('/app/payroll', '?tab=payslips&payslip=slip-1')).toBe('/app/payroll?tab=payslips');
+    expect(queryDetailParentRoute('/app/notices', '?notice=notice-1')).toBe('/app/notices');
+    expect(queryDetailParentRoute('/app/admin/payroll', '?tab=revenue&date=2026-06-30')).toBeNull();
   });
 });

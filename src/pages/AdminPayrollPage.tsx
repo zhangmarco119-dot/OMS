@@ -14,6 +14,7 @@ import { payrollMonthEndDate } from '../features/payroll/monthSelection';
 import { formatMoney, todayInChina, type AdminPayrollSummary } from '../features/payroll/model';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
   generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, updatePayrollPayslip, withdrawPayrollPayslip,
@@ -75,9 +76,9 @@ function PayrollVisibilityManager() {
 function PayrollPayslipManager() {
   type Payslip = Awaited<ReturnType<typeof loadAdminPayrollPayslips>>[number];
   type Action = { item: Payslip; type: 'send' | 'withdraw' };
-  const [month, setMonth] = useState(todayInChina().slice(0, 7));
-  const [scope, setScope] = useState<'all' | 'single'>('all');
-  const [profileId, setProfileId] = useState('');
+  const [month, setMonth] = useRememberedPageState('payslip-month', todayInChina().slice(0, 7));
+  const [scope, setScope] = useRememberedPageState<'all' | 'single'>('payslip-scope', 'all');
+  const [profileId, setProfileId] = useRememberedPageState('payslip-profile', '');
   const [profiles, setProfiles] = useState<Awaited<ReturnType<typeof loadPayrollProfiles>>>([]);
   const [items, setItems] = useState<Payslip[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -96,7 +97,7 @@ function PayrollPayslipManager() {
       setProfiles(nextProfiles); setProfileId((value) => value || nextProfiles[0]?.id || ''); setItems(nextItems); setStatus('ready');
       setViewing((current) => current ? nextItems.find((item) => item.id === current.id) ?? null : null);
     } catch { setStatus('error'); }
-  }, [month]);
+  }, [month, setProfileId]);
   useEffect(() => { void load(); }, [load]);
   const generate = async () => {
     if (!supabase || (scope === 'single' && !profileId)) return;
@@ -116,13 +117,14 @@ function PayrollPayslipManager() {
     setEditForm({
       accruedBaseSalary: String(item.estimate.accruedBaseSalary), accruedHousingAllowance: String(item.estimate.accruedHousingAllowance),
       accruedPerformance: String(item.estimate.accruedPerformance ?? 0), accruedFullAttendanceBonus: String(item.estimate.accruedFullAttendanceBonus),
-      accruedServiceAward: String(item.estimate.accruedServiceAward), accruedCommission: String(item.estimate.accruedCommission ?? 0),
+      accruedExtraAttendanceBonus: String(item.estimate.accruedExtraAttendanceBonus), accruedServiceAward: String(item.estimate.accruedServiceAward),
+      accruedExtraReward: String(item.estimate.accruedExtraReward), accruedCommission: String(item.estimate.accruedCommission ?? 0),
       accruedOvertime: String(item.estimate.accruedOvertime), fineTotal: String(item.estimate.fineTotal), adminNote: item.admin_note,
     });
   };
   const saveEdit = async () => {
     if (!supabase || !editing) return;
-    const numericKeys = ['accruedBaseSalary','accruedHousingAllowance','accruedPerformance','accruedFullAttendanceBonus','accruedServiceAward','accruedCommission','accruedOvertime','fineTotal'] as const;
+    const numericKeys = ['accruedBaseSalary','accruedHousingAllowance','accruedPerformance','accruedFullAttendanceBonus','accruedExtraAttendanceBonus','accruedServiceAward','accruedExtraReward','accruedCommission','accruedOvertime','fineTotal'] as const;
     if (numericKeys.some((key) => !Number.isFinite(Number(editForm[key])) || Number(editForm[key]) < 0)) { setFeedback({ title: '请检查工资单金额', message: '所有金额必须是大于或等于 0 的数字。', tone: 'warning' }); return; }
     setBusy(true);
     try {
@@ -147,7 +149,7 @@ function PayrollPayslipManager() {
   const statusLabel = (item: Payslip) => item.status === 'draft' ? '待发送' : item.status === 'issued' ? '待员工确认' : item.status === 'confirmed' ? '员工已确认' : '已撤回';
   const statusTone = (item: Payslip) => item.status === 'confirmed' ? 'success' : item.status === 'withdrawn' ? 'danger' : item.status === 'draft' ? 'info' : 'warning';
   if (viewing) return <><button className="ui-button-secondary" onClick={() => setViewing(null)} type="button">返回工资单列表</button><div className="flex items-center justify-between gap-2"><StatusBadge tone={statusTone(viewing)}>{statusLabel(viewing)}</StatusBadge><span className="text-xs text-slate-500">第 {viewing.revision} 版</span></div><PayrollStatementView adminNote={viewing.admin_note} estimate={viewing.estimate} payrollMonth={viewing.payroll_month} /><div className="grid grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={viewing.status === 'withdrawn'} onClick={() => beginEdit(viewing)} type="button">修改</button>{viewing.status === 'draft' ? <button className="ui-button-primary" onClick={() => setAction({ item:viewing,type:'send' })} type="button">发送工资单</button> : <button className="ui-button-danger" disabled={viewing.status === 'withdrawn'} onClick={() => setAction({ item:viewing,type:'withdraw' })} type="button">撤回工资单</button>}</div><ConfirmDialog confirmLabel={action?.type === 'send' ? '确认发送' : '确认撤回'} danger={action?.type === 'withdraw'} onCancel={() => setAction(null)} onConfirm={() => void executeAction()} open={Boolean(action)} title={action?.type === 'send' ? '发送工资单' : '撤回工资单'}><p>{action?.type === 'send' ? '发送后，员工会收到工资单通知和确认待办。' : '撤回后，员工将无法再查看该工资单，对应通知和待办也会移除。'}</p></ConfirmDialog><ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} /></>;
-  if (editing) return <><button className="ui-button-secondary" onClick={() => setEditing(null)} type="button">取消修改</button><SectionCard><SectionHeader title="修改工资单" description={editing.status === 'confirmed' ? '此工资单已被员工确认。保存修改后，系统会要求员工重新确认。' : '修改金额后，实发合计会自动重新计算。'} /><div className="mt-3 grid grid-cols-2 gap-2">{([['accruedBaseSalary','基本工资'],['accruedHousingAllowance','房补'],['accruedPerformance','绩效'],['accruedFullAttendanceBonus','全勤奖'],['accruedServiceAward','工龄奖'],['accruedCommission','提成'],['accruedOvertime','加班'],['fineTotal','扣款']] as const).map(([key,label]) => <label className="text-sm font-semibold" key={key}>{label}<input className="ui-input mt-1" min="0" onChange={(event) => setEditForm((value) => ({ ...value,[key]:event.target.value }))} step="0.01" type="number" value={editForm[key] ?? ''} /></label>)}</div><label className="mt-3 block text-sm font-semibold">工资单备注（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setEditForm((value) => ({ ...value,adminNote:event.target.value }))} value={editForm.adminNote ?? ''} /></label><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void saveEdit()} type="button">保存工资单修改</button></SectionCard><ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} /></>;
+  if (editing) return <><button className="ui-button-secondary" onClick={() => setEditing(null)} type="button">取消修改</button><SectionCard><SectionHeader title="修改工资单" description={editing.status === 'confirmed' ? '此工资单已被员工确认。保存修改后，系统会要求员工重新确认。' : '修改金额后，实发合计会自动重新计算。'} /><div className="mt-3 grid grid-cols-2 gap-2">{([['accruedBaseSalary','基本工资'],['accruedHousingAllowance','房补'],['accruedPerformance','绩效'],['accruedFullAttendanceBonus','全勤奖'],['accruedExtraAttendanceBonus','超勤奖'],['accruedServiceAward','工龄奖'],['accruedExtraReward','额外奖励'],['accruedCommission','提成'],['accruedOvertime','加班'],['fineTotal','扣款']] as const).map(([key,label]) => <label className="text-sm font-semibold" key={key}>{label}<input className="ui-input mt-1" min="0" onChange={(event) => setEditForm((value) => ({ ...value,[key]:event.target.value }))} step="0.01" type="number" value={editForm[key] ?? ''} /></label>)}</div><label className="mt-3 block text-sm font-semibold">工资单备注（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setEditForm((value) => ({ ...value,adminNote:event.target.value }))} value={editForm.adminNote ?? ''} /></label><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void saveEdit()} type="button">保存工资单修改</button></SectionCard><ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} /></>;
   return <>
     <SectionCard><SectionHeader icon={FileText} title="生成工资单" description="先生成草稿并预览，确认无误后再逐份发送。每月 1 日的自动工资单仍会直接发送上月单据。" />
       <div className="mt-3 grid grid-cols-2 gap-2"><MonthPicker label="工资月份" maxMonth={todayInChina().slice(0, 7)} onChange={setMonth} value={month} /><label className="text-sm font-semibold">生成范围<select className="ui-input mt-1" onChange={(event) => setScope(event.target.value as 'all' | 'single')} value={scope}><option value="all">全部员工和店长</option><option value="single">指定一人</option></select></label></div>
@@ -192,10 +194,10 @@ function PayrollOverview() {
 }
 
 function EmployeeRules() {
-  const auth = useAuth(); const [setup, setSetup] = useState<Setup | null>(null); const [profileId, setProfileId] = useState('');
+  const auth = useAuth(); const [setup, setSetup] = useState<Setup | null>(null); const [profileId, setProfileId] = useRememberedPageState('employee-rule-profile', '');
   const [params] = useSearchParams(); const requestedProfileId = params.get('profile') || '';
   const [form, setForm] = useState(ruleToForm(undefined, [])); const [feedback, setFeedback] = useState<Feedback | null>(null); const [busy, setBusy] = useState(false);
-  const load = useCallback(async () => { if (!supabase) return; const data = await loadPayrollAdminSetup(supabase, monthStart()); setSetup(data); setProfileId((value) => value || data.profiles.find((profile) => profile.id === requestedProfileId)?.id || data.profiles[0]?.id || ''); }, [requestedProfileId]);
+  const load = useCallback(async () => { if (!supabase) return; const data = await loadPayrollAdminSetup(supabase, monthStart()); setSetup(data); setProfileId((value) => value || data.profiles.find((profile) => profile.id === requestedProfileId)?.id || data.profiles[0]?.id || ''); }, [requestedProfileId, setProfileId]);
   useEffect(() => { void load().catch((error) => setFeedback({ title: '加载失败', message: error instanceof Error ? error.message : '暂时无法加载。', tone: 'danger' })); }, [load]);
   useEffect(() => { if (!setup || !profileId) return; const rule = setup.rules.find((item) => item.profile_id === profileId); setForm(ruleToForm(rule, setup.commissionStores.filter((item) => item.rule_id === rule?.id).map((item) => item.store_id))); }, [profileId, setup]);
   const save = async () => {
@@ -218,6 +220,7 @@ function EmployeeRules() {
         fullAttendanceBonusEnabled: form.fullAttendanceBonusEnabled,
         fullAttendanceBonusAmount: Number(form.fullAttendanceBonus || 0),
         serviceAwardEnabled: form.serviceAwardEnabled, serviceAwardAmount: Number(form.serviceAward || 100),
+        extraRewardAmount: Number(form.extraReward || 0),
         regularizationDate: form.regularizationDate || '', confirmed: form.confirmed,
         effectiveFrom: form.effectiveFrom, changeReason: form.reason.trim(),
       }, form.storeIds);
@@ -231,7 +234,8 @@ function EmployeeRules() {
   return <><SectionCard>
     <SectionHeader icon={Settings2} title="员工工资参数" description="调整后按生效日期切换，修改原因可不填写。" />
     <label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{setup.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollRoleLabel[profile.role]}</option>)}</select></label>
-    <div className="mt-3 grid grid-cols-2 gap-2"><Field label="月基本工资（含社保补贴）" value={form.base} onChange={(base) => setForm((value) => ({ ...value, base }))} /><Field label="月房补" value={form.housing} onChange={(housing) => setForm((value) => ({ ...value, housing }))} /><Field label="满绩效金额" value={form.performance} onChange={(performance) => setForm((value) => ({ ...value, performance }))} /><Field label="提成比例（%）" value={form.commission} onChange={(commission) => setForm((value) => ({ ...value, commission }))} /></div>
+    <div className="mt-3 grid grid-cols-2 gap-2"><Field label="月基本工资（含社保补贴）" value={form.base} onChange={(base) => setForm((value) => ({ ...value, base }))} /><Field label="月房补" value={form.housing} onChange={(housing) => setForm((value) => ({ ...value, housing }))} /><Field label="满绩效金额" value={form.performance} onChange={(performance) => setForm((value) => ({ ...value, performance }))} /><Field label="提成比例（%）" value={form.commission} onChange={(commission) => setForm((value) => ({ ...value, commission }))} /><Field label="额外奖励" value={form.extraReward} onChange={(extraReward) => setForm((value) => ({ ...value, extraReward }))} /></div>
+    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">超勤奖由系统自动计算：超过当月全勤标准后，每超勤 1 天奖励 300 元。额外奖励可在此预设，也可生成工资单后单独修改。</p>
     <div className="mt-3 grid grid-cols-2 gap-2">{([['housingEnabled', '启用房补'], ['performanceEnabled', '启用绩效'], ['commissionEnabled', '启用提成'], ['fullAttendanceBonusEnabled', '启用全勤奖'], ['serviceAwardEnabled', '启用工龄奖']] as const).map(([key, label]) => <label className="rounded-lg bg-slate-50 p-2 text-xs font-semibold" key={key}><input checked={form[key]} className="mr-1.5" onChange={(event) => setForm((value) => ({ ...value, [key]: event.target.checked }))} type="checkbox" />{label}</label>)}</div>
     {form.fullAttendanceBonusEnabled ? <div className="mt-2 rounded-lg bg-emerald-50 px-3 pb-3"><Field label="全勤奖金额" value={form.fullAttendanceBonus} onChange={(fullAttendanceBonus) => setForm((value) => ({ ...value, fullAttendanceBonus }))} /><p className="mt-1 text-xs leading-5 text-emerald-800">达到当月满勤天数后独立产生全勤奖，不计入绩效金额。</p></div> : null}
     {form.serviceAwardEnabled ? <div className="mt-2 rounded-lg bg-blue-50 px-3 pb-3"><Field label="月度工龄奖" value={form.serviceAward} onChange={(serviceAward) => setForm((value) => ({ ...value, serviceAward }))} /><p className="mt-1 text-xs leading-5 text-blue-800">默认 100 元，按当月累计出勤天数折算。</p></div> : null}
@@ -272,8 +276,8 @@ function RevenueManager() {
   const auth = useAuth();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [posSetup, setPosSetup] = useState<Awaited<ReturnType<typeof loadPosSalesSetup>> | null>(null);
-  const [storeId, setStoreId] = useState(auth.availableStores[0]?.id ?? '');
-  const [date, setDate] = useState(todayInChina());
+  const [storeId, setStoreId] = useRememberedPageState('revenue-store', auth.availableStores[0]?.id ?? '');
+  const [date, setDate] = useRememberedPageState('revenue-date', todayInChina());
   const [inputMode, setInputMode] = useState<'pos_sync' | 'manual'>('manual');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -471,6 +475,6 @@ function FeedbackDialog({ close, feedback }: { close: () => void; feedback: Feed
 function Field({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) { return <label className="mt-3 block text-sm font-semibold">{label}<input className="ui-input mt-1" min="0" onChange={(event) => onChange(event.target.value)} step="0.01" type="number" value={value} /></label>; }
 function Mini({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-slate-50 p-2"><b className="block truncate text-xs tabular-nums">{value}</b><span className="text-[10px] text-slate-500">{label}</span></div>; }
 function SummaryMetric({ label, value }: { label: string; value: string }) { return <SectionCard className="p-3"><b className="block text-lg tabular-nums text-slate-900">{value}</b><span className="text-xs text-slate-500">{label}</span></SectionCard>; }
-function ruleToForm(rule: PayrollEmployeeRule | undefined, storeIds: string[]) { return { base: rule ? String(rule.monthly_base_salary) : '', housing: rule ? String(rule.monthly_housing_allowance) : '', performance: rule?.full_performance_amount == null ? '' : String(rule.full_performance_amount), commission: rule?.commission_rate == null ? '' : String(rule.commission_rate * 100), fullAttendanceBonus: rule ? String(rule.full_attendance_bonus_amount) : '', serviceAward: rule ? String(rule.service_award_amount) : '100', regularizationDate: rule?.regularization_date ?? '', effectiveFrom: rule?.effective_from ?? todayInChina(), reason: '', housingEnabled: rule?.housing_enabled ?? true, performanceEnabled: rule?.performance_enabled ?? true, commissionEnabled: rule?.commission_enabled ?? false, fullAttendanceBonusEnabled: rule?.full_attendance_bonus_enabled ?? false, serviceAwardEnabled: rule?.service_award_enabled ?? false, confirmed: rule?.confirmed ?? false, storeIds }; }
+function ruleToForm(rule: PayrollEmployeeRule | undefined, storeIds: string[]) { return { base: rule ? String(rule.monthly_base_salary) : '', housing: rule ? String(rule.monthly_housing_allowance) : '', performance: rule?.full_performance_amount == null ? '' : String(rule.full_performance_amount), commission: rule?.commission_rate == null ? '' : String(rule.commission_rate * 100), extraReward: rule ? String(rule.extra_reward_amount) : '0', fullAttendanceBonus: rule ? String(rule.full_attendance_bonus_amount) : '', serviceAward: rule ? String(rule.service_award_amount) : '100', regularizationDate: rule?.regularization_date ?? '', effectiveFrom: rule?.effective_from ?? todayInChina(), reason: '', housingEnabled: rule?.housing_enabled ?? true, performanceEnabled: rule?.performance_enabled ?? true, commissionEnabled: rule?.commission_enabled ?? false, fullAttendanceBonusEnabled: rule?.full_attendance_bonus_enabled ?? false, serviceAwardEnabled: rule?.service_award_enabled ?? false, confirmed: rule?.confirmed ?? false, storeIds }; }
 function defaultPerformanceForm() { return { taskWeight: '60', attendanceWeight: '25', disciplineWeight: '15', late1: '1', late2: '3', late3: '5', late4: '10', aMin: '90', bMin: '80', cMin: '70', aRate: '100', bRate: '80', cRate: '50', dRate: '20', effectiveFrom: todayInChina(), reason: '' }; }
 function performanceToForm(rule: PayrollPerformanceRule) { return { taskWeight: String(rule.task_weight), attendanceWeight: String(rule.attendance_weight), disciplineWeight: String(rule.discipline_weight), late1: String(rule.late_deduction_1_10), late2: String(rule.late_deduction_11_20), late3: String(rule.late_deduction_21_30), late4: String(rule.late_deduction_31_plus), aMin: String(rule.grade_a_min), bMin: String(rule.grade_b_min), cMin: String(rule.grade_c_min), aRate: String(rule.grade_a_coefficient * 100), bRate: String(rule.grade_b_coefficient * 100), cRate: String(rule.grade_c_coefficient * 100), dRate: String(rule.grade_d_coefficient * 100), effectiveFrom: rule.effective_from, reason: '' }; }

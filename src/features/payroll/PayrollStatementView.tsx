@@ -14,7 +14,9 @@ export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }:
     ['房补', estimate.accruedHousingAllowance],
     ['绩效', estimate.accruedPerformance ?? 0],
     ['全勤奖', estimate.accruedFullAttendanceBonus],
+    ['超勤奖', estimate.accruedExtraAttendanceBonus],
     ['工龄奖', estimate.accruedServiceAward],
+    ['额外奖励', estimate.accruedExtraReward],
     ['提成', estimate.accruedCommission ?? 0],
     ['加班', estimate.accruedOvertime],
   ] as const;

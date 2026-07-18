@@ -19,6 +19,7 @@ import {
 import { TaskTemplateReferenceImageUpload } from '../features/task-templates/TaskTemplateReferenceImageUpload';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   archiveTaskTemplate,
   createTaskCategory,
@@ -94,8 +95,8 @@ export function AdminTaskTemplatesPage() {
   const auth = useAuth();
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
   const [categories, setCategories] = useState<TaskCategoryRow[]>([]);
-  const [filter, setFilter] = useState<Filter>('all');
-  const [scope, setScope] = useState<TemplateScope>('active');
+  const [filter, setFilter] = useRememberedPageState<Filter>('category-filter', 'all');
+  const [scope, setScope] = useRememberedPageState<TemplateScope>('scope', 'active');
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<TaskTemplateDraft | null>(null);
   const [restoredDraftKey, setRestoredDraftKey] = useState<string | null>(null);

@@ -13,6 +13,7 @@ import {
 } from '../features/arrivals/adminArrivalFormat';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   loadAdminArrivalList,
   loadAdminArrivalMessages,
@@ -40,13 +41,13 @@ const initialFilters: AdminArrivalListFilters = {
 export function AdminArrivalsPage() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState(initialFilters);
+  const [filters, setFilters] = useRememberedPageState('filters', initialFilters);
   const [messages, setMessages] = useState<AdminArrivalMessage[]>([]);
   const [reports, setReports] = useState<AdminArrivalReport[]>([]);
   const [count, setCount] = useState(0);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useRememberedPageState('show-filters', false);
   const pageCount = Math.max(1, Math.ceil(count / 20));
 
   const load = useCallback(async () => {

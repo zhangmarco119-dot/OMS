@@ -9,7 +9,9 @@ const estimate = {
   fullAttendanceDays: 27, attendanceDays: 13, ruleId: 'r1', ruleConfirmed: false, monthlyBaseSalary: 5500, monthlyHousingAllowance: 1100,
   fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: true, performanceEnabled: true, commissionEnabled: true,
   fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0,
+  extraAttendanceDays: 0, extraAttendanceBonusRate: 300, accruedExtraAttendanceBonus: 0,
   serviceAwardEnabled: true, serviceAwardAmount: 100, accruedServiceAward: 48.15, regularizationDate: null, eligibleAttendanceDays: 13, regularizationFactor: 1, isProbation: false,
+  extraRewardAmount: 0, accruedExtraReward: 0,
   overtimeHours: 2, overtimeHourlyRate: 25, accruedOvertime: 50,
   accruedBaseSalary: 2648.15, accruedHousingAllowance: 529.63, accruedPerformance: null, accruedCommission: null, lateCount: 1, lateMinutes: 5,
   lateFine: 20, otherFine: 0, fineTotal: 20, taskDueCount: 0, taskCompletedCount: 0, taskScore: null, attendanceScore: 24,
@@ -36,6 +38,14 @@ describe('PayrollEstimateView', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, attendanceDays: 27, fullAttendanceBonusAwarded: true, accruedFullAttendanceBonus: 500, accruedPerformance: 2900 }} />);
     expect(screen.getByText(/本月累计出勤已达到/)).toBeInTheDocument();
     expect(screen.getByText('¥2,900.00')).toBeInTheDocument();
+  });
+
+  it('shows the automatic extra-attendance award and administrator reward separately', () => {
+    render(<PayrollEstimateView estimate={{ ...estimate, attendanceDays: 29, extraAttendanceDays: 2, accruedExtraAttendanceBonus: 600, extraRewardAmount: 80, accruedExtraReward: 80 }} />);
+    expect(screen.getByText('超勤奖')).toBeInTheDocument();
+    expect(screen.getByText(/超过全勤标准 2 天/)).toBeInTheDocument();
+    expect(screen.getByText('额外奖励')).toBeInTheDocument();
+    expect(screen.getByText('¥600.00')).toBeInTheDocument();
   });
 
   it('links administrator data issues to their update location', () => {

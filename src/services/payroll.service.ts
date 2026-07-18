@@ -49,17 +49,25 @@ export async function savePayrollVisibilitySettings(client: Client, settings: Pi
 
 export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
   const item = objectAt(value);
+  const monthStart = textAt(item.monthStart);
+  const dataIssues = Array.isArray(item.dataIssues) ? item.dataIssues.filter((entry): entry is string => typeof entry === 'string').map((issue) => {
+    if (issue !== '营业收入待更新' || !/^\d{4}-\d{2}/.test(monthStart)) return issue;
+    const [year, month] = monthStart.slice(0, 7).split('-');
+    return `${year}年${Number(month)}月营业收入尚未录入，提成暂未计入`;
+  }) : [];
   return {
     profileId: textAt(item.profileId), displayName: textAt(item.displayName, '未命名员工'), username: textAt(item.username),
-    primaryStoreId: textAt(item.primaryStoreId), asOf: textAt(item.asOf), monthStart: textAt(item.monthStart), monthEnd: textAt(item.monthEnd),
+    primaryStoreId: textAt(item.primaryStoreId), asOf: textAt(item.asOf), monthStart, monthEnd: textAt(item.monthEnd),
     fullAttendanceDays: numberAt(item.fullAttendanceDays), attendanceDays: numberAt(item.attendanceDays), ruleId: nullableTextAt(item.ruleId),
     ruleConfirmed: boolAt(item.ruleConfirmed), monthlyBaseSalary: nullableNumberAt(item.monthlyBaseSalary),
     monthlyHousingAllowance: nullableNumberAt(item.monthlyHousingAllowance), fullPerformanceAmount: nullableNumberAt(item.fullPerformanceAmount),
     commissionRate: nullableNumberAt(item.commissionRate), housingEnabled: boolAt(item.housingEnabled), performanceEnabled: boolAt(item.performanceEnabled),
     commissionEnabled: boolAt(item.commissionEnabled), fullAttendanceBonusEnabled: boolAt(item.fullAttendanceBonusEnabled),
     fullAttendanceBonusAmount: numberAt(item.fullAttendanceBonusAmount), fullAttendanceBonusAwarded: boolAt(item.fullAttendanceBonusAwarded),
-    accruedFullAttendanceBonus: numberAt(item.accruedFullAttendanceBonus), serviceAwardEnabled: boolAt(item.serviceAwardEnabled),
+    accruedFullAttendanceBonus: numberAt(item.accruedFullAttendanceBonus), extraAttendanceDays: numberAt(item.extraAttendanceDays),
+    extraAttendanceBonusRate: numberAt(item.extraAttendanceBonusRate), accruedExtraAttendanceBonus: numberAt(item.accruedExtraAttendanceBonus), serviceAwardEnabled: boolAt(item.serviceAwardEnabled),
     serviceAwardAmount: numberAt(item.serviceAwardAmount), accruedServiceAward: numberAt(item.accruedServiceAward),
+    extraRewardAmount: numberAt(item.extraRewardAmount), accruedExtraReward: numberAt(item.accruedExtraReward),
     regularizationDate: nullableTextAt(item.regularizationDate), eligibleAttendanceDays: numberAt(item.eligibleAttendanceDays),
     regularizationFactor: numberAt(item.regularizationFactor), isProbation: boolAt(item.isProbation), accruedBaseSalary: numberAt(item.accruedBaseSalary),
     accruedHousingAllowance: numberAt(item.accruedHousingAllowance), accruedPerformance: nullableNumberAt(item.accruedPerformance),
@@ -75,7 +83,7 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     attendanceUpdatedAt: nullableTextAt(item.attendanceUpdatedAt), tasksUpdatedAt: nullableTextAt(item.tasksUpdatedAt),
     revenueUpdatedAt: nullableTextAt(item.revenueUpdatedAt), penaltiesUpdatedAt: nullableTextAt(item.penaltiesUpdatedAt),
     overtimeUpdatedAt: nullableTextAt(item.overtimeUpdatedAt),
-    dataIssues: Array.isArray(item.dataIssues) ? item.dataIssues.filter((entry): entry is string => typeof entry === 'string') : [],
+    dataIssues,
   };
 };
 
@@ -145,7 +153,9 @@ export interface PayrollPayslipDraftFields {
   accruedHousingAllowance: number;
   accruedPerformance: number;
   accruedFullAttendanceBonus: number;
+  accruedExtraAttendanceBonus: number;
   accruedServiceAward: number;
+  accruedExtraReward: number;
   accruedCommission: number;
   accruedOvertime: number;
   fineTotal: number;

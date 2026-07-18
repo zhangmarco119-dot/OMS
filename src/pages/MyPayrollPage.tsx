@@ -14,6 +14,7 @@ import { PayrollStatementView } from '../features/payroll/PayrollStatementView';
 import { payrollMonthEndDate } from '../features/payroll/monthSelection';
 import { formatMoney, todayInChina, type PayrollEstimate } from '../features/payroll/model';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { confirmPayrollPayslip, loadMyPayrollEstimate, loadMyPayrollPayslips, loadPayrollVisibilitySettings, type PayrollPayslip, type PayrollVisibilitySettings } from '../services/payroll.service';
 
 const currentMonth = () => todayInChina().slice(0, 7);
@@ -50,7 +51,7 @@ function EstimatePanel() {
   const profileId = auth.profile?.id;
   const [estimate, setEstimate] = useState<PayrollEstimate | null>(null);
   const [settings, setSettings] = useState<PayrollVisibilitySettings | null>(null);
-  const [month, setMonth] = useState(currentMonth);
+  const [month, setMonth] = useRememberedPageState('estimate-month', currentMonth());
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const asOf = useMemo(() => payrollMonthEndDate(month, todayInChina()), [month]);

@@ -9,6 +9,7 @@ import { scheduleSopBackgroundLoad } from '../features/content/sopBackgroundLoad
 import { SopProgressiveImage } from '../features/content/SopProgressiveImage';
 import { useSopCategoryFilter } from '../features/content/useSopCategoryFilter';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { loadSopCategories, loadSopLibraryPage, prefetchSopDetail, setSopFavorite, type SopLibraryEntry } from '../services/v2-content.service';
 
 const PAGE_SIZE = 5;
@@ -20,9 +21,9 @@ export function SopLibraryPage() {
   const [categoryNames, setCategoryNames] = useState<string[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useRememberedPageState('search', '');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useRememberedPageState('favorites-only', false);
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [autoLoadPaused, setAutoLoadPaused] = useState(false);

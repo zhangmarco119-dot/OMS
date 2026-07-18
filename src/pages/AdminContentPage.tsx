@@ -19,6 +19,7 @@ import { getSopPreviewAsset } from '../features/content/sopPreview';
 import { filterAdminSops } from '../features/content/sopLibrary';
 import { TaskTemplateReferenceImageUpload } from '../features/task-templates/TaskTemplateReferenceImageUpload';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   archiveSop,
   archiveNotice,
@@ -75,7 +76,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const auth = useAuth();
   const navigate = useNavigate();
   const [sopCategoryFilter, setSopCategoryFilter] = useSopCategoryFilter();
-  const [sopSearch, setSopSearch] = useState('');
+  const [sopSearch, setSopSearch] = useRememberedPageState('sop-search', '');
   const [debouncedSopSearch, setDebouncedSopSearch] = useState('');
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [sops, setSops] = useState<SopListItem[]>([]);
@@ -94,8 +95,8 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [showSopBatchOperations, setShowSopBatchOperations] = useState(false);
   const [showSopBatchImport, setShowSopBatchImport] = useState(false);
   const [showSopCategoryManager, setShowSopCategoryManager] = useState(false);
-  const [showSopArchiveManager, setShowSopArchiveManager] = useState(false);
-  const [showNoticeArchiveManager, setShowNoticeArchiveManager] = useState(false);
+  const [showSopArchiveManager, setShowSopArchiveManager] = useRememberedPageState('sop-archive-open', false);
+  const [showNoticeArchiveManager, setShowNoticeArchiveManager] = useRememberedPageState('notice-archive-open', false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [sopExportMode, setSopExportMode] = useState(false);
   const [sopBatchAction, setSopBatchAction] = useState<SopBatchLifecycleAction | null>(null);

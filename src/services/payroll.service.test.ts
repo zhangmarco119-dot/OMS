@@ -6,7 +6,7 @@ const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8,
 
 describe('payroll service', () => {
   it('parses nullable pending amounts without treating them as final zero', () => {
-    expect(parsePayrollEstimate({ ...estimate, accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true })).toMatchObject({ attendanceDays: 8, accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true, dataIssues: ['营业收入待更新'] });
+    expect(parsePayrollEstimate({ ...estimate, monthStart: '2026-07-01', accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true })).toMatchObject({ attendanceDays: 8, accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true, dataIssues: ['2026年7月营业收入尚未录入，提成暂未计入'] });
   });
 
   it('loads the current employee estimate with an explicit cutoff date', async () => {
@@ -35,7 +35,7 @@ describe('payroll service', () => {
 
   it('supports preview-first send, edit and withdrawal operations', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { id: 'slip-1' }, error: null });
-    const fields = { accruedBaseSalary:3000,accruedHousingAllowance:500,accruedPerformance:300,accruedFullAttendanceBonus:0,accruedServiceAward:100,accruedCommission:80,accruedOvertime:50,fineTotal:20,adminNote:'已核对' };
+    const fields = { accruedBaseSalary:3000,accruedHousingAllowance:500,accruedPerformance:300,accruedFullAttendanceBonus:0,accruedExtraAttendanceBonus:300,accruedServiceAward:100,accruedExtraReward:80,accruedCommission:80,accruedOvertime:50,fineTotal:20,adminNote:'已核对' };
     await sendPayrollPayslip({ rpc } as never,'slip-1');
     await updatePayrollPayslip({ rpc } as never,'slip-1',fields);
     await withdrawPayrollPayslip({ rpc } as never,'slip-1');

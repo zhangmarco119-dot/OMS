@@ -10,6 +10,7 @@ import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { formatMoney, todayInChina } from '../features/payroll/model';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   loadManagerOvertimeRequests,
   loadMyOvertimeRequests,
@@ -53,8 +54,8 @@ export function OvertimePage() {
   const [hours, setHours] = useState('');
   const [hoursOpen, setHoursOpen] = useState(false);
   const [reason, setReason] = useState('');
-  const [storeId, setStoreId] = useState(auth.store?.id ?? '');
-  const [recordMonth, setRecordMonth] = useState(today.slice(0, 7));
+  const [storeId, setStoreId] = useRememberedPageState('store', auth.store?.id ?? '');
+  const [recordMonth, setRecordMonth] = useRememberedPageState('record-month', today.slice(0, 7));
   const [editingId, setEditingId] = useState('');
   const [busy, setBusy] = useState(false);
   const [review, setReview] = useState<{ request: RequestRow; action: 'approved' | 'rejected' } | null>(null);

@@ -10,6 +10,7 @@ import { SectionCard } from '../components/ui/Surface';
 import { currentMonth } from '../features/attendance/model';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { bindAttendanceEmployee, configureAttendanceAutomation, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceSyncJobs, removeAttendanceEnterpriseMapping, saveAttendanceEnterpriseMapping, unbindAttendanceEmployee, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceSyncJob } from '../services/attendance.service';
 
 type Tab = 'overview' | 'enterprises' | 'bindings' | 'logs';
@@ -30,12 +31,12 @@ export function AdminAttendancePage() {
 
 function AttendanceOverview() {
   const auth = useAuth();
-  const [month, setMonth] = useState(currentMonth());
-  const [historyStart, setHistoryStart] = useState(`${new Date().getFullYear() - 1}-01`);
-  const [historyEnd, setHistoryEnd] = useState(currentMonth());
-  const [storeId, setStoreId] = useState('');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [month, setMonth] = useRememberedPageState('overview-month', currentMonth());
+  const [historyStart, setHistoryStart] = useRememberedPageState('history-start', `${new Date().getFullYear() - 1}-01`);
+  const [historyEnd, setHistoryEnd] = useRememberedPageState('history-end', currentMonth());
+  const [storeId, setStoreId] = useRememberedPageState('overview-store', '');
+  const [search, setSearch] = useRememberedPageState('overview-search', '');
+  const [statusFilter, setStatusFilter] = useRememberedPageState('overview-status', 'all');
   const [items, setItems] = useState<Awaited<ReturnType<typeof loadAdminAttendanceMonth>>['items']>([]);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -128,8 +129,8 @@ function AttendanceBindings() {
   const [candidates, setCandidates] = useState<AttendanceBindingCandidate[]>([]);
   const [directory, setDirectory] = useState<Awaited<ReturnType<typeof loadAttendanceBindings>>['directory']>([]);
   const [setup, setSetup] = useState<AttendanceEnterpriseSetup>({ enterprises: [], mappings: [] });
-  const [search, setSearch] = useState('');
-  const [bindingFilter, setBindingFilter] = useState<'all' | 'bound' | 'unbound' | 'error'>('all');
+  const [search, setSearch] = useRememberedPageState('bindings-search', '');
+  const [bindingFilter, setBindingFilter] = useRememberedPageState<'all' | 'bound' | 'unbound' | 'error'>('bindings-filter', 'all');
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [selectedStores, setSelectedStores] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');

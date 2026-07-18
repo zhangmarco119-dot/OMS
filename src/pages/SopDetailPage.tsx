@@ -1,6 +1,6 @@
 import { BookOpenCheck, ExternalLink, Rocket, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -45,6 +45,7 @@ function SopAttachmentLink({ asset }: { asset: SopAssetRow & { signedUrl: string
 
 export function SopDetailPage() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const { sopId } = useParams();
   const [sop, setSop] = useState<SopListItem | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -135,8 +136,7 @@ export function SopDetailPage() {
         title: sop.title,
       });
       await publishSop(client, sop.id, { silent: publishSettings.silent });
-      setSuccess(publishSettings.silent ? 'SOP 已静默发布。' : 'SOP 已发布并通知适用员工。');
-      await load();
+      navigate('/app/admin/sops', { replace: true, state: { publishedSop: sop.title } });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '发布 SOP 失败。');
     } finally { setBusy(false); }

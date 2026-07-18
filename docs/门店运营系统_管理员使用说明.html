@@ -66,9 +66,10 @@
         <a href="#notices">10. 公告管理</a>
         <a href="#sops">11. SOP 管理</a>
         <a href="#batch-sop">12. SOP 批量操作</a>
-        <a href="#history">13. 记录与数据统计</a>
-        <a href="#archive">14. 发布、撤回、归档</a>
-        <a href="#faq">15. 常见问题与检查表</a>
+        <a href="#attendance-payroll">13. 考勤与实时薪资</a>
+        <a href="#history">14. 记录与数据统计</a>
+        <a href="#archive">15. 发布、撤回、归档</a>
+        <a href="#faq">16. 常见问题与检查表</a>
       </nav>
 
       <main>
@@ -225,6 +226,13 @@
           <h3>导出 SOP</h3><p>点击“导出 SOP”，勾选需要的项目后导出。系统会生成一个离线 HTML 文件，包含目录、步骤图片、文字和附件，可直接用浏览器查看，也可打印为 PDF。</p>
         </section>
 
+        <section class="manual-section" id="attendance-payroll" data-keywords="考勤 钉钉 企业 门店 绑定 同步 缺卡 补卡 加班 工资 全勤奖 工龄奖 转正 绩效 提成">
+          <div class="section-kicker">13 · 人员数据与工资</div><h2>考勤管理和实时薪资</h2>
+          <h3>考勤管理</h3><ul><li>每个钉钉企业先绑定实际门店，同一员工可以绑定多个企业身份。</li><li>系统每小时自动同步，也可手动同步月份或建立全部时间段同步队列。</li><li>员工卡片显示出勤、累计加班、迟到次数与分钟、缺卡和异常。</li><li>全部门店视角合并员工在所有授权门店的考勤；选择单店后只统计该店。</li><li>检测到缺卡会给员工建立补卡提醒，员工提交补卡后自行勾选完成，无需审批。</li></ul>
+          <h3>员工工资参数</h3><p>选择员工时显示“姓名 · 员工/店长”。可以配置基本工资、房补、绩效、提成、全勤奖、工龄奖、转正日期和提成门店。</p>
+          <ul><li>全勤奖与绩效分开，达到满勤天数才产生。</li><li>工龄奖默认每月 100 元，按实际出勤天数折算。</li><li>转正前不计算绩效和提成；转正当月只按转正后的实际出勤折算。</li><li>绩效规则由任务、考勤和纪律得分组成；迟到和处罚会按规则扣分。</li><li>员工加班由店长审批，店长加班由管理员审批，批准后计入预估工资。</li></ul>
+        </section>
+
         <section class="manual-section" id="history" data-keywords="点货订货记录 运营历史 查看明细 到货 任务 运营统计 某日 时间区间 完成率 趋势">
           <div class="section-kicker">13 · 查询与复盘</div><h2>记录中心和运营数据</h2>
           <div class="quick-grid"><div class="quick-card"><b>点货订货记录</b>查看授权门店已提交单据。点击“查看明细”查看货品和数量。</div><div class="quick-card"><b>到货中心</b>查看到货记录、某日或时间区间汇总。</div><div class="quick-card"><b>任务管理</b>任务历史保留在任务清单中，可查看执行和审核结果。</div><div class="quick-card"><b>运营统计</b>汇总到货、任务完成率、问题整改和点货订货。</div></div>
@@ -243,6 +251,7 @@
           </tbody></table>
           <div class="visual"><div class="visual-title">安全的内容生命周期</div><div class="flow"><div class="flow-box">草稿</div><span class="arrow">→</span><div class="flow-box em">发布</div><span class="arrow">→</span><div class="flow-box">撤回</div><span class="arrow">→</span><div class="flow-box">归档</div><span class="arrow">→</span><div class="flow-box">删除或恢复</div></div></div>
           <div class="callout danger"><strong>删除前请确认没有保留价值</strong>归档是暂时隐藏，通常可以恢复；删除是永久操作。建议不确定时先归档，不要直接删除。</div>
+          <p>已归档 SOP、公告和任务模板支持勾选后批量删除。批量操作完成后会报告成功数量和因历史关联等原因未能删除的项目。</p>
         </section>
 
         <section class="manual-section" id="faq" data-keywords="常见问题 没有模板 员工看不到 任务不出现 待办数字 不更新 上传失败 图片不显示 保存失败 发布失败 周期 暂停 归档 删除 登录 密码 检查表">

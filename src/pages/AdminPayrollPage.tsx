@@ -28,6 +28,7 @@ const tabs: { key: Tab; label: string }[] = [
 ];
 const monthStart = (date = todayInChina()) => `${date.slice(0, 7)}-01`;
 const penaltyDefaults = { reminder: 0, warning: 3, formal_warning: 5, serious: 10 } as const;
+const payrollRoleLabel = { staff: '员工', manager: '店长', admin: '管理员' } as const;
 
 export function AdminPayrollPage() {
   const [params, setParams] = useSearchParams();
@@ -84,6 +85,10 @@ function EmployeeRules() {
       setFeedback({ title: '请填写全勤奖金额', message: '启用全勤奖后，奖励金额必须大于 0。', tone: 'warning' });
       return;
     }
+    if (form.serviceAwardEnabled && (!form.serviceAward || Number(form.serviceAward) <= 0)) {
+      setFeedback({ title: '请填写工龄奖金额', message: '启用工龄奖后，月度金额必须大于 0。', tone: 'warning' });
+      return;
+    }
     setBusy(true);
     try {
       await savePayrollEmployeeRule(supabase, profileId, {
@@ -91,7 +96,9 @@ function EmployeeRules() {
         commissionRate: form.commission ? Number(form.commission) / 100 : '', housingEnabled: form.housingEnabled,
         performanceEnabled: form.performanceEnabled, commissionEnabled: form.commissionEnabled,
         fullAttendanceBonusEnabled: form.fullAttendanceBonusEnabled,
-        fullAttendanceBonusAmount: Number(form.fullAttendanceBonus || 0), confirmed: form.confirmed,
+        fullAttendanceBonusAmount: Number(form.fullAttendanceBonus || 0),
+        serviceAwardEnabled: form.serviceAwardEnabled, serviceAwardAmount: Number(form.serviceAward || 100),
+        regularizationDate: form.regularizationDate || '', confirmed: form.confirmed,
         effectiveFrom: form.effectiveFrom, changeReason: form.reason.trim(),
       }, form.storeIds);
       setFeedback({ title: '员工工资参数已保存', message: '新参数将按所选生效日期参与实时预估，历史规则已保留。', tone: 'success' });
@@ -103,11 +110,14 @@ function EmployeeRules() {
   if (!setup) return <LoadingState label="正在加载员工工资参数" />;
   return <><SectionCard>
     <SectionHeader icon={Settings2} title="员工工资参数" description="调整后按生效日期切换，修改原因可不填写。" />
-    <label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{setup.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {profile.username}</option>)}</select></label>
+    <label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{setup.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollRoleLabel[profile.role]}</option>)}</select></label>
     <div className="mt-3 grid grid-cols-2 gap-2"><Field label="月基本工资（含社保补贴）" value={form.base} onChange={(base) => setForm((value) => ({ ...value, base }))} /><Field label="月房补" value={form.housing} onChange={(housing) => setForm((value) => ({ ...value, housing }))} /><Field label="满绩效金额" value={form.performance} onChange={(performance) => setForm((value) => ({ ...value, performance }))} /><Field label="提成比例（%）" value={form.commission} onChange={(commission) => setForm((value) => ({ ...value, commission }))} /></div>
-    <div className="mt-3 grid grid-cols-2 gap-2">{([['housingEnabled', '启用房补'], ['performanceEnabled', '启用绩效'], ['commissionEnabled', '启用提成'], ['fullAttendanceBonusEnabled', '启用全勤奖']] as const).map(([key, label]) => <label className="rounded-lg bg-slate-50 p-2 text-xs font-semibold" key={key}><input checked={form[key]} className="mr-1.5" onChange={(event) => setForm((value) => ({ ...value, [key]: event.target.checked }))} type="checkbox" />{label}</label>)}</div>
-    {form.fullAttendanceBonusEnabled ? <div className="rounded-lg bg-emerald-50 px-3 pb-3"><Field label="全勤奖金额" value={form.fullAttendanceBonus} onChange={(fullAttendanceBonus) => setForm((value) => ({ ...value, fullAttendanceBonus }))} /><p className="mt-1 text-xs leading-5 text-emerald-800">当月累计出勤达到系统满勤天数后，自动计入累计绩效奖。</p></div> : null}
+    <div className="mt-3 grid grid-cols-2 gap-2">{([['housingEnabled', '启用房补'], ['performanceEnabled', '启用绩效'], ['commissionEnabled', '启用提成'], ['fullAttendanceBonusEnabled', '启用全勤奖'], ['serviceAwardEnabled', '启用工龄奖']] as const).map(([key, label]) => <label className="rounded-lg bg-slate-50 p-2 text-xs font-semibold" key={key}><input checked={form[key]} className="mr-1.5" onChange={(event) => setForm((value) => ({ ...value, [key]: event.target.checked }))} type="checkbox" />{label}</label>)}</div>
+    {form.fullAttendanceBonusEnabled ? <div className="mt-2 rounded-lg bg-emerald-50 px-3 pb-3"><Field label="全勤奖金额" value={form.fullAttendanceBonus} onChange={(fullAttendanceBonus) => setForm((value) => ({ ...value, fullAttendanceBonus }))} /><p className="mt-1 text-xs leading-5 text-emerald-800">达到当月满勤天数后独立产生全勤奖，不计入绩效金额。</p></div> : null}
+    {form.serviceAwardEnabled ? <div className="mt-2 rounded-lg bg-blue-50 px-3 pb-3"><Field label="月度工龄奖" value={form.serviceAward} onChange={(serviceAward) => setForm((value) => ({ ...value, serviceAward }))} /><p className="mt-1 text-xs leading-5 text-blue-800">默认 100 元，按当月累计出勤天数折算。</p></div> : null}
     {form.commissionEnabled ? <div className="mt-3"><p className="text-sm font-semibold">提成门店</p><div className="mt-1 grid grid-cols-2 gap-2">{auth.availableStores.map((store) => <label className="rounded-lg border p-2 text-xs" key={store.id}><input checked={form.storeIds.includes(store.id)} className="mr-1.5" onChange={(event) => setForm((value) => ({ ...value, storeIds: event.target.checked ? [...value.storeIds, store.id] : value.storeIds.filter((id) => id !== store.id) }))} type="checkbox" />{store.short_name}</label>)}</div></div> : null}
+    <label className="mt-3 block text-sm font-semibold">转正日期（选填）<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, regularizationDate: event.target.value }))} type="date" value={form.regularizationDate} /></label>
+    <p className="mt-1 text-xs leading-5 text-slate-500">转正前不计绩效和提成；转正当月仅按转正后的实际出勤日期折算。</p>
     <label className="mt-3 block text-sm font-semibold">生效日期<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, effectiveFrom: event.target.value }))} type="date" value={form.effectiveFrom} /></label>
     <label className="mt-3 block text-sm font-semibold">修改原因（选填）<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, reason: event.target.value }))} placeholder="例如：转正调薪" value={form.reason} /></label>
     <label className="mt-3 flex items-center rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={form.confirmed} className="mr-2" onChange={(event) => setForm((value) => ({ ...value, confirmed: event.target.checked }))} type="checkbox" />我已核对并确认本员工工资参数</label>
@@ -132,7 +142,8 @@ function PerformanceRuleExplanation({ form }: { form: ReturnType<typeof defaultP
       <li><b>3. 纪律得分：</b>从 {form.disciplineWeight} 分开始计算，再减去处罚记录中的绩效扣分，最低为 0 分。</li>
       <li><b>4. 最终绩效分：</b>任务得分 + 考勤得分 + 纪律得分，三项满分合计 100 分。</li>
       <li><b>5. 绩效金额：</b>A 级（≥{form.aMin}）按满绩效的 {form.aRate}%；B 级（≥{form.bMin}）按 {form.bRate}%；C 级（≥{form.cMin}）按 {form.cRate}%；其余 D 级按 {form.dRate}% 计算，再按当月累计出勤天数折算。</li>
-      <li><b>6. 全勤奖：</b>员工启用全勤奖后，累计出勤达到当月满勤天数，奖励金额会另外并入累计绩效。</li>
+      <li><b>6. 全勤奖：</b>员工启用后，累计出勤达到当月满勤天数才独立产生全勤奖，不与绩效金额合并。</li>
+      <li><b>7. 转正折算：</b>实习期不计绩效和提成；转正当月只按转正后的实际出勤日期占比折算。</li>
     </ol>
   </SectionCard>;
 }
@@ -340,6 +351,6 @@ function FeedbackDialog({ close, feedback }: { close: () => void; feedback: Feed
 function Field({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) { return <label className="mt-3 block text-sm font-semibold">{label}<input className="ui-input mt-1" min="0" onChange={(event) => onChange(event.target.value)} step="0.01" type="number" value={value} /></label>; }
 function Mini({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-slate-50 p-2"><b className="block truncate text-xs tabular-nums">{value}</b><span className="text-[10px] text-slate-500">{label}</span></div>; }
 function SummaryMetric({ label, value }: { label: string; value: string }) { return <SectionCard className="p-3"><b className="block text-lg tabular-nums text-slate-900">{value}</b><span className="text-xs text-slate-500">{label}</span></SectionCard>; }
-function ruleToForm(rule: PayrollEmployeeRule | undefined, storeIds: string[]) { return { base: rule ? String(rule.monthly_base_salary) : '', housing: rule ? String(rule.monthly_housing_allowance) : '', performance: rule?.full_performance_amount == null ? '' : String(rule.full_performance_amount), commission: rule?.commission_rate == null ? '' : String(rule.commission_rate * 100), fullAttendanceBonus: rule ? String(rule.full_attendance_bonus_amount) : '', effectiveFrom: rule?.effective_from ?? todayInChina(), reason: '', housingEnabled: rule?.housing_enabled ?? true, performanceEnabled: rule?.performance_enabled ?? true, commissionEnabled: rule?.commission_enabled ?? false, fullAttendanceBonusEnabled: rule?.full_attendance_bonus_enabled ?? false, confirmed: rule?.confirmed ?? false, storeIds }; }
+function ruleToForm(rule: PayrollEmployeeRule | undefined, storeIds: string[]) { return { base: rule ? String(rule.monthly_base_salary) : '', housing: rule ? String(rule.monthly_housing_allowance) : '', performance: rule?.full_performance_amount == null ? '' : String(rule.full_performance_amount), commission: rule?.commission_rate == null ? '' : String(rule.commission_rate * 100), fullAttendanceBonus: rule ? String(rule.full_attendance_bonus_amount) : '', serviceAward: rule ? String(rule.service_award_amount) : '100', regularizationDate: rule?.regularization_date ?? '', effectiveFrom: rule?.effective_from ?? todayInChina(), reason: '', housingEnabled: rule?.housing_enabled ?? true, performanceEnabled: rule?.performance_enabled ?? true, commissionEnabled: rule?.commission_enabled ?? false, fullAttendanceBonusEnabled: rule?.full_attendance_bonus_enabled ?? false, serviceAwardEnabled: rule?.service_award_enabled ?? false, confirmed: rule?.confirmed ?? false, storeIds }; }
 function defaultPerformanceForm() { return { taskWeight: '60', attendanceWeight: '25', disciplineWeight: '15', late1: '1', late2: '3', late3: '5', late4: '10', aMin: '90', bMin: '80', cMin: '70', aRate: '100', bRate: '80', cRate: '50', dRate: '20', effectiveFrom: todayInChina(), reason: '' }; }
 function performanceToForm(rule: PayrollPerformanceRule) { return { taskWeight: String(rule.task_weight), attendanceWeight: String(rule.attendance_weight), disciplineWeight: String(rule.discipline_weight), late1: String(rule.late_deduction_1_10), late2: String(rule.late_deduction_11_20), late3: String(rule.late_deduction_21_30), late4: String(rule.late_deduction_31_plus), aMin: String(rule.grade_a_min), bMin: String(rule.grade_b_min), cMin: String(rule.grade_c_min), aRate: String(rule.grade_a_coefficient * 100), bRate: String(rule.grade_b_coefficient * 100), cRate: String(rule.grade_c_coefficient * 100), dRate: String(rule.grade_d_coefficient * 100), effectiveFrom: rule.effective_from, reason: '' }; }

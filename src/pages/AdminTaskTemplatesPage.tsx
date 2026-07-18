@@ -93,6 +93,7 @@ export function AdminTaskTemplatesPage() {
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
   const [scope, setScope] = useState<TemplateScope>('active');
+  const [selectedArchivedIds, setSelectedArchivedIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<TaskTemplateDraft | null>(null);
   const [restoredDraftKey, setRestoredDraftKey] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -242,12 +243,27 @@ export function AdminTaskTemplatesPage() {
     finally { setBusy(false); }
   };
 
+  const deleteArchivedBatch = async () => {
+    if (!supabase || !selectedArchivedIds.length || !window.confirm(`确认永久删除选中的 ${selectedArchivedIds.length} 个已归档模板？存在任务历史的模板会保留并列入失败结果。`)) return;
+    setBusy(true); setMessage(null);
+    let deleted = 0; const failed: string[] = [];
+    for (const template of visibleTemplates.filter((item) => selectedArchivedIds.includes(item.id))) {
+      try { await deleteArchivedTaskTemplate(supabase, template.id); deleted += 1; }
+      catch { failed.push(template.name); }
+    }
+    setSelectedArchivedIds([]); setBusy(false); await refresh();
+    if (failed.length) setMessage(`已删除 ${deleted} 个，${failed.length} 个未删除：${failed.join('、')}`);
+    else setSuccessMessage(`已永久删除 ${deleted} 个已归档模板。`);
+  };
+
   return <PageShell eyebrow="门店运营系统 · 管理员" title="任务模板" backTo="/app/admin/tasks">
     <section className="rounded-lg bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-slate-900">周清、月清与巡店模板</h2><p className="mt-1 text-sm text-slate-500">发布后生成不可变版本，可用于创建执行任务。</p></div><button aria-label="刷新模板" className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void refresh()} type="button"><RefreshCw className="h-4 w-4" /></button></div>
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-1"><button className={`min-h-10 rounded-md text-sm font-bold ${scope === 'active' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setScope('active')} type="button">当前模板</button><button className={`min-h-10 rounded-md text-sm font-bold ${scope === 'archived' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setScope('archived')} type="button">已归档模板</button></div>
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{(['all', ...taskTemplateCategories] as const).map((value) => <button className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`} key={value} onClick={() => setFilter(value)} type="button">{value === 'all' ? '全部' : categoryLabel[value]}</button>)}</div>
       {scope === 'active' ? <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white" onClick={() => setDraft(createEmptyTaskTemplate(auth.availableStores[0]?.id ? [auth.availableStores[0].id] : []))} type="button"><ClipboardPlus className="h-5 w-5" />新建模板</button> : null}
+      {scope === 'archived' && visibleTemplates.length ? <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3"><label className="text-sm font-bold"><input checked={selectedArchivedIds.length === visibleTemplates.length} className="mr-2" onChange={(event) => setSelectedArchivedIds(event.target.checked ? visibleTemplates.map((item) => item.id) : [])} type="checkbox" />全选</label><button className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-red-600 px-3 text-sm font-bold text-white disabled:opacity-40" disabled={busy || !selectedArchivedIds.length} onClick={() => void deleteArchivedBatch()} type="button"><Trash2 className="h-4 w-4" />批量删除（{selectedArchivedIds.length}）</button></div> : null}
+      {scope === 'archived' && visibleTemplates.length ? <div className="mt-2 grid gap-2 rounded-lg border border-slate-200 p-3">{visibleTemplates.map((template) => <label className="flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm font-semibold hover:bg-slate-50" key={template.id}><input checked={selectedArchivedIds.includes(template.id)} className="mr-2 h-4 w-4" onChange={(event) => setSelectedArchivedIds((current) => event.target.checked ? [...new Set([...current, template.id])] : current.filter((id) => id !== template.id))} type="checkbox" />{template.name}</label>)}</div> : null}
     </section>
 
     {status === 'error' && message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}

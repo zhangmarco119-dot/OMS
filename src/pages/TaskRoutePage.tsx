@@ -90,7 +90,10 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const auth = useAuth();
   const navigate = useNavigate();
   const text = copy[mode];
-  const compact = mode === 'inventory';
+  // Both inventory and ordering are high-frequency mobile workflows. Keep the
+  // same dense one-screen layout so switching modules does not reintroduce
+  // unnecessary whitespace.
+  const compact = true;
   const task = useTaskSession(mode);
   const [showSummary, setShowSummary] = useState(false);
   const [showExtraForm, setShowExtraForm] = useState(false);
@@ -302,9 +305,9 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   };
 
   return (
-    <section className={`min-h-screen bg-slate-50 ${compact ? 'px-3 py-2.5' : 'px-4 py-4'}`}>
+    <section className={`min-h-screen bg-slate-50 ${compact ? 'px-2.5 py-2' : 'px-4 py-4'}`}>
       <div className={`mx-auto flex max-w-5xl flex-col ${compact ? 'gap-2.5' : 'gap-4'}`}>
-        <header className={`rounded-2xl bg-white shadow-sm ${compact ? 'p-3' : 'p-4'}`}>
+        <header className={`rounded-2xl bg-white shadow-sm ${compact ? 'p-2.5' : 'p-4'}`}>
           <div className="flex items-start justify-between gap-4">
             <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={() => navigate('/app/workbench', { replace: true })} type="button"><ArrowLeft className="h-5 w-5" /></button>
             <div className="min-w-0">

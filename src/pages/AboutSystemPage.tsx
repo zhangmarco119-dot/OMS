@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { systemReleaseHistory, systemVersion } from '../config/version';
+import { useAuth } from '../features/auth/AuthContext';
 
 export function AboutSystemPage() {
+  const auth = useAuth();
+  const isAdmin = auth.profile?.role === 'admin';
   return (
     <PageShell eyebrow="门店运营系统" title="关于系统" backTo="/app/account" contentGapClassName="gap-3">
       <section className="ui-card p-5">
@@ -12,7 +15,7 @@ export function AboutSystemPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Store className="h-7 w-7" aria-hidden="true" /></div>
           <div><h2 className="text-lg font-bold text-ink">门店运营系统</h2><p className="mt-1 text-sm font-semibold text-brand-700">当前版本：{systemVersion}</p></div>
         </div>
-        <p className="mt-4 text-sm leading-7 text-slate-600">用于门店点货、订货、到货、任务、公告、SOP、货品和账号协同管理。系统会持续保留每个版本的主要更新说明。</p>
+        <p className="mt-4 text-sm leading-7 text-slate-600">用于门店点货、订货、到货、任务、公告、SOP、考勤、加班和预估工资等日常协作。当前账号可查看与角色对应的功能和使用说明。</p>
       </section>
 
       <section aria-labelledby="manuals-title" className="space-y-3">
@@ -24,15 +27,15 @@ export function AboutSystemPage() {
             <span className="min-w-0 flex-1"><span className="block font-bold text-ink">员工与店长使用说明</span><span className="mt-1 block text-xs leading-5 text-slate-500">日常点货、到货、任务、公告与 SOP 操作</span></span>
             <ArrowRight className="h-5 w-5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" aria-hidden="true" />
           </Link>
-          <Link className="ui-card group flex items-center gap-3 p-4 transition hover:border-brand-200 hover:shadow-md" to="/app/account/about/manual/admin-guide">
+          {isAdmin ? <Link className="ui-card group flex items-center gap-3 p-4 transition hover:border-brand-200 hover:shadow-md" to="/app/account/about/manual/admin-guide">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><ShieldCheck className="h-5 w-5" aria-hidden="true" /></span>
             <span className="min-w-0 flex-1"><span className="block font-bold text-ink">管理员使用说明</span><span className="mt-1 block text-xs leading-5 text-slate-500">任务、货品、账号、到货、公告与 SOP 管理</span></span>
             <ArrowRight className="h-5 w-5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" aria-hidden="true" />
-          </Link>
+          </Link> : null}
         </div>
       </section>
 
-      <section aria-labelledby="release-history-title" className="space-y-3">
+      {isAdmin ? <section aria-labelledby="release-history-title" className="space-y-3">
         <div className="flex items-center gap-2 px-1"><Info className="h-5 w-5 text-brand-700" aria-hidden="true" /><h2 className="font-bold text-ink" id="release-history-title">版本更新记录</h2></div>
         {systemReleaseHistory.map((release, index) => (
           <article className="ui-card p-4" key={release.version}>
@@ -45,7 +48,7 @@ export function AboutSystemPage() {
             </ul>
           </article>
         ))}
-      </section>
+      </section> : null}
     </PageShell>
   );
 }

@@ -21,6 +21,13 @@ export interface PayrollEstimate {
   fullAttendanceBonusAmount: number;
   fullAttendanceBonusAwarded: boolean;
   accruedFullAttendanceBonus: number;
+  serviceAwardEnabled: boolean;
+  serviceAwardAmount: number;
+  accruedServiceAward: number;
+  regularizationDate: string | null;
+  eligibleAttendanceDays: number;
+  regularizationFactor: number;
+  isProbation: boolean;
   accruedBaseSalary: number;
   accruedHousingAllowance: number;
   accruedPerformance: number | null;

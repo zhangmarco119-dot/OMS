@@ -483,6 +483,22 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     } catch (error) { setMessage(error instanceof Error ? error.message : '删除已归档 SOP 失败。'); }
     finally { setBusy(false); }
   };
+  const removeArchivedSops = async (selected: SopListItem[]) => {
+    const client = supabase;
+    if (!client || !selected.length) return;
+    if (!window.confirm(`确定永久删除选中的 ${selected.length} 个已归档 SOP 吗？图片、附件和记录将一并删除且无法恢复。`)) return;
+    setBusy(true); setMessage(null);
+    const deleted: string[] = []; const failed: string[] = [];
+    for (const sop of selected) {
+      try { const detail = await loadSopDetail(client, sop.id); if (!detail) throw new Error(); await deleteArchivedSop(client, detail); deleted.push(sop.id); }
+      catch { failed.push(sop.title); }
+    }
+    setArchivedSops((current) => current.filter((entry) => !deleted.includes(entry.id)));
+    setArchivedSopTotal((current) => Math.max(0, current - deleted.length));
+    setBusy(false);
+    if (failed.length) setMessage(`已删除 ${deleted.length} 个，${failed.length} 个未删除：${failed.join('、')}`);
+    else setSuccess(`已永久删除 ${deleted.length} 个已归档 SOP。`);
+  };
   const restoreArchivedSop = async (sop: SopListItem) => {
     const client = supabase;
     if (!client || sop.status !== 'archived') return;
@@ -502,6 +518,21 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     if (!client || notice.status !== 'archived') return;
     if (!window.confirm(`确定永久删除已归档公告“${notice.title}”吗？相关附件也会删除，且无法恢复。`)) return;
     await run(() => deleteNotice(client, notice), `已归档公告“${notice.title}”已永久删除。`);
+  };
+  const removeArchivedNotices = async (selected: NoticeListItem[]) => {
+    const client = supabase;
+    if (!client || !selected.length) return;
+    if (!window.confirm(`确定永久删除选中的 ${selected.length} 个已归档公告吗？相关附件和阅读记录也会删除。`)) return;
+    setBusy(true); setMessage(null);
+    const deleted: string[] = []; const failed: string[] = [];
+    for (const notice of selected) {
+      try { await deleteNotice(client, notice); deleted.push(notice.id); }
+      catch { failed.push(notice.title); }
+    }
+    setNotices((current) => current.filter((entry) => !deleted.includes(entry.id)));
+    setBusy(false);
+    if (failed.length) setMessage(`已删除 ${deleted.length} 个，${failed.length} 个未删除：${failed.join('、')}`);
+    else setSuccess(`已永久删除 ${deleted.length} 个已归档公告。`);
   };
   const runSopBatchImport = async (workbookFile: File, imageFiles: File[], onProgress: (progress: SopBatchImportProgress) => void) => {
     if (!supabase || !auth.profile) return null;
@@ -690,8 +721,8 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     {showSopBatchOperations ? <SopBatchOperationsMenu onAction={startSopBatchAction} onClose={() => setShowSopBatchOperations(false)} onImport={() => { setShowSopBatchOperations(false); setShowSopBatchImport(true); }} /> : null}
     {showSopBatchImport ? <SopBatchImporter busy={busy} errorMessage={message} onCancel={() => setShowSopBatchImport(false)} onImport={runSopBatchImport} /> : null}
     {showSopCategoryManager ? <SopCategoryManager busy={busy} categories={sopCategories} errorMessage={message} newCategoryName={newCategoryName} onChangeName={setNewCategoryName} onClose={() => { setMessage(null); setShowSopCategoryManager(false); }} onCreate={addSopCategory} onDelete={removeSopCategory} onRename={renameCategory} sops={sops} /> : null}
-    {showSopArchiveManager ? <SopArchiveManager busy={busy} loadingMore={loadingMoreArchivedSops} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} onLoadMore={() => loadArchivedSopPage(false)} onRestore={restoreArchivedSop} sops={archivedSops} total={archivedSopTotal} /> : null}
-    {showNoticeArchiveManager ? <NoticeArchiveManager busy={busy} notices={archivedNotices} onClose={() => { setMessage(null); setShowNoticeArchiveManager(false); }} onDelete={removeArchivedNotice} /> : null}
+    {showSopArchiveManager ? <SopArchiveManager busy={busy} loadingMore={loadingMoreArchivedSops} onClose={() => { setMessage(null); setShowSopArchiveManager(false); }} onDelete={removeArchivedSop} onDeleteMany={removeArchivedSops} onLoadMore={() => loadArchivedSopPage(false)} onRestore={restoreArchivedSop} sops={archivedSops} total={archivedSopTotal} /> : null}
+    {showNoticeArchiveManager ? <NoticeArchiveManager busy={busy} notices={archivedNotices} onClose={() => { setMessage(null); setShowNoticeArchiveManager(false); }} onDelete={removeArchivedNotice} onDeleteMany={removeArchivedNotices} /> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title={message?.includes('请') || message?.includes('仍有') ? '请完善操作信息' : '操作未完成'} tone={message?.includes('请') || message?.includes('仍有') ? 'warning' : 'danger'} />
     <SuccessToast message={success} onClose={() => setSuccess(null)} />
   </PageShell>;
@@ -754,25 +785,29 @@ export function SopCategoryManager({ busy, categories, errorMessage, newCategory
   </div>;
 }
 
-export function SopArchiveManager({ busy, loadingMore, onClose, onDelete, onLoadMore, onRestore, sops, total }: {
+export function SopArchiveManager({ busy, loadingMore, onClose, onDelete, onDeleteMany, onLoadMore, onRestore, sops, total }: {
   busy: boolean;
   loadingMore: boolean;
   onClose: () => void;
   onDelete: (sop: SopListItem) => Promise<void>;
+  onDeleteMany: (sops: SopListItem[]) => Promise<void>;
   onLoadMore: () => Promise<boolean>;
   onRestore: (sop: SopListItem) => Promise<void>;
   sops: SopListItem[];
   total: number;
 }) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selected = sops.filter((sop) => selectedIds.includes(sop.id));
   return <div aria-labelledby="sop-archive-title" aria-modal="true" className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog">
     <div className="mx-auto max-w-2xl space-y-3 pb-[calc(2rem+env(safe-area-inset-bottom))]">
       <header className="ui-card sticky top-0 z-20 flex items-center justify-between p-3.5">
         <div><p className="text-xs font-bold text-brand-700">SOP 管理 · 独立归档区</p><h2 className="text-xl font-bold" id="sop-archive-title">已归档 SOP</h2></div>
         <button aria-label="关闭已归档 SOP" className="ui-icon-button" onClick={onClose} type="button"><X className="h-5 w-5" /></button>
       </header>
+      {sops.length ? <div className="ui-card flex items-center justify-between gap-3 p-3"><label className="text-sm font-bold"><input checked={selectedIds.length === sops.length} className="mr-2" onChange={(event) => setSelectedIds(event.target.checked ? sops.map((sop) => sop.id) : [])} type="checkbox" />全选当前列表</label><button className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-red-600 px-3 text-sm font-bold text-white disabled:opacity-40" disabled={busy || !selected.length} onClick={() => void onDeleteMany(selected).then(() => setSelectedIds([]))} type="button"><Trash2 className="h-4 w-4" />批量删除（{selected.length}）</button></div> : null}
       {sops.length ? <section className="space-y-2">{sops.map((sop) => {
         const preview = getSopPreviewAsset(sop);
-        return <article className="ui-card flex items-center gap-3 p-3" key={sop.id}>
+        return <article className="ui-card flex items-center gap-3 p-3" key={sop.id}><input aria-label={`选择 ${sop.title}`} checked={selectedIds.includes(sop.id)} className="h-4 w-4 shrink-0" onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, sop.id] : current.filter((id) => id !== sop.id))} type="checkbox" />
           {preview?.signedUrl ? <img alt={`${sop.title} 归档预览`} className="aspect-square h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover object-center" src={preview.signedUrl} style={{ aspectRatio: '1 / 1', objectFit: 'cover', objectPosition: '50% 50%' }} /> : <div className="flex aspect-square h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></div>}
           <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-brand-700">{sop.category}</p><h3 className="mt-1 truncate font-bold text-slate-900">{sop.title}</h3><p className="mt-1 text-xs text-slate-500">已归档 · 步骤 {sop.stepCount ?? sop.assetUrls.filter((asset) => asset.asset_kind === 'step').length}</p></div>
           <div className="grid shrink-0 gap-1.5">
@@ -787,19 +822,23 @@ export function SopArchiveManager({ busy, loadingMore, onClose, onDelete, onLoad
   </div>;
 }
 
-function NoticeArchiveManager({ busy, notices, onClose, onDelete }: {
+function NoticeArchiveManager({ busy, notices, onClose, onDelete, onDeleteMany }: {
   busy: boolean;
   notices: NoticeListItem[];
   onClose: () => void;
   onDelete: (notice: NoticeListItem) => Promise<void>;
+  onDeleteMany: (notices: NoticeListItem[]) => Promise<void>;
 }) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selected = notices.filter((notice) => selectedIds.includes(notice.id));
   return <div aria-labelledby="notice-archive-title" aria-modal="true" className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog">
     <div className="mx-auto max-w-2xl space-y-3 pb-[calc(2rem+env(safe-area-inset-bottom))]">
       <header className="ui-card sticky top-0 z-20 flex items-center justify-between p-3.5">
         <div><p className="text-xs font-bold text-brand-700">公告管理 · 独立归档区</p><h2 className="text-xl font-bold" id="notice-archive-title">已归档公告</h2></div>
         <button aria-label="关闭已归档公告" className="ui-icon-button" onClick={onClose} type="button"><X className="h-5 w-5" /></button>
       </header>
-      {notices.length ? <section className="space-y-2">{notices.map((notice) => <article className="ui-card flex items-center gap-3 p-3" key={notice.id}>
+      {notices.length ? <div className="ui-card flex items-center justify-between gap-3 p-3"><label className="text-sm font-bold"><input checked={selectedIds.length === notices.length} className="mr-2" onChange={(event) => setSelectedIds(event.target.checked ? notices.map((notice) => notice.id) : [])} type="checkbox" />全选</label><button className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-red-600 px-3 text-sm font-bold text-white disabled:opacity-40" disabled={busy || !selected.length} onClick={() => void onDeleteMany(selected).then(() => setSelectedIds([]))} type="button"><Trash2 className="h-4 w-4" />批量删除（{selected.length}）</button></div> : null}
+      {notices.length ? <section className="space-y-2">{notices.map((notice) => <article className="ui-card flex items-center gap-3 p-3" key={notice.id}><input aria-label={`选择 ${notice.title}`} checked={selectedIds.includes(notice.id)} className="h-4 w-4 shrink-0" onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, notice.id] : current.filter((id) => id !== notice.id))} type="checkbox" />
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500"><Archive className="h-5 w-5" /></div>
         <div className="min-w-0 flex-1"><h3 className="truncate font-bold text-slate-900">{notice.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{notice.body || '暂无正文内容。'}</p></div>
         <button aria-label={`永久删除 ${notice.title}`} className="ui-icon-button h-10 w-10 shrink-0 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => void onDelete(notice)} type="button"><Trash2 className="h-4 w-4" /></button>

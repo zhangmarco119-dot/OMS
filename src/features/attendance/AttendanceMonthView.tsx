@@ -12,11 +12,10 @@ export function AttendanceMonthView({ detail }: { detail: AttendanceMonthDetail 
   return <>
     <section className="grid grid-cols-3 gap-2">
       <Metric label="出勤天数" value={summary.attendanceDays} />
-      <Metric label="迟到次数" value={summary.lateCount} />
-      <Metric label="迟到分钟" value={summary.lateMinutes} />
+      <Metric label="累计加班" value={`${summary.overtimeHours} 小时`} />
+      <Metric label="迟到" value={`${summary.lateCount} 次 / ${summary.lateMinutes} 分`} />
       <Metric label="缺卡次数" value={summary.missingCount} />
       <Metric label="异常次数" value={summary.abnormalCount} />
-      <Metric label="出勤日期" value={summary.attendanceDates.length} />
     </section>
     <SectionCard className="p-3">
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
@@ -26,9 +25,10 @@ export function AttendanceMonthView({ detail }: { detail: AttendanceMonthDetail 
     </SectionCard>
     {days.length ? <section className="space-y-2">{days.map((day) => {
       const meta = statusMeta[day.status] ?? statusMeta.abnormal;
+      const statusLabel = day.missingPunch === 'on' ? '上班缺卡' : day.missingPunch === 'off' ? '下班缺卡' : day.missingPunch === 'both' ? '上下班缺卡' : meta.label;
       const weekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'short', timeZone: 'Asia/Shanghai' }).format(new Date(`${day.date}T12:00:00+08:00`));
       return <SectionCard className="p-3.5" key={day.id}>
-        <div className="flex items-start justify-between gap-3"><div><b className="text-slate-900">{day.date.slice(5).replace('-', '月')}日 · {weekday}</b><p className="mt-0.5 text-xs text-slate-500">{day.shiftName || '未提供班次名称'}</p></div><div className="flex flex-wrap justify-end gap-1">{day.hasFieldwork ? <StatusBadge tone="info">外勤打卡</StatusBadge> : null}<StatusBadge tone={meta.tone}>{meta.label}</StatusBadge></div></div>
+        <div className="flex items-start justify-between gap-3"><div><b className="text-slate-900">{day.date.slice(5).replace('-', '月')}日 · {weekday}</b><p className="mt-0.5 text-xs text-slate-500">{day.shiftName || '未提供班次名称'}</p></div><div className="flex flex-wrap justify-end gap-1">{day.hasFieldwork ? <StatusBadge tone="info">外勤打卡</StatusBadge> : null}<StatusBadge tone={day.missingPunch !== 'none' ? 'danger' : meta.tone}>{statusLabel}</StatusBadge></div></div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
           <TimeBlock label="上班" planned={day.plannedOnAt} actual={day.actualOnAt} />
           <TimeBlock label="下班" planned={day.plannedOffAt} actual={day.actualOffAt} />
@@ -45,7 +45,7 @@ export function AttendanceMonthView({ detail }: { detail: AttendanceMonthDetail 
   </>;
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({ label, value }: { label: string; value: number | string }) {
   return <div className="ui-card min-w-0 p-3 text-center"><p className="text-xl font-bold tabular-nums text-slate-900">{value}</p><p className="mt-0.5 truncate text-[11px] text-slate-500">{label}</p></div>;
 }
 

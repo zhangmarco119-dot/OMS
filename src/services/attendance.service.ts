@@ -45,30 +45,48 @@ const parseSummary = (value: Json | undefined): AttendanceMonthSummary => {
     attendanceDates: arrayAt(source.attendanceDates).filter((item): item is string => typeof item === 'string'),
     attendanceDays: numberAt(source.attendanceDays), lateCount: numberAt(source.lateCount), lateMinutes: numberAt(source.lateMinutes),
     missingCount: numberAt(source.missingCount), abnormalCount: numberAt(source.abnormalCount),
+    overtimeHours: numberAt(source.overtimeHours),
     lastSyncedAt: typeof source.lastSyncedAt === 'string' ? source.lastSyncedAt : null,
   };
 };
 
 export const loadAttendanceMonth = async (client: Client, profileId: string, month: string, storeId?: string): Promise<AttendanceMonthDetail> => {
-  const { data, error } = await client.rpc('get_attendance_month_detail', { p_profile_id: profileId, p_month: `${month}-01`, p_store_id: storeId || null });
+  const monthEnd = new Date(`${month}-01T12:00:00+08:00`); monthEnd.setMonth(monthEnd.getMonth() + 1);
+  const overtimeQuery = client.from('payroll_overtime_requests').select('hours').eq('profile_id', profileId).eq('status', 'approved').gte('overtime_date', `${month}-01`).lt('overtime_date', monthEnd.toISOString().slice(0, 10));
+  if (storeId) overtimeQuery.eq('store_id', storeId);
+  const [{ data, error }, overtime] = await Promise.all([
+    client.rpc('get_attendance_month_detail', { p_profile_id: profileId, p_month: `${month}-01`, p_store_id: storeId || null }),
+    overtimeQuery,
+  ]);
   if (error) throw new Error('暂时无法加载考勤数据，请稍后重试。');
   const root = objectAt(data);
   if (!root.summary) return emptyAttendanceMonth();
-  return { summary: parseSummary(root.summary), days: arrayAt(root.days) as unknown as AttendanceDay[] };
+  const summary = parseSummary(root.summary);
+  summary.overtimeHours = (overtime.data ?? []).reduce((sum, row) => sum + Number(row.hours), 0);
+  return { summary, days: arrayAt(root.days) as unknown as AttendanceDay[] };
 };
 
 export const loadAdminAttendanceMonth = async (client: Client, options: { month: string; storeId?: string; search?: string; status?: string; offset?: number }) => {
-  const { data, error } = await client.rpc('admin_attendance_month', {
-    p_month: `${options.month}-01`, p_store_id: options.storeId || null, p_search: options.search?.trim() ?? '',
-    p_status: options.status ?? 'all', p_limit: 50, p_offset: options.offset ?? 0,
-  });
+  const monthEnd = new Date(`${options.month}-01T12:00:00+08:00`); monthEnd.setMonth(monthEnd.getMonth() + 1);
+  const overtimeQuery = client.from('payroll_overtime_requests').select('profile_id,hours').eq('status', 'approved').gte('overtime_date', `${options.month}-01`).lt('overtime_date', monthEnd.toISOString().slice(0, 10));
+  if (options.storeId) overtimeQuery.eq('store_id', options.storeId);
+  const [{ data, error }, overtime] = await Promise.all([
+    client.rpc('admin_attendance_month', {
+      p_month: `${options.month}-01`, p_store_id: options.storeId || null, p_search: options.search?.trim() ?? '',
+      p_status: options.status ?? 'all', p_limit: 50, p_offset: options.offset ?? 0,
+    }),
+    overtimeQuery,
+  ]);
   if (error) throw new Error('暂时无法加载门店考勤汇总，请稍后重试。');
   const root = objectAt(data);
+  const overtimeByProfile = new Map<string, number>();
+  for (const row of overtime.data ?? []) overtimeByProfile.set(row.profile_id, (overtimeByProfile.get(row.profile_id) ?? 0) + Number(row.hours));
   const items = arrayAt(root.items).map((raw): AdminAttendanceRow => {
     const item = objectAt(raw);
     return {
       profileId: textAt(item.profileId), displayName: textAt(item.displayName, '未命名员工'), storeId: textAt(item.storeId), storeName: textAt(item.storeName, '未知门店'),
       bindingStatus: textAt(item.bindingStatus, 'unbound') as AdminAttendanceRow['bindingStatus'], ...parseSummary(item),
+      overtimeHours: overtimeByProfile.get(textAt(item.profileId)) ?? 0,
     };
   });
   return { items, total: numberAt(root.total) };

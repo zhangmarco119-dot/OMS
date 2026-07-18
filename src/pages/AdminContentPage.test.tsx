@@ -561,7 +561,7 @@ describe('SOP archive management', () => {
     const archived = { assetUrls: [], category: '奶茶', id: 'sop-1', status: 'archived', title: '珍珠奶茶' } as never;
     const onRestore = vi.fn().mockResolvedValue(undefined);
     const onDelete = vi.fn().mockResolvedValue(undefined);
-    render(<SopArchiveManager busy={false} loadingMore={false} onClose={vi.fn()} onDelete={onDelete} onLoadMore={vi.fn()} onRestore={onRestore} sops={[archived]} total={1} />);
+    render(<SopArchiveManager busy={false} loadingMore={false} onClose={vi.fn()} onDelete={onDelete} onDeleteMany={vi.fn()} onLoadMore={vi.fn()} onRestore={onRestore} sops={[archived]} total={1} />);
 
     fireEvent.click(screen.getByRole('button', { name: '取消归档 珍珠奶茶' }));
     expect(onRestore).toHaveBeenCalledWith(archived);

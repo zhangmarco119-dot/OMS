@@ -63,6 +63,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [productSearch, setProductSearch] = useState('');
+  const [selectedArchivedProductIds, setSelectedArchivedProductIds] = useState<string[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -189,6 +190,18 @@ export function AdminPage({ section }: { section: AdminSection }) {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '删除已归档货品失败');
     }
+  };
+
+  const permanentlyDeleteArchivedProducts = async () => {
+    if (!selectedArchivedProductIds.length || !window.confirm(`确认永久删除选中的 ${selectedArchivedProductIds.length} 个已归档货品？此操作无法撤销。`)) return;
+    setMessage(null);
+    let deleted = 0; const failed: string[] = [];
+    for (const product of visibleArchivedProducts.filter((item) => selectedArchivedProductIds.includes(item.id))) {
+      try { await deleteProduct(product.id); deleted += 1; }
+      catch { failed.push(product.name); }
+    }
+    setSelectedArchivedProductIds([]); await refresh(selectedStoreId);
+    setMessage(failed.length ? `已删除 ${deleted} 个，${failed.length} 个未删除：${failed.join('、')}` : `已永久删除 ${deleted} 个已归档货品。`);
   };
 
   const importExcel = async () => {
@@ -461,9 +474,11 @@ export function AdminPage({ section }: { section: AdminSection }) {
               <div className="rounded-lg bg-white p-3 shadow-sm">
                 <h2 className="text-base font-bold text-slate-900">已归档货品</h2>
                 <p className="mt-1 text-xs leading-5 text-slate-500">归档货品不会出现在日常业务选择中，历史单据仍会保留。需要继续使用时可取消归档。</p>
+                {visibleArchivedProducts.length ? <div className="mt-3 flex items-center justify-between gap-2"><label className="text-sm font-bold"><input checked={selectedArchivedProductIds.length === visibleArchivedProducts.length} className="mr-2" onChange={(event) => setSelectedArchivedProductIds(event.target.checked ? visibleArchivedProducts.map((item) => item.id) : [])} type="checkbox" />全选</label><button className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-red-600 px-3 text-sm font-bold text-white disabled:opacity-40" disabled={!selectedArchivedProductIds.length} onClick={() => void permanentlyDeleteArchivedProducts()} type="button"><Trash2 className="h-4 w-4" />批量删除（{selectedArchivedProductIds.length}）</button></div> : null}
               </div>
               {visibleArchivedProducts.map((product) => (
                 <article className="rounded-lg bg-white p-3 shadow-sm" key={product.id}>
+                  <label className="mb-2 flex items-center text-xs font-bold text-slate-500"><input aria-label={`选择 ${product.name}`} checked={selectedArchivedProductIds.includes(product.id)} className="mr-2 h-4 w-4" onChange={(event) => setSelectedArchivedProductIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} type="checkbox" />选择此货品</label>
                   <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] items-center gap-2 text-sm">
                     <strong className="truncate text-slate-900">{product.name}</strong>
                     <span className="truncate text-slate-600">{product.spec}</span>

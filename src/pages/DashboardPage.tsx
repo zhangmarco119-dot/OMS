@@ -21,7 +21,7 @@ const notificationLink = (notification: UserNotification) => {
   if (notification.entity_type === 'v2_task') return `/app/tasks/${notification.entity_id}`;
   if (notification.entity_type === 'v2_sop') return `/app/sops/${notification.entity_id}`;
   if (notification.entity_type === 'payroll_penalty') return '/app/payroll';
-  if (notification.entity_type === 'payroll_overtime') return '/app/overtime';
+  if (notification.entity_type === 'payroll_overtime') return notification.type === 'payroll_overtime_approved' || notification.type === 'payroll_overtime_rejected' ? '/app/overtime?tab=records' : '/app/overtime?tab=submit';
   return '/app/todos';
 };
 

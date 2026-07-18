@@ -11,6 +11,7 @@ vi.mock('../lib/supabase', () => ({ supabase: null }));
 describe('AccountPage system information entry', () => {
   const renderAccount = (role: 'admin' | 'manager' | 'staff') => {
     vi.mocked(useAuth).mockReturnValue({
+      availableStores: [{ id: '00000000-0000-4000-8000-000000000002', name: '测试门店' }],
       profile: { display_name: '测试账号', id: '00000000-0000-4000-8000-000000000001', is_active: true, role, username: 'tester' },
       signOut: vi.fn(),
       store: { id: '00000000-0000-4000-8000-000000000002', name: '测试门店' },
@@ -24,9 +25,9 @@ describe('AccountPage system information entry', () => {
     expect(screen.getByRole('link', { name: /关于系统/ })).toHaveAttribute('href', '/app/account/about');
   });
 
-  it.each(['staff', 'manager'] as const)('does not show About System to %s accounts', (role) => {
+  it.each(['staff', 'manager'] as const)('shows About System and the role manual to %s accounts', (role) => {
     renderAccount(role);
 
-    expect(screen.queryByRole('link', { name: /关于系统/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /关于系统/ })).toHaveAttribute('href', '/app/account/about');
   });
 });

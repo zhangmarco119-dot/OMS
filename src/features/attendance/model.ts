@@ -59,6 +59,7 @@ export interface AttendanceMonthSummary {
   lateMinutes: number;
   missingCount: number;
   abnormalCount: number;
+  overtimeHours: number;
   lastSyncedAt: string | null;
 }
 
@@ -103,6 +104,6 @@ export const filterAttendanceDays = (days: AttendanceDay[], filter: 'all' | 'exc
   : days.filter((day) => !['normal', 'pending', 'rest', 'leave', 'business_trip', 'fieldwork'].includes(day.status));
 
 export const emptyAttendanceMonth = (): AttendanceMonthDetail => ({
-  summary: { attendanceDates: [], attendanceDays: 0, lateCount: 0, lateMinutes: 0, missingCount: 0, abnormalCount: 0, lastSyncedAt: null },
+  summary: { attendanceDates: [], attendanceDays: 0, lateCount: 0, lateMinutes: 0, missingCount: 0, abnormalCount: 0, overtimeHours: 0, lastSyncedAt: null },
   days: [],
 });

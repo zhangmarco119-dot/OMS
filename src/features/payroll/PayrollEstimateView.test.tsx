@@ -9,6 +9,7 @@ const estimate = {
   fullAttendanceDays: 27, attendanceDays: 13, ruleId: 'r1', ruleConfirmed: false, monthlyBaseSalary: 5500, monthlyHousingAllowance: 1100,
   fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: true, performanceEnabled: true, commissionEnabled: true,
   fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0,
+  serviceAwardEnabled: true, serviceAwardAmount: 100, accruedServiceAward: 48.15, regularizationDate: null, eligibleAttendanceDays: 13, regularizationFactor: 1, isProbation: false,
   overtimeHours: 2, overtimeHourlyRate: 25, accruedOvertime: 50,
   accruedBaseSalary: 2648.15, accruedHousingAllowance: 529.63, accruedPerformance: null, accruedCommission: null, lateCount: 1, lateMinutes: 5,
   lateFine: 20, otherFine: 0, fineTotal: 20, taskDueCount: 0, taskCompletedCount: 0, taskScore: null, attendanceScore: 24,
@@ -27,12 +28,13 @@ describe('PayrollEstimateView', () => {
     expect(screen.queryByText(/出勤工时/)).not.toBeInTheDocument();
     expect(screen.getByText(/本月累计提成基数/)).toBeInTheDocument();
     expect(screen.getByText(/含社保补贴/)).toBeInTheDocument();
-    expect(screen.getByText(/达到 27 天后增加全勤奖/)).toBeInTheDocument();
+    expect(screen.getByText(/累计出勤达到 27 天后产生/)).toBeInTheDocument();
+    expect(screen.getByText('工龄奖')).toBeInTheDocument();
   });
 
-  it('shows an awarded full-attendance bonus inside performance pay', () => {
+  it('shows an awarded full-attendance bonus as a separate salary item', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, attendanceDays: 27, fullAttendanceBonusAwarded: true, accruedFullAttendanceBonus: 500, accruedPerformance: 2900 }} />);
-    expect(screen.getByText(/已含全勤奖/)).toBeInTheDocument();
+    expect(screen.getByText(/本月累计出勤已达到/)).toBeInTheDocument();
     expect(screen.getByText('¥2,900.00')).toBeInTheDocument();
   });
 
@@ -43,8 +45,8 @@ describe('PayrollEstimateView', () => {
     expect(onResolveIssue).toHaveBeenCalledWith('营业收入待更新');
   });
 
-  it('explains when the latest available commission base is carried forward', () => {
+  it('does not expose the carry-forward date in the commission explanation', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, revenueTotal: 12000, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true, accruedCommission: 72 }} />);
-    expect(screen.getByText(/沿用截至 2026-07-16 的已有基数/)).toBeInTheDocument();
+    expect(screen.queryByText(/沿用截至/)).not.toBeInTheDocument();
   });
 });

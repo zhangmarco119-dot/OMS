@@ -31,7 +31,7 @@ const statusLabel: Record<RequestRow['status'], string> = {
 const statusTone: Record<RequestRow['status'], 'success' | 'warning' | 'danger' | 'info'> = {
   pending: 'warning', approved: 'success', rejected: 'danger', cancelled: 'info',
 };
-const hourOptions = Array.from({ length: 32 }, (_, index) => (index + 1) / 2);
+const hourOptions = Array.from({ length: 13 }, (_, index) => index / 2);
 const chinaDate = (date: Date) => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(date);
@@ -203,7 +203,7 @@ export function OvertimePage() {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <label className="text-sm font-semibold">加班门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
           <label className="text-sm font-semibold">加班日期<input className="ui-input mt-1" max={today} min={earliestDate} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
-          <label className="col-span-2 text-sm font-semibold">加班小时<select className="ui-input mt-1" onChange={(event) => setHours(event.target.value)} value={hours}><option value="">请选择加班小时</option>{hourOptions.map((value) => <option key={value} value={value}>{value} 小时</option>)}</select></label>
+          <fieldset className="col-span-2"><legend className="text-sm font-semibold">加班小时</legend><div className="mt-2 grid grid-cols-3 gap-2">{hourOptions.map((value) => <button aria-pressed={hours === String(value)} className={`min-h-10 rounded-lg border text-sm font-bold ${hours === String(value) ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} key={value} onClick={() => setHours(String(value))} type="button">{value} 小时</button>)}</div></fieldset>
         </div>
         <label className="mt-3 block text-sm font-semibold">加班说明（选填）<textarea className="ui-input mt-1 min-h-16 py-2" onChange={(event) => setReason(event.target.value)} placeholder="可简要说明加班完成的工作" value={reason} /></label>
         <div className={`mt-3 grid gap-2 ${editingId ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -214,7 +214,7 @@ export function OvertimePage() {
     </> : null}
 
     {tab === 'records' ? <>
-      <label className="ui-card block p-3 text-sm font-semibold text-slate-700">查看月份<input className="ui-input mt-1" max={today.slice(0, 7)} onChange={(event) => setRecordMonth(event.target.value)} type="month" value={recordMonth} /></label>
+      <label className="ui-card block p-3 text-sm font-semibold text-slate-700">查看月份<input className="ui-input mt-1" max={`${today.slice(0, 7)}-01`} onChange={(event) => setRecordMonth(event.target.value.slice(0, 7))} type="date" value={`${recordMonth}-01`} /></label>
       <section className="grid grid-cols-2 gap-2">
         <SectionCard className="p-3"><p className="text-xs font-semibold text-slate-500">本月加班汇总</p><b className="mt-1 block text-xl text-slate-900">{approvedHours} 小时</b><p className="mt-1 text-[11px] text-slate-500">申报 {monthRows.length} 次 · 通过 {approvedRows.length} 次</p></SectionCard>
         <SectionCard className="p-3"><p className="text-xs font-semibold text-slate-500">本月加班工资汇总</p><b className="mt-1 block text-xl text-brand-700">{formatMoney(approvedWage)}</b><p className="mt-1 text-[11px] text-slate-500">仅统计已审批通过记录</p></SectionCard>

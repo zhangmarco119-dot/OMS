@@ -62,6 +62,7 @@ export function AppLayout() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_feedback' }, () => void refreshTodoCount())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'v2_notice_recipients' }, () => void refreshTodoCount())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payroll_overtime_requests' }, () => void refreshTodoCount())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_missing_punch_todos' }, () => void refreshTodoCount())
       .subscribe();
     return () => { void client.removeChannel(channel); };
   }, [auth.profile, refreshTodoCount]);

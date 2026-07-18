@@ -73,7 +73,7 @@ export function AccountPage() {
           </div>
           <dl className="divide-y divide-line text-sm">
             <div className="flex items-center justify-between gap-4 px-4 py-3"><dt className="text-slate-500">账号角色</dt><dd className="font-semibold text-ink">{auth.profile ? roleLabel[auth.profile.role] : '未知'}</dd></div>
-            <div className="flex items-center justify-between gap-4 px-4 py-3"><dt className="text-slate-500">所属门店</dt><dd className="truncate font-semibold text-ink">{auth.store?.name ?? '未绑定门店'}</dd></div>
+            <div className="flex items-start justify-between gap-4 px-4 py-3"><dt className="shrink-0 text-slate-500">所属门店</dt><dd className="text-right font-semibold leading-5 text-ink">{auth.availableStores.length ? auth.availableStores.map((store) => store.name).join('、') : '未绑定门店'}</dd></div>
             <div className="flex items-center justify-between gap-4 px-4 py-3"><dt className="text-slate-500">账号状态</dt><dd className="font-semibold text-brand-700">{auth.profile?.is_active ? '正常' : '已停用'}</dd></div>
           </dl>
         </section>
@@ -88,11 +88,11 @@ export function AccountPage() {
             <span className="flex-1 font-semibold text-ink">修改密码</span>
             <ChevronRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
           </button>
-          {auth.profile?.role === 'admin' ? <Link className="flex min-h-14 items-center gap-3 border-t border-line px-4 text-left" to="/app/account/about">
+          <Link className="flex min-h-14 items-center gap-3 border-t border-line px-4 text-left" to="/app/account/about">
             <CircleHelp className="h-5 w-5 text-slate-500" aria-hidden="true" />
             <span className="flex-1 font-semibold text-ink">关于系统</span>
             <ChevronRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
-          </Link> : null}
+          </Link>
           <div className="border-t border-line px-4 py-3 text-sm text-slate-500">
             <Store className="mr-2 inline h-4 w-4" aria-hidden="true" />
             当前登录：{auth.profile?.display_name ?? auth.user?.email ?? '未知账号'}

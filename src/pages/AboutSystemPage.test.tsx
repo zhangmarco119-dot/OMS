@@ -1,9 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { systemReleaseHistory, systemVersion } from '../config/version';
 import { AboutSystemPage } from './AboutSystemPage';
+
+vi.mock('../features/auth/AuthContext', () => ({ useAuth: () => ({ profile: { role: 'admin' } }) }));
 
 describe('AboutSystemPage', () => {
   it('shows the current version and all recorded updates', () => {

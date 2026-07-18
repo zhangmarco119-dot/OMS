@@ -118,26 +118,56 @@ export async function confirmPayrollPayslip(client: Client, id: string) {
   return data;
 }
 
-export interface PayrollPayslipIssueResult {
-  issuedCount: number;
+export interface PayrollPayslipGenerationResult {
+  generatedCount: number;
   refreshedCount: number;
-  skippedConfirmedCount: number;
+  skippedSentCount: number;
   month: string;
 }
 
-export async function issuePayrollPayslips(client: Client, month: string, profileIds?: string[]): Promise<PayrollPayslipIssueResult> {
-  const { data, error } = await client.rpc('admin_issue_payroll_payslips', {
+export async function generatePayrollPayslips(client: Client, month: string, profileIds?: string[]): Promise<PayrollPayslipGenerationResult> {
+  const { data, error } = await client.rpc('admin_generate_payroll_payslips', {
     p_payroll_month: `${month.slice(0, 7)}-01`,
     p_profile_ids: profileIds?.length ? profileIds : null,
   });
-  if (error) throw new Error(error.message || '工资单发放失败。');
+  if (error) throw new Error(error.message || '工资单生成失败。');
   const row = objectAt(data);
   return {
-    issuedCount: numberAt(row.issuedCount),
+    generatedCount: numberAt(row.generatedCount),
     refreshedCount: numberAt(row.refreshedCount),
-    skippedConfirmedCount: numberAt(row.skippedConfirmedCount),
+    skippedSentCount: numberAt(row.skippedSentCount),
     month: textAt(row.month, month),
   };
+}
+
+export interface PayrollPayslipDraftFields {
+  accruedBaseSalary: number;
+  accruedHousingAllowance: number;
+  accruedPerformance: number;
+  accruedFullAttendanceBonus: number;
+  accruedServiceAward: number;
+  accruedCommission: number;
+  accruedOvertime: number;
+  fineTotal: number;
+  adminNote: string;
+}
+
+export async function sendPayrollPayslip(client: Client, id: string) {
+  const { data, error } = await client.rpc('admin_send_payroll_payslip', { p_payslip_id: id });
+  if (error) throw new Error(error.message || '工资单发送失败。');
+  return data;
+}
+
+export async function updatePayrollPayslip(client: Client, id: string, fields: PayrollPayslipDraftFields) {
+  const { data, error } = await client.rpc('admin_update_payroll_payslip', { p_payslip_id: id, p_fields: fields as unknown as Json });
+  if (error) throw new Error(error.message || '工资单修改失败。');
+  return data;
+}
+
+export async function withdrawPayrollPayslip(client: Client, id: string) {
+  const { data, error } = await client.rpc('admin_withdraw_payroll_payslip', { p_payslip_id: id });
+  if (error) throw new Error(error.message || '工资单撤回失败。');
+  return data;
 }
 
 export async function loadAdminPayrollEstimates(client: Client, options: { asOf: string; storeId?: string; search?: string }): Promise<AdminPayrollSummary> {

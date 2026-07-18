@@ -49,4 +49,11 @@ describe('PayrollEstimateView', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, revenueTotal: 12000, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true, accruedCommission: 72 }} />);
     expect(screen.queryByText(/沿用截至/)).not.toBeInTheDocument();
   });
+
+  it('only mentions regularization when it happened in the selected month', () => {
+    const { rerender } = render(<PayrollEstimateView estimate={{ ...estimate, regularizationDate: '2026-06-15' }} />);
+    expect(screen.queryByText(/2026-06-15.*转正/)).not.toBeInTheDocument();
+    rerender(<PayrollEstimateView estimate={{ ...estimate, regularizationDate: '2026-07-15', regularizationFactor: .5, eligibleAttendanceDays: 7 }} />);
+    expect(screen.getAllByText(/转正日 2026-07-15/).length).toBeGreaterThan(0);
+  });
 });

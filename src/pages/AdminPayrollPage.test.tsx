@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadAdminPayrollEstimates, loadPayrollAdminSetup, loadPosSalesSetup } from '../services/payroll.service';
+import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollProfiles, loadPosSalesSetup } from '../services/payroll.service';
 import { AdminPayrollPage } from './AdminPayrollPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -13,7 +13,9 @@ vi.mock('../services/payroll.service', async (original) => {
   return {
     ...actual,
     loadAdminPayrollEstimates: vi.fn(),
+    loadAdminPayrollPayslips: vi.fn(),
     loadPayrollAdminSetup: vi.fn(),
+    loadPayrollProfiles: vi.fn(),
     loadPosSalesSetup: vi.fn(),
   };
 });
@@ -45,6 +47,8 @@ describe('AdminPayrollPage update guidance', () => {
     } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(loadAdminPayrollEstimates).mockResolvedValue({ items: [estimate as never], employeeCount: 1, completeCount: 0, incompleteCount: 1, knownEstimatedTotal: 2537.04, completeEstimatedTotal: 0 });
     vi.mocked(loadPayrollAdminSetup).mockResolvedValue(setup as never);
+    vi.mocked(loadPayrollProfiles).mockResolvedValue([{ id:'profile-1',display_name:'测试员工',role:'staff' }] as never);
+    vi.mocked(loadAdminPayrollPayslips).mockResolvedValue([]);
     vi.mocked(loadPosSalesSetup).mockResolvedValue({ integrations: [], jobs: [] });
   });
 
@@ -69,5 +73,12 @@ describe('AdminPayrollPage update guidance', () => {
     fireEvent.click(screen.getByRole('button', { name: '1 月' }));
     await waitFor(() => expect(vi.mocked(loadAdminPayrollEstimates)).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ asOf: '2025-01-31' })));
     expect(screen.getByRole('button', { name: /2025年01月/ })).toBeInTheDocument();
+  });
+
+  it('uses a preview-first payslip workflow', async () => {
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=payslips']} future={{ v7_relativeSplatPath:true,v7_startTransition:true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText('生成工资单')).toBeInTheDocument();
+    expect(screen.getByText(/先生成草稿并预览/)).toBeInTheDocument();
+    expect(screen.queryByRole('button',{ name:/立即发放/ })).not.toBeInTheDocument();
   });
 });

@@ -15,10 +15,10 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
   const performanceNote = estimate.performanceReady
     ? `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分`
     : '任务数据或满绩效金额待完善';
-  const regularizationNote = estimate.regularizationDate
+  const regularizationNote = estimate.regularizationDate?.slice(0, 7) === estimate.monthStart.slice(0, 7)
     ? estimate.regularizationFactor < 1
       ? ` · 转正日 ${estimate.regularizationDate}，仅按转正后 ${estimate.eligibleAttendanceDays} 个出勤日折算`
-      : ` · 已于 ${estimate.regularizationDate} 转正`
+      : ` · 本月 ${estimate.regularizationDate} 转正`
     : '';
   return <>
     <SectionCard className="border-brand-100 bg-gradient-to-br from-brand-700 to-emerald-800 text-white">

@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components
 import { SectionCard } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { PayrollEstimateView } from '../features/payroll/PayrollEstimateView';
+import { PayrollStatementView } from '../features/payroll/PayrollStatementView';
 import { payrollMonthEndDate } from '../features/payroll/monthSelection';
 import { formatMoney, todayInChina, type PayrollEstimate } from '../features/payroll/model';
 import { supabase } from '../lib/supabase';
@@ -104,8 +105,8 @@ function PayslipPanel() {
   };
   if (selected) return <>
     <button className="ui-button-secondary" onClick={close} type="button">返回工资单列表</button>
-    <SectionCard className="p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{monthLabel(selected.payroll_month)}工资单</p><p className="mt-1 text-xs text-slate-500">发放于 {new Date(selected.issued_at).toLocaleString('zh-CN')}</p></div><StatusBadge tone={selected.status === 'confirmed' ? 'success' : 'warning'}>{selected.status === 'confirmed' ? '已确认' : '待确认'}</StatusBadge></div></SectionCard>
-    <PayrollEstimateView estimate={selected.estimate} mode="payslip" />
+    <SectionCard className="p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">工资单状态</p><p className="mt-1 text-xs text-slate-500">发放于 {selected.issued_at ? new Date(selected.issued_at).toLocaleString('zh-CN') : '尚未发送'}</p></div><StatusBadge tone={selected.status === 'confirmed' ? 'success' : 'warning'}>{selected.status === 'confirmed' ? '已确认' : '待确认'}</StatusBadge></div></SectionCard>
+    <PayrollStatementView adminNote={selected.admin_note} estimate={selected.estimate} payrollMonth={selected.payroll_month} />
     {selected.status === 'issued' ? <button className="ui-button-primary w-full" onClick={() => setConfirming(selected)} type="button">确认工资单内容</button> : <SectionCard className="border-emerald-200 bg-emerald-50 p-3 text-center text-sm font-bold text-emerald-800"><CheckCircle2 className="mr-1 inline h-4 w-4" />已于 {selected.confirmed_at ? new Date(selected.confirmed_at).toLocaleString('zh-CN') : '当前时间'} 确认</SectionCard>}
     <ConfirmDialog confirmLabel="确认工资单" onCancel={() => setConfirming(null)} onConfirm={() => void confirm()} open={Boolean(confirming)} title="确认工资单内容"><p>请确认已经核对本工资单的金额和明细。确认后，本月工资单待办将自动完成。</p></ConfirmDialog>
     <ActionFeedbackDialog message={feedback} onClose={() => setFeedback('')} open={Boolean(feedback)} title="工资单处理结果" tone="success" />
@@ -114,7 +115,7 @@ function PayslipPanel() {
     {status === 'loading' ? <LoadingState label="正在加载工资单" /> : null}
     {status === 'error' ? <ErrorState message="暂时无法加载工资单。" onRetry={() => void load()} /> : null}
     {status === 'ready' && !items.length ? <EmptyState description="管理员发放后，工资单会显示在这里。系统也会在每月 1 日自动发放上月工资单。" icon={FileText} title="暂无工资单" /> : null}
-    {status === 'ready' ? <section className="space-y-2">{items.map((item) => <article className="ui-card p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{monthLabel(item.payroll_month)}工资单</b><p className="mt-1 text-xs text-slate-500">发放：{new Date(item.issued_at).toLocaleString('zh-CN')}</p></div><StatusBadge tone={item.status === 'confirmed' ? 'success' : 'warning'}>{item.status === 'confirmed' ? '已确认' : '待确认'}</StatusBadge></div><div className="mt-3 flex items-end justify-between gap-3"><div><span className="text-xs text-slate-500">实发金额</span><strong className="mt-0.5 block text-xl tabular-nums">{formatMoney(item.estimate.dataComplete ? item.estimate.estimatedPayable : item.estimate.knownEstimatedPayable)}</strong></div><button className={item.status === 'issued' ? 'ui-button-primary' : 'ui-button-secondary'} onClick={() => open(item.id)} type="button">{item.status === 'issued' ? '查看并确认' : '查看工资单'}</button></div></article>)}</section> : null}
+    {status === 'ready' ? <section className="space-y-2">{items.map((item) => <article className="ui-card p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{monthLabel(item.payroll_month)}工资单</b><p className="mt-1 text-xs text-slate-500">发放：{item.issued_at ? new Date(item.issued_at).toLocaleString('zh-CN') : '尚未发送'}</p></div><StatusBadge tone={item.status === 'confirmed' ? 'success' : 'warning'}>{item.status === 'confirmed' ? '已确认' : '待确认'}</StatusBadge></div><div className="mt-3 flex items-end justify-between gap-3"><div><span className="text-xs text-slate-500">实发金额</span><strong className="mt-0.5 block text-xl tabular-nums">{formatMoney(item.estimate.dataComplete ? item.estimate.estimatedPayable : item.estimate.knownEstimatedPayable)}</strong></div><button className={item.status === 'issued' ? 'ui-button-primary' : 'ui-button-secondary'} onClick={() => open(item.id)} type="button">{item.status === 'issued' ? '查看并确认' : '查看工资单'}</button></div></article>)}</section> : null}
     <ActionFeedbackDialog message={feedback} onClose={() => setFeedback('')} open={Boolean(feedback)} title="工资单处理结果" tone="success" />
   </>;
 }

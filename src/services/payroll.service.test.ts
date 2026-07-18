@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, invokePospalMonthlySalesSync, invokePospalSalesSync, issuePayrollPayslips, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, savePayrollVisibilitySettings, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
+import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -23,14 +23,25 @@ describe('payroll service', () => {
     expect(result.knownEstimatedTotal).toBe(1800);
   });
 
-  it('issues and confirms immutable monthly payslips through protected RPCs', async () => {
+  it('generates draft payslips and lets employees confirm sent statements', async () => {
     const rpc = vi.fn()
-      .mockResolvedValueOnce({ data: { issuedCount: 2, refreshedCount: 1, skippedConfirmedCount: 1, month: '2026-06-01' }, error: null })
+      .mockResolvedValueOnce({ data: { generatedCount: 2, refreshedCount: 1, skippedSentCount: 1, month: '2026-06-01' }, error: null })
       .mockResolvedValueOnce({ data: { id: 'slip-1', status: 'confirmed' }, error: null });
-    await expect(issuePayrollPayslips({ rpc } as never, '2026-06')).resolves.toMatchObject({ issuedCount: 2, refreshedCount: 1, skippedConfirmedCount: 1 });
+    await expect(generatePayrollPayslips({ rpc } as never, '2026-06')).resolves.toMatchObject({ generatedCount: 2, refreshedCount: 1, skippedSentCount: 1 });
     await confirmPayrollPayslip({ rpc } as never, 'slip-1');
-    expect(rpc).toHaveBeenNthCalledWith(1, 'admin_issue_payroll_payslips', { p_payroll_month: '2026-06-01', p_profile_ids: null });
+    expect(rpc).toHaveBeenNthCalledWith(1, 'admin_generate_payroll_payslips', { p_payroll_month: '2026-06-01', p_profile_ids: null });
     expect(rpc).toHaveBeenNthCalledWith(2, 'confirm_my_payroll_payslip', { p_payslip_id: 'slip-1' });
+  });
+
+  it('supports preview-first send, edit and withdrawal operations', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { id: 'slip-1' }, error: null });
+    const fields = { accruedBaseSalary:3000,accruedHousingAllowance:500,accruedPerformance:300,accruedFullAttendanceBonus:0,accruedServiceAward:100,accruedCommission:80,accruedOvertime:50,fineTotal:20,adminNote:'已核对' };
+    await sendPayrollPayslip({ rpc } as never,'slip-1');
+    await updatePayrollPayslip({ rpc } as never,'slip-1',fields);
+    await withdrawPayrollPayslip({ rpc } as never,'slip-1');
+    expect(rpc).toHaveBeenNthCalledWith(1,'admin_send_payroll_payslip',{ p_payslip_id:'slip-1' });
+    expect(rpc).toHaveBeenNthCalledWith(2,'admin_update_payroll_payslip',{ p_payslip_id:'slip-1',p_fields:fields });
+    expect(rpc).toHaveBeenNthCalledWith(3,'admin_withdraw_payroll_payslip',{ p_payslip_id:'slip-1' });
   });
 
   it('loads and saves the employee historical-payroll viewing window', async () => {

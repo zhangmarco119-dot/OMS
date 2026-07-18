@@ -1,3 +1,14 @@
+export interface PayrollDeductionItem {
+  id: string;
+  date: string;
+  createdAt: string | null;
+  type: 'late' | 'penalty' | 'tax';
+  title: string;
+  reason: string;
+  amount: number;
+  performanceDeduction: number;
+}
+
 export interface PayrollEstimate {
   profileId: string;
   displayName: string;
@@ -16,6 +27,9 @@ export interface PayrollEstimate {
   commissionRate: number | null;
   housingEnabled: boolean;
   performanceEnabled: boolean;
+  performanceOverrideEnabled: boolean;
+  performanceOverrideAmount: number;
+  performanceCalculationMode: 'automatic' | 'override';
   commissionEnabled: boolean;
   fullAttendanceBonusEnabled: boolean;
   fullAttendanceBonusAmount: number;
@@ -45,6 +59,9 @@ export interface PayrollEstimate {
   lateFine: number;
   otherFine: number;
   fineTotal: number;
+  individualIncomeTax: number;
+  deductionTotal: number;
+  deductionItems: PayrollDeductionItem[];
   taskDueCount: number;
   taskCompletedCount: number;
   taskScore: number | null;

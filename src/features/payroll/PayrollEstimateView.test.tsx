@@ -7,14 +7,16 @@ import { PayrollEstimateView } from './PayrollEstimateView';
 const estimate = {
   profileId: 'p1', displayName: '员工甲', username: 'staff', primaryStoreId: 's1', asOf: '2026-07-17', monthStart: '2026-07-01', monthEnd: '2026-07-31',
   fullAttendanceDays: 27, attendanceDays: 13, ruleId: 'r1', ruleConfirmed: false, monthlyBaseSalary: 5500, monthlyHousingAllowance: 1100,
-  fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: true, performanceEnabled: true, commissionEnabled: true,
+  fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: true, performanceEnabled: true, performanceOverrideEnabled: false, performanceOverrideAmount: 0, performanceCalculationMode: 'automatic', commissionEnabled: true,
   fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0,
   extraAttendanceDays: 0, extraAttendanceBonusRate: 300, accruedExtraAttendanceBonus: 0,
   serviceAwardEnabled: true, serviceAwardAmount: 100, accruedServiceAward: 48.15, regularizationDate: null, eligibleAttendanceDays: 13, regularizationFactor: 1, isProbation: false,
   extraRewardAmount: 0, accruedExtraReward: 0,
   overtimeHours: 2, overtimeHourlyRate: 25, accruedOvertime: 50,
   accruedBaseSalary: 2648.15, accruedHousingAllowance: 529.63, accruedPerformance: null, accruedCommission: null, lateCount: 1, lateMinutes: 5,
-  lateFine: 20, otherFine: 0, fineTotal: 20, taskDueCount: 0, taskCompletedCount: 0, taskScore: null, attendanceScore: 24,
+  lateFine: 20, otherFine: 0, fineTotal: 20, individualIncomeTax: 0, deductionTotal: 20,
+  deductionItems: [{ id: 'late-1', date: '2026-07-10', createdAt: null, type: 'late', title: '迟到罚款', reason: '迟到 5 分钟', amount: 20, performanceDeduction: 0 }],
+  taskDueCount: 0, taskCompletedCount: 0, taskScore: null, attendanceScore: 24,
   disciplineScore: 15, performanceScore: null, performanceGrade: null, revenueTotal: 0, revenueEffectiveDate: null, revenueCarriedForward: false, performanceReady: false, commissionReady: false,
   dataComplete: false, incomeSubtotalKnown: 3177.78, knownEstimatedPayable: 3157.78, estimatedPayable: null,
   attendanceUpdatedAt: null, tasksUpdatedAt: null, revenueUpdatedAt: null, penaltiesUpdatedAt: null, overtimeUpdatedAt: null,
@@ -32,6 +34,8 @@ describe('PayrollEstimateView', () => {
     expect(screen.getByText(/含社保补贴/)).toBeInTheDocument();
     expect(screen.getByText(/累计出勤达到 27 天后产生/)).toBeInTheDocument();
     expect(screen.getByText('工龄奖')).toBeInTheDocument();
+    expect(screen.getByText('员工甲')).toBeInTheDocument();
+    expect(screen.queryByText('超勤奖')).not.toBeInTheDocument();
   });
 
   it('shows an awarded full-attendance bonus as a separate salary item', () => {
@@ -45,7 +49,22 @@ describe('PayrollEstimateView', () => {
     expect(screen.getByText('超勤奖')).toBeInTheDocument();
     expect(screen.getByText(/超过全勤标准 2 天/)).toBeInTheDocument();
     expect(screen.getByText('额外奖励')).toBeInTheDocument();
+    expect(screen.getByText('本月增加的额外奖励')).toBeInTheDocument();
     expect(screen.getByText('¥600.00')).toBeInTheDocument();
+  });
+
+  it('shows an itemized deduction dialog with the reason and date', () => {
+    render(<PayrollEstimateView estimate={estimate} />);
+    fireEvent.click(screen.getByRole('button', { name: /罚款合计.*点击查看扣款时间和原因/ }));
+    expect(screen.getByText('扣款明细')).toBeInTheDocument();
+    expect(screen.getByText('迟到 5 分钟')).toBeInTheDocument();
+    expect(screen.getByText('2026年7月10日')).toBeInTheDocument();
+  });
+
+  it('marks a performance amount that was forcibly overridden', () => {
+    render(<PayrollEstimateView estimate={{ ...estimate, performanceCalculationMode: 'override', performanceOverrideEnabled: true, performanceOverrideAmount: 800, accruedPerformance: 800, performanceReady: true }} />);
+    expect(screen.getByText('管理员强制覆盖绩效结果')).toBeInTheDocument();
+    expect(screen.getByText(/当前使用管理员强制覆盖结果/)).toBeInTheDocument();
   });
 
   it('links administrator data issues to their update location', () => {

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { AdminPayrollSummary, PayrollEstimate } from '../features/payroll/model';
+import type { AdminPayrollSummary, PayrollDeductionItem, PayrollEstimate } from '../features/payroll/model';
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
 
@@ -20,6 +20,16 @@ const nullableNumberAt = (value: Json | undefined) => value == null || value ===
 const textAt = (value: Json | undefined, fallback = '') => typeof value === 'string' ? value : fallback;
 const nullableTextAt = (value: Json | undefined) => typeof value === 'string' ? value : null;
 const boolAt = (value: Json | undefined) => value === true;
+
+const parseDeductionItem = (value: Json): PayrollDeductionItem => {
+  const item = objectAt(value);
+  const type = textAt(item.type);
+  return {
+    id: textAt(item.id), date: textAt(item.date), createdAt: nullableTextAt(item.createdAt),
+    type: type === 'late' || type === 'tax' ? type : 'penalty', title: textAt(item.title, '扣款'),
+    reason: textAt(item.reason), amount: numberAt(item.amount), performanceDeduction: numberAt(item.performanceDeduction),
+  };
+};
 
 export interface PayrollVisibilitySettings {
   historyAvailableUntilDay: number;
@@ -62,6 +72,8 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     ruleConfirmed: boolAt(item.ruleConfirmed), monthlyBaseSalary: nullableNumberAt(item.monthlyBaseSalary),
     monthlyHousingAllowance: nullableNumberAt(item.monthlyHousingAllowance), fullPerformanceAmount: nullableNumberAt(item.fullPerformanceAmount),
     commissionRate: nullableNumberAt(item.commissionRate), housingEnabled: boolAt(item.housingEnabled), performanceEnabled: boolAt(item.performanceEnabled),
+    performanceOverrideEnabled: boolAt(item.performanceOverrideEnabled), performanceOverrideAmount: numberAt(item.performanceOverrideAmount),
+    performanceCalculationMode: item.performanceCalculationMode === 'override' ? 'override' : 'automatic',
     commissionEnabled: boolAt(item.commissionEnabled), fullAttendanceBonusEnabled: boolAt(item.fullAttendanceBonusEnabled),
     fullAttendanceBonusAmount: numberAt(item.fullAttendanceBonusAmount), fullAttendanceBonusAwarded: boolAt(item.fullAttendanceBonusAwarded),
     accruedFullAttendanceBonus: numberAt(item.accruedFullAttendanceBonus), extraAttendanceDays: numberAt(item.extraAttendanceDays),
@@ -74,6 +86,8 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     accruedCommission: nullableNumberAt(item.accruedCommission), lateCount: numberAt(item.lateCount), lateMinutes: numberAt(item.lateMinutes),
     overtimeHours: numberAt(item.overtimeHours), overtimeHourlyRate: nullableNumberAt(item.overtimeHourlyRate), accruedOvertime: numberAt(item.accruedOvertime),
     lateFine: numberAt(item.lateFine), otherFine: numberAt(item.otherFine), fineTotal: numberAt(item.fineTotal),
+    individualIncomeTax: numberAt(item.individualIncomeTax), deductionTotal: numberAt(item.deductionTotal) || numberAt(item.fineTotal) + numberAt(item.individualIncomeTax),
+    deductionItems: Array.isArray(item.deductionItems) ? item.deductionItems.map(parseDeductionItem) : [],
     taskDueCount: numberAt(item.taskDueCount), taskCompletedCount: numberAt(item.taskCompletedCount), taskScore: nullableNumberAt(item.taskScore),
     attendanceScore: numberAt(item.attendanceScore), disciplineScore: numberAt(item.disciplineScore), performanceScore: nullableNumberAt(item.performanceScore),
     performanceGrade: nullableTextAt(item.performanceGrade), revenueTotal: numberAt(item.revenueTotal),
@@ -91,6 +105,12 @@ export async function loadMyPayrollEstimate(client: Client, profileId: string, a
   const { data, error } = await client.rpc('get_payroll_estimate', { p_profile_id: profileId, p_as_of: asOf });
   if (error) throw new Error(error.message || '暂时无法计算预估工资。');
   return parsePayrollEstimate(data);
+}
+
+export async function loadPayrollDeductionItems(client: Client, profileId: string, from: string, to: string) {
+  const { data, error } = await client.rpc('get_payroll_deduction_items', { p_profile_id: profileId, p_from: from, p_to: to });
+  if (error) throw new Error(error.message || '暂时无法加载扣款明细。');
+  return Array.isArray(data) ? data.map(parseDeductionItem) : [];
 }
 
 export interface PayrollPayslip extends Omit<PayrollPayslipRow, 'estimate_snapshot'> {
@@ -159,6 +179,7 @@ export interface PayrollPayslipDraftFields {
   accruedCommission: number;
   accruedOvertime: number;
   fineTotal: number;
+  individualIncomeTax: number;
   adminNote: string;
 }
 

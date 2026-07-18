@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
+import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -14,6 +14,12 @@ describe('payroll service', () => {
     const result = await loadMyPayrollEstimate({ rpc } as never, 'p1', '2026-07-17');
     expect(rpc).toHaveBeenCalledWith('get_payroll_estimate', { p_profile_id: 'p1', p_as_of: '2026-07-17' });
     expect(result.displayName).toBe('李天欣');
+  });
+
+  it('loads itemized payroll deductions for an employee or administrator', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: 'late:1', date: '2026-07-10', type: 'late', title: '迟到罚款', reason: '迟到 5 分钟', amount: 20 }], error: null });
+    await expect(loadPayrollDeductionItems({ rpc } as never, 'p1', '2026-07-01', '2026-07-31')).resolves.toMatchObject([{ type: 'late', amount: 20 }]);
+    expect(rpc).toHaveBeenCalledWith('get_payroll_deduction_items', { p_profile_id: 'p1', p_from: '2026-07-01', p_to: '2026-07-31' });
   });
 
   it('loads the administrator total and passes the selected store as a filter', async () => {
@@ -35,7 +41,7 @@ describe('payroll service', () => {
 
   it('supports preview-first send, edit and withdrawal operations', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { id: 'slip-1' }, error: null });
-    const fields = { accruedBaseSalary:3000,accruedHousingAllowance:500,accruedPerformance:300,accruedFullAttendanceBonus:0,accruedExtraAttendanceBonus:300,accruedServiceAward:100,accruedExtraReward:80,accruedCommission:80,accruedOvertime:50,fineTotal:20,adminNote:'已核对' };
+    const fields = { accruedBaseSalary:3000,accruedHousingAllowance:500,accruedPerformance:300,accruedFullAttendanceBonus:0,accruedExtraAttendanceBonus:300,accruedServiceAward:100,accruedExtraReward:80,accruedCommission:80,accruedOvertime:50,fineTotal:20,individualIncomeTax:50,adminNote:'已核对' };
     await sendPayrollPayslip({ rpc } as never,'slip-1');
     await updatePayrollPayslip({ rpc } as never,'slip-1',fields);
     await withdrawPayrollPayslip({ rpc } as never,'slip-1');

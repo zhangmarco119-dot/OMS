@@ -764,8 +764,8 @@ export type Database = {
         Relationships: [];
       };
       v2_task_schedules: {
-        Row: { acceptance_interval_days: number | null; acceptance_month_day: number | null; acceptance_type: 'daily' | 'weekly' | 'monthly'; acceptance_weekday: number | null; assigned_profile_id: string | null; created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; last_published_at: string | null; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; publish_time: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[] };
-        Insert: { acceptance_interval_days?: number | null; acceptance_month_day?: number | null; acceptance_type?: 'daily' | 'weekly' | 'monthly'; acceptance_weekday?: number | null; assigned_profile_id?: string | null; created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; last_published_at?: string | null; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; publish_time?: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[] };
+        Row: { acceptance_interval_days: number | null; acceptance_month_day: number | null; acceptance_type: 'daily' | 'weekly' | 'monthly'; acceptance_weekday: number | null; assigned_profile_id: string | null; content_name: string | null; content_snapshot: Json | null; created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; last_published_at: string | null; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; publish_time: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[]; withdrawn_at: string | null; withdrawn_by: string | null };
+        Insert: { acceptance_interval_days?: number | null; acceptance_month_day?: number | null; acceptance_type?: 'daily' | 'weekly' | 'monthly'; acceptance_weekday?: number | null; assigned_profile_id?: string | null; content_name?: string | null; content_snapshot?: Json | null; created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; last_published_at?: string | null; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; publish_time?: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[]; withdrawn_at?: string | null; withdrawn_by?: string | null };
         Update: Partial<Database['public']['Tables']['v2_task_schedules']['Insert']>;
         Relationships: [];
       };
@@ -957,6 +957,7 @@ export type Database = {
       admin_operation_overview: { Args: Record<PropertyKey, never>; Returns: { arrival_pending: number; arrival_today: number; inventory_completed_today: number; inventory_pending: number; v2_task_active: number; v2_task_completed: number }[] };
       create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_month_day: number | null; p_profile_ids: string[]; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       create_v2_task_schedule_v2: { Args: { p_fields: Json; p_profile_ids: string[]; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      get_v2_task_schedule_content: { Args: { p_schedule_id: string }; Returns: Json };
       update_v2_task_schedule_v2: { Args: { p_fields: Json; p_schedule_id: string }; Returns: Json };
       withdraw_v2_task_schedule_current: { Args: { p_schedule_id: string }; Returns: Json };
       create_v2_task_category: { Args: { p_label: string }; Returns: Json };
@@ -968,6 +969,10 @@ export type Database = {
       publish_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       publish_v2_sop_with_options: { Args: { p_silent: boolean; p_sop_id: string }; Returns: Json };
       publish_v2_tasks: { Args: { p_due_at: string | null; p_profile_ids: string[]; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      update_v2_task_content: { Args: { p_due_at: string | null; p_name: string; p_snapshot: Json; p_task_id: string }; Returns: Json };
+      update_v2_task_schedule_all: { Args: { p_fields: Json; p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
+      update_v2_task_schedule_content: { Args: { p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
+      withdraw_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       admin_bind_dingtalk_employee: { Args: { p_directory_user_id: string; p_match_source?: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
       admin_remove_dingtalk_store_enterprise: { Args: { p_mapping_id: string }; Returns: Json };
       admin_save_dingtalk_store_enterprise: { Args: { p_corp_id: string; p_display_name: string; p_store_id: string }; Returns: Json };

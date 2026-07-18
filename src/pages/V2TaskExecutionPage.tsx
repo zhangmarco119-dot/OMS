@@ -48,6 +48,23 @@ export function V2TaskExecutionPage() {
     }
   }, [taskId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!supabase || !taskId) return;
+    const client = supabase;
+    if (typeof client.channel !== 'function') return;
+    let timer = 0;
+    const refresh = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void load().then(() => setSuccessMessage('管理员已更新任务内容，当前页面已同步'));
+      }, 180);
+    };
+    const channel = client.channel(`v2-task-live-${taskId}`)
+      .on('postgres_changes', { event: 'UPDATE', filter: `id=eq.${taskId}`, schema: 'public', table: 'v2_tasks' }, refresh)
+      .on('postgres_changes', { event: 'UPDATE', filter: `task_id=eq.${taskId}`, schema: 'public', table: 'v2_task_answers' }, refresh)
+      .subscribe();
+    return () => { window.clearTimeout(timer); void client.removeChannel(channel); };
+  }, [load, taskId]);
 
   const editable = detail ? ['pending', 'in_progress', 'rejected', 'overdue'].includes(detail.task.status) : false;
   const answerPositions = useMemo(() => getV2TaskAnswerPositions(detail?.task.snapshot ?? null), [detail?.task.snapshot]);

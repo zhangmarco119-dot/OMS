@@ -24,6 +24,7 @@ export interface V2TaskScheduleFields {
   scheduleType: V2TaskReleaseType;
   weekdays: number[];
 }
+export interface V2TaskScheduleContent { name: string; snapshot: Json }
 export type V2TaskRecipient = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'id' | 'role' | 'store_id' | 'username'>;
 export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
@@ -102,7 +103,7 @@ export const loadV2TaskRecipients = async (client: Client): Promise<V2TaskRecipi
   return data ?? [];
 };
 export const loadV2TaskSchedules = async (client: Client) => {
-  const { data, error } = await client.from('v2_task_schedules').select('*').order('next_due_at'); fail(error); return data ?? [];
+  const { data, error } = await client.from('v2_task_schedules').select('*').is('withdrawn_at', null).order('next_due_at'); fail(error); return data ?? [];
 };
 export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { profileIds?: string[]; storeIds: string[]; templateId: string }) => {
   const { data, error } = await client.rpc('create_v2_task_schedule_v2', {
@@ -130,8 +131,30 @@ export const updateV2TaskSchedule = async (client: Client, scheduleId: string, f
   fail(error);
   return data;
 };
+export const loadV2TaskScheduleContent = async (client: Client, scheduleId: string): Promise<V2TaskScheduleContent> => {
+  const { data, error } = await client.rpc('get_v2_task_schedule_content', { p_schedule_id: scheduleId });
+  fail(error);
+  const value = data as unknown as { name?: unknown; snapshot?: unknown } | null;
+  if (!value || typeof value.name !== 'string' || value.snapshot === undefined) throw new Error('周期任务内容加载失败。');
+  return { name: value.name, snapshot: value.snapshot as Json };
+};
+export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string) => {
+  const { data, error } = await client.rpc('update_v2_task_content', { p_due_at: dueAt, p_name: name, p_snapshot: snapshot, p_task_id: taskId });
+  fail(error);
+  return data;
+};
+export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json) => {
+  const { data, error } = await client.rpc('update_v2_task_schedule_all', { p_fields: fields as unknown as Json, p_name: name, p_schedule_id: scheduleId, p_snapshot: snapshot });
+  fail(error);
+  return data;
+};
 export const withdrawV2TaskScheduleCurrent = async (client: Client, scheduleId: string) => {
   const { data, error } = await client.rpc('withdraw_v2_task_schedule_current', { p_schedule_id: scheduleId });
+  fail(error);
+  return data;
+};
+export const withdrawV2TaskSchedule = async (client: Client, scheduleId: string) => {
+  const { data, error } = await client.rpc('withdraw_v2_task_schedule', { p_schedule_id: scheduleId });
   fail(error);
   return data;
 };

@@ -44,6 +44,19 @@ describe('DingTalk attendance normalization', () => {
     expect(days[0].punches[0]).toMatchObject({ checkType: 'off_duty', isApprovedCorrection: true });
   });
 
+  it('does not count a day with only one required punch as attended', () => {
+    const days = normalizeAttendanceBundle(binding, {
+      results: [{ id: 'r-on', userId: 'user-1', workDate: '2026-07-08', checkType: 'OnDuty', baseCheckTime: '2026-07-08 09:00:00+08:00', userCheckTime: '2026-07-08 09:01:00+08:00', timeResult: 'Normal' }],
+      punches: [{ id: 'p-on', userId: 'user-1', userCheckTime: '2026-07-08 09:01:00+08:00', checkType: 'OnDuty' }],
+      schedules: [
+        { userId: 'user-1', workDate: '2026-07-08', checkType: 'OnDuty', planCheckTime: '2026-07-08 09:00:00+08:00' },
+        { userId: 'user-1', workDate: '2026-07-08', checkType: 'OffDuty', planCheckTime: '2026-07-08 18:00:00+08:00' },
+      ],
+    }, new Date('2026-07-08T19:00:00+08:00'));
+
+    expect(days[0]).toMatchObject({ dailyStatus: 'missing', isAttended: false, missingPunch: 'off' });
+  });
+
   it('maps all required business statuses and preserves unknown values as unknown', () => {
     expect(['Normal','Late','Early','NotSigned','Rest','Leave','Trip','Outside','Absenteeism'].map(normalizeDutyResult)).toEqual([
       'normal','late','early','missing','rest','leave','business_trip','fieldwork','abnormal',

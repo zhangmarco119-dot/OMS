@@ -40,12 +40,13 @@ describe('OvertimePage employee workflow', () => {
 
     expect(screen.getByRole('button', { name: '加班填报' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '加班记录' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /点击选择加班小时/ }));
     expect(screen.getByRole('button', { name: '0 小时' })).toHaveAttribute('aria-pressed', 'false');
     const halfHour = screen.getByRole('button', { name: '0.5 小时' });
     expect(halfHour).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: '6 小时' })).toBeInTheDocument();
     fireEvent.click(halfHour);
-    expect(halfHour).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /0.5 小时/ })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('加班说明（选填）')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '加班记录' }));

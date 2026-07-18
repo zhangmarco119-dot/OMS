@@ -13,18 +13,19 @@ import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
   addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
-  loadPayrollAdminSetup, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate,
+  loadPayrollAdminSetup, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate,
   savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
+  savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
 
-type Tab = 'overview' | 'employees' | 'performance' | 'revenue' | 'penalties' | 'overtime';
+type Tab = 'overview' | 'employees' | 'performance' | 'revenue' | 'penalties' | 'overtime' | 'visibility';
 type Feedback = { title: string; message: string; tone: ActionFeedbackTone };
 type Setup = Awaited<ReturnType<typeof loadPayrollAdminSetup>>;
 const tabs: { key: Tab; label: string }[] = [
   { key: 'overview', label: '实时工资' }, { key: 'employees', label: '员工参数' },
   { key: 'performance', label: '绩效规则' }, { key: 'revenue', label: '营业收入' },
-  { key: 'penalties', label: '处罚' }, { key: 'overtime', label: '加班' },
+  { key: 'penalties', label: '处罚' }, { key: 'overtime', label: '加班' }, { key: 'visibility', label: '查看期限' },
 ];
 const monthStart = (date = todayInChina()) => `${date.slice(0, 7)}-01`;
 const penaltyDefaults = { reminder: 0, warning: 3, formal_warning: 5, serious: 10 } as const;
@@ -35,14 +36,36 @@ export function AdminPayrollPage() {
   const tab = (tabs.some((item) => item.key === params.get('tab')) ? params.get('tab') : 'overview') as Tab;
   const changeTab = (nextTab: Tab) => { const next = new URLSearchParams(params); next.set('tab', nextTab); next.delete('employee'); next.delete('profile'); setParams(next); };
   return <PageShell eyebrow="门店运营系统 · 管理员" title="实时薪资" backTo="/app/workbench" contentGapClassName="gap-3">
-    <nav className="ui-card grid grid-cols-3 gap-1 p-1.5 sm:grid-cols-6" aria-label="实时薪资功能">{tabs.map((item) => <button className={`min-h-10 rounded-lg px-1 text-[11px] font-bold ${tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600'}`} key={item.key} onClick={() => changeTab(item.key)} type="button">{item.label}</button>)}</nav>
+    <nav className="ui-card grid grid-cols-3 gap-1 p-1.5 sm:grid-cols-7" aria-label="实时薪资功能">{tabs.map((item) => <button className={`min-h-10 rounded-lg px-1 text-[11px] font-bold ${tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600'}`} key={item.key} onClick={() => changeTab(item.key)} type="button">{item.label}</button>)}</nav>
     {tab === 'overview' ? <PayrollOverview /> : null}
     {tab === 'employees' ? <EmployeeRules /> : null}
     {tab === 'performance' ? <PerformanceRules /> : null}
     {tab === 'revenue' ? <RevenueManager /> : null}
     {tab === 'penalties' ? <PenaltyManager /> : null}
     {tab === 'overtime' ? <OvertimeManager /> : null}
+    {tab === 'visibility' ? <PayrollVisibilityManager /> : null}
   </PageShell>;
+}
+
+function PayrollVisibilityManager() {
+  const [historyMonths, setHistoryMonths] = useState('3');
+  const [untilDay, setUntilDay] = useState('31');
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  useEffect(() => {
+    if (!supabase) return;
+    void loadPayrollVisibilitySettings(supabase).then((value) => { setHistoryMonths(String(value.historyMonths)); setUntilDay(String(value.historyAvailableUntilDay)); }).catch((error) => setFeedback({ title: '加载失败', message: error instanceof Error ? error.message : '暂时无法加载设置。', tone: 'danger' }));
+  }, []);
+  const save = async () => {
+    if (!supabase) return;
+    const months = Number(historyMonths); const day = Number(untilDay);
+    if (!Number.isInteger(months) || months < 0 || months > 24 || !Number.isInteger(day) || day < 1 || day > 31) { setFeedback({ title: '请检查设置', message: '历史月份应为 0–24，开放截止日应为 1–31。', tone: 'warning' }); return; }
+    setBusy(true);
+    try { await savePayrollVisibilitySettings(supabase, { historyMonths: months, historyAvailableUntilDay: day }); setFeedback({ title: '设置已保存', message: months ? `员工每月 ${day} 日前可查看前 ${months} 个月的预估工资和明细。` : '员工历史工资查看已关闭。', tone: 'success' }); }
+    catch (error) { setFeedback({ title: '保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); }
+    finally { setBusy(false); }
+  };
+  return <><SectionCard><SectionHeader icon={Settings2} title="员工历史工资查看期限" description="当前月份始终可查看；历史月份只在设定期限内开放。" /><div className="mt-4 grid grid-cols-2 gap-2"><label className="text-sm font-semibold">可查看前几个月<input className="ui-input mt-1" max="24" min="0" onChange={(event) => setHistoryMonths(event.target.value)} type="number" value={historyMonths} /></label><label className="text-sm font-semibold">每月开放至几日<input className="ui-input mt-1" max="31" min="1" onChange={(event) => setUntilDay(event.target.value)} type="number" value={untilDay} /></label></div><p className="mt-3 text-xs leading-5 text-slate-500">填写 0 个月可关闭历史工资查看。例如“3 个月、10 日”表示员工每月 10 日前可以查看前 3 个月的预估工资及明细。</p><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">保存查看期限</button></SectionCard><ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} /></>;
 }
 
 function PayrollOverview() {

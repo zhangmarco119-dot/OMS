@@ -13,7 +13,8 @@ export function AttendanceMonthView({ detail }: { detail: AttendanceMonthDetail 
     <section className="grid grid-cols-3 gap-2">
       <Metric label="出勤天数" value={summary.attendanceDays} />
       <Metric label="累计加班" value={`${summary.overtimeHours} 小时`} />
-      <Metric label="迟到" value={`${summary.lateCount} 次 / ${summary.lateMinutes} 分`} />
+      <Metric label="迟到次数" value={`${summary.lateCount} 次`} />
+      <Metric label="迟到累计" value={`${summary.lateMinutes} 分`} />
       <Metric label="缺卡次数" value={summary.missingCount} />
       <Metric label="异常次数" value={summary.abnormalCount} />
     </section>

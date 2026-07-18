@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
+import { addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, savePayrollVisibilitySettings, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -21,6 +21,16 @@ describe('payroll service', () => {
     const result = await loadAdminPayrollEstimates({ rpc } as never, { asOf: '2026-07-17', storeId: 's1', search: '李' });
     expect(rpc).toHaveBeenCalledWith('admin_payroll_estimates', { p_as_of: '2026-07-17', p_store_id: 's1', p_search: '李' });
     expect(result.knownEstimatedTotal).toBe(1800);
+  });
+
+  it('loads and saves the employee historical-payroll viewing window', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { historyMonths: 3, historyAvailableUntilDay: 10, historyOpenNow: true }, error: null })
+      .mockResolvedValueOnce({ data: { history_months: 6 }, error: null });
+    await expect(loadPayrollVisibilitySettings({ rpc } as never)).resolves.toEqual({ historyMonths: 3, historyAvailableUntilDay: 10, historyOpenNow: true });
+    await savePayrollVisibilitySettings({ rpc } as never, { historyMonths: 6, historyAvailableUntilDay: 15 });
+    expect(rpc).toHaveBeenNthCalledWith(1, 'get_payroll_visibility_settings');
+    expect(rpc).toHaveBeenNthCalledWith(2, 'admin_save_payroll_visibility_settings', { p_history_available_until_day: 15, p_history_months: 6 });
   });
 
   it('submits and reviews overtime through the permission-protected RPCs', async () => {

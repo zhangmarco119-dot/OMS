@@ -15,7 +15,8 @@ const detail: AttendanceMonthDetail = {
 describe('AttendanceMonthView', () => {
   it('shows summary, enterprise-timezone punches and a focused exception list', () => {
     render(<AttendanceMonthView detail={detail} />);
-    expect(screen.getByText('1 次 / 12 分', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.getByText('1 次', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.getByText('12 分', { selector: 'p' })).toBeInTheDocument();
     expect(screen.getByText('实际 09:12')).toBeInTheDocument();
     expect(screen.getByText('非常长的门店早班名称用于验证小屏展示')).toBeInTheDocument();
     expect(screen.getByText('异常：同一天在两个门店都有有效排班，请管理员核对。')).toBeInTheDocument();

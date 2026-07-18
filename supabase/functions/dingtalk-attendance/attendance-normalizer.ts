@@ -167,7 +167,10 @@ export const normalizeAttendanceBundle = (
       actualOffAt, actualOnAt, attendanceDate: date, corpId: binding.corpId, dailyStatus,
       dingtalkResultIds: dayResults.map((item) => text(read(item, ['id','recordId','record_id']))).filter(Boolean),
       earlyMinutes, exceptionNote: text(read(schedule, ['exceptionNote','remark'])) || null,
-      isAttended: Boolean(actualOnAt || actualOffAt || normalizedPunches.length) && !['rest','leave','business_trip'].includes(dailyStatus),
+      // A day becomes payable attendance only after both required punches are
+      // present. A single punch remains visible for correction, but must not
+      // increase attendance days or payroll before DingTalk syncs the correction result.
+      isAttended: Boolean(actualOnAt && actualOffAt) && !missingOn && !missingOff && !['rest','leave','business_trip'].includes(dailyStatus),
       lateMinutes, missingPunch: missingOn && missingOff ? 'both' : missingOn ? 'on' : missingOff ? 'off' : 'none',
       offDutyResult, onDutyResult, plannedOffAt, plannedOnAt, profileId: binding.profileId,
       punches: normalizedPunches, shiftId: text(read(onSchedule, ['classId','shiftId','class_id'])) || text(read(offSchedule, ['classId','shiftId','class_id'])) || null,

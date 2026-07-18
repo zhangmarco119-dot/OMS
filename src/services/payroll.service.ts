@@ -20,6 +20,32 @@ const textAt = (value: Json | undefined, fallback = '') => typeof value === 'str
 const nullableTextAt = (value: Json | undefined) => typeof value === 'string' ? value : null;
 const boolAt = (value: Json | undefined) => value === true;
 
+export interface PayrollVisibilitySettings {
+  historyAvailableUntilDay: number;
+  historyMonths: number;
+  historyOpenNow: boolean;
+}
+
+export async function loadPayrollVisibilitySettings(client: Client): Promise<PayrollVisibilitySettings> {
+  const { data, error } = await client.rpc('get_payroll_visibility_settings');
+  if (error) throw new Error(error.message || '暂时无法加载工资历史查看设置。');
+  const row = objectAt(data);
+  return {
+    historyAvailableUntilDay: numberAt(row.historyAvailableUntilDay),
+    historyMonths: numberAt(row.historyMonths),
+    historyOpenNow: boolAt(row.historyOpenNow),
+  };
+}
+
+export async function savePayrollVisibilitySettings(client: Client, settings: Pick<PayrollVisibilitySettings, 'historyAvailableUntilDay' | 'historyMonths'>) {
+  const { data, error } = await client.rpc('admin_save_payroll_visibility_settings', {
+    p_history_available_until_day: settings.historyAvailableUntilDay,
+    p_history_months: settings.historyMonths,
+  });
+  if (error) throw new Error(error.message || '工资历史查看设置保存失败。');
+  return data;
+}
+
 export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
   const item = objectAt(value);
   return {

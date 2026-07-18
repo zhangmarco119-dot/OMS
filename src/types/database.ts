@@ -21,6 +21,12 @@ export type Database = {
         Update: { attendance_date?: string; completed_at?: string | null; due_at?: string; id?: string; missing_punch?: 'on' | 'off' | 'both'; profile_id?: string; status?: 'pending' | 'completed'; store_id?: string; updated_at?: string };
         Relationships: [];
       };
+      payroll_visibility_settings: {
+        Row: { history_available_until_day: number; history_months: number; id: boolean; updated_at: string; updated_by: string | null };
+        Insert: { history_available_until_day?: number; history_months?: number; id?: boolean; updated_at?: string; updated_by?: string | null };
+        Update: { history_available_until_day?: number; history_months?: number; id?: boolean; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
       attendance_punch_records: {
         Row: { check_type: 'on_duty' | 'off_duty' | 'unknown'; corp_id: string; created_at: string; daily_record_id: string; dingtalk_record_id: string; id: string; is_approved_correction: boolean; last_synced_at: string; location_name: string | null; location_result: string | null; profile_id: string; punch_time: string; source_type: string | null; store_id: string; time_result: string | null; updated_at: string };
         Insert: { check_type?: 'on_duty' | 'off_duty' | 'unknown'; corp_id: string; created_at?: string; daily_record_id: string; dingtalk_record_id: string; id?: string; is_approved_correction?: boolean; last_synced_at?: string; location_name?: string | null; location_result?: string | null; profile_id: string; punch_time: string; source_type?: string | null; store_id: string; time_result?: string | null; updated_at?: string };
@@ -751,10 +757,16 @@ export type Database = {
         Update: { action?: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id?: string; correction_item_ids?: string[]; created_at?: string; id?: string; note?: string; task_id?: string };
         Relationships: [];
       };
+      v2_task_categories: {
+        Row: { code: string; created_at: string; created_by: string | null; is_system: boolean; label: string };
+        Insert: { code: string; created_at?: string; created_by?: string | null; is_system?: boolean; label: string };
+        Update: { code?: string; created_at?: string; created_by?: string | null; is_system?: boolean; label?: string };
+        Relationships: [];
+      };
       v2_task_schedules: {
-        Row: { assigned_profile_id: string | null; created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[] };
-        Insert: { assigned_profile_id?: string | null; created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[] };
-        Update: { assigned_profile_id?: string | null; created_at?: string; created_by?: string; due_time?: string; id?: string; interval_days?: number | null; is_active?: boolean; month_day?: number | null; next_due_at?: string; paused_at?: string | null; paused_by?: string | null; schedule_type?: 'interval_days' | 'weekly' | 'monthly'; store_id?: string; template_id?: string; template_version_id?: string; updated_at?: string; weekdays?: number[] };
+        Row: { acceptance_interval_days: number | null; acceptance_month_day: number | null; acceptance_type: 'daily' | 'weekly' | 'monthly'; acceptance_weekday: number | null; assigned_profile_id: string | null; created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; last_published_at: string | null; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; publish_time: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[] };
+        Insert: { acceptance_interval_days?: number | null; acceptance_month_day?: number | null; acceptance_type?: 'daily' | 'weekly' | 'monthly'; acceptance_weekday?: number | null; assigned_profile_id?: string | null; created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; last_published_at?: string | null; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; publish_time?: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[] };
+        Update: Partial<Database['public']['Tables']['v2_task_schedules']['Insert']>;
         Relationships: [];
       };
       v2_tasks: {
@@ -804,19 +816,19 @@ export type Database = {
       };
       v2_task_templates: {
         Row: {
-          allow_overdue: boolean; category: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          allow_overdue: boolean; category: string;
           created_at: string; created_by: string; current_version: number; description: string;
           due_time: string | null; id: string; name: string; recurrence: 'none' | 'weekly' | 'monthly'; recurrence_day: number | null;
           requires_review: boolean; status: 'draft' | 'published' | 'archived'; updated_at: string;
         };
         Insert: {
-          allow_overdue?: boolean; category: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          allow_overdue?: boolean; category: string;
           created_at?: string; created_by: string; current_version?: number; description?: string;
           due_time?: string | null; id?: string; name: string; recurrence?: 'none' | 'weekly' | 'monthly'; recurrence_day?: number | null;
           requires_review?: boolean; status?: 'draft' | 'published' | 'archived'; updated_at?: string;
         };
         Update: {
-          allow_overdue?: boolean; category?: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          allow_overdue?: boolean; category?: string;
           created_at?: string; created_by?: string; current_version?: number; description?: string;
           due_time?: string | null; id?: string; name?: string; recurrence?: 'none' | 'weekly' | 'monthly'; recurrence_day?: number | null;
           requires_review?: boolean; status?: 'draft' | 'published' | 'archived'; updated_at?: string;
@@ -909,6 +921,7 @@ export type Database = {
       admin_payroll_estimates: { Args: { p_as_of?: string; p_search?: string; p_store_id?: string | null }; Returns: Json };
       admin_create_payroll_penalty: { Args: { p_fields: Json }; Returns: Json };
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };
+      admin_save_payroll_visibility_settings: { Args: { p_history_available_until_day: number; p_history_months: number }; Returns: Json };
       admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
       admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
@@ -917,6 +930,7 @@ export type Database = {
       save_payroll_store_revenue_input: { Args: { p_as_of_date: string; p_input_mode: string; p_manual_cumulative_amount?: number | null; p_note?: string; p_store_id: string }; Returns: Json };
       get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
       get_payroll_estimate: { Args: { p_as_of?: string; p_profile_id: string }; Returns: Json };
+      get_payroll_visibility_settings: { Args: Record<PropertyKey, never>; Returns: Json };
       payroll_overtime_todo_count: { Args: Record<PropertyKey, never>; Returns: number };
       review_payroll_overtime_request: { Args: { p_action: string; p_note?: string; p_request_id: string }; Returns: Json };
       submit_payroll_overtime_request: { Args: { p_hours: number; p_overtime_date: string; p_reason?: string; p_store_id: string }; Returns: Json };
@@ -942,6 +956,11 @@ export type Database = {
       can_read_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       admin_operation_overview: { Args: Record<PropertyKey, never>; Returns: { arrival_pending: number; arrival_today: number; inventory_completed_today: number; inventory_pending: number; v2_task_active: number; v2_task_completed: number }[] };
       create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_month_day: number | null; p_profile_ids: string[]; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      create_v2_task_schedule_v2: { Args: { p_fields: Json; p_profile_ids: string[]; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      update_v2_task_schedule_v2: { Args: { p_fields: Json; p_schedule_id: string }; Returns: Json };
+      withdraw_v2_task_schedule_current: { Args: { p_schedule_id: string }; Returns: Json };
+      create_v2_task_category: { Args: { p_label: string }; Returns: Json };
+      delete_v2_task_category: { Args: { p_code: string }; Returns: Json };
       create_v2_sop_text_step: { Args: { p_sop_id: string; p_sort_order: number; p_step_text: string }; Returns: Json };
       pause_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       mark_v2_notice_read: { Args: { p_notice_id: string }; Returns: Json };

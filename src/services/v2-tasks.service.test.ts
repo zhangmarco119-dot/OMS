@@ -16,8 +16,8 @@ describe('V2 task workflow service', () => {
   });
   it('creates a recurring task schedule through the guarded RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
-    await createV2TaskSchedule(client, { firstDueAt: '2026-07-20T12:00:00Z', intervalDays: null, monthDay: null, scheduleType: 'weekly', storeIds: ['store-1'], templateId: 'template-1', weekdays: [1, 5] });
-    expect(rpc).toHaveBeenCalledWith('create_v2_task_schedule', { p_first_due_at: '2026-07-20T12:00:00Z', p_interval_days: null, p_month_day: null, p_profile_ids: [], p_schedule_type: 'weekly', p_store_ids: ['store-1'], p_template_id: 'template-1', p_weekdays: [1, 5] });
+    await createV2TaskSchedule(client, { acceptanceIntervalDays: null, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'weekly', acceptanceWeekday: 5, intervalDays: null, monthDay: null, publishTime: '09:00', scheduleType: 'weekly', storeIds: ['store-1'], templateId: 'template-1', weekdays: [1, 5] });
+    expect(rpc).toHaveBeenCalledWith('create_v2_task_schedule_v2', { p_fields: { acceptanceIntervalDays: null, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'weekly', acceptanceWeekday: 5, intervalDays: null, monthDay: null, publishTime: '09:00', scheduleType: 'weekly', weekdays: [1, 5] }, p_profile_ids: [], p_store_ids: ['store-1'], p_template_id: 'template-1' });
   });
   it('publishes a task only to the selected employee', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;

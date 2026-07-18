@@ -22,7 +22,7 @@ export function MyAttendancePage() {
   }, [auth.profile, month]);
   useEffect(() => { void load(); }, [load]);
   return <PageShell eyebrow="个人考勤" title="我的考勤" backTo="/app/menu" contentGapClassName="gap-3">
-    <label className="ui-card block p-3 text-sm font-semibold text-slate-700">查看月份<input className="ui-input mt-1" max={`${currentMonth()}-01`} onChange={(event) => setMonth(event.target.value.slice(0, 7))} type="date" value={`${month}-01`} /></label>
+    <label className="ui-card block p-3 text-sm font-semibold text-slate-700">查看月份<input className="ui-input mt-1" max={currentMonth()} onChange={(event) => setMonth(event.target.value)} type="month" value={month} /></label>
     {status === 'loading' ? <LoadingState label="正在加载月度考勤" /> : null}
     {status === 'error' ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'ready' ? <AttendanceMonthView detail={detail} /> : null}

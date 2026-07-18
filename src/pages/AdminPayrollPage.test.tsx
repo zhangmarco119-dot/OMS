@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -60,5 +60,14 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.getByText((_, node) => node?.tagName === 'LI' && Boolean(node.textContent?.includes('任务得分：当月已通过任务数')))).toBeInTheDocument();
     expect(screen.getByText((_, node) => node?.tagName === 'LI' && Boolean(node.textContent?.includes('全勤奖：员工启用后')))).toBeInTheDocument();
     expect(screen.getByText((_, node) => node?.tagName === 'LI' && Boolean(node.textContent?.includes('不与绩效金额合并')))).toBeInTheDocument();
+  });
+
+  it('lets an administrator select any historical payroll month', async () => {
+    render(<MemoryRouter initialEntries={['/app/admin/payroll']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /2026年07月/ }));
+    fireEvent.click(screen.getByRole('button', { name: '上一年' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 月' }));
+    await waitFor(() => expect(vi.mocked(loadAdminPayrollEstimates)).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ asOf: '2025-01-31' })));
+    expect(screen.getByRole('button', { name: /2025年01月/ })).toBeInTheDocument();
   });
 });

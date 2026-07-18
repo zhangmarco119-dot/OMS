@@ -3,11 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
+import { MonthPicker } from '../components/forms/MonthPicker';
 import { PageShell } from '../components/layout/PageShell';
 import { ConfirmDialog } from '../components/ui/Actions';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { PayrollEstimateView } from '../features/payroll/PayrollEstimateView';
+import { payrollMonthEndDate } from '../features/payroll/monthSelection';
 import { formatMoney, todayInChina, type AdminPayrollSummary } from '../features/payroll/model';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -72,6 +74,7 @@ function PayrollOverview() {
   const auth = useAuth(); const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const asOf = params.get('date') || todayInChina(); const storeId = params.get('store') || ''; const search = params.get('q') || ''; const employeeId = params.get('employee') || '';
+  const selectedMonth = asOf.slice(0, 7);
   const [result, setResult] = useState<AdminPayrollSummary | null>(null); const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const update = (key: string, value: string, replace = true) => { const next = new URLSearchParams(params); if (value) next.set(key, value); else next.delete(key); setParams(next, { replace }); };
   const load = useCallback(async () => { if (!supabase) return; setStatus('loading'); try { setResult(await loadAdminPayrollEstimates(supabase, { asOf, storeId, search })); setStatus('ready'); } catch { setStatus('error'); } }, [asOf, search, storeId]);
@@ -87,7 +90,7 @@ function PayrollOverview() {
   };
   if (employeeId && selected) return <><button className="ui-button-secondary" onClick={() => update('employee', '', true)} type="button">返回工资列表</button><PayrollEstimateView estimate={selected} onResolveIssue={resolveIssue} /></>;
   return <>
-    <SectionCard className="p-3"><div className="grid grid-cols-2 gap-2"><label className="text-xs font-semibold text-slate-600">截止日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => update('date', event.target.value)} type="date" value={asOf} /></label><label className="text-xs font-semibold text-slate-600">门店范围<select className="ui-input mt-1" onChange={(event) => update('store', event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => update('q', event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label></SectionCard>
+    <SectionCard className="p-3"><div className="grid grid-cols-2 gap-2"><MonthPicker label="查看月份" maxMonth={todayInChina().slice(0, 7)} onChange={(month) => update('date', payrollMonthEndDate(month, todayInChina()))} value={selectedMonth} /><label className="text-sm font-semibold text-slate-700">门店范围<select className="ui-input mt-1" onChange={(event) => update('store', event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><p className="mt-2 text-xs leading-5 text-slate-500">管理员可查看任意历史月份和本月；历史月份按该月最后一天汇总，本月按今天汇总。</p><label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => update('q', event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label></SectionCard>
     {result ? <section className="grid grid-cols-2 gap-2"><SummaryMetric label="预估合计（已知项）" value={formatMoney(result.knownEstimatedTotal)} /><SummaryMetric label="数据完整员工" value={`${result.completeCount}/${result.employeeCount}`} /></section> : null}
     {status === 'loading' ? <LoadingState label="正在计算实时预估工资" /> : null}{status === 'error' ? <ErrorState message="暂时无法加载实时工资。" onRetry={() => void load()} /> : null}{status === 'ready' && !result?.items.length ? <EmptyState title="暂无符合条件的员工" /> : null}
     {status === 'ready' ? <section className="space-y-2">{result?.items.map((item) => <button className="ui-interactive ui-card w-full p-3.5 text-left" key={item.profileId} onClick={() => update('employee', item.profileId, false)} type="button"><div className="flex items-start justify-between gap-3"><div><b>{item.displayName}</b><p className="mt-0.5 text-xs text-slate-500">出勤 {item.attendanceDays} 天 · 加班 {item.overtimeHours} 小时 · 迟到 {item.lateCount} 次</p></div><StatusBadge tone={item.dataComplete ? 'success' : 'warning'}>{item.dataComplete ? '数据完整' : '待完善'}</StatusBadge></div><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Mini label="基本工资" value={formatMoney(item.accruedBaseSalary)} /><Mini label="加班" value={formatMoney(item.accruedOvertime)} /><Mini label="预估可发" value={formatMoney(item.dataComplete ? item.estimatedPayable : item.knownEstimatedPayable)} /></div></button>)}</section> : null}

@@ -949,6 +949,7 @@ export type Database = {
       archive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       can_manage_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };
       can_manage_v2_sop: { Args: { p_sop_id: string }; Returns: boolean };
+      can_manage_v2_task_content_asset: { Args: { p_asset_id: string }; Returns: boolean };
       can_read_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };
       can_read_v2_sop: { Args: { p_sop_id: string }; Returns: boolean };
       can_edit_v2_task: { Args: { p_task_id: string }; Returns: boolean };

@@ -180,6 +180,57 @@ export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2Ta
     .map(([itemId, urls]) => [itemId, Array.isArray(urls) ? urls.filter((url): url is string => typeof url === 'string') : typeof urls === 'string' ? [urls] : []] as const)
     .filter((entry) => entry[1].length > 0)) as Record<string, string[]>;
 };
+
+export const loadV2TaskContentReferenceImageUrls = async (client: Client, snapshot: Json) => {
+  const root = asRecord(snapshot);
+  const groups = Array.isArray(root?.groups) ? root.groups : [];
+  const entries = groups.flatMap((groupValue) => {
+    const group = asRecord(groupValue);
+    const items = Array.isArray(group?.items) ? group.items : [];
+    return items.flatMap((itemValue) => {
+      const item = asRecord(itemValue);
+      const itemId = typeof item?.id === 'string' ? item.id : '';
+      const plural = Array.isArray(item?.reference_image_paths) ? item.reference_image_paths.filter((path): path is string => typeof path === 'string') : [];
+      const legacy = typeof item?.reference_image_path === 'string' ? [item.reference_image_path] : [];
+      return itemId ? [[itemId, [...new Set([...plural, ...legacy])]] as const] : [];
+    });
+  });
+  const result = await Promise.all(entries.map(async ([itemId, paths]) => {
+    const urls = (await Promise.all(paths.map(async (path) => {
+      const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
+      return error ? null : data?.signedUrl ?? null;
+    }))).filter((url): url is string => Boolean(url));
+    return [itemId, urls] as const;
+  }));
+  return Object.fromEntries(result);
+};
+
+export const uploadV2TaskReferenceImage = async (client: Client, assetOwnerId: string, itemId: string, file: File, onProgress?: (progress: number) => void) => {
+  onProgress?.(5);
+  const processed = await compressArrivalImage(file);
+  onProgress?.(35);
+  const objectId = createUuid();
+  const extension = processed.mimeType === 'image/png' ? 'png' : processed.mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const path = `${assetOwnerId}/${itemId}/${objectId}.${extension}`;
+  const bucket = client.storage.from('v2-task-template-reference-images');
+  const { error: uploadError } = await bucket.upload(path, processed.blob, { cacheControl: '3600', contentType: processed.mimeType, upsert: false });
+  fail(uploadError);
+  onProgress?.(75);
+  const { data, error: signError } = await bucket.createSignedUrl(path, 60 * 60);
+  if (signError || !data?.signedUrl) {
+    await bucket.remove([path]);
+    throw new Error(signError?.message ?? '参考图片预览生成失败。');
+  }
+  onProgress?.(100);
+  return { path, previewUrl: data.signedUrl };
+};
+
+export const deleteV2TaskReferenceImages = async (client: Client, paths: string[]) => {
+  const uniquePaths = [...new Set(paths)].filter(Boolean);
+  if (!uniquePaths.length) return;
+  const { error } = await client.storage.from('v2-task-template-reference-images').remove(uniquePaths);
+  fail(error);
+};
 export const saveV2TaskProgress = async (client: Client, taskId: string, version: number, answers: V2TaskAnswerRow[]) => {
   const { data, error } = await client.rpc('save_v2_task_progress', { p_answers: answers.map((a) => ({ answer: a.answer, is_issue: a.is_issue, item_id: a.item_id, note: a.note })), p_expected_version: version, p_task_id: taskId }); fail(error); return data as unknown as V2TaskRow;
 };

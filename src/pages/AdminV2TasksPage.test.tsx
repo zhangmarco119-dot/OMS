@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminV2TaskPublishPage, AdminV2TasksPage } from './AdminV2TasksPage';
 
 const mocks = vi.hoisted(() => ({
+  loadCategories: vi.fn(),
   loadRecipients: vi.fn(),
   loadSchedules: vi.fn(),
   loadTasks: vi.fn(),
@@ -15,7 +16,7 @@ vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../features/auth/AuthContext', () => ({
   useAuth: () => ({ availableStores: [{ id: 'store-1', name: '测试门店' }] }),
 }));
-vi.mock('../services/task-templates.service', () => ({ loadTaskTemplates: mocks.loadTemplates }));
+vi.mock('../services/task-templates.service', () => ({ loadTaskCategories: mocks.loadCategories, loadTaskTemplates: mocks.loadTemplates }));
 vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
   return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskSchedules: mocks.loadSchedules, loadV2Tasks: mocks.loadTasks };
@@ -24,6 +25,7 @@ vi.mock('../services/v2-tasks.service', async (importOriginal) => {
 describe('AdminV2TasksPage navigation', () => {
   beforeEach(() => {
     mocks.loadTemplates.mockResolvedValue([]);
+    mocks.loadCategories.mockResolvedValue([]);
     mocks.loadTasks.mockResolvedValue([]);
     mocks.loadSchedules.mockResolvedValue([]);
     mocks.loadRecipients.mockResolvedValue([]);

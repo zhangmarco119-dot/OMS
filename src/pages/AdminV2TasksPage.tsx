@@ -7,12 +7,14 @@ import { PageShell } from '../components/layout/PageShell';
 import { weeklyDeadlineOptions } from '../features/task-templates/recurrence';
 import { useAuth } from '../features/auth/AuthContext';
 import { TaskContentEditor } from '../features/v2-tasks/TaskContentEditor';
-import { taskContentFromSnapshot, taskContentToSnapshot, validateTaskContent, type TaskContentDraft } from '../features/v2-tasks/taskContent';
+import { taskContentFromSnapshot, taskContentReferencePaths, taskContentToSnapshot, validateTaskContent, type TaskContentDraft } from '../features/v2-tasks/taskContent';
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
-import { loadTaskTemplates, type TaskTemplateListItem } from '../services/task-templates.service';
+import { loadTaskCategories, loadTaskTemplates, type TaskCategoryRow, type TaskTemplateListItem } from '../services/task-templates.service';
 import {
   createV2TaskSchedule,
+  deleteV2TaskReferenceImages,
+  loadV2TaskContentReferenceImageUrls,
   loadV2TaskScheduleContent,
   loadV2TaskRecipients,
   loadV2TaskSchedules,
@@ -20,6 +22,7 @@ import {
   pauseV2TaskSchedule,
   publishV2Tasks,
   resumeV2TaskSchedule,
+  uploadV2TaskReferenceImage,
   updateV2TaskContent,
   updateV2TaskScheduleAll,
   withdrawV2TaskSchedule,
@@ -124,6 +127,7 @@ const scheduleText = (row: V2TaskScheduleRow) => {
 export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: boolean }) {
   const auth = useAuth();
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
+  const [categories, setCategories] = useState<TaskCategoryRow[]>([]);
   const [tasks, setTasks] = useState<V2TaskRow[]>([]);
   const [schedules, setSchedules] = useState<V2TaskScheduleRow[]>([]);
   const [recipients, setRecipients] = useState<V2TaskRecipient[]>([]);
@@ -137,6 +141,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [editingSchedule, setEditingSchedule] = useState<V2TaskScheduleRow | null>(null);
   const [editingTask, setEditingTask] = useState<V2TaskRow | null>(null);
   const [contentDraft, setContentDraft] = useState<TaskContentDraft | null>(null);
+  const [originalReferencePaths, setOriginalReferencePaths] = useState<string[]>([]);
+  const [pendingReferencePaths, setPendingReferencePaths] = useState<string[]>([]);
   const [editingDue, setEditingDue] = useState('');
   const [scheduleContentEditorOpen, setScheduleContentEditorOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -145,8 +151,9 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
-      const [nextTemplates, nextTasks, nextSchedules, nextRecipients] = await Promise.all([loadTaskTemplates(supabase), loadV2Tasks(supabase), loadV2TaskSchedules(supabase), loadV2TaskRecipients(supabase)]);
+      const [nextTemplates, nextCategories, nextTasks, nextSchedules, nextRecipients] = await Promise.all([loadTaskTemplates(supabase), loadTaskCategories(supabase), loadV2Tasks(supabase), loadV2TaskSchedules(supabase), loadV2TaskRecipients(supabase)]);
       setTemplates(nextTemplates.filter((item) => item.status === 'published'));
+      setCategories(nextCategories);
       setTasks(nextTasks);
       setSchedules(nextSchedules);
       setRecipients(nextRecipients);
@@ -190,22 +197,85 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     try {
       const currentTask = tasks.find((task) => task.schedule_id === row.id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status));
       const content = currentTask ? { name: currentTask.name, snapshot: currentTask.snapshot } : await loadV2TaskScheduleContent(supabase, row.id);
+      const referenceUrls = await loadV2TaskContentReferenceImageUrls(supabase, content.snapshot);
+      const nextDraft = taskContentFromSnapshot(content.name, content.snapshot, referenceUrls);
       setFields(scheduleFieldsFromRow(row));
-      setContentDraft(taskContentFromSnapshot(content.name, content.snapshot));
+      setContentDraft(nextDraft);
+      setOriginalReferencePaths(taskContentReferencePaths(nextDraft));
+      setPendingReferencePaths([]);
       setEditingSchedule(row);
     } catch (error) { setMessage(error instanceof Error ? error.message : '周期任务内容加载失败'); }
     finally { setBusy(false); }
   };
-  const startTaskEdit = (task: V2TaskRow) => {
-    setEditingTask(task);
-    setEditingDue(toDatetimeLocalValue(task.due_at));
-    setContentDraft(taskContentFromSnapshot(task.name, task.snapshot));
+  const startTaskEdit = async (task: V2TaskRow) => {
+    if (!supabase) return;
+    setBusy(true);
+    try {
+      const referenceUrls = await loadV2TaskContentReferenceImageUrls(supabase, task.snapshot);
+      const nextDraft = taskContentFromSnapshot(task.name, task.snapshot, referenceUrls);
+      setEditingTask(task);
+      setEditingDue(toDatetimeLocalValue(task.due_at));
+      setContentDraft(nextDraft);
+      setOriginalReferencePaths(taskContentReferencePaths(nextDraft));
+      setPendingReferencePaths([]);
+    } catch (error) { setMessage(error instanceof Error ? error.message : '任务内容加载失败'); }
+    finally { setBusy(false); }
+  };
+  const uploadReferenceImage = async (itemId: string, file: File, onProgress: (progress: number) => void) => {
+    if (!supabase || !contentDraft) throw new Error('任务内容尚未加载完成。');
+    const assetOwnerId = editingTask?.id ?? editingSchedule?.id;
+    if (!assetOwnerId) throw new Error('任务编号无效，无法上传参考图片。');
+    const uploaded = await uploadV2TaskReferenceImage(supabase, assetOwnerId, itemId, file, onProgress);
+    setPendingReferencePaths((current) => [...current, uploaded.path]);
+    setContentDraft((current) => current ? {
+      ...current,
+      groups: current.groups.map((group) => ({
+        ...group,
+        items: group.items.map((item) => item.id === itemId ? {
+          ...item,
+          referenceImagePaths: [...item.referenceImagePaths, uploaded.path],
+          referenceImageUrls: [...item.referenceImageUrls, uploaded.previewUrl],
+        } : item),
+      })),
+    } : current);
+  };
+  const removeReferenceImage = (itemId: string, path: string) => setContentDraft((current) => current ? {
+    ...current,
+    groups: current.groups.map((group) => ({
+      ...group,
+      items: group.items.map((item) => {
+        if (item.id !== itemId) return item;
+        const index = item.referenceImagePaths.indexOf(path);
+        return {
+          ...item,
+          referenceImagePaths: item.referenceImagePaths.filter((entry) => entry !== path),
+          referenceImageUrls: item.referenceImageUrls.filter((_, currentIndex) => currentIndex !== index),
+        };
+      }),
+    })),
+  } : current);
+  const cleanupCancelledAssets = () => {
+    if (supabase && pendingReferencePaths.length) void deleteV2TaskReferenceImages(supabase, pendingReferencePaths).catch(() => undefined);
+    setPendingReferencePaths([]);
+  };
+  const cleanupSavedAssets = async (nextDraft: TaskContentDraft) => {
+    if (!supabase) return;
+    const retained = new Set(taskContentReferencePaths(nextDraft));
+    const assetOwnerId = editingTask?.id ?? editingSchedule?.id;
+    // Template-origin images are shared by immutable template versions and
+    // other tasks. Removing one from this task must only detach its path from
+    // the snapshot; physical cleanup is limited to this task/schedule folder.
+    const obsolete = assetOwnerId ? [...new Set([...originalReferencePaths, ...pendingReferencePaths]
+      .filter((path) => path.startsWith(`${assetOwnerId}/`) && !retained.has(path)))] : [];
+    if (obsolete.length) await deleteV2TaskReferenceImages(supabase, obsolete);
+    setPendingReferencePaths([]);
+    setOriginalReferencePaths([...retained]);
   };
   const saveSchedule = async () => {
     if (!supabase || !editingSchedule || !contentDraft) return;
     const issue = validateSchedule(fields); if (issue) return setMessage(issue);
     const contentIssue = validateTaskContent(contentDraft); if (contentIssue) return setMessage(contentIssue);
-    setBusy(true); try { await updateV2TaskScheduleAll(supabase, editingSchedule.id, fields, contentDraft.name, taskContentToSnapshot(contentDraft)); setEditingSchedule(null); setContentDraft(null); setMessage('周期规则和任务内容已同步更新。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : '周期任务保存失败'); } finally { setBusy(false); }
+    setBusy(true); try { await updateV2TaskScheduleAll(supabase, editingSchedule.id, fields, contentDraft.name, taskContentToSnapshot(contentDraft)); await cleanupSavedAssets(contentDraft); setEditingSchedule(null); setContentDraft(null); setMessage('周期规则和完整任务内容已同步更新。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : '周期任务保存失败'); } finally { setBusy(false); }
   };
   const saveTaskContent = async () => {
     if (!supabase || !editingTask || !contentDraft) return;
@@ -214,7 +284,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     setBusy(true);
     try {
       await updateV2TaskContent(supabase, editingTask.id, contentDraft.name, taskContentToSnapshot(contentDraft), new Date(editingDue).toISOString());
-      setEditingTask(null); setContentDraft(null); setMessage('任务内容已更新，员工页面会自动同步。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load();
+      await cleanupSavedAssets(contentDraft);
+      setEditingTask(null); setContentDraft(null); setMessage('任务内容已更新，员工页面会立即同步。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务内容保存失败'); }
     finally { setBusy(false); }
   };
@@ -236,12 +307,12 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
     {!publisherOnly ? <>
       <section className="space-y-3"><h2 className="font-bold">周期任务</h2>{schedules.length ? schedules.map((row) => <article className="ui-card p-4" key={row.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{row.content_name ?? templates.find((item) => item.id === row.template_id)?.name ?? '已归档模板的周期任务'}</b><p className="mt-1 text-sm text-slate-600">{auth.availableStores.find((store) => store.id === row.store_id)?.name}{row.assigned_profile_id ? ` · ${recipients.find((item) => item.id === row.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'}</p><p className="mt-1 text-xs leading-5 text-slate-500">{scheduleText(row)}<br />下次发布：{new Date(row.next_due_at).toLocaleString('zh-CN')}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${row.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{row.is_active ? '运行中' : '已暂停'}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><button className="ui-button-secondary px-2" disabled={busy} onClick={() => void startScheduleEdit(row)} type="button"><Pencil className="h-4 w-4" />编辑</button><button className="ui-button-secondary border-red-200 px-2 text-red-700" disabled={busy} onClick={() => void withdraw(row)} type="button"><Undo2 className="h-4 w-4" />撤回周期</button>{row.is_active ? <button className="ui-button-secondary px-2" disabled={busy} onClick={() => void pause(row)} type="button"><PauseCircle className="h-4 w-4" />暂停</button> : <button className="ui-button-primary px-2" disabled={busy} onClick={() => void resume(row)} type="button">继续</button>}</div></article>) : <p className="ui-card p-4 text-sm text-slate-500">暂无周期任务计划。</p>}</section>
-      <section className="space-y-3"><h2 className="font-bold">任务清单</h2>{tasks.filter((task) => task.status !== 'cancelled').map((task) => <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex justify-between gap-3"><b>{task.name}</b><span className={`rounded-full px-3 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · 截止 {new Date(task.due_at).toLocaleString('zh-CN')}{task.schedule_id ? ' · 周期任务' : ''}</p></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑任务内容</button> : null}</article>)}</section>
+      <section className="space-y-3"><h2 className="font-bold">任务清单</h2>{tasks.filter((task) => task.status !== 'cancelled').map((task) => <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex justify-between gap-3"><b>{task.name}</b><span className={`rounded-full px-3 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · 截止 {new Date(task.due_at).toLocaleString('zh-CN')}{task.schedule_id ? ' · 周期任务' : ''}</p></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>)}</section>
     </> : null}
 
-    {editingSchedule ? <div className="fixed inset-0 z-40 overflow-y-auto bg-black/45 p-4"><div className="mx-auto mt-8 max-w-xl rounded-xl bg-white p-4"><h2 className="text-lg font-bold">编辑周期任务</h2><ScheduleRuleEditor fields={fields} onChange={setFields} /><button className="ui-button-secondary mt-3 w-full" onClick={() => setScheduleContentEditorOpen(true)} type="button"><Pencil className="h-4 w-4" />编辑任务名称和项目内容</button><p className="mt-2 text-xs leading-5 text-slate-500">保存后会同步当前未完成任务，并用于以后自动发布的任务。</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { setEditingSchedule(null); setContentDraft(null); }} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void saveSchedule()} type="button">保存全部修改</button></div></div></div> : null}
-    {editingTask && contentDraft ? <TaskContentEditor busy={busy} draft={contentDraft} dueAt={editingDue} onCancel={() => { setEditingTask(null); setContentDraft(null); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onSave={() => void saveTaskContent()} /> : null}
-    {editingSchedule && scheduleContentEditorOpen && contentDraft ? <TaskContentEditor busy={busy} draft={contentDraft} onCancel={() => setScheduleContentEditorOpen(false)} onChange={setContentDraft} onSave={() => { const issue = validateTaskContent(contentDraft); if (issue) setMessage(issue); else setScheduleContentEditorOpen(false); }} title="编辑周期任务内容" /> : null}
+    {editingSchedule ? <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3"><div className="mx-auto max-w-xl pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><div className="ui-card p-4"><h2 className="text-lg font-bold">编辑周期任务</h2><ScheduleRuleEditor fields={fields} onChange={setFields} /><button className="ui-button-secondary mt-3 w-full" onClick={() => setScheduleContentEditorOpen(true)} type="button"><Pencil className="h-4 w-4" />编辑完整任务内容</button><p className="mt-2 text-xs leading-5 text-slate-500">保存后会同步当前未完成任务，并用于以后自动发布的任务。</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { cleanupCancelledAssets(); setEditingSchedule(null); setContentDraft(null); }} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void saveSchedule()} type="button">保存全部修改</button></div></div></div></div> : null}
+    {editingTask && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} dueAt={editingDue} onCancel={() => { cleanupCancelledAssets(); setEditingTask(null); setContentDraft(null); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onRemoveReferenceImage={removeReferenceImage} onSave={() => void saveTaskContent()} onUploadReferenceImage={uploadReferenceImage} /> : null}
+    {editingSchedule && scheduleContentEditorOpen && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} onCancel={() => setScheduleContentEditorOpen(false)} onChange={setContentDraft} onRemoveReferenceImage={removeReferenceImage} onSave={() => { const issue = validateTaskContent(contentDraft); if (issue) setMessage(issue); else setScheduleContentEditorOpen(false); }} onUploadReferenceImage={uploadReferenceImage} title="编辑周期任务完整内容" /> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title="操作提示" tone={message?.includes('失败') || message?.includes('必须') || message?.includes('请选择') ? 'warning' : 'success'} />
   </PageShell>;
 }

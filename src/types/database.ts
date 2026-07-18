@@ -619,6 +619,12 @@ export type Database = {
         Update: { approved_hourly_rate?: number | null; hours?: number; overtime_date?: string; profile_id?: string; reason?: string; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; status?: 'pending' | 'approved' | 'rejected' | 'cancelled'; store_id?: string; updated_at?: string };
         Relationships: [];
       };
+      payroll_payslips: {
+        Row: { confirmed_at: string | null; created_at: string; estimate_snapshot: Json; id: string; issue_source: 'scheduled' | 'admin'; issued_at: string; issued_by: string | null; payroll_month: string; profile_id: string; status: 'issued' | 'confirmed'; store_id: string | null; updated_at: string };
+        Insert: { confirmed_at?: string | null; created_at?: string; estimate_snapshot: Json; id?: string; issue_source: 'scheduled' | 'admin'; issued_at?: string; issued_by?: string | null; payroll_month: string; profile_id: string; status?: 'issued' | 'confirmed'; store_id?: string | null; updated_at?: string };
+        Update: { confirmed_at?: string | null; estimate_snapshot?: Json; id?: string; issue_source?: 'scheduled' | 'admin'; issued_at?: string; issued_by?: string | null; payroll_month?: string; profile_id?: string; status?: 'issued' | 'confirmed'; store_id?: string | null; updated_at?: string };
+        Relationships: [];
+      };
       payroll_penalty_assets: {
         Row: { bucket: 'payroll-evidence'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
         Insert: { bucket?: 'payroll-evidence'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
@@ -918,6 +924,8 @@ export type Database = {
     Functions: {
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
       complete_attendance_missing_punch_todo: { Args: { p_todo_id: string }; Returns: Json };
+      confirm_my_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
+      admin_issue_payroll_payslips: { Args: { p_payroll_month: string; p_profile_ids?: string[] | null }; Returns: Json };
       admin_payroll_estimates: { Args: { p_as_of?: string; p_search?: string; p_store_id?: string | null }; Returns: Json };
       admin_create_payroll_penalty: { Args: { p_fields: Json }; Returns: Json };
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };

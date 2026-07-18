@@ -1,4 +1,4 @@
-import { Banknote, Camera, Clock3, ClipboardPen, RefreshCw, Search, Settings2, ShieldCheck, X } from 'lucide-react';
+import { Banknote, Camera, Clock3, ClipboardPen, FileText, RefreshCw, Search, Settings2, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -15,17 +15,17 @@ import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
   addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
-  loadPayrollAdminSetup, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate,
+  issuePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate,
   savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
   savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
 
-type Tab = 'overview' | 'employees' | 'performance' | 'revenue' | 'penalties' | 'overtime' | 'visibility';
+type Tab = 'overview' | 'payslips' | 'employees' | 'performance' | 'revenue' | 'penalties' | 'overtime' | 'visibility';
 type Feedback = { title: string; message: string; tone: ActionFeedbackTone };
 type Setup = Awaited<ReturnType<typeof loadPayrollAdminSetup>>;
 const tabs: { key: Tab; label: string }[] = [
-  { key: 'overview', label: '实时工资' }, { key: 'employees', label: '员工参数' },
+  { key: 'overview', label: '实时工资' }, { key: 'payslips', label: '工资单' }, { key: 'employees', label: '员工参数' },
   { key: 'performance', label: '绩效规则' }, { key: 'revenue', label: '营业收入' },
   { key: 'penalties', label: '处罚' }, { key: 'overtime', label: '加班' }, { key: 'visibility', label: '查看期限' },
 ];
@@ -38,8 +38,9 @@ export function AdminPayrollPage() {
   const tab = (tabs.some((item) => item.key === params.get('tab')) ? params.get('tab') : 'overview') as Tab;
   const changeTab = (nextTab: Tab) => { const next = new URLSearchParams(params); next.set('tab', nextTab); next.delete('employee'); next.delete('profile'); setParams(next); };
   return <PageShell eyebrow="门店运营系统 · 管理员" title="实时薪资" backTo="/app/workbench" contentGapClassName="gap-3">
-    <nav className="ui-card grid grid-cols-3 gap-1 p-1.5 sm:grid-cols-7" aria-label="实时薪资功能">{tabs.map((item) => <button className={`min-h-10 rounded-lg px-1 text-[11px] font-bold ${tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600'}`} key={item.key} onClick={() => changeTab(item.key)} type="button">{item.label}</button>)}</nav>
+    <nav className="ui-card grid grid-cols-4 gap-1 p-1.5 sm:grid-cols-8" aria-label="实时薪资功能">{tabs.map((item) => <button className={`min-h-10 rounded-lg px-1 text-[11px] font-bold ${tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600'}`} key={item.key} onClick={() => changeTab(item.key)} type="button">{item.label}</button>)}</nav>
     {tab === 'overview' ? <PayrollOverview /> : null}
+    {tab === 'payslips' ? <PayrollPayslipManager /> : null}
     {tab === 'employees' ? <EmployeeRules /> : null}
     {tab === 'performance' ? <PerformanceRules /> : null}
     {tab === 'revenue' ? <RevenueManager /> : null}
@@ -68,6 +69,56 @@ function PayrollVisibilityManager() {
     finally { setBusy(false); }
   };
   return <><SectionCard><SectionHeader icon={Settings2} title="员工历史工资查看期限" description="当前月份始终可查看；历史月份只在设定期限内开放。" /><div className="mt-4 grid grid-cols-2 gap-2"><label className="text-sm font-semibold">可查看前几个月<input className="ui-input mt-1" max="24" min="0" onChange={(event) => setHistoryMonths(event.target.value)} type="number" value={historyMonths} /></label><label className="text-sm font-semibold">每月开放至几日<input className="ui-input mt-1" max="31" min="1" onChange={(event) => setUntilDay(event.target.value)} type="number" value={untilDay} /></label></div><p className="mt-3 text-xs leading-5 text-slate-500">填写 0 个月可关闭历史工资查看。例如“3 个月、10 日”表示员工每月 10 日前可以查看前 3 个月的预估工资及明细。</p><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">保存查看期限</button></SectionCard><ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} /></>;
+}
+
+function PayrollPayslipManager() {
+  const [month, setMonth] = useState(todayInChina().slice(0, 7));
+  const [scope, setScope] = useState<'all' | 'single'>('all');
+  const [profileId, setProfileId] = useState('');
+  const [profiles, setProfiles] = useState<Awaited<ReturnType<typeof loadPayrollProfiles>>>([]);
+  const [items, setItems] = useState<Awaited<ReturnType<typeof loadAdminPayrollPayslips>>>([]);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    setStatus('loading');
+    try {
+      const [nextProfiles, nextItems] = await Promise.all([loadPayrollProfiles(supabase), loadAdminPayrollPayslips(supabase, month)]);
+      setProfiles(nextProfiles); setProfileId((value) => value || nextProfiles[0]?.id || ''); setItems(nextItems); setStatus('ready');
+    } catch { setStatus('error'); }
+  }, [month]);
+  useEffect(() => { void load(); }, [load]);
+  const issue = async () => {
+    if (!supabase || (scope === 'single' && !profileId)) return;
+    setConfirmOpen(false); setBusy(true);
+    try {
+      const result = await issuePayrollPayslips(supabase, month, scope === 'single' ? [profileId] : undefined);
+      const parts = [`新发放 ${result.issuedCount} 份`];
+      if (result.refreshedCount) parts.push(`更新未确认工资单 ${result.refreshedCount} 份`);
+      if (result.skippedConfirmedCount) parts.push(`已确认并跳过 ${result.skippedConfirmedCount} 份`);
+      setFeedback({ title: '工资单发放完成', message: `${parts.join('，')}。员工待办与通知已同步生成。`, tone: 'success' });
+      await load();
+    } catch (error) { setFeedback({ title: '工资单发放失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); }
+    finally { setBusy(false); }
+  };
+  return <>
+    <SectionCard><SectionHeader icon={FileText} title="手动发放工资单" description="每月 1 日系统会自动发放上月工资单；管理员也可在任何时间手动发放本月或历史月份。" />
+      <div className="mt-3 grid grid-cols-2 gap-2"><MonthPicker label="工资月份" maxMonth={todayInChina().slice(0, 7)} onChange={setMonth} value={month} /><label className="text-sm font-semibold">发放范围<select className="ui-input mt-1" onChange={(event) => setScope(event.target.value as 'all' | 'single')} value={scope}><option value="all">全部员工和店长</option><option value="single">指定一人</option></select></label></div>
+      {scope === 'single' ? <label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollRoleLabel[profile.role]}</option>)}</select></label> : null}
+      <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-xs leading-5 text-brand-800">工资单会保存发放当时的薪资快照，并在员工“我的薪资 → 工资单”和待办中出现。已确认工资单不会被重复覆盖。</p>
+      <button className="ui-button-primary mt-3 w-full" disabled={busy || !profiles.length} onClick={() => setConfirmOpen(true)} type="button">{busy ? '正在发放' : `发放 ${month.slice(0,4)}年${Number(month.slice(5,7))}月工资单`}</button>
+    </SectionCard>
+    <SectionCard><SectionHeader title={`${month.slice(0,4)}年${Number(month.slice(5,7))}月发放记录`} description={`已发放 ${items.length} 份，其中待确认 ${items.filter((item) => item.status === 'issued').length} 份。`} />
+      {status === 'loading' ? <LoadingState label="正在加载发放记录" /> : null}
+      {status === 'error' ? <ErrorState message="暂时无法加载发放记录。" onRetry={() => void load()} /> : null}
+      {status === 'ready' && !items.length ? <EmptyState title="该月份尚未发放工资单" /> : null}
+      {status === 'ready' ? <div className="mt-3 space-y-2">{items.map((item) => { const profile = profiles.find((entry) => entry.id === item.profile_id); return <article className="rounded-lg bg-slate-50 p-3" key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{profile?.display_name ?? item.estimate.displayName}</b><p className="mt-1 text-xs text-slate-500">{item.issue_source === 'scheduled' ? '每月自动发放' : '管理员手动发放'} · {new Date(item.issued_at).toLocaleString('zh-CN')}</p></div><StatusBadge tone={item.status === 'confirmed' ? 'success' : 'warning'}>{item.status === 'confirmed' ? '已确认' : '待确认'}</StatusBadge></div></article>; })}</div> : null}
+    </SectionCard>
+    <ConfirmDialog confirmLabel="确认发放" onCancel={() => setConfirmOpen(false)} onConfirm={() => void issue()} open={confirmOpen} title="发放工资单"><p>将为{scope === 'all' ? '全部员工和店长' : profiles.find((profile) => profile.id === profileId)?.display_name ?? '所选员工'}发放 {month.slice(0,4)}年{Number(month.slice(5,7))}月工资单，并生成确认待办。</p></ConfirmDialog>
+    <ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} />
+  </>;
 }
 
 function PayrollOverview() {

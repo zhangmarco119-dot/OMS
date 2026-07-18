@@ -10,7 +10,7 @@ function AmountRow({ label, note, value }: { label: string; note: string; value:
   return <div className="flex items-start justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0"><div><b className="text-sm text-slate-800">{label}</b><p className="mt-0.5 text-xs leading-4 text-slate-500">{note}</p></div><span className="shrink-0 text-sm font-bold tabular-nums text-slate-900">{formatMoney(value)}</span></div>;
 }
 
-export function PayrollEstimateView({ estimate, onResolveIssue }: { estimate: PayrollEstimate; onResolveIssue?: (issue: string) => void }) {
+export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssue }: { estimate: PayrollEstimate; mode?: 'estimate' | 'payslip'; onResolveIssue?: (issue: string) => void }) {
   const payable = estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable;
   const performanceNote = estimate.performanceReady
     ? `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分`
@@ -22,8 +22,8 @@ export function PayrollEstimateView({ estimate, onResolveIssue }: { estimate: Pa
     : '';
   return <>
     <SectionCard className="border-brand-100 bg-gradient-to-br from-brand-700 to-emerald-800 text-white">
-      <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-emerald-100">截至 {estimate.asOf} 的预估工资</p><p className="mt-2 text-3xl font-bold tabular-nums">{formatMoney(payable)}</p></div><StatusBadge tone={estimate.dataComplete ? 'success' : 'warning'}>{estimate.dataComplete ? '数据完整' : '部分待更新'}</StatusBadge></div>
-      <p className="mt-3 text-xs leading-5 text-emerald-100">仅累计本月 1 日至所选日期的已产生金额，不预测月末工资；最终工资以管理员月末确认为准。</p>
+      <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-emerald-100">{mode === 'payslip' ? `截至 ${estimate.asOf} 的工资单金额` : `截至 ${estimate.asOf} 的预估工资`}</p><p className="mt-2 text-3xl font-bold tabular-nums">{formatMoney(payable)}</p></div><StatusBadge tone={estimate.dataComplete ? 'success' : 'warning'}>{estimate.dataComplete ? '数据完整' : '部分待更新'}</StatusBadge></div>
+      <p className="mt-3 text-xs leading-5 text-emerald-100">{mode === 'payslip' ? '以下内容为管理员发放时保存的工资快照，后续实时数据变化不会修改本工资单。' : '仅累计本月 1 日至所选日期的已产生金额，不预测月末工资；最终工资以管理员月末确认为准。'}</p>
     </SectionCard>
 
     {estimate.dataIssues.length ? <SectionCard className="border-amber-200 bg-amber-50 p-3.5"><div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div className="min-w-0 flex-1"><b className="text-sm text-amber-900">仍有数据待完善</b><div className="mt-2 space-y-1.5">{estimate.dataIssues.map((issue) => onResolveIssue ? <button className="flex min-h-10 w-full items-center justify-between rounded-lg border border-amber-200 bg-white px-3 text-left text-xs font-semibold text-amber-900" key={issue} onClick={() => onResolveIssue(issue)} type="button"><span>{issue}</span><span className="ml-2 shrink-0 text-brand-700">去更新</span></button> : <p className="text-xs leading-5 text-amber-800" key={issue}>• {issue}</p>)}</div></div></div></SectionCard> : null}

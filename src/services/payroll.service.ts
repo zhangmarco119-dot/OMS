@@ -10,6 +10,7 @@ type PerformanceRuleRow = Database['public']['Tables']['payroll_performance_rule
 type RevenueRow = Database['public']['Tables']['payroll_store_revenues']['Row'];
 type PenaltyRow = Database['public']['Tables']['payroll_penalties']['Row'];
 type OvertimeRequestRow = Database['public']['Tables']['payroll_overtime_requests']['Row'];
+export type PayrollPayslipRow = Database['public']['Tables']['payroll_payslips']['Row'];
 export type PosSalesIntegration = Database['public']['Tables']['pos_sales_integrations']['Row'];
 export type PosSalesSyncJob = Database['public']['Tables']['pos_sales_sync_jobs']['Row'];
 
@@ -82,6 +83,61 @@ export async function loadMyPayrollEstimate(client: Client, profileId: string, a
   const { data, error } = await client.rpc('get_payroll_estimate', { p_profile_id: profileId, p_as_of: asOf });
   if (error) throw new Error(error.message || '暂时无法计算预估工资。');
   return parsePayrollEstimate(data);
+}
+
+export interface PayrollPayslip extends Omit<PayrollPayslipRow, 'estimate_snapshot'> {
+  estimate: PayrollEstimate;
+}
+
+const parsePayslip = (row: PayrollPayslipRow): PayrollPayslip => ({
+  ...row,
+  estimate: parsePayrollEstimate(row.estimate_snapshot),
+});
+
+export async function loadMyPayrollPayslips(client: Client, profileId: string) {
+  const { data, error } = await client.from('payroll_payslips').select('*').eq('profile_id', profileId).order('payroll_month', { ascending: false });
+  if (error) throw new Error(error.message || '暂时无法加载工资单。');
+  return (data ?? []).map(parsePayslip);
+}
+
+export async function loadAdminPayrollPayslips(client: Client, month: string) {
+  const { data, error } = await client.from('payroll_payslips').select('*').eq('payroll_month', `${month.slice(0, 7)}-01`).order('issued_at', { ascending: false });
+  if (error) throw new Error(error.message || '暂时无法加载工资单发放记录。');
+  return (data ?? []).map(parsePayslip);
+}
+
+export async function loadPayrollProfiles(client: Client) {
+  const { data, error } = await client.from('profiles').select('*').in('role', ['staff','manager']).eq('is_active', true).is('deleted_at', null).order('display_name');
+  if (error) throw new Error(error.message || '暂时无法加载员工名单。');
+  return data ?? [];
+}
+
+export async function confirmPayrollPayslip(client: Client, id: string) {
+  const { data, error } = await client.rpc('confirm_my_payroll_payslip', { p_payslip_id: id });
+  if (error) throw new Error(error.message || '工资单暂时无法确认。');
+  return data;
+}
+
+export interface PayrollPayslipIssueResult {
+  issuedCount: number;
+  refreshedCount: number;
+  skippedConfirmedCount: number;
+  month: string;
+}
+
+export async function issuePayrollPayslips(client: Client, month: string, profileIds?: string[]): Promise<PayrollPayslipIssueResult> {
+  const { data, error } = await client.rpc('admin_issue_payroll_payslips', {
+    p_payroll_month: `${month.slice(0, 7)}-01`,
+    p_profile_ids: profileIds?.length ? profileIds : null,
+  });
+  if (error) throw new Error(error.message || '工资单发放失败。');
+  const row = objectAt(data);
+  return {
+    issuedCount: numberAt(row.issuedCount),
+    refreshedCount: numberAt(row.refreshedCount),
+    skippedConfirmedCount: numberAt(row.skippedConfirmedCount),
+    month: textAt(row.month, month),
+  };
 }
 
 export async function loadAdminPayrollEstimates(client: Client, options: { asOf: string; storeId?: string; search?: string }): Promise<AdminPayrollSummary> {

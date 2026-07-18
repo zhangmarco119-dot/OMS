@@ -13,7 +13,9 @@ vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: () => ({ profile: { id: 'profile-1' } }) }));
 vi.mock('../features/payroll/PayrollEstimateView', () => ({ PayrollEstimateView: () => <div>工资明细</div> }));
 vi.mock('../services/payroll.service', () => ({
+  confirmPayrollPayslip: vi.fn(),
   loadMyPayrollEstimate: mocks.loadEstimate,
+  loadMyPayrollPayslips: vi.fn().mockResolvedValue([]),
   loadPayrollVisibilitySettings: mocks.loadSettings,
 }));
 
@@ -28,5 +30,15 @@ describe('MyPayrollPage month picker', () => {
     fireEvent.click(screen.getByRole('button', { name: '6 月' }));
     await waitFor(() => expect(mocks.loadEstimate).toHaveBeenLastCalledWith(expect.anything(), 'profile-1', '2026-06-30'));
     expect(screen.getByRole('button', { name: /2026年06月/ })).toBeInTheDocument();
+  });
+
+  it('shows estimate and payslip pages under My Payroll', async () => {
+    mocks.loadSettings.mockResolvedValue({ historyAvailableUntilDay: 31, historyMonths: 1, historyOpenNow: true });
+    mocks.loadEstimate.mockResolvedValue({});
+    render(<MemoryRouter><MyPayrollPage /></MemoryRouter>);
+    await screen.findByText('工资明细');
+    expect(screen.getByRole('button', { name: '预估薪资' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '工资单' })).toBeInTheDocument();
+    expect(screen.queryByText(/日前.*查看前/)).not.toBeInTheDocument();
   });
 });

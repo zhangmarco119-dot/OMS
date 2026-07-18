@@ -50,7 +50,7 @@ describe('DashboardPage administrator payroll cost', () => {
       user: { email: 'admin@example.com' },
     } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(loadAdminOperationOverview).mockResolvedValue({ arrival_pending: 1, arrival_today: 2, inventory_completed_today: 3, inventory_pending: 0, v2_task_active: 4, v2_task_completed: 5 });
-    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0, overtime: 0, attendanceCorrections: 0 });
+    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0, overtime: 0, attendanceCorrections: 0, payrollPayslips: 0 });
     vi.mocked(loadAdminPayrollEstimates).mockResolvedValue({ items: [], employeeCount: 2, completeCount: 1, incompleteCount: 1, knownEstimatedTotal: 8037.48, completeEstimatedTotal: 3689.37 });
   });
 
@@ -84,7 +84,7 @@ describe('DashboardPage notification unread count', () => {
       notification('notification-3', '第三条通知'),
     ]);
     vi.mocked(loadV2Tasks).mockResolvedValue([]);
-    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0, overtime: 0, attendanceCorrections: 0 });
+    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0, overtime: 0, attendanceCorrections: 0, payrollPayslips: 0 });
     vi.mocked(markNotificationRead).mockReturnValue(new Promise(() => undefined));
   });
 

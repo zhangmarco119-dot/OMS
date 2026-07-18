@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, savePayrollVisibilitySettings, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
+import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, invokePospalMonthlySalesSync, invokePospalSalesSync, issuePayrollPayslips, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollRevenueInput, savePayrollVisibilitySettings, submitOvertimeRequest, updateOvertimeRequest } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -21,6 +21,16 @@ describe('payroll service', () => {
     const result = await loadAdminPayrollEstimates({ rpc } as never, { asOf: '2026-07-17', storeId: 's1', search: '李' });
     expect(rpc).toHaveBeenCalledWith('admin_payroll_estimates', { p_as_of: '2026-07-17', p_store_id: 's1', p_search: '李' });
     expect(result.knownEstimatedTotal).toBe(1800);
+  });
+
+  it('issues and confirms immutable monthly payslips through protected RPCs', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { issuedCount: 2, refreshedCount: 1, skippedConfirmedCount: 1, month: '2026-06-01' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'slip-1', status: 'confirmed' }, error: null });
+    await expect(issuePayrollPayslips({ rpc } as never, '2026-06')).resolves.toMatchObject({ issuedCount: 2, refreshedCount: 1, skippedConfirmedCount: 1 });
+    await confirmPayrollPayslip({ rpc } as never, 'slip-1');
+    expect(rpc).toHaveBeenNthCalledWith(1, 'admin_issue_payroll_payslips', { p_payroll_month: '2026-06-01', p_profile_ids: null });
+    expect(rpc).toHaveBeenNthCalledWith(2, 'confirm_my_payroll_payslip', { p_payslip_id: 'slip-1' });
   });
 
   it('loads and saves the employee historical-payroll viewing window', async () => {

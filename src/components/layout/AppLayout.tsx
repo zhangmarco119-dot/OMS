@@ -5,6 +5,8 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { loadTodoSummary } from '../../services/todo.service';
+import { HierarchicalBackGuard } from './HierarchicalBackGuard';
+import { RouteScrollReset } from './RouteScrollReset';
 
 const staffNavItems = [
   { to: '/app', label: '首页', icon: Home },
@@ -38,9 +40,9 @@ export function AppLayout() {
     : staffNavItems;
   const refreshTodoCount = useCallback(async () => {
     if (!supabase || !auth.profile) { setTodoCount(0); return; }
-    try { const summary = await loadTodoSummary(supabase, { isAdmin: auth.profile.role === 'admin', profileId: auth.profile.id, storeId: auth.store?.id }); setTodoCount(summary.count); }
+    try { const summary = await loadTodoSummary(supabase, { isAdmin: auth.profile.role === 'admin', isManager: auth.profile.role === 'manager', profileId: auth.profile.id, storeId: auth.store?.id, storeIds: auth.availableStores.map((store) => store.id) }); setTodoCount(summary.count); }
     catch { setTodoCount(0); }
-  }, [auth.profile, auth.store?.id]);
+  }, [auth.availableStores, auth.profile, auth.store?.id]);
   useEffect(() => { void refreshTodoCount(); }, [location.key, refreshTodoCount]);
   useEffect(() => {
     const onFocus = () => { void refreshTodoCount(); };
@@ -59,13 +61,17 @@ export function AppLayout() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'v2_tasks' }, () => void refreshTodoCount())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_feedback' }, () => void refreshTodoCount())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'v2_notice_recipients' }, () => void refreshTodoCount())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payroll_overtime_requests' }, () => void refreshTodoCount())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_missing_punch_todos' }, () => void refreshTodoCount())
       .subscribe();
     return () => { void client.removeChannel(channel); };
   }, [auth.profile, refreshTodoCount]);
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <main className="mx-auto min-h-screen w-full max-w-5xl pb-[calc(5.25rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-[100dvh] bg-canvas">
+      <RouteScrollReset />
+      <HierarchicalBackGuard />
+      <main className="app-content mx-auto w-full max-w-5xl">
         <Outlet />
       </main>
       <nav aria-label="主导航" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pt-1.5 shadow-[0_-6px_24px_rgba(15,23,42,0.06)] backdrop-blur">

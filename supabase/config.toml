@@ -1,6 +1,12 @@
 [functions.account-login]
 verify_jwt = false
 
+[functions.dingtalk-attendance]
+verify_jwt = false
+
+[functions.pospal-sales]
+verify_jwt = false
+
 [auth]
 site_url = "env(STOREHUB_AUTH_SITE_URL)"
 additional_redirect_urls = ["env(STOREHUB_AUTH_REDIRECT_URL)"]

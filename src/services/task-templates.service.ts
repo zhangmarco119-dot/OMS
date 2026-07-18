@@ -18,6 +18,7 @@ export interface TaskTemplateListItem extends TaskTemplateRow {
   storeIds: string[];
 }
 export interface SavedTaskTemplate { id: string; status: TaskTemplateRow['status']; }
+export type TaskCategoryRow = Database['public']['Tables']['v2_task_categories']['Row'];
 
 const throwIfError = (error: { message: string } | null) => {
   if (error) throw new Error(error.message);
@@ -35,6 +36,24 @@ export const loadTaskTemplates = async (client: Client): Promise<TaskTemplateLis
     storesByTemplate.set(assignment.template_id, [...(storesByTemplate.get(assignment.template_id) ?? []), assignment.store_id]);
   });
   return (templates.data ?? []).map((template) => ({ ...template, storeIds: storesByTemplate.get(template.id) ?? [] }));
+};
+
+export const loadTaskCategories = async (client: Client): Promise<TaskCategoryRow[]> => {
+  const { data, error } = await client.from('v2_task_categories').select('*').order('is_system', { ascending: false }).order('created_at');
+  throwIfError(error);
+  return data ?? [];
+};
+
+export const createTaskCategory = async (client: Client, label: string) => {
+  const { data, error } = await client.rpc('create_v2_task_category', { p_label: label });
+  throwIfError(error);
+  return data;
+};
+
+export const deleteTaskCategory = async (client: Client, code: string) => {
+  const { data, error } = await client.rpc('delete_v2_task_category', { p_code: code });
+  throwIfError(error);
+  return data;
 };
 
 const getReferenceImageUrl = async (client: Client, templateId: string, path: string | null) => {
@@ -93,12 +112,12 @@ export const loadTaskTemplateDraft = async (client: Client, template: TaskTempla
     allowOverdue: template.allow_overdue,
     category: template.category,
     description: template.description,
-    dueTime: template.due_time?.slice(0, 5) ?? '',
+    dueTime: '',
     groups: await groupsToDraft(client, groups.data ?? [], items.data ?? []),
     id: template.id,
     name: template.name,
-    recurrence: template.recurrence,
-    recurrenceDay: template.recurrence_day,
+    recurrence: 'none',
+    recurrenceDay: null,
     requiresReview: template.requires_review,
     storeIds: template.storeIds,
   };
@@ -167,10 +186,10 @@ export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft)
       allow_overdue: draft.allowOverdue,
       category: draft.category,
       description: draft.description,
-      due_time: draft.dueTime || null,
+      due_time: null,
       name: draft.name,
-      recurrence: draft.recurrence,
-      recurrence_day: draft.recurrenceDay,
+      recurrence: 'none',
+      recurrence_day: null,
       requires_review: draft.requiresReview,
     },
     p_groups: serializeGroups(draft.groups),

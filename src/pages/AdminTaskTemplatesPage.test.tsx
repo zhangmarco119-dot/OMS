@@ -6,6 +6,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { createEmptyTaskTemplate } from '../features/task-templates/templateForm';
 import {
   loadTaskTemplateDraft,
+  loadTaskCategories,
   loadTaskTemplates,
   retractTaskTemplate,
   saveTaskTemplate,
@@ -20,6 +21,7 @@ vi.mock('../services/task-templates.service', async (importOriginal) => {
   return {
     ...original,
     loadTaskTemplateDraft: vi.fn(),
+    loadTaskCategories: vi.fn(),
     loadTaskTemplates: vi.fn(),
     retractTaskTemplate: vi.fn(),
     saveTaskTemplate: vi.fn(),
@@ -36,6 +38,9 @@ describe('AdminTaskTemplatesPage reference images', () => {
       profile: { id: '00000000-0000-4000-8000-000000000002', role: 'admin' },
     } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(loadTaskTemplates).mockResolvedValue([]);
+    vi.mocked(loadTaskCategories).mockResolvedValue([
+      { code: 'weekly_clean', label: '周清', is_system: true, created_by: null, created_at: '2026-07-01T00:00:00Z' },
+    ]);
     vi.mocked(saveTaskTemplate).mockResolvedValue({ id: '00000000-0000-4000-8000-000000000003', status: 'draft' });
     vi.mocked(uploadTaskTemplateReferenceImage).mockResolvedValue({
       path: '00000000-0000-4000-8000-000000000003/item/reference.jpg',

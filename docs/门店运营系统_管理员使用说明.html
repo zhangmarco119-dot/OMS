@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <base href="about:srcdoc" />
+  <title>门店运营系统｜管理员使用说明</title>
+  <style>
+    :root{--brand:#167a57;--brand-dark:#0c5b40;--brand-soft:#eaf7f1;--ink:#17212b;--muted:#667085;--line:#dfe7e2;--paper:#fff;--canvas:#f4f7f5;--warn:#8b6200;--warn-bg:#fff7df;--danger:#b42318;--danger-bg:#fff0ee;--info:#175cd3;--info-bg:#eff7ff;--shadow:0 12px 30px rgba(20,55,41,.09)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--canvas);color:var(--ink);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;line-height:1.75}.page{max-width:1220px;margin:auto;padding:24px}.hero{position:relative;overflow:hidden;border-radius:28px;background:linear-gradient(135deg,#093e2e,#0f6c4b 55%,#2d9a70);color:#fff;padding:42px;box-shadow:var(--shadow)}.hero:after{content:"";position:absolute;width:390px;height:390px;border:1px solid rgba(255,255,255,.13);border-radius:50%;right:-130px;top:-180px}.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:32px;align-items:center}.eyebrow{font-size:13px;font-weight:900;letter-spacing:.12em;opacity:.82}.hero h1{font-size:clamp(34px,5vw,60px);line-height:1.15;margin:10px 0 14px}.hero p{margin:0;max-width:650px;font-size:17px;opacity:.92}.hero-tags{display:flex;flex-wrap:wrap;gap:9px;margin-top:22px}.hero-tags span{border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.09);padding:7px 12px;border-radius:999px;font-size:13px;font-weight:800}.dashboard{position:relative;z-index:1;background:#f5f8f6;border:7px solid #15352a;border-radius:22px;overflow:hidden;color:var(--ink);box-shadow:0 22px 50px rgba(0,0,0,.24)}.dash-top{background:#fff;padding:13px 15px;border-bottom:1px solid #e1e8e4}.dash-top b{display:block}.dash-top small{color:#68766f}.dash-body{padding:12px}.dash-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.dash-metrics div{background:#fff;border:1px solid #e2e9e5;border-radius:9px;padding:8px}.dash-metrics small{font-size:8px;color:#667085}.dash-metrics b{font-size:18px;display:block}.dash-entry{margin-top:8px;background:#fff;border:1px solid #e2e9e5;border-radius:9px;padding:10px;font-size:10px;font-weight:800}.dash-work{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}.dash-work div{height:48px;border-radius:9px;background:#147452;color:#fff;font-size:8px;text-align:center;padding-top:17px}.dash-nav{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #e2e9e5;padding:8px;text-align:center;font-size:8px;color:#59675f}.toolbar{position:sticky;top:0;z-index:20;margin:16px 0;background:rgba(244,247,245,.94);backdrop-filter:blur(12px);padding:10px 0}.toolbox{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:11px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 7px 20px rgba(20,55,41,.06)}.search{width:100%;min-height:44px;border:1px solid #cfd9d4;border-radius:11px;padding:0 14px;font:inherit;outline:none}.search:focus{border-color:var(--brand);box-shadow:0 0 0 3px #d9f2e6}.tool-btn{min-height:44px;border:0;border-radius:11px;padding:0 16px;background:var(--brand);color:#fff;font-weight:800;cursor:pointer}.tool-btn.secondary{background:#edf3f0;color:#234438}.search-note{grid-column:1/-1;margin:0 4px;color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px}.toc{position:sticky;top:92px;align-self:start;background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 7px 20px rgba(20,55,41,.05)}.toc b{display:block;margin-bottom:8px}.toc a{display:block;text-decoration:none;color:#4b5b54;font-size:13px;padding:6px 9px;border-radius:8px}.toc a:hover{background:var(--brand-soft);color:var(--brand-dark)}main{min-width:0}.manual-section{background:#fff;border:1px solid var(--line);border-radius:20px;padding:27px;margin-bottom:18px;box-shadow:0 7px 22px rgba(20,55,41,.05)}.manual-section.search-hidden{display:none}.section-kicker{color:var(--brand);font-size:12px;font-weight:900;letter-spacing:.1em}.manual-section h2{font-size:27px;line-height:1.35;margin:5px 0 8px}.manual-section h3{font-size:19px;margin:25px 0 8px}.manual-section h4{font-size:16px;margin:18px 0 6px}.lead{color:var(--muted);margin-top:0}.steps{counter-reset:step;display:grid;gap:11px;margin-top:14px}.step{counter-increment:step;display:grid;grid-template-columns:38px 1fr;gap:11px;align-items:start;border:1px solid var(--line);border-radius:14px;padding:13px;background:#fbfdfc}.step:before{content:counter(step);display:flex;width:34px;height:34px;align-items:center;justify-content:center;border-radius:11px;background:var(--brand);color:#fff;font-weight:900}.step b{display:block}.step p{margin:1px 0 0;color:#52615a;font-size:14px}.quick-grid,.card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.quick-card,.info-card{border:1px solid var(--line);border-radius:14px;padding:15px;background:#fbfdfc}.quick-card b,.info-card b{display:block;margin-bottom:4px}.icon{display:inline-flex;width:29px;height:29px;align-items:center;justify-content:center;border-radius:9px;background:var(--brand);color:#fff;margin-right:7px}.callout{border-radius:14px;padding:14px 16px;margin:14px 0;border-left:5px solid}.callout strong{display:block}.callout.tip{background:var(--brand-soft);border-color:var(--brand);color:#174c39}.callout.warn{background:var(--warn-bg);border-color:#eaaa08;color:#6c4a00}.callout.danger{background:var(--danger-bg);border-color:#e45a4f;color:#7a271a}.callout.info{background:var(--info-bg);border-color:#53a3ff;color:#184a8b}.visual{border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#f8fbf9,#edf5f1);padding:18px;margin:18px 0}.visual-title{font-size:12px;font-weight:900;color:var(--brand);letter-spacing:.08em;margin-bottom:12px}.flow{display:flex;gap:8px;align-items:center;overflow-x:auto;padding-bottom:5px}.flow-box{min-width:132px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px;text-align:center;font-weight:800;font-size:13px}.flow-box.em{background:var(--brand);color:#fff;border-color:var(--brand)}.arrow{font-size:22px;font-weight:900;color:var(--brand)}.ui-shot{max-width:690px;margin:auto;background:#f6f9f7;border:1px solid #cad8d1;border-radius:18px;padding:15px}.ui-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}.ui-title b{font-size:17px}.ui-card-demo{background:#fff;border:1px solid #e1e8e4;border-radius:13px;padding:13px;margin-top:9px}.label{font-size:11px;font-weight:900;color:var(--brand)}.pill{display:inline-block;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800;background:#e8f7ef;color:#116341}.field{height:40px;border:1px solid #ccd7d1;background:#fff;border-radius:9px;margin-top:6px;padding:8px;color:#6b7771;font-size:13px}.button-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.fake-btn{border-radius:9px;padding:9px;text-align:center;font-size:12px;font-weight:900;background:#fff;border:1px solid #ccd7d1}.fake-btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}.fake-btn.disabled{background:#eef1ef;color:#a0aaa5}.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px}.metric small{color:var(--muted)}.metric b{display:block;font-size:24px;margin-top:2px}table{width:100%;border-collapse:collapse;margin:13px 0;font-size:14px}th,td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}th{background:#edf5f1}.status{display:inline-block;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:800}.status.green{background:#e8f7ef;color:#116341}.status.yellow{background:#fff3d6;color:#7b5500}.status.red{background:#ffe8e5;color:#9f2319}.status.blue{background:#eaf3ff;color:#175ca7}.checklist{list-style:none;padding:0}.checklist li{position:relative;padding:7px 0 7px 30px}.checklist li:before{content:"✓";position:absolute;left:0;top:7px;width:21px;height:21px;border-radius:7px;background:var(--brand-soft);color:var(--brand);font-weight:900;text-align:center;line-height:21px}details{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:9px 0;background:#fbfdfc}summary{cursor:pointer;font-weight:800}details p{margin:8px 0 0;color:#52615a}.back-top{position:fixed;right:18px;bottom:18px;width:46px;height:46px;border:0;border-radius:50%;background:var(--brand);color:#fff;font-weight:900;box-shadow:var(--shadow);cursor:pointer}.footer{text-align:center;color:var(--muted);padding:24px 10px 45px}.no-result{display:none;background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px;text-align:center}.no-result.show{display:block}
+    @media(max-width:850px){.page{padding:12px}.hero{padding:27px 20px}.hero-grid{grid-template-columns:1fr}.dashboard{display:none}.layout{grid-template-columns:1fr}.toc{position:static;display:grid;grid-template-columns:repeat(2,1fr)}.toc b{grid-column:1/-1}.toolbox{grid-template-columns:1fr auto}.tool-btn.secondary{display:none}.search-note{grid-column:1/-1}.manual-section{padding:20px}.quick-grid,.card-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,1fr)}.flow{align-items:stretch}.arrow{align-self:center}.button-row{grid-template-columns:1fr}}
+    @media print{body{background:#fff}.page{max-width:none;padding:0}.hero{box-shadow:none;border-radius:0}.toolbar,.toc,.back-top{display:none}.layout{display:block}.manual-section{box-shadow:none;break-inside:avoid}.manual-section.search-hidden{display:block}.visual{break-inside:avoid}.footer{padding-bottom:0}}
+  </style>
+  <style>
+    html{scroll-behavior:auto}
+    body{line-height:1.62}.page{padding:18px}.hero{padding:32px;border-radius:22px}.hero-grid{gap:24px}.hero h1{font-size:clamp(30px,4.5vw,50px);margin:7px 0 10px}.hero p{font-size:16px}.hero-tags{gap:7px;margin-top:16px}.hero-tags span{padding:5px 10px}
+    .toolbar{position:relative;top:auto;margin:12px 0;padding:0;background:transparent;backdrop-filter:none}
+    .toolbox{display:flex;max-width:720px;flex-wrap:wrap;align-items:center;gap:8px;padding:8px;border-radius:14px}
+    .search{width:min(360px,100%);min-height:40px;flex:1 1 220px;padding:0 12px}
+    .tool-btn{min-height:40px;padding:0 14px}.search-note{flex-basis:100%;margin:0 4px;font-size:11px}.layout{gap:14px}.toc{top:16px;padding:13px;border-radius:15px}.toc b{margin-bottom:5px}.toc a{padding:5px 8px}.manual-section{padding:20px;margin-bottom:12px;border-radius:16px}.manual-section h2{font-size:23px;margin:3px 0 6px}.manual-section h3{font-size:17px;margin:18px 0 6px}.manual-section h4{font-size:15px;margin:14px 0 5px}.lead{margin-bottom:10px}.quick-grid,.card-grid{gap:9px}.quick-card,.info-card{padding:12px}.steps{gap:8px;margin-top:10px}.step{padding:10px;gap:9px}.callout{padding:11px 13px;margin:10px 0}.visual{padding:14px;margin:12px 0;border-radius:15px}.visual-title{margin-bottom:8px}.ui-shot{padding:12px}.ui-card-demo{padding:11px;margin-top:7px}.metric{padding:9px}.metric b{font-size:21px}table{margin:9px 0}th,td{padding:8px}details{padding:9px 12px;margin:7px 0}.checklist li{padding-top:5px;padding-bottom:5px}.footer{padding:18px 10px 34px}
+    @media(max-width:850px){.page{padding:8px}.hero{padding:20px 16px;border-radius:18px}.hero h1{font-size:30px}.hero-tags{margin-top:13px}.toolbox{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:6px}.search{min-height:36px;font-size:14px}.tool-btn{min-height:36px;padding:0 10px}.tool-btn.secondary,.search-note{display:none}.toolbar{margin:8px 0}.layout{gap:8px}.toc{padding:10px}.toc a{font-size:12px;padding:5px 7px}.manual-section{padding:15px;margin-bottom:8px;border-radius:14px}.manual-section h2{font-size:21px}.manual-section h3{margin-top:15px}.quick-card,.info-card{padding:10px}.visual{padding:11px;margin:9px 0}.step{grid-template-columns:34px 1fr}.step:before{width:30px;height:30px;border-radius:9px}.back-top{right:12px;bottom:12px;width:42px;height:42px}}
+  </style>
+  <script>
+    document.addEventListener('click',event=>{
+      const anchor=event.target.closest?.('a[href^="#"]');
+      if(!anchor)return;
+      const target=document.getElementById(anchor.getAttribute('href').slice(1));
+      if(!target)return;
+      event.preventDefault();
+      target.scrollIntoView({behavior:'auto',block:'start'});
+    });
+  </script>
+</head>
+<body>
+  <div class="page" id="top">
+    <header class="hero">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow">门店运营系统 · 零基础使用手册</div>
+          <h1>管理员<br />使用说明</h1>
+          <p>从运营概览、任务和内容发布，到货品、账号、到货、审核和数据查询，本手册用实际业务语言说明每一步应该怎么做。</p>
+          <div class="hero-tags"><span>管理员日常工作</span><span>完整发布流程</span><span>风险操作提醒</span><span>可搜索与打印</span></div>
+        </div>
+        <div class="dashboard" aria-label="管理员运营概览示意图">
+          <div class="dash-top"><b>运营概览</b><small>优先查看异常和待处理事项</small></div>
+          <div class="dash-body"><div class="dash-metrics"><div><small>待处理</small><b>3</b></div><div><small>到货待看</small><b>2</b></div><div><small>今日盘点</small><b>5</b></div><div><small>执行中任务</small><b>8</b></div></div><div class="dash-entry">查看运营统计　›</div><div class="dash-work"><div>任务管理</div><div>到货中心</div><div>公告管理</div><div>SOP 管理</div><div>货品管理</div><div>账号管理</div><div>运营统计</div><div>点货订货记录</div></div></div>
+          <div class="dash-nav"><span>首页</span><span>工作台</span><span>待办</span><span>我的</span></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="toolbar"><div class="toolbox"><input class="search" id="guideSearch" type="search" placeholder="输入关键词，例如：发布任务、周期、归档、批量导入、修改账号" aria-label="检索管理员使用说明" /><button class="tool-btn" id="searchButton" type="button">查找</button><button class="tool-btn secondary" onclick="window.print()" type="button">打印手册</button><p class="search-note" id="searchNote">输入关键词可筛选相关章节；清空输入框可恢复全部内容。</p></div></div>
+
+    <div class="layout">
+      <nav class="toc" aria-label="目录">
+        <b>快速目录</b>
+        <a href="#start">1. 管理员从哪里开始</a>
+        <a href="#overview">2. 首页、待办与统计</a>
+        <a href="#tasks">3. 任务管理全流程</a>
+        <a href="#templates">4. 创建任务模板</a>
+        <a href="#publish-task">5. 发布单次/周期任务</a>
+        <a href="#review">6. 审核员工任务</a>
+        <a href="#arrivals">7. 到货中心</a>
+        <a href="#products">8. 货品管理</a>
+        <a href="#accounts">9. 账号与权限</a>
+        <a href="#notices">10. 公告管理</a>
+        <a href="#sops">11. SOP 管理</a>
+        <a href="#batch-sop">12. SOP 批量操作</a>
+        <a href="#attendance-payroll">13. 考勤与实时薪资</a>
+        <a href="#history">14. 记录与数据统计</a>
+        <a href="#archive">15. 发布、撤回、归档</a>
+        <a href="#faq">16. 常见问题与检查表</a>
+      </nav>
+
+      <main>
+        <section class="manual-section" id="start" data-keywords="登录 管理员 首页 工作台 待办 我的 菜单 退出 关于系统 版本">
+          <div class="section-kicker">01 · 管理员入口</div><h2>登录后从哪里开始</h2>
+          <p class="lead">管理员使用底部“首页、工作台、待办、我的”四个主菜单。日常管理功能都集中在工作台。</p>
+          <div class="quick-grid">
+            <div class="quick-card"><b><span class="icon">⌂</span>首页</b>查看运营概览、待处理数量、到货待看、盘点和任务概况。</div>
+            <div class="quick-card"><b><span class="icon">▦</span>工作台</b>进入任务、到货、公告、SOP、货品、账号、统计和记录。</div>
+            <div class="quick-card"><b><span class="icon">✓</span>待办</b>处理待审核任务和待处理的货品申请。</div>
+            <div class="quick-card"><b><span class="icon">♙</span>我的</b>查看账号信息、修改密码、查看“关于系统”和退出登录。</div>
+          </div>
+          <div class="callout tip"><strong>推荐每天的查看顺序</strong>首页看异常 → 待办处理审核/申请 → 工作台进行内容和资料管理 → 最后查看运营统计。</div>
+          <div class="callout warn"><strong>管理员不执行门店点货和订货</strong>管理员负责查看记录、维护资料和审核。实际点货、订货、到货和任务执行，请使用员工或店长账号。</div>
+        </section>
+
+        <section class="manual-section" id="overview" data-keywords="运营概览 待处理 到货待看 今日盘点 执行中任务 运营统计 待办 货品申请 审核 日期 区间">
+          <div class="section-kicker">02 · 先处理重要事项</div><h2>首页、待办与运营统计</h2>
+          <div class="visual"><div class="visual-title">首页四项关键指标</div><div class="metric-grid"><div class="metric"><small>待处理</small><b>3</b>货品申请与任务审核</div><div class="metric"><small>到货待看</small><b>2</b>尚未查看的到货</div><div class="metric"><small>今日盘点</small><b>5</b>当天已提交盘点</div><div class="metric"><small>执行中任务</small><b>8</b>正在办理的任务</div></div></div>
+          <h3>管理员待办里会出现什么</h3>
+          <ul class="checklist"><li>员工或店长已经提交、等待审核的任务。</li><li>员工或店长提交的货品新增、修订或删除申请。</li><li>完成处理后，待办角标会同步减少。</li></ul>
+          <h3>运营统计怎么查</h3>
+          <ol><li>从首页点击“查看运营统计”，或从工作台进入“运营统计”。</li><li>选择“某一天”或“时间区间”。</li><li>查看到货、任务完成情况、问题整改和点货订货摘要。</li><li>点击统计卡片可进入对应功能继续查看详情。</li></ol>
+          <div class="callout info"><strong>日期范围规则</strong>开始日期不能晚于结束日期。统计卡片会全部按照当前选择的日期范围重新汇总。</div>
+        </section>
+
+        <section class="manual-section" id="tasks" data-keywords="任务管理 模板 发布任务 员工执行 审核 周期 任务清单 撤回">
+          <div class="section-kicker">03 · 最重要的管理流程</div><h2>任务管理全流程</h2>
+          <p class="lead">任务模板只是“做事标准”，不会直接出现在员工账号；只有从已发布模板创建并发布任务后，员工和店长才会看到。</p>
+          <div class="visual"><div class="visual-title">正确的任务使用顺序</div><div class="flow"><div class="flow-box">① 创建模板草稿</div><span class="arrow">→</span><div class="flow-box">② 发布模板版本</div><span class="arrow">→</span><div class="flow-box em">③ 发布任务</div><span class="arrow">→</span><div class="flow-box">④ 员工执行</div><span class="arrow">→</span><div class="flow-box">⑤ 管理员审核</div><span class="arrow">→</span><div class="flow-box">⑥ 通过或整改</div></div></div>
+          <div class="callout danger"><strong>请不要混淆“发布模板”和“发布任务”</strong>发布模板只是让它可以被选来创建任务；发布任务才会真正推送给员工和店长。</div>
+          <h3>任务管理页面</h3>
+          <p>顶部有两个入口：“管理任务模板”和“任务发布”。下面显示周期任务计划和任务清单。点击任务清单中的任务可查看状态、员工提交内容和审核页面。</p>
+        </section>
+
+        <section class="manual-section" id="templates" data-keywords="任务模板 新建模板 分组 项目 编号 字段类型 说明 短文本 长文本 整数 小数 是 否 单选 多选 图片 多图片 确认 评分 参考图片 必填 图片要求 保存草稿 保存并发布 归档">
+          <div class="section-kicker">04 · 先定义做事标准</div><h2>创建任务模板</h2>
+          <div class="steps">
+            <div class="step"><div><b>进入“工作台 → 任务管理 → 管理任务模板”</b><p>点击“新建模板”。</p></div></div>
+            <div class="step"><div><b>填写模板基本信息</b><p>填写模板名称、分类、说明、默认验收周期和时间，选择是否需要审核、是否允许逾期补交以及适用门店。</p></div></div>
+            <div class="step"><div><b>建立分组</b><p>例如“前厅”“后厨”“闭店检查”。分组编号会自动生成。</p></div></div>
+            <div class="step"><div><b>在分组中添加项目</b><p>填写项目名称、字段类型、标准说明、图片要求和是否必填。项目编号会按分组和顺序自动生成，如 1.1、1.2、2.1。</p></div></div>
+            <div class="step"><div><b>添加参考图片</b><p>可选多张。上传后应立即出现缩略图；点击可放大，点“×”可删除。参考图会显示给员工和管理员审核人员。</p></div></div>
+            <div class="step"><div><b>保存草稿或保存并发布</b><p>“保存草稿”可继续编辑；“保存并发布”会生成可用于发布任务的新版本。</p></div></div>
+          </div>
+          <h3>字段类型怎么选</h3>
+          <table><thead><tr><th>字段类型</th><th>员工看到的填写方式</th><th>适合场景</th></tr></thead><tbody>
+            <tr><td>说明</td><td>只显示操作说明</td><td>只要求员工阅读并按说明执行</td></tr>
+            <tr><td>短文本</td><td>单行输入</td><td>姓名、位置、简短结果</td></tr>
+            <tr><td>长文本</td><td>多行输入</td><td>问题描述、详细说明</td></tr>
+            <tr><td>整数</td><td>只能填写整数</td><td>数量、次数</td></tr>
+            <tr><td>小数</td><td>可填写小数</td><td>重量、温度、测量值</td></tr>
+            <tr><td>是/否</td><td>选择是或否</td><td>是否合格、是否完成</td></tr>
+            <tr><td>单选</td><td>多个选项中选一个</td><td>状态等级、固定结论</td></tr>
+            <tr><td>多选</td><td>可同时选择多个</td><td>问题类型、完成项目</td></tr>
+            <tr><td>图片</td><td>上传图片</td><td>单项拍照凭证</td></tr>
+            <tr><td>多图片</td><td>连续上传多张</td><td>多角度、过程和结果照片</td></tr>
+            <tr><td>确认勾选</td><td>勾选确认</td><td>确认已完成某项标准动作</td></tr>
+            <tr><td>评分</td><td>选择评分</td><td>卫生、陈列、服务评分</td></tr>
+          </tbody></table>
+          <div class="callout tip"><strong>“必填”和“图片要求”可以同时使用</strong>例如项目字段为“确认勾选”，同时设置“图片至少一张”，员工必须完成勾选并上传照片才能提交。</div>
+          <div class="callout info"><strong>模板默认周期只用于预填</strong>模板里的每周、每月截止规则不会自动推送任务。真正创建单次或周期任务，要在“任务发布”页面再次明确选择。</div>
+        </section>
+
+        <section class="manual-section" id="publish-task" data-keywords="任务发布 已发布模板 单次任务 周期任务 每几天 每周 每月 首次截止时间 门店 员工 店长 暂停 继续 自动推送">
+          <div class="section-kicker">05 · 真正推送给门店</div><h2>发布单次任务或周期任务</h2>
+          <div class="steps">
+            <div class="step"><div><b>进入“任务管理 → 任务发布”</b><p>只能选择已经发布的模板。</p></div></div>
+            <div class="step"><div><b>选择模板和目标门店</b><p>任务会发给所选门店内当前有效的员工和店长。</p></div></div>
+            <div class="step"><div><b>设置首次任务截止时间</b><p>必须是未来时间。模板默认时间只是建议，最终以这里设置为准。</p></div></div>
+            <div class="step"><div><b>选择创建方式</b><p>临时事项选“单次任务”；需要长期自动循环的事项选“周期任务”。</p></div></div>
+            <div class="step"><div><b>确认发布</b><p>单次任务立即推送；周期任务会创建首个任务，并在以后自动推送。</p></div></div>
+          </div>
+          <h3>三种周期规则</h3>
+          <table><thead><tr><th>规则</th><th>如何设置</th><th>示例</th></tr></thead><tbody><tr><td>每隔几天</td><td>填写 1～31 天</td><td>每 3 天完成一次设备检查</td></tr><tr><td>每周</td><td>勾选一个或多个星期几</td><td>每周一、周四截止</td></tr><tr><td>每月</td><td>填写每月 1～31 日</td><td>每月 25 日前完成月清</td></tr></tbody></table>
+          <div class="callout warn"><strong>首次截止时间要与周期规则一致</strong>例如选择“每周一”，首次截止日期也必须是周一；选择“每月 15 日”，首次截止日也应为当月 15 日。</div>
+          <h3>暂停与继续周期任务</h3>
+          <ul><li>点击“暂停”：以后不再自动推送，当前未完成周期待办会同步移除。</li><li>点击“继续”：从下一个未来周期恢复，暂停期间的历史周期不会补发。</li></ul>
+        </section>
+
+        <section class="manual-section" id="review" data-keywords="审核任务 逐项审核 驳回 勾选 所选项驳回 一键全部通过 整改原因 提交审核结果 重新提交 撤回任务 参考图片 员工图片">
+          <div class="section-kicker">06 · 验收员工提交</div><h2>审核任务完成情况</h2>
+          <p>从“待办”或任务清单进入待审核任务。页面会同时显示标准说明、参考图片、员工答案和员工上传的照片。</p>
+          <div class="steps">
+            <div class="step"><div><b>从上到下查看全部项目</b><p>点击图片可放大。核对员工答案是否符合模板标准和参考图。</p></div></div>
+            <div class="step"><div><b>勾选需要驳回的项目</b><p>可以直接点击整个项目卡片进行选择，不必准确点小勾选框。</p></div></div>
+            <div class="step"><div><b>点击“所选项驳回”</b><p>被选项目设为驳回；没有选中的项目会自动视为通过。</p></div></div>
+            <div class="step"><div><b>填写整改原因</b><p>只要有驳回项目，就必须写清楚具体问题和修改要求。</p></div></div>
+            <div class="step"><div><b>点击“提交审核结果”</b><p>确认通过和驳回数量。全部合格时可直接点“一键全部通过”，再提交结果。</p></div></div>
+          </div>
+          <div class="ui-shot" aria-label="管理员任务审核界面示意图"><div class="ui-title"><b>闭店清洁检查</b><span class="pill">待审核</span></div><div class="ui-card-demo"><b>☐ 1.1 操作台清洁</b><p style="font-size:13px;color:#667085">员工已上传 2 张图片 · 点击卡片可勾选驳回</p></div><div class="ui-card-demo"><b>☑ 1.2 冰箱温度记录</b><p style="font-size:13px;color:#b42318">计划驳回：温度照片不清晰</p></div><div class="button-row"><div class="fake-btn">所选项驳回</div><div class="fake-btn primary">一键全部通过</div><div class="fake-btn primary">提交审核结果</div></div></div>
+          <div class="callout danger"><strong>没有勾选项目或没有填写整改原因</strong>系统会弹窗提醒。不要以为按钮没反应，按弹窗列出的内容补齐即可。</div>
+          <h3>员工重新提交后怎么审</h3>
+          <p>页面会标明“整改内容已重新提交”。只需复审标有“重新提交”的项目；上轮已经通过的项目仍会显示，但不需要重复审核。</p>
+          <h3>撤回任务</h3>
+          <p>尚未最终通过或取消的任务可点击“撤回任务”。确认后，员工和店长无法继续执行，该任务也会从待办同步移除。</p>
+        </section>
+
+        <section class="manual-section" id="arrivals" data-keywords="到货中心 未读到货 到货记录 汇总 日期 时间区间 明细 产品汇总 查看详情 图片 作废 导出">
+          <div class="section-kicker">07 · 验收门店到货</div><h2>到货中心</h2>
+          <div class="quick-grid"><div class="quick-card"><b>未读到货消息</b>点击后进入详情并标记已查看。</div><div class="quick-card"><b>到货记录</b>按门店、状态等条件查找具体上报。</div><div class="quick-card"><b>到货中心汇总</b>选择某日或时间区间，查看明细与产品汇总。</div><div class="quick-card"><b>到货详情</b>查看时间、提交人、产品、数量、备注、面单和实物图片。</div></div>
+          <h3>推荐处理步骤</h3><ol><li>先打开“未读到货消息”。</li><li>核对到货时间、产品明细和最小单位。</li><li>点击图片放大，使用上一张/下一张切换。</li><li>确认无误后保留记录；明显错误且不应计入汇总时，按页面要求作废并填写原因。</li></ol>
+          <div class="callout danger"><strong>作废前先确认</strong>作废后的到货单不再计入汇总。请先与提交人核对，避免误操作。</div>
+        </section>
+
+        <section class="manual-section" id="products" data-keywords="货品管理 门店 检索 名称 规格 单位 新增 编辑 保存 归档 取消归档 删除 批量处理 导入 Excel 导出 货品申请 接受 拒绝">
+          <div class="section-kicker">08 · 维护门店货品</div><h2>货品管理</h2>
+          <p>先选择门店，再进行检索或编辑。日常货品只填写名称、规格和最小计数单位，不需要填写库存数量。</p>
+          <h3>新增或修改货品</h3><ol><li>进入“工作台 → 货品管理”。</li><li>选择当前门店。</li><li>新增时填写名称、规格和单位，点击“创建货品”。</li><li>修改现有货品后，点击该货品的“保存货品”。</li><li>不再使用的货品点击“归档”。</li></ol>
+          <div class="callout warn"><strong>单位要使用最小单位</strong>推荐瓶、袋、盒、个、杯、克、毫升等；不要把“整箱、整件”作为单位。</div>
+          <h3>检索与归档</h3><p>在检索框输入名称、规格或单位，列表会立即筛选。已归档货品在单独页面，可“取消归档”恢复；只有已归档货品才提供永久删除。</p>
+          <h3>批量处理</h3>
+          <ul><li><b>导入：</b>先下载 Excel 模板。按“名称＋规格＋单位”匹配，存在则更新，不存在则新增。某一行失败不会中断其他行，结束后查看成功和失败报告。</li><li><b>导出：</b>导出有权查看的全部门店货品，包括门店、名称、规格、单位、状态和更新时间。</li></ul>
+          <h3>处理员工货品申请</h3><p>员工提交的新增、修订或删除申请会进入管理员待办。打开申请，核对内容后选择接受或拒绝；处理完成后待办数字会更新。</p>
+        </section>
+
+        <section class="manual-section" id="accounts" data-keywords="账号管理 创建账号 账号名 姓名 初始密码 角色 员工 店长 管理员 门店 多选 启用 禁用 修改密码 邮箱 删除账号 货品申请权限 新增 修订 删除 保存">
+          <div class="section-kicker">09 · 人员与权限</div><h2>账号管理</h2>
+          <h3>创建新账号</h3>
+          <div class="steps"><div class="step"><div><b>填写账号名、姓名和初始密码</b><p>账号名不能与已有账号重复。新建普通账号无需填写邮箱。</p></div></div><div class="step"><div><b>选择角色</b><p>按实际身份选择员工或店长；不要为了方便随意授予管理员角色。</p></div></div><div class="step"><div><b>选择可访问门店</b><p>至少选择一个门店，也可以多选。</p></div></div><div class="step"><div><b>点击“创建账号”</b><p>创建成功后，把账号名和初始密码单独交给本人，并提醒首次登录后修改密码。</p></div></div></div>
+          <h3>修改现有账号</h3><p>可以修改账号名、姓名、角色、可访问门店、启用状态和密码。新密码留空表示不修改。最初建立的管理员账号还可以维护邮箱。</p>
+          <h3>员工货品申请权限</h3>
+          <table><thead><tr><th>权限</th><th>开启后员工/店长可做什么</th></tr></thead><tbody><tr><td>新增申请</td><td>在点货订货过程中提出新增货品</td></tr><tr><td>修订申请</td><td>点击“信息有误”提交或执行货品资料修订</td></tr><tr><td>删除申请</td><td>点击“不再使用”并确认提交删除申请</td></tr></tbody></table>
+          <div class="callout tip"><strong>修改后一定点击“保存账号修改”</strong>看到保存成功弹窗后才算完成。账号禁用后无法登录，但历史提交记录仍保留。</div>
+          <div class="callout danger"><strong>删除账号是高风险操作</strong>系统会二次确认。不要删除当前正在登录的管理员；员工离职时可先禁用，确认无需恢复后再删除。</div>
+        </section>
+
+        <section class="manual-section" id="notices" data-keywords="公告管理 新建公告 标题 正文 门店 人员 置顶 到期 确认阅读 附件 保存草稿 发布 撤回 归档 删除 已读 未读">
+          <div class="section-kicker">10 · 发布正式通知</div><h2>公告管理</h2>
+          <div class="steps"><div class="step"><div><b>点击“新建公告”</b><p>填写标题和正文。</p></div></div><div class="step"><div><b>选择门店和接收人员</b><p>确认员工和店长的接收范围。</p></div></div><div class="step"><div><b>设置公告选项</b><p>按需要设置置顶、到期时间和“要求确认已阅读”。</p></div></div><div class="step"><div><b>上传附件</b><p>可添加图片或文件，员工在公告详情中打开。</p></div></div><div class="step"><div><b>保存草稿或发布</b><p>保存草稿不会通知员工；发布后员工首页会出现未读提醒。</p></div></div></div>
+          <h3>查看已读情况</h3><p>每条公告显示“已读人数/接收人数”。展开“查看已读/未读人员”，可看到具体人员和首次打开时间。</p>
+          <div class="callout info"><strong>撤回后重新发布</strong>撤回会让公告恢复待发布状态。重新发布后，员工首页会再次出现相应的未读公告提醒。</div>
+          <div class="callout warn"><strong>归档规则</strong>已发布公告不能直接归档；先撤回为待发布状态，再归档。已归档公告在单独入口管理并可删除。</div>
+        </section>
+
+        <section class="manual-section" id="sops" data-keywords="SOP 管理 新建 编辑 产品名称 分类 产品图 整体说明 步骤 图片 文字 纯图片 纯文字 替换 删除图片 删除步骤 排序 插入 附件 生效时间 静默发布 任务模板 发布 撤回 归档 分类管理 重命名">
+          <div class="section-kicker">11 · 制作标准作业流程</div><h2>SOP 管理</h2>
+          <p class="lead">SOP 适合奶茶、酸奶碗等食品制作流程。建议每一步使用一张清晰图片和一段简短文字，也允许纯图片步骤或纯文字步骤。</p>
+          <h3>新建或编辑 SOP</h3>
+          <div class="steps"><div class="step"><div><b>填写产品或流程名称和分类</b><p>如果没有合适分类，先到“分类管理”新建。</p></div></div><div class="step"><div><b>选填产品封面图</b><p>员工列表会显示该图片；若不上传，系统会选择最后一张步骤图片作为预览。</p></div></div><div class="step"><div><b>填写整体说明</b><p>说明适用场景、关键标准或注意事项。</p></div></div><div class="step"><div><b>逐步添加图片或文字</b><p>每一步至少要有图片或文字中的一项。选择图片后会立即出现本地预览，但退出前仍需点击保存。</p></div></div><div class="step"><div><b>调整步骤顺序</b><p>步骤编号自动排序。使用序号下拉框可以移动或在中间插入步骤。</p></div></div><div class="step"><div><b>上传附件</b><p>可添加配方表、说明文件等补充资料。</p></div></div><div class="step"><div><b>保存草稿或进入发布预览</b><p>点击“保存草稿”保留编辑；点击发布会先进入与员工看到的一致的详情预览页。</p></div></div></div>
+          <h3>替换、删除图片和删除步骤</h3><ul><li>“替换”只更换当前步骤图片，文字和位置保留。</li><li>图文步骤点击“删除”时，可选择“只删除图片”或“删除整个步骤”。</li><li>只删图片后，该步骤变为纯文字步骤。</li><li>删除中间步骤后，后续编号会自动重新排列。</li></ul>
+          <h3>发布基本设置</h3><p>在详情预览页底部设置生效时间、发布方式和可选的关联任务模板。静默发布默认勾选；静默发布不会发送员工通知，但 SOP 生效后仍可在手册中查到。</p>
+          <div class="callout tip"><strong>发布前用员工视角检查</strong>在管理员 SOP 卡片上，点击三个操作按钮以外的位置，可进入与员工完全相同的详情页，确认图片、文字顺序和附件无误。</div>
+          <h3>分类管理</h3><p>可以新建、删除和修改分类名称。已有 SOP 的分类也可以改名，确认后该分类下的 SOP 会同步使用新名称。</p>
+        </section>
+
+        <section class="manual-section" id="batch-sop" data-keywords="SOP 批量操作 批量导入 Excel 图片文件夹 文件名 分类 自动新建 进度 失败报告 批量发布 批量撤回 批量归档 导出 HTML PDF">
+          <div class="section-kicker">12 · SOP 数量较多时</div><h2>SOP 批量导入、导出和批量状态操作</h2>
+          <h3>批量导入</h3>
+          <ol><li>进入“SOP 管理 → 批量操作 → 批量导入”。</li><li>下载 Excel 模板，按每行一个制作步骤填写。同一产品的多行会合并为一个 SOP。</li><li>图片步骤在 Excel 中填写实际图片文件名；纯文字步骤可不写图片名，纯图片步骤可不写文字。</li><li>选择填写好的 Excel。</li><li>如有图片，选择图片所在文件夹。选择文件夹只是授予查找权限，此时不会上传全部图片。</li><li>点击“开始导入草稿”。系统只会上传 Excel 实际提到并成功匹配的图片，并实时显示进度。</li><li>完成后查看报告：成功多少、失败多少、每个失败原因是什么。</li></ol>
+          <div class="callout info"><strong>Excel 中的新分类会自动建立</strong>如果 Excel 填写的分类目前不存在，系统会按 Excel 自动新建该分类。</div>
+          <div class="callout warn"><strong>单个失败不会中断整批</strong>同名、缺少内容、图片未匹配等问题只影响对应 SOP。请根据完成报告修正失败项后再单独导入。</div>
+          <h3>批量发布、撤回、归档</h3><p>从“批量操作”选择功能，再勾选 SOP。批量发布只处理草稿并默认静默；批量撤回只处理已发布 SOP；批量归档只处理草稿。</p>
+          <h3>导出 SOP</h3><p>点击“导出 SOP”，勾选需要的项目后导出。系统会生成一个离线 HTML 文件，包含目录、步骤图片、文字和附件，可直接用浏览器查看，也可打印为 PDF。</p>
+        </section>
+
+        <section class="manual-section" id="attendance-payroll" data-keywords="考勤 钉钉 企业 门店 绑定 同步 缺卡 补卡 加班 工资 全勤奖 工龄奖 转正 绩效 提成">
+          <div class="section-kicker">13 · 人员数据与工资</div><h2>考勤管理和实时薪资</h2>
+          <h3>考勤管理</h3><ul><li>每个钉钉企业先绑定实际门店，同一员工可以绑定多个企业身份。</li><li>系统每小时自动同步，也可手动同步月份或建立全部时间段同步队列。</li><li>员工卡片显示出勤、累计加班、迟到次数与分钟、缺卡和异常。</li><li>全部门店视角合并员工在所有授权门店的考勤；选择单店后只统计该店。</li><li>检测到缺卡会给员工建立补卡提醒，员工提交补卡后自行勾选完成，无需审批。</li></ul>
+          <h3>员工工资参数</h3><p>选择员工时显示“姓名 · 员工/店长”。可以配置基本工资、房补、绩效、提成、全勤奖、工龄奖、额外奖励、转正日期和提成门店。绩效可选择按任务、考勤和纪律自动计算，也可强制覆盖为指定金额。</p>
+          <ul><li>全勤奖与绩效分开，达到满勤天数才产生。</li><li>超过当月全勤标准后，每超勤一天自动产生 300 元超勤奖。</li><li>额外奖励可在员工参数中预设，也可生成工资单后单独修改。</li><li>工龄奖默认每月 100 元，按实际出勤天数折算。</li><li>转正前不计算绩效和提成；转正当月只按转正后的实际出勤折算。</li><li>绩效规则由任务、考勤和纪律得分组成；迟到和处罚会按规则扣分。</li><li>员工加班由店长审批，店长加班由管理员审批，批准后计入预估工资。</li></ul>
+          <h3>按月份查看工资</h3><ol><li>进入“实时薪资 → 实时工资”，点击“查看月份”。</li><li>通过上一年、下一年切换年份，再点击需要查看的月份。</li><li>管理员不受员工历史查看期限限制，可以查看任意历史月份和本月；历史月份按月末汇总，本月按今天汇总。</li><li>选择月份后，工资合计、员工卡片和员工工资详情会自动刷新，并继续保留所选门店范围。</li></ol>
+          <h3>生成与发送工资单</h3><ol><li>进入“实时薪资 → 工资单”，选择工资月份和全部人员或指定员工。</li><li>点击“生成工资单”，此时只生成管理员可见的待发送草稿，不通知员工。</li><li>打开草稿查看简约工资单；必要时点击“修改”调整收入分项、罚款、个税扣除和备注。</li><li>点击实时工资的“罚款合计”或工资单的“扣款合计”，可以查看每笔扣款的日期、原因和金额。</li><li>确认无误后点击“发送”，员工才会在“我的薪资 → 工资单”、通知中心和待办中看到。</li><li>列表实时显示待发送、待员工确认、员工已确认和已撤回状态；每张单据都可以打开查看。</li></ol><p>管理员可以修改或撤回工资单。修改员工已经确认的工资单会自动取消旧确认并要求重新确认；撤回会同步移除员工端工资单、通知和待办。每月 1 日的上月工资单仍由系统自动生成并直接发送。</p>
+        </section>
+
+        <section class="manual-section" id="history" data-keywords="点货订货记录 运营历史 查看明细 到货 任务 运营统计 某日 时间区间 完成率 趋势">
+          <div class="section-kicker">13 · 查询与复盘</div><h2>记录中心和运营数据</h2>
+          <div class="quick-grid"><div class="quick-card"><b>点货订货记录</b>查看授权门店已提交单据。点击“查看明细”查看货品和数量。</div><div class="quick-card"><b>到货中心</b>查看到货记录、某日或时间区间汇总。</div><div class="quick-card"><b>任务管理</b>任务历史保留在任务清单中，可查看执行和审核结果。</div><div class="quick-card"><b>运营统计</b>汇总到货、任务完成率、问题整改和点货订货。</div></div>
+          <div class="callout tip"><strong>卡片可以直接进入对应模块</strong>运营统计中的待审核、已退回、到货门店等数据卡片都可以点击，不只是数字展示。</div>
+        </section>
+
+        <section class="manual-section" id="archive" data-keywords="草稿 发布 已发布 撤回 撤销发布 归档 已归档 取消归档 删除 永久删除 状态规则 公告 SOP 模板 货品">
+          <div class="section-kicker">14 · 状态规则</div><h2>发布、撤回、归档和删除的区别</h2>
+          <table><thead><tr><th>操作</th><th>含义</th><th>注意事项</th></tr></thead><tbody>
+            <tr><td><span class="status blue">保存草稿</span></td><td>只保存在管理员管理页面，不对员工生效</td><td>可继续编辑</td></tr>
+            <tr><td><span class="status green">发布</span></td><td>让公告、SOP 或模板进入可用状态</td><td>任务模板发布后仍需另行发布任务</td></tr>
+            <tr><td><span class="status yellow">撤回</span></td><td>停止已发布内容并恢复为草稿</td><td>员工将不再看到已撤回内容</td></tr>
+            <tr><td><span class="status yellow">归档</span></td><td>从日常列表移到已归档区域</td><td>通常只有草稿可归档，已发布内容要先撤回</td></tr>
+            <tr><td><span class="status blue">取消归档</span></td><td>把已归档 SOP 或货品恢复使用</td><td>恢复后重新出现在日常管理列表</td></tr>
+            <tr><td><span class="status red">删除</span></td><td>永久删除已归档内容</td><td>不可撤销；有历史关联时可能不允许删除</td></tr>
+          </tbody></table>
+          <div class="visual"><div class="visual-title">安全的内容生命周期</div><div class="flow"><div class="flow-box">草稿</div><span class="arrow">→</span><div class="flow-box em">发布</div><span class="arrow">→</span><div class="flow-box">撤回</div><span class="arrow">→</span><div class="flow-box">归档</div><span class="arrow">→</span><div class="flow-box">删除或恢复</div></div></div>
+          <div class="callout danger"><strong>删除前请确认没有保留价值</strong>归档是暂时隐藏，通常可以恢复；删除是永久操作。建议不确定时先归档，不要直接删除。</div>
+          <p>已归档 SOP、公告和任务模板支持勾选后批量删除。批量操作完成后会报告成功数量和因历史关联等原因未能删除的项目。</p>
+        </section>
+
+        <section class="manual-section" id="faq" data-keywords="常见问题 没有模板 员工看不到 任务不出现 待办数字 不更新 上传失败 图片不显示 保存失败 发布失败 周期 暂停 归档 删除 登录 密码 检查表">
+          <div class="section-kicker">15 · 遇到问题先查这里</div><h2>常见问题与管理员检查表</h2>
+          <details><summary>为什么员工看不到我刚发布的任务模板？</summary><p>这是正常的。模板不会显示给员工。请进入“任务发布”，选择该已发布模板、门店和截止时间，再发布任务。</p></details>
+          <details><summary>为什么“任务发布”里找不到某个模板？</summary><p>只有已经发布的模板才可选择。回到模板管理，确认模板状态为“已发布”。</p></details>
+          <details><summary>为什么发布内容后员工仍看不到？</summary><p>检查适用门店、适用角色、生效时间和发布状态。公告还要确认接收人员；SOP 尚未到生效时间时不会提前显示。</p></details>
+          <details><summary>为什么已发布内容不能归档？</summary><p>先点击“撤回/撤销发布”，让内容恢复草稿，再归档。这可以防止正在使用的内容突然进入归档。</p></details>
+          <details><summary>上传图片后应该出现什么？</summary><p>当前页面应立即显示缩略图和上传进度。请等待上传完成后再保存或发布；失败时根据弹窗重试，不要连续重复选择同一图片。</p></details>
+          <details><summary>批量导入为什么只成功一部分？</summary><p>系统会继续处理整批，并在完成报告中列出每个失败原因。修正 Excel 行、同名问题或缺失图片后，只需重新导入失败内容。</p></details>
+          <details><summary>周期任务暂停后发生什么？</summary><p>后续不再自动推送，当前未完成周期待办同步移除。点击继续后，从下一个未来周期恢复，不补发暂停期间的历史任务。</p></details>
+          <details><summary>待办数字没有立即变化怎么办？</summary><p>先确认操作弹窗显示成功，然后返回待办或首页。页面会自动同步；也可点击刷新。若项目仍在，重新打开检查其状态。</p></details>
+          <details><summary>员工忘记密码怎么办？</summary><p>在账号管理中找到该账号，在“新密码”填写临时密码并保存，然后让员工登录后自行修改。</p></details>
+          <h3>发布任务前检查</h3><ul class="checklist"><li>模板已经发布，并且项目顺序和必填要求正确。</li><li>参考图片能够打开，图片要求与实际工作一致。</li><li>目标门店正确。</li><li>首次截止时间在未来，并与周期规则一致。</li><li>确认是单次任务还是周期任务。</li></ul>
+          <h3>发布公告或 SOP 前检查</h3><ul class="checklist"><li>标题、正文或步骤内容完整。</li><li>适用门店和人员正确。</li><li>图片、附件能够打开。</li><li>生效时间和到期时间正确。</li><li>确认是否静默发布、是否要求员工确认阅读。</li><li>先用详情预览检查手机上的显示效果。</li></ul>
+        </section>
+        <div class="no-result" id="noResult"><b>没有找到相关章节</b><p>请换一个更短的关键词，例如“归档”“任务”“账号”“图片”。</p></div>
+      </main>
+    </div>
+    <footer class="footer">门店运营系统 · 管理员使用说明<br />本说明只介绍系统使用和门店管理方法，不涉及其他技术内容。</footer>
+  </div>
+  <button class="back-top" onclick="document.getElementById('top').scrollIntoView({behavior:'smooth'})" aria-label="返回顶部">↑</button>
+  <script>
+    const searchInput=document.getElementById('guideSearch');
+    const sections=[...document.querySelectorAll('.manual-section')];
+    const note=document.getElementById('searchNote');
+    const noResult=document.getElementById('noResult');
+    function runSearch(){
+      const query=searchInput.value.trim().toLocaleLowerCase('zh-CN');
+      let count=0;
+      sections.forEach(section=>{
+        const haystack=(section.textContent+' '+(section.dataset.keywords||'')).toLocaleLowerCase('zh-CN');
+        const show=!query||haystack.includes(query);
+        section.classList.toggle('search-hidden',!show);
+        if(show) count++;
+      });
+      noResult.classList.toggle('show',Boolean(query)&&count===0);
+      note.textContent=query?`找到 ${count} 个相关章节。清空输入框可恢复全部内容。`:'输入关键词可筛选相关章节；清空输入框可恢复全部内容。';
+      if(query&&count>0)sections.find(section=>!section.classList.contains('search-hidden'))?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    document.getElementById('searchButton').addEventListener('click',runSearch);
+    searchInput.addEventListener('search',runSearch);
+    searchInput.addEventListener('keydown',event=>{if(event.key==='Enter')runSearch();});
+    searchInput.addEventListener('input',()=>{if(!searchInput.value)runSearch();});
+  </script>
+</body>
+</html>

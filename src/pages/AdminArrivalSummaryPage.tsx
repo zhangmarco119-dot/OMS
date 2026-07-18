@@ -8,18 +8,19 @@ import { SectionCard } from '../components/ui/Surface';
 import { createArrivalSummaryExport, downloadArrivalExport } from '../features/export/arrivalExport';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { loadAdminArrivalSummary, localIsoDate, type AdminArrivalSummary } from '../services/admin-arrivals.service';
 
 type SummaryTab = 'details' | 'products';
 
 export function AdminArrivalSummaryPage() {
   const auth = useAuth();
-  const [dateMode, setDateMode] = useState<'day' | 'range'>('day');
-  const [date, setDate] = useState(localIsoDate());
-  const [dateFrom, setDateFrom] = useState(localIsoDate());
-  const [dateTo, setDateTo] = useState(localIsoDate());
-  const [storeId, setStoreId] = useState('');
-  const [tab, setTab] = useState<SummaryTab>('details');
+  const [dateMode, setDateMode] = useRememberedPageState<'day' | 'range'>('date-mode', 'day');
+  const [date, setDate] = useRememberedPageState('date', localIsoDate());
+  const [dateFrom, setDateFrom] = useRememberedPageState('date-from', localIsoDate());
+  const [dateTo, setDateTo] = useRememberedPageState('date-to', localIsoDate());
+  const [storeId, setStoreId] = useRememberedPageState('store', '');
+  const [tab, setTab] = useRememberedPageState<SummaryTab>('tab', 'details');
   const [summary, setSummary] = useState<AdminArrivalSummary>({ details: [], products: [] });
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);

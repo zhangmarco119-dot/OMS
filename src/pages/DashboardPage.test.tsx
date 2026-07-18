@@ -3,7 +3,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
+import { loadAdminOperationOverview } from '../services/admin-operation-overview.service';
 import { loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
+import { loadAdminPayrollEstimates } from '../services/payroll.service';
 import { loadTodoSummary } from '../services/todo.service';
 import { loadNotices } from '../services/v2-content.service';
 import { loadV2Tasks } from '../services/v2-tasks.service';
@@ -15,6 +17,8 @@ vi.mock('../services/notifications.service', () => ({
   loadNotifications: vi.fn(),
   markNotificationRead: vi.fn(),
 }));
+vi.mock('../services/admin-operation-overview.service', () => ({ loadAdminOperationOverview: vi.fn() }));
+vi.mock('../services/payroll.service', () => ({ loadAdminPayrollEstimates: vi.fn() }));
 vi.mock('../services/todo.service', () => ({ loadTodoSummary: vi.fn() }));
 vi.mock('../services/v2-content.service', () => ({ loadNotices: vi.fn() }));
 vi.mock('../services/v2-tasks.service', () => ({ loadV2Tasks: vi.fn() }));
@@ -35,6 +39,34 @@ const notification = (id: string, title: string, isRead = false): UserNotificati
   type: 'task_assigned',
 });
 
+describe('DashboardPage administrator payroll cost', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useAuth).mockReturnValue({
+      availableStores: [{ id: 'store-1', name: '测试门店' }],
+      profile: { display_name: '管理员', id: 'admin-1', role: 'admin' },
+      signOut: vi.fn(),
+      store: { id: 'store-1', name: '测试门店' },
+      user: { email: 'admin@example.com' },
+    } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(loadAdminOperationOverview).mockResolvedValue({ arrival_pending: 1, arrival_today: 2, inventory_completed_today: 3, inventory_pending: 0, v2_task_active: 4, v2_task_completed: 5 });
+    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0, overtime: 0, attendanceCorrections: 0, payrollPayslips: 0 });
+    vi.mocked(loadAdminPayrollEstimates).mockResolvedValue({ items: [], employeeCount: 2, completeCount: 1, incompleteCount: 1, knownEstimatedTotal: 8037.48, completeEstimatedTotal: 3689.37 });
+  });
+
+  it('shows the same real-time payroll summary used by payroll management', async () => {
+    render(
+      <MemoryRouter initialEntries={['/app']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <DashboardPage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('实时薪资成本')).toBeInTheDocument();
+    expect(screen.getByText('¥8,037.48')).toBeInTheDocument();
+    expect(screen.getByText('数据完整 1/2')).toBeInTheDocument();
+    expect(loadAdminPayrollEstimates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ asOf: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));
+  });
+});
+
 describe('DashboardPage notification unread count', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,7 +84,7 @@ describe('DashboardPage notification unread count', () => {
       notification('notification-3', '第三条通知'),
     ]);
     vi.mocked(loadV2Tasks).mockResolvedValue([]);
-    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0 });
+    vi.mocked(loadTodoSummary).mockResolvedValue({ count: 0, noticeAcknowledgements: 0, productFeedback: 0, tasks: 0, overtime: 0, attendanceCorrections: 0, payrollPayslips: 0 });
     vi.mocked(markNotificationRead).mockReturnValue(new Promise(() => undefined));
   });
 

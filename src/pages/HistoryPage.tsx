@@ -12,6 +12,7 @@ import { loadSubmittedTaskDetail, loadSubmittedTasks, type HistoryTask } from '.
 import { asProductSnapshot } from '../features/tasks/taskCalculations';
 import type { TaskWithItems } from '../features/tasks/taskService';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import type { TaskType } from '../types/domain';
 
 const taskTypeLabel: Record<TaskType, string> = {
@@ -46,8 +47,8 @@ const formatDateTime = (value: string | null) => {
 export function HistoryPage() {
   const auth = useAuth();
   const [searchParams] = useSearchParams();
-  const [filter, setFilter] = useState<TaskType | 'all'>('all');
-  const [adminView, setAdminView] = useState<'tasks' | 'feedback'>('tasks');
+  const [filter, setFilter] = useRememberedPageState<TaskType | 'all'>('task-type', 'all');
+  const [adminView, setAdminView] = useRememberedPageState<'tasks' | 'feedback'>('admin-view', 'tasks');
   const [items, setItems] = useState<HistoryTask[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export function HistoryPage() {
   const detailRequestRef = useRef(0);
   const isAdmin = auth.profile?.role === 'admin';
 
-  useEffect(() => { if (searchParams.get('view') === 'feedback') setAdminView('feedback'); }, [searchParams]);
+  useEffect(() => { if (searchParams.get('view') === 'feedback') setAdminView('feedback'); }, [searchParams, setAdminView]);
 
   const loadHistory = useCallback(async () => {
     if (!supabase || !auth.profile) {

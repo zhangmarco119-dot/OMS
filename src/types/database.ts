@@ -3,6 +3,72 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      attendance_audit_logs: {
+        Row: { action: 'binding_created' | 'binding_removed' | 'binding_replaced' | 'sync_requested' | 'sync_retried'; actor_id: string | null; created_at: string; entity_id: string; entity_type: 'binding' | 'sync_job'; id: string; metadata: Json; store_id: string | null };
+        Insert: { action: 'binding_created' | 'binding_removed' | 'binding_replaced' | 'sync_requested' | 'sync_retried'; actor_id?: string | null; created_at?: string; entity_id: string; entity_type: 'binding' | 'sync_job'; id?: string; metadata?: Json; store_id?: string | null };
+        Update: { action?: 'binding_created' | 'binding_removed' | 'binding_replaced' | 'sync_requested' | 'sync_retried'; actor_id?: string | null; created_at?: string; entity_id?: string; entity_type?: 'binding' | 'sync_job'; id?: string; metadata?: Json; store_id?: string | null };
+        Relationships: [];
+      };
+      attendance_daily_records: {
+        Row: { actual_off_at: string | null; actual_on_at: string | null; attendance_date: string; corp_id: string; created_at: string; daily_status: 'normal' | 'late' | 'early' | 'missing' | 'pending' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal'; data_source: 'dingtalk'; dingtalk_result_ids: string[]; early_minutes: number; enterprise_timezone: string; exception_note: string | null; id: string; is_attended: boolean; last_synced_at: string; late_minutes: number; missing_punch: 'none' | 'on' | 'off' | 'both'; off_duty_result: string; on_duty_result: string; planned_off_at: string | null; planned_on_at: string | null; profile_id: string; shift_id: string | null; shift_name: string | null; source_updated_at: string | null; store_id: string; updated_at: string };
+        Insert: { actual_off_at?: string | null; actual_on_at?: string | null; attendance_date: string; corp_id: string; created_at?: string; daily_status?: 'normal' | 'late' | 'early' | 'missing' | 'pending' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal'; data_source?: 'dingtalk'; dingtalk_result_ids?: string[]; early_minutes?: number; enterprise_timezone?: string; exception_note?: string | null; id?: string; is_attended?: boolean; last_synced_at?: string; late_minutes?: number; missing_punch?: 'none' | 'on' | 'off' | 'both'; off_duty_result?: string; on_duty_result?: string; planned_off_at?: string | null; planned_on_at?: string | null; profile_id: string; shift_id?: string | null; shift_name?: string | null; source_updated_at?: string | null; store_id: string; updated_at?: string };
+        Update: { actual_off_at?: string | null; actual_on_at?: string | null; attendance_date?: string; corp_id?: string; created_at?: string; daily_status?: 'normal' | 'late' | 'early' | 'missing' | 'pending' | 'rest' | 'leave' | 'business_trip' | 'fieldwork' | 'abnormal'; data_source?: 'dingtalk'; dingtalk_result_ids?: string[]; early_minutes?: number; enterprise_timezone?: string; exception_note?: string | null; id?: string; is_attended?: boolean; last_synced_at?: string; late_minutes?: number; missing_punch?: 'none' | 'on' | 'off' | 'both'; off_duty_result?: string; on_duty_result?: string; planned_off_at?: string | null; planned_on_at?: string | null; profile_id?: string; shift_id?: string | null; shift_name?: string | null; source_updated_at?: string | null; store_id?: string; updated_at?: string };
+        Relationships: [];
+      };
+      attendance_missing_punch_todos: {
+        Row: { attendance_date: string; completed_at: string | null; created_at: string; due_at: string; id: string; missing_punch: 'on' | 'off' | 'both'; profile_id: string; status: 'pending' | 'completed'; store_id: string; updated_at: string };
+        Insert: { attendance_date: string; completed_at?: string | null; created_at?: string; due_at: string; id?: string; missing_punch: 'on' | 'off' | 'both'; profile_id: string; status?: 'pending' | 'completed'; store_id: string; updated_at?: string };
+        Update: { attendance_date?: string; completed_at?: string | null; due_at?: string; id?: string; missing_punch?: 'on' | 'off' | 'both'; profile_id?: string; status?: 'pending' | 'completed'; store_id?: string; updated_at?: string };
+        Relationships: [];
+      };
+      payroll_visibility_settings: {
+        Row: { history_available_until_day: number; history_months: number; id: boolean; updated_at: string; updated_by: string | null };
+        Insert: { history_available_until_day?: number; history_months?: number; id?: boolean; updated_at?: string; updated_by?: string | null };
+        Update: { history_available_until_day?: number; history_months?: number; id?: boolean; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
+      attendance_punch_records: {
+        Row: { check_type: 'on_duty' | 'off_duty' | 'unknown'; corp_id: string; created_at: string; daily_record_id: string; dingtalk_record_id: string; id: string; is_approved_correction: boolean; last_synced_at: string; location_name: string | null; location_result: string | null; profile_id: string; punch_time: string; source_type: string | null; store_id: string; time_result: string | null; updated_at: string };
+        Insert: { check_type?: 'on_duty' | 'off_duty' | 'unknown'; corp_id: string; created_at?: string; daily_record_id: string; dingtalk_record_id: string; id?: string; is_approved_correction?: boolean; last_synced_at?: string; location_name?: string | null; location_result?: string | null; profile_id: string; punch_time: string; source_type?: string | null; store_id: string; time_result?: string | null; updated_at?: string };
+        Update: { check_type?: 'on_duty' | 'off_duty' | 'unknown'; corp_id?: string; created_at?: string; daily_record_id?: string; dingtalk_record_id?: string; id?: string; is_approved_correction?: boolean; last_synced_at?: string; location_name?: string | null; location_result?: string | null; profile_id?: string; punch_time?: string; source_type?: string | null; store_id?: string; time_result?: string | null; updated_at?: string };
+        Relationships: [];
+      };
+      attendance_sync_failures: {
+        Row: { attempt_count: number; created_at: string; dingtalk_user_id: string | null; error_code: string | null; error_message: string; id: string; profile_id: string | null; resolved_at: string | null; retryable: boolean; stage: 'directory' | 'schedule' | 'result' | 'punch' | 'normalize' | 'persist'; sync_job_id: string };
+        Insert: { attempt_count?: number; created_at?: string; dingtalk_user_id?: string | null; error_code?: string | null; error_message: string; id?: string; profile_id?: string | null; resolved_at?: string | null; retryable?: boolean; stage: 'directory' | 'schedule' | 'result' | 'punch' | 'normalize' | 'persist'; sync_job_id: string };
+        Update: { attempt_count?: number; created_at?: string; dingtalk_user_id?: string | null; error_code?: string | null; error_message?: string; id?: string; profile_id?: string | null; resolved_at?: string | null; retryable?: boolean; stage?: 'directory' | 'schedule' | 'result' | 'punch' | 'normalize' | 'persist'; sync_job_id?: string };
+        Relationships: [];
+      };
+      attendance_sync_jobs: {
+        Row: { corp_id: string; created_at: string; error_summary: string | null; failure_count: number; finished_at: string | null; id: string; initiated_by: string | null; inserted_count: number; month_start: string | null; profile_id: string | null; progress_cursor: Json; range_end: string | null; range_start: string | null; scope_type: 'organization' | 'store' | 'employee'; skipped_count: number; started_at: string | null; status: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; store_id: string | null; success_count: number; sync_type: 'directory' | 'current_month' | 'month' | 'date_range' | 'employee' | 'history_month'; trigger_type: 'manual' | 'scheduled' | 'retry'; updated_at: string; updated_count: number };
+        Insert: { corp_id: string; created_at?: string; error_summary?: string | null; failure_count?: number; finished_at?: string | null; id?: string; initiated_by?: string | null; inserted_count?: number; month_start?: string | null; profile_id?: string | null; progress_cursor?: Json; range_end?: string | null; range_start?: string | null; scope_type: 'organization' | 'store' | 'employee'; skipped_count?: number; started_at?: string | null; status?: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; store_id?: string | null; success_count?: number; sync_type: 'directory' | 'current_month' | 'month' | 'date_range' | 'employee' | 'history_month'; trigger_type: 'manual' | 'scheduled' | 'retry'; updated_at?: string; updated_count?: number };
+        Update: { error_summary?: string | null; failure_count?: number; finished_at?: string | null; inserted_count?: number; progress_cursor?: Json; skipped_count?: number; started_at?: string | null; status?: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed'; success_count?: number; updated_at?: string; updated_count?: number };
+        Relationships: [];
+      };
+      dingtalk_employee_bindings: {
+        Row: { binding_status: 'active' | 'inactive' | 'error'; corp_id: string; created_at: string; created_by: string | null; dingtalk_user_id: string; directory_user_id: string; error_message: string | null; id: string; last_verified_at: string | null; match_source: 'manual' | 'name_suggestion' | 'imported'; profile_id: string; store_id: string; union_id: string | null; updated_at: string };
+        Insert: { binding_status?: 'active' | 'inactive' | 'error'; corp_id: string; created_at?: string; created_by?: string | null; dingtalk_user_id: string; directory_user_id: string; error_message?: string | null; id?: string; last_verified_at?: string | null; match_source?: 'manual' | 'name_suggestion' | 'imported'; profile_id: string; store_id: string; union_id?: string | null; updated_at?: string };
+        Update: { binding_status?: 'active' | 'inactive' | 'error'; error_message?: string | null; last_verified_at?: string | null; match_source?: 'manual' | 'name_suggestion' | 'imported'; store_id?: string; updated_at?: string };
+        Relationships: [];
+      };
+      dingtalk_enterprises: {
+        Row: { corp_id: string; created_at: string; display_name: string; is_active: boolean; last_directory_synced_at: string | null; updated_at: string };
+        Insert: { corp_id: string; created_at?: string; display_name: string; is_active?: boolean; last_directory_synced_at?: string | null; updated_at?: string };
+        Update: { display_name?: string; is_active?: boolean; last_directory_synced_at?: string | null; updated_at?: string };
+        Relationships: [];
+      };
+      dingtalk_store_enterprise_bindings: {
+        Row: { corp_id: string; created_at: string; created_by: string | null; id: string; is_active: boolean; store_id: string; updated_at: string };
+        Insert: { corp_id: string; created_at?: string; created_by?: string | null; id?: string; is_active?: boolean; store_id: string; updated_at?: string };
+        Update: { is_active?: boolean; updated_at?: string };
+        Relationships: [];
+      };
+      dingtalk_employee_directory: {
+        Row: { corp_id: string; created_at: string; department_ids: string[]; dingtalk_user_id: string; display_name: string; id: string; is_active: boolean; job_number: string | null; last_synced_at: string; mobile_masked: string | null; union_id: string | null; updated_at: string };
+        Insert: { corp_id: string; created_at?: string; department_ids?: string[]; dingtalk_user_id: string; display_name: string; id?: string; is_active?: boolean; job_number?: string | null; last_synced_at?: string; mobile_masked?: string | null; union_id?: string | null; updated_at?: string };
+        Update: { department_ids?: string[]; display_name?: string; is_active?: boolean; job_number?: string | null; last_synced_at?: string; mobile_masked?: string | null; union_id?: string | null; updated_at?: string };
+        Relationships: [];
+      };
       arrival_report_images: {
         Row: {
           bucket: string;
@@ -343,6 +409,18 @@ export type Database = {
         Update: { body?: string; category?: string; created_at?: string; created_by?: string; effective_at?: string | null; id?: string; published_at?: string | null; status?: 'draft' | 'published' | 'archived'; task_template_id?: string | null; title?: string; updated_at?: string; version?: number; };
         Relationships: [];
       };
+      v2_sop_favorites: {
+        Row: { created_at: string; profile_id: string; sop_id: string };
+        Insert: { created_at?: string; profile_id: string; sop_id: string };
+        Update: { created_at?: string; profile_id?: string; sop_id?: string };
+        Relationships: [];
+      };
+      v2_system_documents: {
+        Row: { audience: 'staff_manager' | 'admin'; content_html: string; document_version: string; slug: string; summary: string; title: string; updated_at: string; updated_by: string | null; };
+        Insert: { audience: 'staff_manager' | 'admin'; content_html?: string; document_version: string; slug: string; summary?: string; title: string; updated_at?: string; updated_by?: string | null; };
+        Update: { audience?: 'staff_manager' | 'admin'; content_html?: string; document_version?: string; slug?: string; summary?: string; title?: string; updated_at?: string; updated_by?: string | null; };
+        Relationships: [];
+      };
       v2_sop_stores: {
         Row: { created_at: string; sop_id: string; store_id: string; };
         Insert: { created_at?: string; sop_id: string; store_id: string; };
@@ -493,6 +571,84 @@ export type Database = {
         };
         Relationships: [];
       };
+      payroll_employee_rules: {
+        Row: { commission_enabled: boolean; commission_rate: number | null; confirmed: boolean; created_at: string; created_by: string | null; effective_from: string; effective_to: string | null; extra_reward_amount: number; full_attendance_bonus_amount: number; full_attendance_bonus_enabled: boolean; full_performance_amount: number | null; housing_enabled: boolean; id: string; monthly_base_salary: number; monthly_housing_allowance: number; performance_enabled: boolean; performance_override_amount: number; performance_override_enabled: boolean; profile_id: string; change_reason: string; regularization_date: string | null; service_award_amount: number; service_award_enabled: boolean };
+        Insert: { commission_enabled?: boolean; commission_rate?: number | null; confirmed?: boolean; created_at?: string; created_by?: string | null; effective_from: string; effective_to?: string | null; extra_reward_amount?: number; full_attendance_bonus_amount?: number; full_attendance_bonus_enabled?: boolean; full_performance_amount?: number | null; housing_enabled?: boolean; id?: string; monthly_base_salary: number; monthly_housing_allowance?: number; performance_enabled?: boolean; performance_override_amount?: number; performance_override_enabled?: boolean; profile_id: string; change_reason: string; regularization_date?: string | null; service_award_amount?: number; service_award_enabled?: boolean };
+        Update: { commission_enabled?: boolean; commission_rate?: number | null; confirmed?: boolean; created_at?: string; created_by?: string | null; effective_from?: string; effective_to?: string | null; extra_reward_amount?: number; full_attendance_bonus_amount?: number; full_attendance_bonus_enabled?: boolean; full_performance_amount?: number | null; housing_enabled?: boolean; id?: string; monthly_base_salary?: number; monthly_housing_allowance?: number; performance_enabled?: boolean; performance_override_amount?: number; performance_override_enabled?: boolean; profile_id?: string; change_reason?: string; regularization_date?: string | null; service_award_amount?: number; service_award_enabled?: boolean };
+        Relationships: [];
+      };
+      payroll_employee_commission_stores: {
+        Row: { created_at: string; rule_id: string; store_id: string };
+        Insert: { created_at?: string; rule_id: string; store_id: string };
+        Update: { created_at?: string; rule_id?: string; store_id?: string };
+        Relationships: [];
+      };
+      payroll_performance_rules: {
+        Row: { attendance_weight: number; change_reason: string; created_at: string; created_by: string | null; discipline_weight: number; effective_from: string; effective_to: string | null; grade_a_coefficient: number; grade_a_min: number; grade_b_coefficient: number; grade_b_min: number; grade_c_coefficient: number; grade_c_min: number; grade_d_coefficient: number; id: string; late_deduction_1_10: number; late_deduction_11_20: number; late_deduction_21_30: number; late_deduction_31_plus: number; task_weight: number };
+        Insert: { attendance_weight?: number; change_reason: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
+        Update: { attendance_weight?: number; change_reason?: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from?: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
+        Relationships: [];
+      };
+      payroll_store_revenues: {
+        Row: { confirmed_amount: number; created_at: string; id: string; note: string; revenue_date: string; source: 'manual' | 'pospal' | 'qmai'; source_reference_id: string | null; source_updated_at: string | null; store_id: string; updated_at: string; updated_by: string };
+        Insert: { confirmed_amount: number; created_at?: string; id?: string; note?: string; revenue_date: string; source?: 'manual' | 'pospal' | 'qmai'; source_reference_id?: string | null; source_updated_at?: string | null; store_id: string; updated_at?: string; updated_by: string };
+        Update: { confirmed_amount?: number; id?: string; note?: string; revenue_date?: string; source?: 'manual' | 'pospal' | 'qmai'; source_reference_id?: string | null; source_updated_at?: string | null; store_id?: string; updated_at?: string; updated_by?: string };
+        Relationships: [];
+      };
+      payroll_store_revenue_inputs: {
+        Row: { as_of_date: string; created_at: string; id: string; input_mode: 'pos_sync' | 'manual'; manual_cumulative_amount: number | null; note: string; store_id: string; updated_at: string; updated_by: string };
+        Insert: { as_of_date: string; created_at?: string; id?: string; input_mode: 'pos_sync' | 'manual'; manual_cumulative_amount?: number | null; note?: string; store_id: string; updated_at?: string; updated_by: string };
+        Update: { as_of_date?: string; id?: string; input_mode?: 'pos_sync' | 'manual'; manual_cumulative_amount?: number | null; note?: string; store_id?: string; updated_at?: string; updated_by?: string };
+        Relationships: [];
+      };
+      payroll_penalties: {
+        Row: { amount: number; created_at: string; created_by: string; event_date: string; event_level: 'reminder' | 'warning' | 'formal_warning' | 'serious'; id: string; performance_deduction: number; profile_id: string; reason: string; revoke_reason: string | null; status: 'active' | 'revoked'; updated_at: string };
+        Insert: { amount?: number; created_at?: string; created_by: string; event_date: string; event_level: 'reminder' | 'warning' | 'formal_warning' | 'serious'; id?: string; performance_deduction?: number; profile_id: string; reason: string; revoke_reason?: string | null; status?: 'active' | 'revoked'; updated_at?: string };
+        Update: { amount?: number; event_date?: string; event_level?: 'reminder' | 'warning' | 'formal_warning' | 'serious'; performance_deduction?: number; profile_id?: string; reason?: string; revoke_reason?: string | null; status?: 'active' | 'revoked'; updated_at?: string };
+        Relationships: [];
+      };
+      payroll_overtime_rates: {
+        Row: { change_reason: string; created_at: string; created_by: string | null; effective_from: string; effective_to: string | null; hourly_rate: number; id: string };
+        Insert: { change_reason?: string; created_at?: string; created_by?: string | null; effective_from: string; effective_to?: string | null; hourly_rate: number; id?: string };
+        Update: { change_reason?: string; created_at?: string; created_by?: string | null; effective_from?: string; effective_to?: string | null; hourly_rate?: number; id?: string };
+        Relationships: [];
+      };
+      payroll_overtime_requests: {
+        Row: { approved_hourly_rate: number | null; created_at: string; hours: number; id: string; overtime_date: string; profile_id: string; reason: string; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; status: 'pending' | 'approved' | 'rejected' | 'cancelled'; store_id: string; updated_at: string };
+        Insert: { approved_hourly_rate?: number | null; created_at?: string; hours: number; id?: string; overtime_date: string; profile_id: string; reason: string; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; status?: 'pending' | 'approved' | 'rejected' | 'cancelled'; store_id: string; updated_at?: string };
+        Update: { approved_hourly_rate?: number | null; hours?: number; overtime_date?: string; profile_id?: string; reason?: string; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; status?: 'pending' | 'approved' | 'rejected' | 'cancelled'; store_id?: string; updated_at?: string };
+        Relationships: [];
+      };
+      payroll_payslips: {
+        Row: { admin_note: string; confirmed_at: string | null; created_at: string; estimate_snapshot: Json; id: string; issue_source: 'scheduled' | 'admin'; issued_at: string | null; issued_by: string | null; last_modified_by: string | null; payroll_month: string; profile_id: string; revision: number; status: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id: string | null; updated_at: string; withdrawn_at: string | null; withdrawn_by: string | null };
+        Insert: { admin_note?: string; confirmed_at?: string | null; created_at?: string; estimate_snapshot: Json; id?: string; issue_source: 'scheduled' | 'admin'; issued_at?: string | null; issued_by?: string | null; last_modified_by?: string | null; payroll_month: string; profile_id: string; revision?: number; status?: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id?: string | null; updated_at?: string; withdrawn_at?: string | null; withdrawn_by?: string | null };
+        Update: { admin_note?: string; confirmed_at?: string | null; estimate_snapshot?: Json; id?: string; issue_source?: 'scheduled' | 'admin'; issued_at?: string | null; issued_by?: string | null; last_modified_by?: string | null; payroll_month?: string; profile_id?: string; revision?: number; status?: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id?: string | null; updated_at?: string; withdrawn_at?: string | null; withdrawn_by?: string | null };
+        Relationships: [];
+      };
+      payroll_penalty_assets: {
+        Row: { bucket: 'payroll-evidence'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
+        Insert: { bucket?: 'payroll-evidence'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
+        Update: { bucket?: 'payroll-evidence'; file_name?: string; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp'; object_path?: string; penalty_id?: string; size_bytes?: number; uploaded_by?: string };
+        Relationships: [];
+      };
+      pos_sales_integrations: {
+        Row: { configured_at: string; configured_by: string; created_at: string; display_name: string; enabled: boolean; external_account: string; id: string; last_error: string | null; last_success_at: string | null; last_sync_at: string | null; next_sync_at: string | null; provider: 'pospal' | 'qmai'; store_id: string; sync_end_hour: number; sync_interval_minutes: number; sync_start_hour: number; updated_at: string };
+        Insert: { configured_at?: string; configured_by: string; created_at?: string; display_name: string; enabled?: boolean; external_account?: string; id?: string; last_error?: string | null; last_success_at?: string | null; last_sync_at?: string | null; next_sync_at?: string | null; provider: 'pospal' | 'qmai'; store_id: string; sync_end_hour?: number; sync_interval_minutes?: number; sync_start_hour?: number; updated_at?: string };
+        Update: { configured_at?: string; configured_by?: string; display_name?: string; enabled?: boolean; external_account?: string; id?: string; last_error?: string | null; last_success_at?: string | null; last_sync_at?: string | null; next_sync_at?: string | null; provider?: 'pospal' | 'qmai'; store_id?: string; sync_end_hour?: number; sync_interval_minutes?: number; sync_start_hour?: number; updated_at?: string };
+        Relationships: [];
+      };
+      pos_sales_sync_jobs: {
+        Row: { api_call_count: number; created_at: string; error_message: string | null; fetched_count: number; finished_at: string | null; id: string; initiated_by: string | null; integration_id: string; page_count: number; provider: 'pospal' | 'qmai'; revenue_amount: number | null; started_at: string; status: 'running' | 'succeeded' | 'failed'; store_id: string; sync_date: string; sync_end_date: string; trigger_type: 'manual' | 'scheduled'; valid_count: number };
+        Insert: { api_call_count?: number; created_at?: string; error_message?: string | null; fetched_count?: number; finished_at?: string | null; id?: string; initiated_by?: string | null; integration_id: string; page_count?: number; provider: 'pospal' | 'qmai'; revenue_amount?: number | null; started_at?: string; status?: 'running' | 'succeeded' | 'failed'; store_id: string; sync_date: string; sync_end_date?: string; trigger_type: 'manual' | 'scheduled'; valid_count?: number };
+        Update: { api_call_count?: number; error_message?: string | null; fetched_count?: number; finished_at?: string | null; page_count?: number; revenue_amount?: number | null; status?: 'running' | 'succeeded' | 'failed'; sync_end_date?: string; valid_count?: number };
+        Relationships: [];
+      };
+      pos_sales_tickets: {
+        Row: { created_at: string; external_key: string; external_sn: string | null; id: string; integration_id: string; invalid: boolean; occurred_at: string; order_source: string | null; revenue_date: string; source_updated_at: string | null; store_id: string; sync_job_id: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at: string };
+        Insert: { created_at?: string; external_key: string; external_sn?: string | null; id?: string; integration_id: string; invalid?: boolean; occurred_at: string; order_source?: string | null; revenue_date: string; source_updated_at?: string | null; store_id: string; sync_job_id?: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at?: string };
+        Update: { external_key?: string; external_sn?: string | null; id?: string; integration_id?: string; invalid?: boolean; occurred_at?: string; order_source?: string | null; revenue_date?: string; source_updated_at?: string | null; store_id?: string; sync_job_id?: string | null; ticket_type?: 'SELL' | 'SELL_RETURN'; total_amount?: number; updated_at?: string };
+        Relationships: [];
+      };
       profile_store_access: {
         Row: {
           created_at: string;
@@ -607,15 +763,21 @@ export type Database = {
         Update: { action?: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id?: string; correction_item_ids?: string[]; created_at?: string; id?: string; note?: string; task_id?: string };
         Relationships: [];
       };
+      v2_task_categories: {
+        Row: { code: string; created_at: string; created_by: string | null; is_system: boolean; label: string };
+        Insert: { code: string; created_at?: string; created_by?: string | null; is_system?: boolean; label: string };
+        Update: { code?: string; created_at?: string; created_by?: string | null; is_system?: boolean; label?: string };
+        Relationships: [];
+      };
       v2_task_schedules: {
-        Row: { created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[] };
-        Insert: { created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[] };
-        Update: { created_at?: string; created_by?: string; due_time?: string; id?: string; interval_days?: number | null; is_active?: boolean; month_day?: number | null; next_due_at?: string; paused_at?: string | null; paused_by?: string | null; schedule_type?: 'interval_days' | 'weekly' | 'monthly'; store_id?: string; template_id?: string; template_version_id?: string; updated_at?: string; weekdays?: number[] };
+        Row: { acceptance_interval_days: number | null; acceptance_month_day: number | null; acceptance_type: 'daily' | 'weekly' | 'monthly'; acceptance_weekday: number | null; assigned_profile_id: string | null; content_name: string | null; content_snapshot: Json | null; created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; last_published_at: string | null; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; publish_time: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[]; withdrawn_at: string | null; withdrawn_by: string | null };
+        Insert: { acceptance_interval_days?: number | null; acceptance_month_day?: number | null; acceptance_type?: 'daily' | 'weekly' | 'monthly'; acceptance_weekday?: number | null; assigned_profile_id?: string | null; content_name?: string | null; content_snapshot?: Json | null; created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; last_published_at?: string | null; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; publish_time?: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[]; withdrawn_at?: string | null; withdrawn_by?: string | null };
+        Update: Partial<Database['public']['Tables']['v2_task_schedules']['Insert']>;
         Relationships: [];
       };
       v2_tasks: {
-        Row: { allow_overdue: boolean; category: string; correction_item_ids: string[]; created_at: string; created_by: string; due_at: string; id: string; name: string; requires_review: boolean; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; schedule_id: string | null; snapshot: Json; started_at: string | null; started_by: string | null; status: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key: string | null; submitted_at: string | null; submitted_by: string | null; task_no: string; template_id: string; template_version_id: string; updated_at: string; version: number };
-        Insert: { allow_overdue?: boolean; category: string; correction_item_ids?: string[]; created_at?: string; created_by: string; due_at: string; id?: string; name: string; requires_review?: boolean; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; schedule_id?: string | null; snapshot: Json; started_at?: string | null; started_by?: string | null; status?: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key?: string | null; submitted_at?: string | null; submitted_by?: string | null; task_no?: string; template_id: string; template_version_id: string; updated_at?: string; version?: number };
+        Row: { allow_overdue: boolean; assigned_profile_id: string | null; category: string; correction_item_ids: string[]; created_at: string; created_by: string; due_at: string; id: string; name: string; requires_review: boolean; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; schedule_id: string | null; snapshot: Json; started_at: string | null; started_by: string | null; status: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key: string | null; submitted_at: string | null; submitted_by: string | null; task_no: string; template_id: string; template_version_id: string; updated_at: string; version: number };
+        Insert: { allow_overdue?: boolean; assigned_profile_id?: string | null; category: string; correction_item_ids?: string[]; created_at?: string; created_by: string; due_at: string; id?: string; name: string; requires_review?: boolean; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; schedule_id?: string | null; snapshot: Json; started_at?: string | null; started_by?: string | null; status?: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key?: string | null; submitted_at?: string | null; submitted_by?: string | null; task_no?: string; template_id: string; template_version_id: string; updated_at?: string; version?: number };
         Update: Partial<Database['public']['Tables']['v2_tasks']['Insert']>;
         Relationships: [];
       };
@@ -660,19 +822,19 @@ export type Database = {
       };
       v2_task_templates: {
         Row: {
-          allow_overdue: boolean; category: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          allow_overdue: boolean; category: string;
           created_at: string; created_by: string; current_version: number; description: string;
           due_time: string | null; id: string; name: string; recurrence: 'none' | 'weekly' | 'monthly'; recurrence_day: number | null;
           requires_review: boolean; status: 'draft' | 'published' | 'archived'; updated_at: string;
         };
         Insert: {
-          allow_overdue?: boolean; category: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          allow_overdue?: boolean; category: string;
           created_at?: string; created_by: string; current_version?: number; description?: string;
           due_time?: string | null; id?: string; name: string; recurrence?: 'none' | 'weekly' | 'monthly'; recurrence_day?: number | null;
           requires_review?: boolean; status?: 'draft' | 'published' | 'archived'; updated_at?: string;
         };
         Update: {
-          allow_overdue?: boolean; category?: 'weekly_clean' | 'monthly_clean' | 'inspection' | 'temporary';
+          allow_overdue?: boolean; category?: string;
           created_at?: string; created_by?: string; current_version?: number; description?: string;
           due_time?: string | null; id?: string; name?: string; recurrence?: 'none' | 'weekly' | 'monthly'; recurrence_day?: number | null;
           requires_review?: boolean; status?: 'draft' | 'published' | 'archived'; updated_at?: string;
@@ -720,6 +882,10 @@ export type Database = {
       };
     };
     Views: {
+      attendance_monthly_summary: {
+        Row: { abnormal_count: number | null; attendance_dates: string[] | null; attendance_days: number | null; last_synced_at: string | null; late_count: number | null; late_minutes: number | null; missing_count: number | null; month_start: string | null; profile_id: string | null; store_id: string | null };
+        Relationships: [];
+      };
       arrival_daily_detail_view: {
         Row: {
           arrival_date: string | null;
@@ -756,6 +922,34 @@ export type Database = {
       };
     };
     Functions: {
+      admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
+      complete_attendance_missing_punch_todo: { Args: { p_todo_id: string }; Returns: Json };
+      confirm_my_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
+      admin_issue_payroll_payslips: { Args: { p_payroll_month: string; p_profile_ids?: string[] | null }; Returns: Json };
+      admin_generate_payroll_payslips: { Args: { p_payroll_month: string; p_profile_ids?: string[] | null }; Returns: Json };
+      admin_send_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
+      admin_update_payroll_payslip: { Args: { p_fields: Json; p_payslip_id: string }; Returns: Json };
+      get_payroll_deduction_items: { Args: { p_from: string; p_profile_id: string; p_to: string }; Returns: Json };
+      admin_withdraw_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
+      admin_payroll_estimates: { Args: { p_as_of?: string; p_search?: string; p_store_id?: string | null }; Returns: Json };
+      admin_create_payroll_penalty: { Args: { p_fields: Json }; Returns: Json };
+      admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };
+      admin_save_payroll_visibility_settings: { Args: { p_history_available_until_day: number; p_history_months: number }; Returns: Json };
+      admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
+      admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
+      configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
+      configure_pos_sales_integration: { Args: { p_enabled: boolean; p_end_hour: number; p_integration_id: string; p_interval_minutes: number; p_start_hour: number }; Returns: Json };
+      replace_pos_sales_range: { Args: { p_api_call_count: number; p_end_date: string; p_integration_id: string; p_start_date: string; p_sync_job_id: string; p_tickets: Json }; Returns: Json };
+      save_payroll_store_revenue_input: { Args: { p_as_of_date: string; p_input_mode: string; p_manual_cumulative_amount?: number | null; p_note?: string; p_store_id: string }; Returns: Json };
+      get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
+      get_payroll_estimate: { Args: { p_as_of?: string; p_profile_id: string }; Returns: Json };
+      get_payroll_visibility_settings: { Args: Record<PropertyKey, never>; Returns: Json };
+      payroll_overtime_todo_count: { Args: Record<PropertyKey, never>; Returns: number };
+      review_payroll_overtime_request: { Args: { p_action: string; p_note?: string; p_request_id: string }; Returns: Json };
+      submit_payroll_overtime_request: { Args: { p_hours: number; p_overtime_date: string; p_reason?: string; p_store_id: string }; Returns: Json };
+      update_payroll_overtime_request: { Args: { p_hours: number; p_overtime_date: string; p_reason?: string; p_request_id: string; p_store_id: string }; Returns: Json };
+      get_v2_sop_detail: { Args: { p_sop_id: string }; Returns: Json };
+      list_v2_sop_cards: { Args: { p_archived?: boolean; p_category?: string; p_favorites_only?: boolean; p_limit?: number; p_offset?: number; p_search?: string }; Returns: Json };
       attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };
       admin_set_product_permissions: { Args: { p_can_request_discontinued: boolean; p_can_request_incorrect: boolean; p_can_request_new: boolean; p_profile_id: string }; Returns: Json };
       acknowledge_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
@@ -768,20 +962,35 @@ export type Database = {
       archive_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       can_manage_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };
       can_manage_v2_sop: { Args: { p_sop_id: string }; Returns: boolean };
+      can_manage_v2_task_content_asset: { Args: { p_asset_id: string }; Returns: boolean };
       can_read_v2_notice: { Args: { p_notice_id: string }; Returns: boolean };
       can_read_v2_sop: { Args: { p_sop_id: string }; Returns: boolean };
       can_edit_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       can_request_product_feedback: { Args: { p_feedback_type: string }; Returns: boolean };
       can_read_v2_task: { Args: { p_task_id: string }; Returns: boolean };
       admin_operation_overview: { Args: Record<PropertyKey, never>; Returns: { arrival_pending: number; arrival_today: number; inventory_completed_today: number; inventory_pending: number; v2_task_active: number; v2_task_completed: number }[] };
-      create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_month_day: number | null; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      create_v2_task_schedule: { Args: { p_first_due_at: string; p_interval_days: number | null; p_month_day: number | null; p_profile_ids: string[]; p_schedule_type: string; p_store_ids: string[]; p_template_id: string; p_weekdays: number[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      create_v2_task_schedule_v2: { Args: { p_fields: Json; p_profile_ids: string[]; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      get_v2_task_schedule_content: { Args: { p_schedule_id: string }; Returns: Json };
+      update_v2_task_schedule_v2: { Args: { p_fields: Json; p_schedule_id: string }; Returns: Json };
+      withdraw_v2_task_schedule_current: { Args: { p_schedule_id: string }; Returns: Json };
+      create_v2_task_category: { Args: { p_label: string }; Returns: Json };
+      delete_v2_task_category: { Args: { p_code: string }; Returns: Json };
       create_v2_sop_text_step: { Args: { p_sop_id: string; p_sort_order: number; p_step_text: string }; Returns: Json };
       pause_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       mark_v2_notice_read: { Args: { p_notice_id: string }; Returns: Json };
       publish_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       publish_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       publish_v2_sop_with_options: { Args: { p_silent: boolean; p_sop_id: string }; Returns: Json };
-      publish_v2_tasks: { Args: { p_due_at: string | null; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      publish_v2_tasks: { Args: { p_due_at: string | null; p_profile_ids: string[]; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      update_v2_task_content: { Args: { p_due_at: string | null; p_name: string; p_snapshot: Json; p_task_id: string }; Returns: Json };
+      update_v2_task_schedule_all: { Args: { p_fields: Json; p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
+      update_v2_task_schedule_content: { Args: { p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
+      withdraw_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
+      admin_bind_dingtalk_employee: { Args: { p_directory_user_id: string; p_match_source?: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
+      admin_remove_dingtalk_store_enterprise: { Args: { p_mapping_id: string }; Returns: Json };
+      admin_save_dingtalk_store_enterprise: { Args: { p_corp_id: string; p_display_name: string; p_store_id: string }; Returns: Json };
+      admin_unbind_dingtalk_employee: { Args: { p_binding_id: string }; Returns: Json };
       resume_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       reorder_v2_sop_assets: { Args: { p_asset_ids: string[]; p_sop_id: string }; Returns: Json };
       rename_v2_sop_category: { Args: { p_category_id: string; p_new_name: string }; Returns: Json };

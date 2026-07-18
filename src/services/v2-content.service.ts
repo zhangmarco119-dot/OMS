@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
 import { selectSopPreviewAsset } from '../features/content/sopPreview';
+import { loadSopImageUrl } from '../features/content/sopImageDelivery';
 import { compressArrivalImage } from './arrival-images.service';
 
 type Client = SupabaseClient<Database>;
@@ -24,13 +25,17 @@ export interface NoticeListItem extends NoticeRow {
 }
 
 export interface SopListItem extends SopRow {
+  attachmentCount?: number;
   assetUrls: Array<SopAssetRow & { signedUrl: string | null }>;
   roles: Array<'staff' | 'manager'>;
+  stepCount?: number;
   storeIds: string[];
   taskTemplateId: string | null;
 }
 
-export type SopLibraryEntry = Pick<SopRow, 'category' | 'effective_at' | 'id' | 'status' | 'title' | 'version'> & { previewUrl: string | null };
+export type SopLibraryEntry = Pick<SopRow, 'category' | 'effective_at' | 'id' | 'status' | 'title' | 'version'> & { isFavorite: boolean; previewPath: string | null; previewUrl: string | null };
+export interface SopPage { items: SopListItem[]; total: number }
+export interface SopLibraryPage { items: SopLibraryEntry[]; total: number }
 
 export interface NoticeDraft {
   body: string;
@@ -184,6 +189,82 @@ export const loadSops = async (client: Client): Promise<SopListItem[]> => {
   })));
 };
 
+const escapePostgrestSearch = (value: string) => value.replace(/[,%()]/g, ' ').trim();
+
+type SopCardRpcItem = SopRow & {
+  attachmentCount: number;
+  isFavorite: boolean;
+  previewAsset: SopAssetRow | null;
+  roles: Array<'staff' | 'manager'>;
+  stepCount: number;
+  storeIds: string[];
+};
+
+const parseSopCardPage = (data: Json | null) => {
+  const root = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, Json | undefined> : {};
+  return {
+    items: (Array.isArray(root.items) ? root.items : []) as unknown as SopCardRpcItem[],
+    total: typeof root.total === 'number' ? root.total : 0,
+  };
+};
+
+const createSopSignedUrlMap = async (client: Client, rawPaths: Array<string | null | undefined>) => {
+  const paths = [...new Set(rawPaths.filter((path): path is string => Boolean(path)))];
+  const signedByPath = new Map<string, string>();
+  if (paths.length) {
+    const signed = await client.storage.from('v2-sop-assets').createSignedUrls(paths, 3600);
+    throwIfError(signed.error);
+    (signed.data ?? []).forEach((entry, index) => {
+      const path = 'path' in entry && typeof entry.path === 'string' ? entry.path : paths[index];
+      if (path && entry.signedUrl) signedByPath.set(path, entry.signedUrl);
+    });
+  }
+  return signedByPath;
+};
+
+const signSopPreviewAssets = async (client: Client, items: SopCardRpcItem[]) => {
+  return Promise.all(items.map(async (item) => ({
+    item,
+    previewUrl: item.previewAsset?.object_path
+      ? await loadSopImageUrl(client, item.previewAsset.object_path, 'thumbnail')
+      : null,
+  })));
+};
+
+export const loadSopPage = async (client: Client, options: { archived?: boolean; category?: string; limit?: number; offset?: number; search?: string; signal?: AbortSignal } = {}): Promise<SopPage> => {
+  const limit = Math.min(Math.max(options.limit ?? 16, 1), 50);
+  const offset = Math.max(options.offset ?? 0, 0);
+  const search = escapePostgrestSearch(options.search ?? '');
+  const request = client.rpc('list_v2_sop_cards', {
+    p_archived: options.archived ?? false,
+    p_category: options.category ?? 'all',
+    p_favorites_only: false,
+    p_limit: limit,
+    p_offset: offset,
+    p_search: search,
+  });
+  const response = await (options.signal ? request.abortSignal(options.signal) : request);
+  throwIfError(response.error);
+  const page = parseSopCardPage(response.data);
+  const signed = await signSopPreviewAssets(client, page.items);
+  return {
+    total: page.total,
+    items: signed.map(({ item, previewUrl }): SopListItem => ({
+      ...item,
+      assetUrls: item.previewAsset ? [{ ...item.previewAsset, signedUrl: previewUrl }] : [],
+      attachmentCount: item.attachmentCount,
+      stepCount: item.stepCount,
+      taskTemplateId: item.task_template_id,
+    })),
+  };
+};
+
+export const loadSopArchiveCount = async (client: Client) => {
+  const result = await client.from('v2_sops').select('id', { count: 'exact', head: true }).eq('status', 'archived');
+  throwIfError(result.error);
+  return result.count ?? 0;
+};
+
 export const archiveNotice = async (client: Client, noticeId: string) => {
   const { data, error } = await client.rpc('archive_v2_notice', { p_notice_id: noticeId });
   throwIfError(error);
@@ -201,41 +282,97 @@ export const loadSopLibraryEntries = async (client: Client): Promise<SopLibraryE
   return Promise.all(sops.data.map(async (sop) => {
     const candidates = bySop.get(sop.id) ?? [];
     const preview = selectSopPreviewAsset(candidates);
-    if (!preview) return { ...sop, previewUrl: null };
-    if (!preview.object_path) return { ...sop, previewUrl: null };
-    const signed = await client.storage.from('v2-sop-assets').createSignedUrl(preview.object_path, 3600);
-    throwIfError(signed.error);
-    return { ...sop, previewUrl: signed.data?.signedUrl ?? null };
+    if (!preview?.object_path) return { ...sop, isFavorite: false, previewPath: null, previewUrl: null };
+    return { ...sop, isFavorite: false, previewPath: preview.object_path, previewUrl: null };
   }));
 };
 
-export const loadSopDetail = async (client: Client, sopId: string): Promise<SopListItem | null> => {
-  const [sop, assignments, roles, assets] = await Promise.all([
-    client.from('v2_sops').select('*').eq('id', sopId).maybeSingle(),
-    client.from('v2_sop_stores').select('*').eq('sop_id', sopId),
-    client.from('v2_sop_roles').select('*').eq('sop_id', sopId),
-    client.from('v2_sop_assets').select('*').eq('sop_id', sopId).order('sort_order').order('created_at'),
-  ]);
-  throwIfError(sop.error);
-  throwIfError(assignments.error);
-  throwIfError(roles.error);
-  throwIfError(assets.error);
-  if (!sop.data) return null;
-  const assetUrls = await Promise.all((assets.data ?? []).map(async (asset) => {
-    if (!asset.object_path) return { ...asset, signedUrl: null };
-    const signed = await client.storage.from('v2-sop-assets').createSignedUrl(asset.object_path, 3600);
-    throwIfError(signed.error);
-    if (!signed.data) throw new Error('无法生成 SOP 附件访问链接。');
-    return { ...asset, signedUrl: signed.data.signedUrl };
-  }));
+export const loadSopLibraryPage = async (client: Client, options: { category?: string; favoritesOnly?: boolean; limit?: number; offset?: number; search?: string; signal?: AbortSignal } = {}): Promise<SopLibraryPage> => {
+  const limit = Math.min(Math.max(options.limit ?? 16, 1), 50);
+  const offset = Math.max(options.offset ?? 0, 0);
+  const search = escapePostgrestSearch(options.search ?? '');
+  const request = client.rpc('list_v2_sop_cards', {
+    p_archived: false,
+    p_category: options.category ?? 'all',
+    p_favorites_only: options.favoritesOnly ?? false,
+    p_limit: limit,
+    p_offset: offset,
+    p_search: search,
+  });
+  const response = await (options.signal ? request.abortSignal(options.signal) : request);
+  throwIfError(response.error);
+  const page = parseSopCardPage(response.data);
   return {
-    ...sop.data,
-    assetUrls,
-    roles: (roles.data ?? []).map((entry) => entry.role),
-    storeIds: (assignments.data ?? []).map((entry) => entry.store_id),
-    taskTemplateId: sop.data.task_template_id,
+    total: page.total,
+    items: page.items.map((item) => ({ category: item.category, effective_at: item.effective_at, id: item.id, isFavorite: item.isFavorite, previewPath: item.previewAsset?.object_path ?? null, previewUrl: null, status: item.status, title: item.title, version: item.version })),
   };
 };
+
+export const setSopFavorite = async (client: Client, sopId: string, favorite: boolean) => {
+  const user = await client.auth.getUser();
+  const profileId = user.data.user?.id;
+  if (!profileId) throw new Error('登录状态已失效，请重新登录。');
+  const result = favorite
+    ? await client.from('v2_sop_favorites').insert({ profile_id: profileId, sop_id: sopId })
+    : await client.from('v2_sop_favorites').delete().eq('profile_id', profileId).eq('sop_id', sopId);
+  throwIfError(result.error);
+};
+
+type SopDetailRpcItem = SopRow & { assets: SopAssetRow[]; roles: Array<'staff' | 'manager'>; storeIds: string[] };
+
+const sopDetailCache = new WeakMap<Client, Map<string, { expiresAt: number; value: SopListItem | null }>>();
+const sopDetailPending = new WeakMap<Client, Map<string, Promise<SopListItem | null>>>();
+
+const loadSopDetailMetadata = async (client: Client, sopId: string): Promise<SopListItem | null> => {
+  const response = await client.rpc('get_v2_sop_detail', { p_sop_id: sopId });
+  throwIfError(response.error);
+  if (!response.data) return null;
+  const detail = response.data as unknown as SopDetailRpcItem;
+  return {
+    ...detail,
+    assetUrls: (detail.assets ?? []).map((asset) => ({ ...asset, signedUrl: null })),
+    roles: detail.roles ?? [],
+    storeIds: detail.storeIds ?? [],
+    taskTemplateId: detail.task_template_id,
+  };
+};
+
+export const loadSopDetail = async (
+  client: Client,
+  sopId: string,
+  options: { cacheMetadata?: boolean; signAssets?: boolean } = {},
+): Promise<SopListItem | null> => {
+  const signAssets = options.signAssets ?? true;
+  let detail: SopListItem | null;
+  if (options.cacheMetadata && !signAssets) {
+    const cache = sopDetailCache.get(client) ?? new Map<string, { expiresAt: number; value: SopListItem | null }>();
+    sopDetailCache.set(client, cache);
+    const cached = cache.get(sopId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const pending = sopDetailPending.get(client) ?? new Map<string, Promise<SopListItem | null>>();
+    sopDetailPending.set(client, pending);
+    const activeRequest = pending.get(sopId);
+    if (activeRequest) return activeRequest;
+    const request = loadSopDetailMetadata(client, sopId);
+    pending.set(sopId, request);
+    try {
+      detail = await request;
+      cache.set(sopId, { expiresAt: Date.now() + 30_000, value: detail });
+    } finally {
+      pending.delete(sopId);
+    }
+  } else {
+    detail = await loadSopDetailMetadata(client, sopId);
+  }
+  if (!detail || !signAssets) return detail;
+  const signedByPath = await createSopSignedUrlMap(client, detail.assetUrls.map((asset) => asset.object_path));
+  return {
+    ...detail,
+    assetUrls: detail.assetUrls.map((asset) => ({ ...asset, signedUrl: asset.object_path ? signedByPath.get(asset.object_path) ?? null : null })),
+  };
+};
+
+export const prefetchSopDetail = (client: Client, sopId: string) => loadSopDetail(client, sopId, { cacheMetadata: true, signAssets: false });
 
 export const loadSopCategories = async (client: Client): Promise<SopCategoryRow[]> => {
   const { data, error } = await client.from('v2_sop_categories').select('*').eq('is_active', true).order('sort_order').order('name');

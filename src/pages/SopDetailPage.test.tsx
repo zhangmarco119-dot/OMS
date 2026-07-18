@@ -26,7 +26,7 @@ const detail = (status: 'draft' | 'published') => ({
   storeIds: ['store-1'], taskTemplateId: null, title: '六步酸奶碗',
 });
 
-const renderPage = () => render(<MemoryRouter initialEntries={['/app/sops/sop-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/sops/:sopId" element={<SopDetailPage />} /></Routes></MemoryRouter>);
+const renderPage = () => render(<MemoryRouter initialEntries={['/app/sops/sop-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/sops/:sopId" element={<SopDetailPage />} /><Route path="/app/admin/sops" element={<div>SOP 管理</div>} /></Routes></MemoryRouter>);
 
 describe('SopDetailPage compact employee preview', () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.role = 'admin'; mocks.loadTaskTemplates.mockResolvedValue([{ id: 'template-1', name: '开店检查', status: 'published' }]); });
@@ -41,6 +41,20 @@ describe('SopDetailPage compact employee preview', () => {
     const firstDescription = screen.getByText('步骤 1 说明');
     const firstImage = screen.getByAltText('六步酸奶碗 步骤 1');
     expect(firstDescription.compareDocumentPosition(firstImage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(firstImage).toHaveAttribute('loading', 'eager');
+    expect(screen.getByAltText('六步酸奶碗 步骤 5')).toHaveAttribute('loading', 'lazy');
+  });
+
+  it('shows the SOP immediately without waiting for administrator task templates', async () => {
+    let resolveTemplates: (value: Array<{ id: string; name: string; status: string }>) => void = () => undefined;
+    mocks.loadSopDetail.mockResolvedValue(detail('draft'));
+    mocks.loadTaskTemplates.mockReturnValue(new Promise((resolve) => { resolveTemplates = resolve; }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: '六步酸奶碗' })).toBeInTheDocument();
+    expect(screen.getByAltText('六步酸奶碗 步骤 1')).toBeInTheDocument();
+    resolveTemplates([{ id: 'template-1', name: '开店检查', status: 'published' }]);
+    await waitFor(() => expect(mocks.loadTaskTemplates).toHaveBeenCalledTimes(1));
   });
 
   it('shows the same two-column layout to staff for a published SOP', async () => {
@@ -83,6 +97,6 @@ describe('SopDetailPage compact employee preview', () => {
       id: 'sop-1', roles: ['staff', 'manager'], storeIds: ['store-1'], taskTemplateId: 'template-1',
     })));
     expect(mocks.publishSop).toHaveBeenCalledWith(expect.anything(), 'sop-1', { silent: true });
-    expect(await screen.findByText('SOP 已静默发布。')).toBeInTheDocument();
+    expect(await screen.findByText('SOP 管理')).toBeInTheDocument();
   });
 });

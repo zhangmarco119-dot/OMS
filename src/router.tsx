@@ -5,6 +5,9 @@ import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { AccountPage } from './pages/AccountPage';
 import { AboutSystemPage } from './pages/AboutSystemPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
+import { AdminAttendanceDetailPage } from './pages/AdminAttendanceDetailPage';
+import { AdminAttendancePage } from './pages/AdminAttendancePage';
+import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminLegacyRedirect } from './pages/AdminLegacyRedirect';
 import { AdminProductsPage, AdminUsersPage } from './pages/AdminPage';
 import { AdminAnnouncementsPage, AdminSopsPage } from './pages/AdminContentPage';
@@ -23,11 +26,15 @@ import { AppMenuPage } from './pages/AppMenuPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
+import { MyAttendancePage } from './pages/MyAttendancePage';
+import { MyPayrollPage } from './pages/MyPayrollPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
+import { OvertimePage } from './pages/OvertimePage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
 import { SopDetailPage } from './pages/SopDetailPage';
+import { SystemManualPage } from './pages/SystemManualPage';
 import { TaskRoutePage } from './pages/TaskRoutePage';
 import { TodoPage } from './pages/TodoPage';
 import { V2TaskCenterPage } from './pages/V2TaskCenterPage';
@@ -70,8 +77,12 @@ export const router = createBrowserRouter([
       { path: 'sops/:sopId', element: <SopDetailPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'operations-history', element: <OperationsHistoryPage /> },
+      { path: 'attendance', element: <MyAttendancePage /> },
+      { path: 'payroll', element: <MyPayrollPage /> },
+      { path: 'overtime', element: <OvertimePage /> },
       { path: 'account', element: <AccountPage /> },
-      { path: 'account/about', element: <ProtectedRoute requireAdmin><AboutSystemPage /></ProtectedRoute> },
+      { path: 'account/about', element: <ProtectedRoute><AboutSystemPage /></ProtectedRoute> },
+      { path: 'account/about/manual/:manualSlug', element: <ProtectedRoute><SystemManualPage /></ProtectedRoute> },
       { path: 'menu', element: <AppMenuPage /> },
       { path: 'workbench', element: <AppMenuPage /> },
       { path: 'todos', element: <TodoPage /> },
@@ -108,6 +119,9 @@ export const router = createBrowserRouter([
       { path: 'admin/announcements', element: <ProtectedRoute requireAdmin><AdminAnnouncementsPage /></ProtectedRoute> },
       { path: 'admin/sops', element: <ProtectedRoute requireAdmin><AdminSopsPage /></ProtectedRoute> },
       { path: 'admin/analytics', element: <ProtectedRoute requireAdmin><AdminAnalyticsPage /></ProtectedRoute> },
+      { path: 'admin/attendance', element: <ProtectedRoute requireAdmin><AdminAttendancePage /></ProtectedRoute> },
+      { path: 'admin/attendance/:profileId', element: <ProtectedRoute requireAdmin><AdminAttendanceDetailPage /></ProtectedRoute> },
+      { path: 'admin/payroll', element: <ProtectedRoute requireAdmin><AdminPayrollPage /></ProtectedRoute> },
     ],
   },
   {

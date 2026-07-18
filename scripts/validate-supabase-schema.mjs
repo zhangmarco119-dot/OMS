@@ -36,6 +36,9 @@ const adminTodoCleanupMigrationPath = join(root, 'supabase', 'migrations', '0029
 const contentDeleteAnalyticsRangeMigrationPath = join(root, 'supabase', 'migrations', '0030_content_delete_and_analytics_range.sql');
 const noticeAssetAdminDeleteMigrationPath = join(root, 'supabase', 'migrations', '0031_notice_asset_admin_delete.sql');
 const unifiedProductPermissionsMigrationPath = join(root, 'supabase', 'migrations', '0032_unified_product_permissions_and_notice_republish.sql');
+const attendanceMigrationPath = join(root, 'supabase', 'migrations', '0050_dingtalk_attendance.sql');
+const attendanceTestPath = join(root, 'supabase', 'tests', '0050_dingtalk_attendance.sql');
+const attendanceRlsTestPath = join(root, 'supabase', 'tests', '0050_dingtalk_attendance_rls.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -75,6 +78,9 @@ const adminTodoCleanupMigration = readFileSync(adminTodoCleanupMigrationPath, 'u
 const contentDeleteAnalyticsRangeMigration = readFileSync(contentDeleteAnalyticsRangeMigrationPath, 'utf8');
 const noticeAssetAdminDeleteMigration = readFileSync(noticeAssetAdminDeleteMigrationPath, 'utf8');
 const unifiedProductPermissionsMigration = readFileSync(unifiedProductPermissionsMigrationPath, 'utf8');
+const attendanceMigration = readFileSync(attendanceMigrationPath, 'utf8');
+const attendanceTest = readFileSync(attendanceTestPath, 'utf8');
+const attendanceRlsTest = readFileSync(attendanceRlsTestPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -99,6 +105,10 @@ const requiredTables = [
   'v2_tasks', 'v2_task_answers', 'v2_task_images', 'v2_task_reviews', 'v2_task_item_reviews',
   'v2_task_schedules',
   'profile_product_permissions', 'v2_notice_recipients', 'v2_notice_assets',
+  'v2_system_documents',
+  'dingtalk_employee_directory', 'dingtalk_employee_bindings', 'attendance_daily_records', 'attendance_punch_records',
+  'attendance_sync_jobs', 'attendance_sync_failures', 'attendance_audit_logs',
+  'pos_sales_integrations', 'pos_sales_sync_jobs', 'pos_sales_tickets', 'payroll_store_revenue_inputs',
 ];
 
 const storeScopedTables = [
@@ -112,6 +122,8 @@ const storeScopedTables = [
   'arrival_report_images',
   'v2_tasks',
   'v2_task_images',
+  'attendance_daily_records', 'attendance_punch_records',
+  'pos_sales_integrations', 'pos_sales_sync_jobs', 'pos_sales_tickets', 'payroll_store_revenue_inputs',
 ];
 
 const requiredPolicies = [
@@ -159,6 +171,11 @@ const requiredPolicies = [
   'v2_task_schedules_select_allowed',
   'profile_product_permissions_select_own_or_admin', 'v2_notice_recipients_select_self_or_admin',
   'v2_notice_assets_select_allowed', 'v2_notice_assets_insert_admin', 'v2_notice_assets_delete_admin',
+  'v2_system_documents_select_admin', 'v2_system_documents_insert_admin', 'v2_system_documents_update_admin',
+  'dingtalk_employee_directory_select_admin', 'dingtalk_employee_bindings_select_allowed',
+  'attendance_daily_records_select_allowed', 'attendance_punch_records_select_allowed',
+  'attendance_sync_jobs_select_admin', 'attendance_sync_failures_select_admin', 'attendance_audit_logs_select_admin',
+  'pos_sales_integrations_admin_all', 'pos_sales_sync_jobs_admin_read', 'payroll_store_revenue_inputs_admin_all',
 ];
 
 const requiredFunctions = [
@@ -189,6 +206,8 @@ const requiredFunctions = [
   'void_arrival_report',
   'can_read_arrival_image_object',
   'can_write_arrival_image_object',
+  'can_admin_read_attendance_store', 'can_admin_manage_attendance_profile', 'get_attendance_month_detail',
+  'admin_attendance_month', 'admin_bind_dingtalk_employee', 'admin_unbind_dingtalk_employee',
   'can_manage_v2_task_template',
   'can_view_v2_task_template',
   'attach_v2_task_template_reference_image',
@@ -202,6 +221,7 @@ const requiredFunctions = [
   'can_request_product_feedback', 'admin_set_product_permissions', 'resume_v2_task_schedule',
   'acknowledge_v2_notice',
   'archive_v2_notice', 'delete_v2_notice', 'admin_v2_analytics',
+  'configure_pos_sales_integration', 'replace_pos_sales_day', 'replace_pos_sales_range', 'save_payroll_store_revenue_input',
 ];
 
 const failures = [];
@@ -479,6 +499,23 @@ if (!unifiedProductPermissionsMigration.includes("role in ('staff', 'manager')")
 if (!unifiedProductPermissionsMigration.includes("v_previous_status = 'retracted'")
   || !unifiedProductPermissionsMigration.includes('set first_read_at = null')) {
   failures.push('republished notices must reset recipient read state');
+}
+
+if (!attendanceMigration.includes('create view public.attendance_monthly_summary')
+  || !attendanceMigration.includes('unique (corp_id, profile_id, attendance_date)')
+  || !attendanceMigration.includes('unique (corp_id, dingtalk_record_id)')) {
+  failures.push('DingTalk attendance summary or idempotency constraints are missing');
+}
+
+if (!attendanceMigration.includes("profile_id = auth.uid() or public.can_admin_read_attendance_store(store_id)")
+  || !attendanceMigration.includes("public.current_user_role() = 'admin'")) {
+  failures.push('DingTalk attendance employee/admin RLS boundary is incomplete');
+}
+
+if (!attendanceTest.includes('StoreHub DingTalk attendance schema checks passed')
+  || !attendanceRlsTest.includes('manager can read store-wide attendance')
+  || !attendanceRlsTest.includes('attendance daily upsert is not idempotent')) {
+  failures.push('DingTalk attendance schema, RLS, and idempotency SQL tests are incomplete');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { cn } from '../../lib/cn';
+import { rememberedParentRoute, rememberedRoute } from '../../lib/navigationHierarchy';
 
 interface PageShellProps {
   eyebrow?: string;
@@ -15,13 +16,13 @@ interface PageShellProps {
 
 export function PageShell({ eyebrow, title, children, backTo, contentGapClassName = 'gap-5', onBack }: PageShellProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const goBack = () => {
     if (onBack) { onBack(); return; }
-    if (window.history.state?.idx > 0) { navigate(-1); return; }
-    if (backTo) navigate(backTo);
+    if (backTo) navigate(rememberedParentRoute(location.pathname) ?? rememberedRoute(backTo), { replace: true, state: { from: location.pathname } });
   };
   return (
-    <section className="min-h-screen px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8">
+    <section className="app-page-min-height px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8">
       <div className={cn('mx-auto flex max-w-5xl flex-col', contentGapClassName)}>
         <header className="relative flex min-h-14 items-center justify-center border-b border-slate-200 pb-3 text-center">
           {onBack || backTo ? (

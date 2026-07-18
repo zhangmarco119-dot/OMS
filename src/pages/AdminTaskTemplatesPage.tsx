@@ -11,30 +11,33 @@ import {
   createEmptyTemplateGroup,
   createEmptyTemplateItem,
   fieldTypeLabel,
-  taskTemplateCategories,
   taskTemplateFieldTypes,
   type TaskTemplateDraft,
   type TaskTemplateGroupDraft,
   type TaskTemplateItemDraft,
 } from '../features/task-templates/templateForm';
-import { weeklyDeadlineOptions } from '../features/task-templates/recurrence';
 import { TaskTemplateReferenceImageUpload } from '../features/task-templates/TaskTemplateReferenceImageUpload';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   archiveTaskTemplate,
+  createTaskCategory,
+  deleteTaskCategory,
   deleteArchivedTaskTemplate,
   deleteTaskTemplateReferenceImage,
   loadTaskTemplateDraft,
+  loadTaskCategories,
   loadTaskTemplates,
   publishTaskTemplate,
   retractTaskTemplate,
   saveTaskTemplate,
   uploadTaskTemplateReferenceImage,
   type TaskTemplateListItem,
+  type TaskCategoryRow,
 } from '../services/task-templates.service';
 
-type Filter = 'all' | typeof taskTemplateCategories[number];
+type Filter = 'all' | string;
 type TemplateScope = 'active' | 'archived';
 
 const appendReferenceImage = (source: TaskTemplateDraft, itemId: string, path: string, previewUrl: string): TaskTemplateDraft => ({
@@ -91,21 +94,28 @@ const restoreTemplateDraft = (value: string): TaskTemplateDraft | null => {
 export function AdminTaskTemplatesPage() {
   const auth = useAuth();
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
-  const [filter, setFilter] = useState<Filter>('all');
-  const [scope, setScope] = useState<TemplateScope>('active');
+  const [categories, setCategories] = useState<TaskCategoryRow[]>([]);
+  const [filter, setFilter] = useRememberedPageState<Filter>('category-filter', 'all');
+  const [scope, setScope] = useRememberedPageState<TemplateScope>('scope', 'active');
+  const [selectedArchivedIds, setSelectedArchivedIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<TaskTemplateDraft | null>(null);
   const [restoredDraftKey, setRestoredDraftKey] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const draftRef = useRef<TaskTemplateDraft | null>(null);
   const draftStorageKey = auth.profile ? `storehub:v2-task-template-draft:${auth.profile.id}` : null;
 
   const refresh = useCallback(async () => {
     if (!supabase) { setStatus('error'); setMessage('需要配置 Supabase 才能管理任务模板。'); return; }
     setStatus('loading');
-    try { setTemplates(await loadTaskTemplates(supabase)); setStatus('ready'); setMessage(null); }
+    try {
+      const [nextTemplates, nextCategories] = await Promise.all([loadTaskTemplates(supabase), loadTaskCategories(supabase)]);
+      setTemplates(nextTemplates); setCategories(nextCategories); setStatus('ready'); setMessage(null);
+    }
     catch (error) { setStatus('error'); setMessage(error instanceof Error ? error.message : '加载任务模板失败。'); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
@@ -126,6 +136,7 @@ export function AdminTaskTemplatesPage() {
   }, [draft, draftStorageKey, restoredDraftKey]);
   useEffect(() => { draftRef.current = draft; }, [draft]);
   const visibleTemplates = useMemo(() => templates.filter((template) => (scope === 'archived' ? template.status === 'archived' : template.status !== 'archived') && (filter === 'all' || template.category === filter)), [filter, scope, templates]);
+  const categoryName = (code: string) => categories.find((item) => item.code === code)?.label ?? categoryLabel[code] ?? code;
 
   if (!featureFlags.taskTemplates) {
     return <PageShell eyebrow="门店运营系统" title="任务模板暂未开放" backTo="/app"><p className="rounded-lg bg-white p-5 text-sm text-slate-600 shadow-sm">当前环境已关闭任务模板功能。</p></PageShell>;
@@ -242,30 +253,62 @@ export function AdminTaskTemplatesPage() {
     finally { setBusy(false); }
   };
 
+  const deleteArchivedBatch = async () => {
+    if (!supabase || !selectedArchivedIds.length || !window.confirm(`确认永久删除选中的 ${selectedArchivedIds.length} 个已归档模板？存在任务历史的模板会保留并列入失败结果。`)) return;
+    setBusy(true); setMessage(null);
+    let deleted = 0; const failed: string[] = [];
+    for (const template of visibleTemplates.filter((item) => selectedArchivedIds.includes(item.id))) {
+      try { await deleteArchivedTaskTemplate(supabase, template.id); deleted += 1; }
+      catch { failed.push(template.name); }
+    }
+    setSelectedArchivedIds([]); setBusy(false); await refresh();
+    if (failed.length) setMessage(`已删除 ${deleted} 个，${failed.length} 个未删除：${failed.join('、')}`);
+    else setSuccessMessage(`已永久删除 ${deleted} 个已归档模板。`);
+  };
+
+  const addCategory = async () => {
+    if (!supabase || !newCategoryName.trim()) { setMessage('请输入任务分类名称。'); return; }
+    setBusy(true);
+    try { await createTaskCategory(supabase, newCategoryName.trim()); setNewCategoryName(''); await refresh(); setSuccessMessage('任务分类已新建。'); }
+    catch (error) { setMessage(error instanceof Error ? error.message : '新建任务分类失败。'); }
+    finally { setBusy(false); }
+  };
+
+  const removeCategory = async (category: TaskCategoryRow) => {
+    if (!supabase || category.is_system || !window.confirm(`确认删除任务分类“${category.label}”？分类下仍有模板时不能删除。`)) return;
+    setBusy(true);
+    try { await deleteTaskCategory(supabase, category.code); if (filter === category.code) setFilter('all'); await refresh(); setSuccessMessage('任务分类已删除。'); }
+    catch (error) { setMessage(error instanceof Error ? error.message : '删除任务分类失败。'); }
+    finally { setBusy(false); }
+  };
+
   return <PageShell eyebrow="门店运营系统 · 管理员" title="任务模板" backTo="/app/admin/tasks">
     <section className="rounded-lg bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-slate-900">周清、月清与巡店模板</h2><p className="mt-1 text-sm text-slate-500">发布后生成不可变版本，可用于创建执行任务。</p></div><button aria-label="刷新模板" className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200" onClick={() => void refresh()} type="button"><RefreshCw className="h-4 w-4" /></button></div>
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-1"><button className={`min-h-10 rounded-md text-sm font-bold ${scope === 'active' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setScope('active')} type="button">当前模板</button><button className={`min-h-10 rounded-md text-sm font-bold ${scope === 'archived' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setScope('archived')} type="button">已归档模板</button></div>
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{(['all', ...taskTemplateCategories] as const).map((value) => <button className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`} key={value} onClick={() => setFilter(value)} type="button">{value === 'all' ? '全部' : categoryLabel[value]}</button>)}</div>
-      {scope === 'active' ? <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white" onClick={() => setDraft(createEmptyTaskTemplate(auth.availableStores[0]?.id ? [auth.availableStores[0].id] : []))} type="button"><ClipboardPlus className="h-5 w-5" />新建模板</button> : null}
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{(['all', ...categories.map((item) => item.code)]).map((value) => <button className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`} key={value} onClick={() => setFilter(value)} type="button">{value === 'all' ? '全部' : categoryName(value)}</button>)}</div>
+      {scope === 'active' ? <div className="mt-4 flex flex-wrap gap-2"><button className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white" onClick={() => setDraft(createEmptyTaskTemplate(auth.availableStores[0]?.id ? [auth.availableStores[0].id] : []))} type="button"><ClipboardPlus className="h-5 w-5" />新建模板</button><button className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-brand-200 bg-white px-4 font-bold text-brand-700" onClick={() => setCategoryManagerOpen(true)} type="button"><Plus className="h-4 w-4" />分类管理</button></div> : null}
+      {scope === 'archived' && visibleTemplates.length ? <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3"><label className="text-sm font-bold"><input checked={selectedArchivedIds.length === visibleTemplates.length} className="mr-2" onChange={(event) => setSelectedArchivedIds(event.target.checked ? visibleTemplates.map((item) => item.id) : [])} type="checkbox" />全选</label><button className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-red-600 px-3 text-sm font-bold text-white disabled:opacity-40" disabled={busy || !selectedArchivedIds.length} onClick={() => void deleteArchivedBatch()} type="button"><Trash2 className="h-4 w-4" />批量删除（{selectedArchivedIds.length}）</button></div> : null}
+      {scope === 'archived' && visibleTemplates.length ? <div className="mt-2 grid gap-2 rounded-lg border border-slate-200 p-3">{visibleTemplates.map((template) => <label className="flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm font-semibold hover:bg-slate-50" key={template.id}><input checked={selectedArchivedIds.includes(template.id)} className="mr-2 h-4 w-4" onChange={(event) => setSelectedArchivedIds((current) => event.target.checked ? [...new Set([...current, template.id])] : current.filter((id) => id !== template.id))} type="checkbox" />{template.name}</label>)}</div> : null}
     </section>
 
     {status === 'error' && message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
     {status === 'loading' ? <p className="rounded-lg bg-white p-5 font-semibold text-slate-600 shadow-sm">正在加载任务模板</p> : null}
     {status === 'ready' && visibleTemplates.length === 0 ? <p className="rounded-lg bg-white p-8 text-center text-slate-500 shadow-sm">{scope === 'archived' ? '暂无已归档模板。' : '当前分类还没有模板。'}</p> : null}
-    {status === 'ready' ? <div className="grid gap-3 md:grid-cols-2">{visibleTemplates.map((template) => <article className="rounded-lg bg-white p-4 shadow-sm" key={template.id}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{categoryLabel[template.category]} · v{template.current_version}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{template.name}</h2></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass[template.status]}`}>{statusLabel[template.status]}</span></div><p className="mt-2 line-clamp-2 text-sm text-slate-600">{template.description || '无额外说明'}</p><p className="mt-3 text-xs text-slate-500">适用：{template.storeIds.map(storeName).join('、') || '未配置门店'} · {template.requires_review ? '需要审核' : '无需审核'}</p>{template.status !== 'archived' ? <div className="mt-4 grid grid-cols-3 gap-2"><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" disabled={busy} onClick={() => void editTemplate(template)} type="button">编辑</button>{template.status === 'published' ? <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 text-sm font-bold text-amber-800" disabled={busy} onClick={() => void retract(template)} type="button"><Undo2 className="h-4 w-4" />撤回</button> : <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-brand-600 text-sm font-bold text-white" disabled={busy} onClick={() => void publish(template)} type="button"><Rocket className="h-4 w-4" />发布</button>}<button aria-label={`归档${template.name}`} className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border text-sm font-bold ${template.status === 'published' ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 text-slate-600'}`} disabled={busy || template.status === 'published'} onClick={() => void archive(template)} type="button"><Archive className="h-4 w-4" />归档</button></div> : <button className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-200 text-sm font-bold text-red-700" disabled={busy} onClick={() => void deleteArchived(template)} type="button"><Trash2 className="h-4 w-4" />删除模板</button>}</article>)}</div> : null}
+    {status === 'ready' ? <div className="grid gap-3 md:grid-cols-2">{visibleTemplates.map((template) => <article className="rounded-lg bg-white p-4 shadow-sm" key={template.id}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{categoryName(template.category)} · v{template.current_version}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{template.name}</h2></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass[template.status]}`}>{statusLabel[template.status]}</span></div><p className="mt-2 line-clamp-2 text-sm text-slate-600">{template.description || '无额外说明'}</p><p className="mt-3 text-xs text-slate-500">适用：{template.storeIds.map(storeName).join('、') || '未配置门店'} · {template.requires_review ? '需要审核' : '无需审核'}</p>{template.status !== 'archived' ? <div className="mt-4 grid grid-cols-3 gap-2"><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" disabled={busy} onClick={() => void editTemplate(template)} type="button">编辑</button>{template.status === 'published' ? <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 text-sm font-bold text-amber-800" disabled={busy} onClick={() => void retract(template)} type="button"><Undo2 className="h-4 w-4" />撤回</button> : <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-brand-600 text-sm font-bold text-white" disabled={busy} onClick={() => void publish(template)} type="button"><Rocket className="h-4 w-4" />发布</button>}<button aria-label={`归档${template.name}`} className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border text-sm font-bold ${template.status === 'published' ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 text-slate-600'}`} disabled={busy || template.status === 'published'} onClick={() => void archive(template)} type="button"><Archive className="h-4 w-4" />归档</button></div> : <button className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-200 text-sm font-bold text-red-700" disabled={busy} onClick={() => void deleteArchived(template)} type="button"><Trash2 className="h-4 w-4" />删除模板</button>}</article>)}</div> : null}
 
-    {draft ? <TemplateEditor busy={busy} draft={draft} errorMessage={message} onCancel={() => { setDraft(null); setMessage(null); }} onChange={setDraft} onDeleteReferenceImage={deleteReferenceImage} onPublishSave={() => void save(true)} onSave={() => void save()} onUploadReferenceImage={uploadReferenceImage} stores={auth.availableStores} /> : null}
+    {draft ? <TemplateEditor busy={busy} categories={categories} draft={draft} errorMessage={message} onCancel={() => { setDraft(null); setMessage(null); }} onChange={setDraft} onDeleteReferenceImage={deleteReferenceImage} onPublishSave={() => void save(true)} onSave={() => void save()} onUploadReferenceImage={uploadReferenceImage} stores={auth.availableStores} /> : null}
+    {categoryManagerOpen ? <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4"><section className="mx-auto mt-10 max-w-lg rounded-xl bg-white p-4"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">任务分类管理</h2><button className="ui-icon-button" onClick={() => setCategoryManagerOpen(false)} type="button"><X className="h-5 w-5" /></button></div><div className="mt-3 flex gap-2"><input className="ui-input" onChange={(event) => setNewCategoryName(event.target.value)} placeholder="输入新分类名称" value={newCategoryName} /><button className="ui-button-primary shrink-0" disabled={busy} onClick={() => void addCategory()} type="button">新建</button></div><div className="mt-4 space-y-2">{categories.map((category) => <div className="flex min-h-11 items-center justify-between rounded-lg bg-slate-50 px-3" key={category.code}><b className="text-sm">{category.label}</b>{category.is_system ? <span className="text-xs text-slate-400">系统分类</span> : <button className="text-sm font-bold text-red-600" disabled={busy} onClick={() => void removeCategory(category)} type="button">删除</button>}</div>)}</div></section></div> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title="操作未完成" tone="warning" />
     <SuccessToast message={successMessage} onClose={() => setSuccessMessage(null)} />
   </PageShell>;
 }
 
-function TemplateEditor({ busy, draft, errorMessage, onCancel, onChange, onDeleteReferenceImage, onPublishSave, onSave, onUploadReferenceImage, stores }: { busy: boolean; draft: TaskTemplateDraft; errorMessage: string | null; onCancel: () => void; onChange: (draft: TaskTemplateDraft) => void; onDeleteReferenceImage: (itemId: string, path: string) => Promise<void>; onPublishSave: () => void; onSave: () => void; onUploadReferenceImage: (itemId: string, file: File, onProgress: (progress: number) => void) => Promise<void>; stores: Array<{ id: string; name: string }> }) {
+function TemplateEditor({ busy, categories, draft, errorMessage, onCancel, onChange, onDeleteReferenceImage, onPublishSave, onSave, onUploadReferenceImage, stores }: { busy: boolean; categories: TaskCategoryRow[]; draft: TaskTemplateDraft; errorMessage: string | null; onCancel: () => void; onChange: (draft: TaskTemplateDraft) => void; onDeleteReferenceImage: (itemId: string, path: string) => Promise<void>; onPublishSave: () => void; onSave: () => void; onUploadReferenceImage: (itemId: string, file: File, onProgress: (progress: number) => void) => Promise<void>; stores: Array<{ id: string; name: string }> }) {
   const updateGroup = (index: number, group: TaskTemplateGroupDraft) => onChange({ ...draft, groups: draft.groups.map((entry, current) => current === index ? group : entry) });
   const removeGroup = (index: number) => onChange({ ...draft, groups: draft.groups.filter((_, current) => current !== index) });
   return <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog" aria-modal="true" aria-labelledby="template-editor-title"><div className="mx-auto max-w-3xl space-y-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><header className="ui-card sticky top-0 z-20 flex items-center justify-between p-3.5"><div><p className="text-xs font-bold text-brand-700">{draft.id ? '编辑模板' : '新建模板'}</p><h2 className="text-xl font-bold" id="template-editor-title">{draft.name || '未命名模板'}</h2></div><button aria-label="关闭模板编辑" className="ui-icon-button" onClick={onCancel} type="button"><X className="h-5 w-5" /></button></header>
-    {errorMessage ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorMessage}</p> : null}<section className="grid gap-3 rounded-lg bg-white p-4 shadow-sm sm:grid-cols-2"><label className="text-sm font-semibold">模板名称<input className="mt-1 min-h-11 w-full rounded-lg border p-3" onChange={(event) => onChange({ ...draft, name: event.target.value })} value={draft.name} /></label><label className="text-sm font-semibold">分类<select className="mt-1 min-h-11 w-full rounded-lg border px-3" onChange={(event) => onChange({ ...draft, category: event.target.value as TaskTemplateDraft['category'] })} value={draft.category}>{taskTemplateCategories.map((category) => <option key={category} value={category}>{categoryLabel[category]}</option>)}</select></label><label className="text-sm font-semibold sm:col-span-2">说明<textarea className="mt-1 min-h-20 w-full rounded-lg border p-3" onChange={(event) => onChange({ ...draft, description: event.target.value })} value={draft.description} /></label><p className="sm:col-span-2 rounded-lg bg-brand-50 p-3 text-xs leading-5 text-brand-800">模板中的截止规则只是“首次验收截止时间”的默认建议，不会自动发任务。是否创建单次或周期任务，请在“任务管理”发布时单独选择。</p><label className="text-sm font-semibold">默认验收周期<select className="mt-1 min-h-11 w-full rounded-lg border px-3" onChange={(event) => { const recurrence = event.target.value as TaskTemplateDraft['recurrence']; onChange({ ...draft, recurrence, recurrenceDay: recurrence === 'none' ? null : recurrence === 'weekly' ? Math.min(draft.recurrenceDay ?? 1, 7) : draft.recurrenceDay ?? 1 }); }} value={draft.recurrence}><option value="none">不设置默认周期</option><option value="weekly">每周</option><option value="monthly">每月</option></select></label>{draft.recurrence !== 'none' ? <label className="text-sm font-semibold">默认验收截止日<select className="mt-1 min-h-11 w-full rounded-lg border px-3" onChange={(event) => onChange({ ...draft, recurrenceDay: Number(event.target.value) })} value={draft.recurrenceDay ?? ''}>{draft.recurrence === 'weekly' ? weeklyDeadlineOptions.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>) : Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day}>每月 {day} 日</option>)}</select></label> : null}<label className="text-sm font-semibold">默认验收时间<input className="mt-1 min-h-11 w-full rounded-lg border px-3" onChange={(event) => onChange({ ...draft, dueTime: event.target.value })} type="time" value={draft.dueTime} /></label><label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={draft.requiresReview} onChange={(event) => onChange({ ...draft, requiresReview: event.target.checked })} type="checkbox" />需要管理员审核</label><label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={draft.allowOverdue} onChange={(event) => onChange({ ...draft, allowOverdue: event.target.checked })} type="checkbox" />允许逾期补交</label><fieldset className="sm:col-span-2"><legend className="text-sm font-semibold">适用门店</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{stores.map((store) => <label className="flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm" key={store.id}><input checked={draft.storeIds.includes(store.id)} onChange={() => onChange({ ...draft, storeIds: draft.storeIds.includes(store.id) ? draft.storeIds.filter((id) => id !== store.id) : [...draft.storeIds, store.id] })} type="checkbox" />{store.name}</label>)}</div></fieldset></section>
+    {errorMessage ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorMessage}</p> : null}<section className="grid gap-3 rounded-lg bg-white p-4 shadow-sm sm:grid-cols-2"><label className="text-sm font-semibold">模板名称<input className="mt-1 min-h-11 w-full rounded-lg border p-3" onChange={(event) => onChange({ ...draft, name: event.target.value })} value={draft.name} /></label><label className="text-sm font-semibold">分类<select className="mt-1 min-h-11 w-full rounded-lg border px-3" onChange={(event) => onChange({ ...draft, category: event.target.value })} value={draft.category}>{categories.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label><label className="text-sm font-semibold sm:col-span-2">说明<textarea className="mt-1 min-h-20 w-full rounded-lg border p-3" onChange={(event) => onChange({ ...draft, description: event.target.value })} value={draft.description} /></label><p className="sm:col-span-2 rounded-lg bg-brand-50 p-3 text-xs leading-5 text-brand-800">任务模板只定义检查内容。单次任务的验收时间，以及周期任务的发布周期和验收周期，统一在“任务发布”时设置。</p><label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={draft.requiresReview} onChange={(event) => onChange({ ...draft, requiresReview: event.target.checked })} type="checkbox" />需要管理员审核</label><label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={draft.allowOverdue} onChange={(event) => onChange({ ...draft, allowOverdue: event.target.checked })} type="checkbox" />允许逾期补交</label><fieldset className="sm:col-span-2"><legend className="text-sm font-semibold">适用门店</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{stores.map((store) => <label className="flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm" key={store.id}><input checked={draft.storeIds.includes(store.id)} onChange={() => onChange({ ...draft, storeIds: draft.storeIds.includes(store.id) ? draft.storeIds.filter((id) => id !== store.id) : [...draft.storeIds, store.id] })} type="checkbox" />{store.name}</label>)}</div></fieldset></section>
     {!draft.id ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">选择参考图片后会先显示缩略图，并自动保存完整模板草稿、立即上传图片。请先填写模板名称、分组名称和项目名称等必填内容。</p> : null}
     {draft.groups.map((group, groupIndex) => <GroupEditor busy={busy} group={group} groupNumber={groupIndex + 1} key={group.id} onChange={(value) => updateGroup(groupIndex, value)} onDeleteReferenceImage={onDeleteReferenceImage} onRemove={() => removeGroup(groupIndex)} onUploadReferenceImage={onUploadReferenceImage} />)}
     <button className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-brand-200 bg-white px-4 font-bold text-brand-700" onClick={() => onChange({ ...draft, groups: [...draft.groups, createEmptyTemplateGroup()] })} type="button"><Plus className="h-4 w-4" />添加分组</button>

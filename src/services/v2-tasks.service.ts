@@ -10,6 +10,22 @@ export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['R
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
 export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
 export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
+export type V2TaskReleaseType = 'interval_days' | 'weekly' | 'monthly';
+export type V2TaskAcceptanceType = 'daily' | 'weekly' | 'monthly';
+export interface V2TaskScheduleFields {
+  acceptanceIntervalDays: number | null;
+  acceptanceMonthDay: number | null;
+  acceptanceTime: string;
+  acceptanceType: V2TaskAcceptanceType;
+  acceptanceWeekday: number | null;
+  intervalDays: number | null;
+  monthDay: number | null;
+  publishTime: string;
+  scheduleType: V2TaskReleaseType;
+  weekdays: number[];
+}
+export interface V2TaskScheduleContent { name: string; snapshot: Json }
+export type V2TaskRecipient = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'id' | 'role' | 'store_id' | 'username'>;
 export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
 export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
@@ -78,14 +94,69 @@ export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<
   if (!task.data) throw new Error('任务不存在或无权查看。');
   return { answers: orderV2TaskAnswers(task.data.snapshot, answers.data ?? []), images: images.data ?? [], reviews: reviews.data ?? [], task: task.data };
 };
-export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string | null) => {
-  const { data, error } = await client.rpc('publish_v2_tasks', { p_due_at: dueAt, p_store_ids: storeIds, p_template_id: templateId }); fail(error); return data ?? [];
+export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string | null, profileIds: string[] = []) => {
+  const { data, error } = await client.rpc('publish_v2_tasks', { p_due_at: dueAt, p_profile_ids: profileIds, p_store_ids: storeIds, p_template_id: templateId }); fail(error); return data ?? [];
+};
+export const loadV2TaskRecipients = async (client: Client): Promise<V2TaskRecipient[]> => {
+  const { data, error } = await client.from('profiles').select('id,username,display_name,role,store_id').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null).order('display_name');
+  fail(error);
+  return data ?? [];
 };
 export const loadV2TaskSchedules = async (client: Client) => {
-  const { data, error } = await client.from('v2_task_schedules').select('*').order('next_due_at'); fail(error); return data ?? [];
+  const { data, error } = await client.from('v2_task_schedules').select('*').is('withdrawn_at', null).order('next_due_at'); fail(error); return data ?? [];
 };
-export const createV2TaskSchedule = async (client: Client, input: { firstDueAt: string; intervalDays: number | null; monthDay: number | null; scheduleType: 'interval_days' | 'weekly' | 'monthly'; storeIds: string[]; templateId: string; weekdays: number[] }) => {
-  const { data, error } = await client.rpc('create_v2_task_schedule', { p_first_due_at: input.firstDueAt, p_interval_days: input.intervalDays, p_month_day: input.monthDay, p_schedule_type: input.scheduleType, p_store_ids: input.storeIds, p_template_id: input.templateId, p_weekdays: input.weekdays }); fail(error); return data ?? [];
+export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { profileIds?: string[]; storeIds: string[]; templateId: string }) => {
+  const { data, error } = await client.rpc('create_v2_task_schedule_v2', {
+    p_fields: {
+      acceptanceIntervalDays: input.acceptanceIntervalDays,
+      acceptanceMonthDay: input.acceptanceMonthDay,
+      acceptanceTime: input.acceptanceTime,
+      acceptanceType: input.acceptanceType,
+      acceptanceWeekday: input.acceptanceWeekday,
+      intervalDays: input.intervalDays,
+      monthDay: input.monthDay,
+      publishTime: input.publishTime,
+      scheduleType: input.scheduleType,
+      weekdays: input.weekdays,
+    },
+    p_profile_ids: input.profileIds ?? [],
+    p_store_ids: input.storeIds,
+    p_template_id: input.templateId,
+  });
+  fail(error);
+  return data ?? [];
+};
+export const updateV2TaskSchedule = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields) => {
+  const { data, error } = await client.rpc('update_v2_task_schedule_v2', { p_fields: fields as unknown as Json, p_schedule_id: scheduleId });
+  fail(error);
+  return data;
+};
+export const loadV2TaskScheduleContent = async (client: Client, scheduleId: string): Promise<V2TaskScheduleContent> => {
+  const { data, error } = await client.rpc('get_v2_task_schedule_content', { p_schedule_id: scheduleId });
+  fail(error);
+  const value = data as unknown as { name?: unknown; snapshot?: unknown } | null;
+  if (!value || typeof value.name !== 'string' || value.snapshot === undefined) throw new Error('周期任务内容加载失败。');
+  return { name: value.name, snapshot: value.snapshot as Json };
+};
+export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string) => {
+  const { data, error } = await client.rpc('update_v2_task_content', { p_due_at: dueAt, p_name: name, p_snapshot: snapshot, p_task_id: taskId });
+  fail(error);
+  return data;
+};
+export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json) => {
+  const { data, error } = await client.rpc('update_v2_task_schedule_all', { p_fields: fields as unknown as Json, p_name: name, p_schedule_id: scheduleId, p_snapshot: snapshot });
+  fail(error);
+  return data;
+};
+export const withdrawV2TaskScheduleCurrent = async (client: Client, scheduleId: string) => {
+  const { data, error } = await client.rpc('withdraw_v2_task_schedule_current', { p_schedule_id: scheduleId });
+  fail(error);
+  return data;
+};
+export const withdrawV2TaskSchedule = async (client: Client, scheduleId: string) => {
+  const { data, error } = await client.rpc('withdraw_v2_task_schedule', { p_schedule_id: scheduleId });
+  fail(error);
+  return data;
 };
 export const pauseV2TaskSchedule = async (client: Client, scheduleId: string) => {
   const { data, error } = await client.rpc('pause_v2_task_schedule', { p_schedule_id: scheduleId }); fail(error); return data;
@@ -108,6 +179,57 @@ export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2Ta
   return Object.fromEntries(Object.entries(data.urls)
     .map(([itemId, urls]) => [itemId, Array.isArray(urls) ? urls.filter((url): url is string => typeof url === 'string') : typeof urls === 'string' ? [urls] : []] as const)
     .filter((entry) => entry[1].length > 0)) as Record<string, string[]>;
+};
+
+export const loadV2TaskContentReferenceImageUrls = async (client: Client, snapshot: Json) => {
+  const root = asRecord(snapshot);
+  const groups = Array.isArray(root?.groups) ? root.groups : [];
+  const entries = groups.flatMap((groupValue) => {
+    const group = asRecord(groupValue);
+    const items = Array.isArray(group?.items) ? group.items : [];
+    return items.flatMap((itemValue) => {
+      const item = asRecord(itemValue);
+      const itemId = typeof item?.id === 'string' ? item.id : '';
+      const plural = Array.isArray(item?.reference_image_paths) ? item.reference_image_paths.filter((path): path is string => typeof path === 'string') : [];
+      const legacy = typeof item?.reference_image_path === 'string' ? [item.reference_image_path] : [];
+      return itemId ? [[itemId, [...new Set([...plural, ...legacy])]] as const] : [];
+    });
+  });
+  const result = await Promise.all(entries.map(async ([itemId, paths]) => {
+    const urls = (await Promise.all(paths.map(async (path) => {
+      const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
+      return error ? null : data?.signedUrl ?? null;
+    }))).filter((url): url is string => Boolean(url));
+    return [itemId, urls] as const;
+  }));
+  return Object.fromEntries(result);
+};
+
+export const uploadV2TaskReferenceImage = async (client: Client, assetOwnerId: string, itemId: string, file: File, onProgress?: (progress: number) => void) => {
+  onProgress?.(5);
+  const processed = await compressArrivalImage(file);
+  onProgress?.(35);
+  const objectId = createUuid();
+  const extension = processed.mimeType === 'image/png' ? 'png' : processed.mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const path = `${assetOwnerId}/${itemId}/${objectId}.${extension}`;
+  const bucket = client.storage.from('v2-task-template-reference-images');
+  const { error: uploadError } = await bucket.upload(path, processed.blob, { cacheControl: '3600', contentType: processed.mimeType, upsert: false });
+  fail(uploadError);
+  onProgress?.(75);
+  const { data, error: signError } = await bucket.createSignedUrl(path, 60 * 60);
+  if (signError || !data?.signedUrl) {
+    await bucket.remove([path]);
+    throw new Error(signError?.message ?? '参考图片预览生成失败。');
+  }
+  onProgress?.(100);
+  return { path, previewUrl: data.signedUrl };
+};
+
+export const deleteV2TaskReferenceImages = async (client: Client, paths: string[]) => {
+  const uniquePaths = [...new Set(paths)].filter(Boolean);
+  if (!uniquePaths.length) return;
+  const { error } = await client.storage.from('v2-task-template-reference-images').remove(uniquePaths);
+  fail(error);
 };
 export const saveV2TaskProgress = async (client: Client, taskId: string, version: number, answers: V2TaskAnswerRow[]) => {
   const { data, error } = await client.rpc('save_v2_task_progress', { p_answers: answers.map((a) => ({ answer: a.answer, is_issue: a.is_issue, item_id: a.item_id, note: a.note })), p_expected_version: version, p_task_id: taskId }); fail(error); return data as unknown as V2TaskRow;

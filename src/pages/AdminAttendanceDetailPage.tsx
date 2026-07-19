@@ -7,6 +7,7 @@ import { AttendanceMonthView } from '../features/attendance/AttendanceMonthView'
 import { currentMonth, emptyAttendanceMonth, type AttendanceMonthDetail } from '../features/attendance/model';
 import { supabase } from '../lib/supabase';
 import { loadAttendanceMonth } from '../services/attendance.service';
+import { recordSystemActivity } from '../services/operation-logs.service';
 
 export function AdminAttendanceDetailPage() {
   const { profileId = '' } = useParams();
@@ -22,6 +23,7 @@ export function AdminAttendanceDetailPage() {
     try {
       const [attendance, profile] = await Promise.all([loadAttendanceMonth(supabase, profileId, month, storeId), supabase.from('profiles').select('display_name').eq('id', profileId).single()]);
       setDetail(attendance); if (profile.data?.display_name) setName(`${profile.data.display_name}的考勤`); setStatus('ready');
+      void recordSystemActivity(supabase, { module: 'attendance', view: 'month_detail', period: month, storeId: storeId || undefined, targetProfileId: profileId, context: { scope: storeId ? 'single_store' : 'all_authorized_stores' } }).catch(() => undefined);
     } catch { setStatus('error'); }
   }, [month, profileId, storeId]);
   useEffect(() => { void load(); }, [load]);

@@ -12,6 +12,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { bindAttendanceEmployee, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceIncrementalSchedule, loadAttendanceSyncJobs, loadDingTalkApiUsage, removeAttendanceEnterpriseMapping, saveAttendanceEnterpriseMapping, saveAttendanceIncrementalSchedule, saveDingTalkApiDailyLimit, unbindAttendanceEmployee, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceIncrementalSchedule, type AttendanceSyncJob, type DingTalkApiUsage } from '../services/attendance.service';
+import { recordSystemActivity } from '../services/operation-logs.service';
 
 type Tab = 'overview' | 'enterprises' | 'bindings' | 'logs';
 
@@ -49,7 +50,7 @@ function AttendanceOverview() {
   const load = useCallback(async () => {
     if (!supabase) { setStatus('error'); return; }
     setStatus('loading');
-    try { const result = await loadAdminAttendanceMonth(supabase, { month, storeId, search, status: statusFilter }); setItems(result.items); setTotal(result.total); setStatus('ready'); }
+    try { const result = await loadAdminAttendanceMonth(supabase, { month, storeId, search, status: statusFilter }); setItems(result.items); setTotal(result.total); setStatus('ready'); void recordSystemActivity(supabase, { module: 'attendance', view: 'month_summary', period: month, storeId: storeId || undefined, context: { scope: storeId ? 'single_store' : 'all_authorized_stores', statusFilter } }).catch(() => undefined); }
     catch { setStatus('error'); }
   }, [month, search, statusFilter, storeId]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);

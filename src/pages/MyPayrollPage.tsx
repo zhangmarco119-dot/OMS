@@ -16,6 +16,7 @@ import { formatMoney, todayInChina, type PayrollEstimate } from '../features/pay
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { confirmPayrollPayslip, loadMyPayrollEstimate, loadMyPayrollPayslips, loadPayrollVisibilitySettings, type PayrollPayslip, type PayrollVisibilitySettings } from '../services/payroll.service';
+import { recordSystemActivity } from '../services/operation-logs.service';
 
 const currentMonth = () => todayInChina().slice(0, 7);
 const shiftMonth = (month: string, offset: number) => {
@@ -62,9 +63,10 @@ function EstimatePanel() {
       const nextSettings = settings ?? await loadPayrollVisibilitySettings(supabase);
       setSettings(nextSettings);
       setEstimate(await loadMyPayrollEstimate(supabase, profileId, asOf));
+      void recordSystemActivity(supabase, { module: 'payroll', view: 'estimate_detail', period: month, targetProfileId: profileId, context: { scope: 'self' } }).catch(() => undefined);
       setStatus('ready'); setMessage('');
     } catch (error) { setMessage(error instanceof Error ? error.message : '暂时无法计算预估工资。'); setStatus('error'); }
-  }, [asOf, profileId, settings]);
+  }, [asOf, month, profileId, settings]);
   useEffect(() => { void load(); }, [load]);
   const historyEnabled = Boolean(settings?.historyOpenNow && settings.historyMonths > 0);
   return <>
@@ -87,10 +89,11 @@ function PayslipPanel() {
   const load = useCallback(async () => {
     if (!supabase || !profileId) { setStatus('error'); return; }
     setStatus('loading');
-    try { setItems(await loadMyPayrollPayslips(supabase, profileId)); setStatus('ready'); }
+    try { setItems(await loadMyPayrollPayslips(supabase, profileId)); setStatus('ready'); void recordSystemActivity(supabase, { module: 'payroll', view: 'payslip_list', targetProfileId: profileId, context: { scope: 'self' } }).catch(() => undefined); }
     catch { setStatus('error'); }
   }, [profileId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (!supabase || !profileId || !selected) return; void recordSystemActivity(supabase, { module: 'payroll', view: 'payslip_detail', period: selected.payroll_month.slice(0, 7), targetProfileId: profileId, context: { scope: 'self' } }).catch(() => undefined); }, [profileId, selected]);
   const open = (id: string) => { const copy = new URLSearchParams(params); copy.set('tab','payslips'); copy.set('payslip',id); setParams(copy); };
   const close = () => { const copy = new URLSearchParams(params); copy.delete('payslip'); setParams(copy); };
   const confirm = async () => {

@@ -23,6 +23,7 @@ import {
   savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
+import { recordSystemActivity } from '../services/operation-logs.service';
 
 type Tab = 'overview' | 'payslips' | 'employees' | 'performance' | 'revenue' | 'penalties' | 'overtime' | 'visibility';
 type Feedback = { title: string; message: string; tone: ActionFeedbackTone };
@@ -105,6 +106,15 @@ function PayrollPayslipManager() {
     } catch { setStatus('error'); }
   }, [month, setProfileId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!supabase || !viewing) return;
+    void recordSystemActivity(supabase, {
+      module: 'payroll',
+      period: viewing.payroll_month.slice(0, 7),
+      targetProfileId: viewing.profile_id,
+      view: 'payslip_detail',
+    }).catch(() => undefined);
+  }, [viewing]);
   useEffect(() => {
     if (!supabase) return;
     void loadPayrollPayslipScheduleSettings(supabase)
@@ -201,9 +211,10 @@ function PayrollOverview() {
   const selectedMonth = asOf.slice(0, 7);
   const [result, setResult] = useState<AdminPayrollSummary | null>(null); const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const update = (key: string, value: string, replace = true) => { const next = new URLSearchParams(params); if (value) next.set(key, value); else next.delete(key); setParams(next, { replace }); };
-  const load = useCallback(async () => { if (!supabase) return; setStatus('loading'); try { setResult(await loadAdminPayrollEstimates(supabase, { asOf, storeId, search })); setStatus('ready'); } catch { setStatus('error'); } }, [asOf, search, storeId]);
+  const load = useCallback(async () => { if (!supabase) return; setStatus('loading'); try { setResult(await loadAdminPayrollEstimates(supabase, { asOf, storeId, search })); setStatus('ready'); void recordSystemActivity(supabase, { module: 'payroll', view: 'estimate_summary', period: selectedMonth, storeId: storeId || undefined, context: { scope: storeId ? 'single_store' : 'all_authorized_stores' } }).catch(() => undefined); } catch { setStatus('error'); } }, [asOf, search, selectedMonth, storeId]);
   useEffect(() => { const id = window.setTimeout(() => void load(), 180); return () => window.clearTimeout(id); }, [load]);
   const selected = result?.items.find((item) => item.profileId === employeeId);
+  useEffect(() => { if (!supabase || !selected) return; void recordSystemActivity(supabase, { module: 'payroll', view: 'estimate_detail', period: selectedMonth, storeId: storeId || undefined, targetProfileId: selected.profileId, context: { scope: storeId ? 'single_store' : 'all_authorized_stores' } }).catch(() => undefined); }, [selected, selectedMonth, storeId]);
   const resolveIssue = (issue: string) => {
     if (issue.includes('任务数据')) { void navigate('/app/admin/tasks'); return; }
     const next = new URLSearchParams(params);

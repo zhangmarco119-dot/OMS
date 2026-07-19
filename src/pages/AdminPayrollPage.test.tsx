@@ -102,6 +102,8 @@ describe('AdminPayrollPage update guidance', () => {
     expect(await screen.findByText('手动登记员工加班')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '登记加班工时' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '测试员工 · 员工' })).toBeInTheDocument();
+    expect(screen.getByText('批量导入员工加班')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下载 Excel 模板' })).toBeInTheDocument();
   });
 
   it('returns from employee details to the filtered payroll list', async () => {

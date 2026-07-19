@@ -193,6 +193,25 @@ export interface DingTalkApiUsage {
   used: number;
 }
 
+export interface AttendanceIncrementalSchedule {
+  configured: boolean;
+  configuredAt: string | null;
+  enabled: boolean;
+  lastDispatchedAt: string | null;
+  times: string[];
+}
+
+const parseAttendanceIncrementalSchedule = (value: Json | null): AttendanceIncrementalSchedule => {
+  const source = objectAt(value);
+  return {
+    configured: boolAt(source.configured),
+    configuredAt: typeof source.configuredAt === 'string' ? source.configuredAt : null,
+    enabled: boolAt(source.enabled),
+    lastDispatchedAt: typeof source.lastDispatchedAt === 'string' ? source.lastDispatchedAt : null,
+    times: arrayAt(source.times).filter((item): item is string => typeof item === 'string').map((item) => item.slice(0, 5)),
+  };
+};
+
 export const loadDingTalkApiUsage = async (client: Client): Promise<DingTalkApiUsage> => {
   const { data, error } = await client.rpc('get_dingtalk_api_usage');
   if (error) throw new Error('暂时无法读取钉钉接口调用量。');
@@ -203,6 +222,22 @@ export const loadDingTalkApiUsage = async (client: Client): Promise<DingTalkApiU
     remaining: numberAt(value.remaining),
     used: numberAt(value.used),
   };
+};
+
+export const loadAttendanceIncrementalSchedule = async (client: Client) => {
+  const { data, error } = await client.rpc('get_attendance_incremental_schedule');
+  if (error) throw new Error('暂时无法加载定时增量同步设置。');
+  return parseAttendanceIncrementalSchedule(data);
+};
+
+export const saveAttendanceIncrementalSchedule = async (client: Client, enabled: boolean, times: string[]) => {
+  const normalized = [...new Set(times.map((time) => time.trim().slice(0, 5)).filter(Boolean))].sort();
+  const { data, error } = await client.rpc('admin_save_attendance_incremental_schedule', {
+    p_enabled: enabled,
+    p_times: normalized,
+  });
+  if (error) throw new Error(error.message || '定时增量同步设置保存失败。');
+  return parseAttendanceIncrementalSchedule(data);
 };
 
 export const loadAttendanceAutomationSettings = async (client: Client) => {

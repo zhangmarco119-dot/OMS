@@ -3,13 +3,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 import { normalizeAttendanceBundle, type AttendanceBindingInput } from './attendance-normalizer.ts';
 import { chunk, DingTalkApiError, DingTalkClient } from './dingtalk-client.ts';
 import { loadDingTalkEnterpriseConfigs } from './enterprise-config.ts';
+import { eachDate, selectIncrementalDates } from './incremental-plan.ts';
 import { summarizeAttendanceSync } from './sync-result.ts';
 
 type AttendanceAction =
   | { action: 'refresh-directory'; rootDepartmentIds?: string[] }
   | { action: 'sync'; month?: string; profileId?: string; storeId?: string }
   | { action: 'report-sync'; date: string; storeId: string }
-  | { action: 'scheduled-sync'; mode?: 'hourly' | 'history-queue' | 'daily' | 'month-start' }
+  | { action: 'scheduled-sync'; mode?: 'incremental' }
   | { action: 'retry-job'; jobId: string };
 
 const corsHeaders = {
@@ -31,7 +32,6 @@ const requiredEnv = (key: string) => {
 
 const optionalEnv = (key: string, fallback = '') => Deno.env.get(key)?.trim() || fallback;
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
-const datePattern = /^\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01])$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const unique = <T>(items: T[]) => [...new Set(items)];
 const datePart = (date: Date, timezone: string) => new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
@@ -87,17 +87,14 @@ Deno.serve(async (request) => {
     const { data: authUser, error: authError } = await userClient.auth.getUser();
     if (authError || !authUser.user) return json({ error: '登录状态已失效，请重新登录。' }, 401);
     const { data: profile, error: profileError } = await adminClient.from('profiles').select('id,role,store_id,is_active,deleted_at').eq('id', authUser.user.id).single();
-    const reportSyncAuthorized = payload.action === 'report-sync' && profile && ['staff', 'manager', 'admin'].includes(profile.role);
-    if (profileError || !profile || (!reportSyncAuthorized && profile.role !== 'admin') || !profile.is_active || profile.deleted_at) return json({ error: '当前账号没有考勤管理权限。' }, 403);
+    if (profileError || !profile || profile.role !== 'admin' || !profile.is_active || profile.deleted_at) return json({ error: '当前账号没有考勤管理权限。' }, 403);
     actorId = profile.id;
     const { data: access, error: accessError } = await adminClient.from('profile_store_access').select('store_id').eq('profile_id', profile.id);
     if (accessError) return json({ error: '无法确认管理员门店范围。' }, 500);
     allowedStoreIds = unique([profile.store_id, ...(access ?? []).map((item) => item.store_id)].filter(Boolean));
   }
 
-  if (payload.action === 'scheduled-sync') {
-    return json({ status: 'skipped', message: '自动同步队列已停用，请按实际需要手动同步。' });
-  }
+  if (payload.action === 'report-sync') return json({ error: '运营报告已改为直接使用数据库考勤，不再调用钉钉接口。' }, 400);
 
   let enterpriseConfigs: ReturnType<typeof loadDingTalkEnterpriseConfigs>;
   try {
@@ -176,13 +173,10 @@ Deno.serve(async (request) => {
     if (previous.sync_type === 'directory') return json({ error: '通讯录任务请使用“更新钉钉员工通讯录”重新执行。' }, 400);
     if (!previous.range_start || !previous.range_end) return json({ error: '该同步任务缺少可重试的日期范围。' }, 400);
     startDate = previous.range_start; endDate = previous.range_end; requestedStoreId = previous.store_id; requestedProfileId = previous.profile_id; syncType = previous.sync_type === 'employee' ? 'employee' : 'date_range';
-  } else if (payload.action === 'report-sync') {
-    if (!uuidPattern.test(payload.storeId) || !allowedStoreIds.includes(payload.storeId)) return json({ error: '当前账号无权同步该门店。' }, 403);
-    if (!datePattern.test(payload.date) || payload.date > today) return json({ error: '运营报告日期无效。' }, 400);
-    requestedStoreId = payload.storeId;
-    startDate = payload.date;
-    endDate = payload.date;
-    syncType = 'date_range';
+  } else if (payload.action === 'scheduled-sync') {
+    startDate = `${today.slice(0, 7)}-01`;
+    endDate = today;
+    syncType = 'current_month';
   } else if (payload.action === 'sync') {
     if (payload.storeId && (!uuidPattern.test(payload.storeId) || !allowedStoreIds.includes(payload.storeId))) return json({ error: '当前管理员无权同步该门店。' }, 403);
     if (payload.profileId && !uuidPattern.test(payload.profileId)) return json({ error: '员工编号无效。' }, 400);
@@ -195,7 +189,7 @@ Deno.serve(async (request) => {
     return json({ error: '未知考勤操作。' }, 400);
   }
 
-  if (payload.action === 'report-sync' || payload.action === 'sync') {
+  if (payload.action === 'sync') {
     let recentQuery = adminClient.from('attendance_sync_jobs').select('id,status,message:error_summary,created_at')
       .eq('range_start', startDate).eq('range_end', endDate)
       .in('status', ['succeeded','partial'])
@@ -203,7 +197,6 @@ Deno.serve(async (request) => {
       .order('created_at', { ascending: false }).limit(1);
     if (requestedStoreId) recentQuery = recentQuery.eq('store_id', requestedStoreId);
     if (requestedProfileId) recentQuery = recentQuery.eq('profile_id', requestedProfileId);
-    if (payload.action === 'report-sync' && actorId) recentQuery = recentQuery.eq('initiated_by', actorId);
     const recent = await recentQuery.maybeSingle();
     if (!recent.error && recent.data) return json({
       cached: true, jobId: recent.data.id, status: recent.data.status,
@@ -236,11 +229,34 @@ Deno.serve(async (request) => {
     return [{ corpId: binding.corp_id, dingtalkUserId: binding.dingtalk_user_id, profileId: binding.profile_id, storeId: binding.store_id }];
   });
 
+  const scopeKeys = unique(bindings.map((binding) => `${binding.corpId}|${binding.storeId}`));
+  const { data: stateRows, error: stateError } = scopeKeys.length
+    ? await adminClient.from('attendance_sync_day_states').select('corp_id,store_id,sync_date,last_synced_at').gte('sync_date', startDate).lte('sync_date', endDate)
+    : { data: [], error: null };
+  if (stateError) return json({ error: '无法读取考勤增量同步状态。' }, 500);
+  const forceRequestedRange = payload.action === 'retry-job' || Boolean(requestedProfileId);
+  const datesByScope = new Map<string, string[]>();
+  for (const scopeKey of scopeKeys) {
+    const [corpId, storeId] = scopeKey.split('|');
+    const states = (stateRows ?? []).filter((state) => state.corp_id === corpId && state.store_id === storeId)
+      .map((state) => ({ syncDate: state.sync_date, lastSyncedAt: state.last_synced_at }));
+    datesByScope.set(scopeKey, forceRequestedRange ? eachDate(startDate, endDate) : selectIncrementalDates(startDate, endDate, today, states));
+  }
+  const datesByCorp = new Map<string, string[]>();
+  for (const binding of bindings) {
+    const dates = datesByScope.get(`${binding.corpId}|${binding.storeId}`) ?? [];
+    datesByCorp.set(binding.corpId, unique([...(datesByCorp.get(binding.corpId) ?? []), ...dates]).sort());
+  }
+  const syncDates = unique([...datesByCorp.values()].flat()).sort();
+  if (bindings.length > 0 && syncDates.length === 0) {
+    return json({ cached: true, status: 'succeeded', message: '所选范围已经完成增量同步，本次没有调用钉钉接口。' });
+  }
+
   const createdJob = await adminClient.from('attendance_sync_jobs').insert({
       corp_id: jobCorpId, sync_type: syncType, scope_type: requestedProfileId ? 'employee' : requestedStoreId ? 'store' : 'organization',
       month_start: `${startDate.slice(0, 7)}-01`, range_start: startDate, range_end: endDate,
       store_id: requestedStoreId, profile_id: requestedProfileId, trigger_type: triggerType, initiated_by: actorId,
-      status: 'running', started_at: new Date().toISOString(), progress_cursor: { totalEmployees: bindings.length, completedEmployees: 0 },
+      status: 'running', started_at: new Date().toISOString(), progress_cursor: { totalEmployees: bindings.length, completedEmployees: 0, syncDates },
     }).select('id').single();
   const job = createdJob.data;
   if (createdJob.error || !job) return json({ error: '无法创建考勤同步任务。' }, 500);
@@ -253,10 +269,12 @@ Deno.serve(async (request) => {
       const client = clientByCorp.get(corpId);
       if (!client) throw new Error(`DingTalk enterprise ${corpId} is not configured`);
       const corpBindings = bindings.filter((binding) => binding.corpId === corpId);
+      const corpDates = datesByCorp.get(corpId) ?? [];
+      if (!corpDates.length) continue;
       await client.getAccessToken();
       const [bundle, schedules] = await Promise.all([
-        client.getAttendanceBundle(unique(corpBindings.map((binding) => binding.dingtalkUserId)), startDate, endDate),
-        client.listSchedules(startDate, endDate),
+        client.getAttendanceBundleForDates(unique(corpBindings.map((binding) => binding.dingtalkUserId)), corpDates),
+        client.listSchedulesForDates(corpDates),
       ]);
       bundle.schedules = schedules;
       bundlesByCorp.set(corpId, bundle);
@@ -266,21 +284,24 @@ Deno.serve(async (request) => {
     await adminClient.from('attendance_sync_jobs').update({ status: 'failed', failure_count: bindings.length, error_summary: message, finished_at: new Date().toISOString() }).eq('id', job.id);
     return json({ jobId: job.id, status: 'failed', successCount: 0, failureCount: bindings.length, insertedCount: 0, updatedCount: 0, skippedCount: 0, message }, 502);
   }
+  const failedScopes = new Set<string>();
   for (const binding of bindings) {
     try {
       const client = clientByCorp.get(binding.corpId);
       const config = configByCorp.get(binding.corpId);
       if (!client || !config) throw new Error(`DingTalk enterprise ${binding.corpId} is not configured`);
       const bundle = bundlesByCorp.get(binding.corpId);
+      const bindingDates = datesByScope.get(`${binding.corpId}|${binding.storeId}`) ?? [];
+      if (!bindingDates.length) { skippedCount += 1; successCount += 1; continue; }
       if (!bundle) throw new Error(`DingTalk attendance bundle ${binding.corpId} is unavailable`);
-      const days = normalizeAttendanceBundle(binding, bundle);
+      const requestedDateSet = new Set(bindingDates);
+      const days = normalizeAttendanceBundle(binding, bundle).filter((day) => requestedDateSet.has(day.attendanceDate));
       const normalizedDates = new Set(days.map((day) => day.attendanceDate));
       const { data: persistedDays, error: persistedDaysError } = await adminClient.from('attendance_daily_records')
         .select('id,attendance_date,enterprise_timezone,planned_on_at,planned_off_at')
         .eq('corp_id', binding.corpId)
         .eq('profile_id', binding.profileId)
-        .gte('attendance_date', startDate)
-        .lte('attendance_date', endDate);
+        .in('attendance_date', bindingDates);
       if (persistedDaysError) throw new Error(persistedDaysError.message);
       const staleDailyIds = (persistedDays ?? []).filter((item) => {
         if (normalizedDates.has(item.attendance_date)) return false;
@@ -321,6 +342,7 @@ Deno.serve(async (request) => {
       successCount += 1;
     } catch (error) {
       failureCount += 1;
+      failedScopes.add(`${binding.corpId}|${binding.storeId}`);
       const retryable = error instanceof DingTalkApiError ? error.retryable : true;
       await adminClient.from('attendance_sync_failures').insert({
         sync_job_id: job.id, profile_id: binding.profileId, dingtalk_user_id: binding.dingtalkUserId,
@@ -329,6 +351,20 @@ Deno.serve(async (request) => {
       });
     }
     await adminClient.from('attendance_sync_jobs').update({ progress_cursor: { totalEmployees: bindings.length, completedEmployees: successCount + failureCount, currentProfileId: binding.profileId }, success_count: successCount, failure_count: failureCount, inserted_count: insertedCount, updated_count: updatedCount, skipped_count: skippedCount }).eq('id', job.id);
+  }
+
+  const completedAt = new Date().toISOString();
+  const completedDayStates = [...datesByScope.entries()].flatMap(([scopeKey, dates]) => {
+    if (failedScopes.has(scopeKey)) return [];
+    const [corpId, storeId] = scopeKey.split('|');
+    return dates.map((syncDate) => ({ corp_id: corpId, store_id: storeId, sync_date: syncDate, last_sync_job_id: job.id, last_synced_at: completedAt }));
+  });
+  for (const rows of chunk(completedDayStates, 100)) {
+    const { error } = await adminClient.from('attendance_sync_day_states').upsert(rows, { onConflict: 'corp_id,store_id,sync_date' });
+    if (error) {
+      await adminClient.from('attendance_sync_jobs').update({ status: 'partial', error_summary: '考勤数据已保存，但增量同步标记未完整写入。', finished_at: completedAt }).eq('id', job.id);
+      return json({ jobId: job.id, status: 'partial', successCount, failureCount: failureCount + 1, insertedCount, updatedCount, skippedCount, message: '考勤数据已保存，但增量同步标记未完整写入。' });
+    }
   }
 
   const { status, message } = summarizeAttendanceSync(bindings.length, successCount, failureCount);

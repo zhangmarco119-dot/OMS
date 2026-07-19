@@ -116,6 +116,18 @@ describe('DingTalkClient', () => {
     });
     expect(JSON.parse(String(fetchImpl.mock.calls[2]?.[1]?.body))).toMatchObject({ workDate: '2026-07-02 00:00:00' });
   });
+
+  it('requests only explicitly selected incremental dates', async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response({ accessToken: 'token-incremental', expireIn: 7200 }))
+      .mockResolvedValueOnce(response({ errcode: 0, result: { schedules: [], has_more: false } }))
+      .mockResolvedValueOnce(response({ errcode: 0, result: { schedules: [], has_more: false } }));
+    const client = new DingTalkClient({ ...credentials, corpId: 'incremental' }, { fetchImpl });
+
+    await expect(client.listSchedulesForDates(['2026-07-01', '2026-07-19'])).resolves.toEqual([]);
+    const bodies = fetchImpl.mock.calls.slice(1).map((call) => JSON.parse(String(call[1]?.body)).workDate);
+    expect(bodies).toEqual(['2026-07-01 00:00:00', '2026-07-19 00:00:00']);
+  });
 });
 
 describe('DingTalk batching helpers', () => {

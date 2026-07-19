@@ -36,7 +36,7 @@ export async function getOperationReportDraft(storeId: string, date: string) {
   return data ? parseReport(data) : null;
 }
 
-export async function syncOperationReportSources(storeId: string, date: string, onStage: (stage: 'pos' | 'attendance' | 'prepare') => void) {
+export async function syncOperationReportSources(storeId: string, date: string, onStage: (stage: 'pos' | 'prepare') => void) {
   const started = await client().rpc('begin_operation_report_refresh', { p_report_date: date, p_store_id: storeId });
   if (started.error) throw new Error(started.error.message);
   const gate = dataObject<{ cachedAt?: string; mode: 'cached' | 'refresh' | 'submitted' | 'throttled'; report?: Record<string, unknown> }>(started.data);
@@ -50,16 +50,13 @@ export async function syncOperationReportSources(storeId: string, date: string, 
     if (pos.error || pos.data?.status !== 'succeeded') throw new Error(pos.data?.error ?? pos.error?.message ?? '收银数据拉取失败。');
     const salesJobId = pos.data.results?.[0]?.jobId as string | undefined;
     if (!salesJobId) throw new Error('收银同步未返回任务编号。');
-    onStage('attendance');
-    const attendance = await client().functions.invoke('dingtalk-attendance', { body: { action: 'report-sync', date, storeId } });
-    if (attendance.error || !['succeeded', 'partial'].includes(attendance.data?.status)) throw new Error(attendance.data?.message ?? attendance.error?.message ?? '考勤数据拉取失败。');
     onStage('prepare');
     const prepared = await client().rpc('prepare_operation_report', {
-      p_attendance_sync_job_id: attendance.data.jobId, p_report_date: date,
+      p_attendance_sync_job_id: null, p_report_date: date,
       p_sales_sync_job_id: salesJobId, p_store_id: storeId,
     });
     if (prepared.error) throw new Error(prepared.error.message);
-    return { cached: Boolean(attendance.data?.cached), report: parseReport(dataObject<Record<string, unknown>>(prepared.data)) };
+    return { cached: false, report: parseReport(dataObject<Record<string, unknown>>(prepared.data)) };
   } catch (error) {
     if (draft) await client().rpc('release_operation_report_refresh', { p_report_id: draft.id });
     throw error;

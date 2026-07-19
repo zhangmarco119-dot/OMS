@@ -27,6 +27,8 @@ const recurringTaskScheduleMigrationPath = join(root, 'supabase', 'migrations', 
 const recurringTaskScheduleTestPath = join(root, 'supabase', 'tests', '0020_v2_recurring_task_schedules.sql');
 const adminOperationOverviewMigrationPath = join(root, 'supabase', 'migrations', '0021_admin_operation_overview.sql');
 const adminOperationOverviewTestPath = join(root, 'supabase', 'tests', '0021_admin_operation_overview.sql');
+const arrivalAdminVisibilityMigrationPath = join(root, 'supabase', 'migrations', '0100_unify_arrival_admin_visibility.sql');
+const arrivalAdminVisibilityTestPath = join(root, 'supabase', 'tests', '0100_unify_arrival_admin_visibility.sql');
 const monthlyTaskScheduleMigrationPath = join(root, 'supabase', 'migrations', '0022_v2_monthly_task_schedules.sql');
 const monthlyTaskScheduleTestPath = join(root, 'supabase', 'tests', '0022_v2_monthly_task_schedules.sql');
 const navigationPermissionsMigrationPath = join(root, 'supabase', 'migrations', '0026_navigation_notifications_permissions.sql');
@@ -69,6 +71,8 @@ const recurringTaskScheduleMigration = readFileSync(recurringTaskScheduleMigrati
 const recurringTaskScheduleTest = readFileSync(recurringTaskScheduleTestPath, 'utf8');
 const adminOperationOverviewMigration = readFileSync(adminOperationOverviewMigrationPath, 'utf8');
 const adminOperationOverviewTest = readFileSync(adminOperationOverviewTestPath, 'utf8');
+const arrivalAdminVisibilityMigration = readFileSync(arrivalAdminVisibilityMigrationPath, 'utf8');
+const arrivalAdminVisibilityTest = readFileSync(arrivalAdminVisibilityTestPath, 'utf8');
 const monthlyTaskScheduleMigration = readFileSync(monthlyTaskScheduleMigrationPath, 'utf8');
 const monthlyTaskScheduleTest = readFileSync(monthlyTaskScheduleTestPath, 'utf8');
 const navigationPermissionsMigration = readFileSync(navigationPermissionsMigrationPath, 'utf8');
@@ -211,6 +215,7 @@ const requiredFunctions = [
   'admin_attendance_month', 'admin_bind_dingtalk_employee', 'admin_unbind_dingtalk_employee',
   'get_attendance_incremental_schedule', 'admin_save_attendance_incremental_schedule',
   'admin_set_dingtalk_api_daily_limit',
+  'admin_record_payroll_overtime',
   'can_manage_v2_task_template',
   'can_view_v2_task_template',
   'attach_v2_task_template_reference_image',
@@ -443,6 +448,11 @@ if (!recurringTaskScheduleTest.includes('StoreHub V2 recurring task schedule che
 if (!adminOperationOverviewMigration.includes('function public.admin_operation_overview')
   || !adminOperationOverviewTest.includes('StoreHub V2 admin operation overview checks passed')) {
   failures.push('V2 admin operation overview RPC is missing');
+}
+
+if (!arrivalAdminVisibilityMigration.includes("report.status in ('submitted', 'viewed')")
+  || !arrivalAdminVisibilityTest.includes('StoreHub arrival admin visibility checks passed')) {
+  failures.push('admin arrival totals must exclude drafts and voided reports');
 }
 
 if (!monthlyTaskScheduleMigration.includes("schedule_type in ('interval_days', 'weekly', 'monthly')")

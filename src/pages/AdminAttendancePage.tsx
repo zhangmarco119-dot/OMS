@@ -12,6 +12,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { bindAttendanceEmployee, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceIncrementalSchedule, loadAttendanceSyncJobs, loadDingTalkApiUsage, removeAttendanceEnterpriseMapping, saveAttendanceEnterpriseMapping, saveAttendanceIncrementalSchedule, saveDingTalkApiDailyLimit, unbindAttendanceEmployee, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceIncrementalSchedule, type AttendanceSyncJob, type DingTalkApiUsage } from '../services/attendance.service';
+import { recordSystemActivity } from '../services/operation-logs.service';
 
 type Tab = 'overview' | 'enterprises' | 'bindings' | 'logs';
 
@@ -49,7 +50,7 @@ function AttendanceOverview() {
   const load = useCallback(async () => {
     if (!supabase) { setStatus('error'); return; }
     setStatus('loading');
-    try { const result = await loadAdminAttendanceMonth(supabase, { month, storeId, search, status: statusFilter }); setItems(result.items); setTotal(result.total); setStatus('ready'); }
+    try { const result = await loadAdminAttendanceMonth(supabase, { month, storeId, search, status: statusFilter }); setItems(result.items); setTotal(result.total); setStatus('ready'); void recordSystemActivity(supabase, { module: 'attendance', view: 'month_summary', period: month, storeId: storeId || undefined, context: { scope: storeId ? 'single_store' : 'all_authorized_stores', statusFilter } }).catch(() => undefined); }
     catch { setStatus('error'); }
   }, [month, search, statusFilter, storeId]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
@@ -120,7 +121,7 @@ function AttendanceOverview() {
       <label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => setSearch(event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label>
       <div className="mt-2 grid grid-cols-5 gap-1">{[['all', '全部'], ['normal', '正常'], ['late', '迟到'], ['missing', '缺卡'], ['abnormal', '异常']] .map(([value, label]) => <button className={`min-h-9 rounded-md text-xs font-bold ${statusFilter === value ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-600'}`} key={value} onClick={() => setStatusFilter(value)} type="button">{label}</button>)}</div>
       <button className="ui-button-primary mt-3 w-full" disabled={syncing} onClick={() => void sync()} type="button"><RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />{syncing ? '正在同步' : `同步${month}考勤`}</button>
-      <p className="mt-2 text-xs leading-5 text-slate-500">增量同步只补齐未同步日期，并刷新当天及必要的近期数据；5 分钟内重复操作会直接复用已有结果。</p>
+      <p className="mt-2 text-xs leading-5 text-slate-500">手动同步不受 5 分钟限制，每次都会重新执行增量检查，只读取未同步日期、当天和仍需复查的缺卡或异常日期；同一范围正在同步时会阻止重复并发。</p>
     </SectionCard>
     <SectionCard className="p-3.5">
       <SectionHeader icon={Gauge} title="钉钉接口调用量" description="系统按真实外部请求计数，每日默认限额为 150 次。" />

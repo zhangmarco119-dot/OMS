@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../components/ui/Actions';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { PayrollEstimateView } from '../features/payroll/PayrollEstimateView';
+import { AdminOvertimeBatchImport } from '../features/payroll/AdminOvertimeBatchImport';
 import { PayrollStatementView } from '../features/payroll/PayrollStatementView';
 import { payrollMonthEndDate } from '../features/payroll/monthSelection';
 import { formatMoney, todayInChina, type AdminPayrollSummary } from '../features/payroll/model';
@@ -16,12 +17,13 @@ import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
-  addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
+  addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
   generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollPerformanceOverride, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, updatePayrollPayslip, withdrawPayrollPayslip,
   savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
   savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
+import { recordSystemActivity } from '../services/operation-logs.service';
 
 type Tab = 'overview' | 'payslips' | 'employees' | 'performance' | 'revenue' | 'penalties' | 'overtime' | 'visibility';
 type Feedback = { title: string; message: string; tone: ActionFeedbackTone };
@@ -104,6 +106,15 @@ function PayrollPayslipManager() {
     } catch { setStatus('error'); }
   }, [month, setProfileId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!supabase || !viewing) return;
+    void recordSystemActivity(supabase, {
+      module: 'payroll',
+      period: viewing.payroll_month.slice(0, 7),
+      targetProfileId: viewing.profile_id,
+      view: 'payslip_detail',
+    }).catch(() => undefined);
+  }, [viewing]);
   useEffect(() => {
     if (!supabase) return;
     void loadPayrollPayslipScheduleSettings(supabase)
@@ -200,9 +211,10 @@ function PayrollOverview() {
   const selectedMonth = asOf.slice(0, 7);
   const [result, setResult] = useState<AdminPayrollSummary | null>(null); const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const update = (key: string, value: string, replace = true) => { const next = new URLSearchParams(params); if (value) next.set(key, value); else next.delete(key); setParams(next, { replace }); };
-  const load = useCallback(async () => { if (!supabase) return; setStatus('loading'); try { setResult(await loadAdminPayrollEstimates(supabase, { asOf, storeId, search })); setStatus('ready'); } catch { setStatus('error'); } }, [asOf, search, storeId]);
+  const load = useCallback(async () => { if (!supabase) return; setStatus('loading'); try { setResult(await loadAdminPayrollEstimates(supabase, { asOf, storeId, search })); setStatus('ready'); void recordSystemActivity(supabase, { module: 'payroll', view: 'estimate_summary', period: selectedMonth, storeId: storeId || undefined, context: { scope: storeId ? 'single_store' : 'all_authorized_stores' } }).catch(() => undefined); } catch { setStatus('error'); } }, [asOf, search, selectedMonth, storeId]);
   useEffect(() => { const id = window.setTimeout(() => void load(), 180); return () => window.clearTimeout(id); }, [load]);
   const selected = result?.items.find((item) => item.profileId === employeeId);
+  useEffect(() => { if (!supabase || !selected) return; void recordSystemActivity(supabase, { module: 'payroll', view: 'estimate_detail', period: selectedMonth, storeId: storeId || undefined, targetProfileId: selected.profileId, context: { scope: storeId ? 'single_store' : 'all_authorized_stores' } }).catch(() => undefined); }, [selected, selectedMonth, storeId]);
   const resolveIssue = (issue: string) => {
     if (issue.includes('任务数据')) { void navigate('/app/admin/tasks'); return; }
     const next = new URLSearchParams(params);
@@ -527,7 +539,70 @@ function OvertimeManager() {
   const reviewTerm = reviewProfile?.employment_type === 'part_time' ? '兼职工时' : '加班';
   const save = async () => { if (!supabase || rate === '' || Number(rate) < 0) { setFeedback({ title: '请填写有效时薪', message: '计薪时薪不能留空或小于 0。', tone: 'warning' }); return; } setBusy(true); try { await saveOvertimeRate(supabase, { hourlyRate: Number(rate), effectiveFrom, changeReason: reason.trim() }); setFeedback({ title: '计薪时薪已保存', message: '新时薪按生效日期使用；已经审批的申请继续保留审批时锁定的时薪。', tone: 'success' }); setReason(''); await load(); } catch (error) { setFeedback({ title: '保存未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); } finally { setBusy(false); } };
   const confirmReview = async () => { if (!supabase || !review) return; if (review.action === 'rejected' && !reviewNote.trim()) { setFeedback({ title: '请填写驳回原因', message: `驳回${reviewTerm}申请时必须说明原因。`, tone: 'warning' }); return; } const copy = review; const term = reviewTerm; setReview(null); try { await reviewOvertimeRequest(supabase, copy.id, copy.action, reviewNote.trim()); setReviewNote(''); window.dispatchEvent(new Event('storehub:todos-changed')); setFeedback({ title: `${term}申请${copy.action === 'approved' ? '已通过' : '已驳回'}`, message: copy.action === 'approved' ? `${term === '兼职工时' ? '兼职薪资' : '加班工资'}已计入员工预估工资。` : '员工会在通知中心看到驳回结果和原因。', tone: 'success' }); await load(); } catch (error) { setFeedback({ title: '审批未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); } };
-  return <><SectionCard><SectionHeader icon={Clock3} title="工时计薪设置" description="加班与兼职工时默认 25 元/小时；审批通过后才计入对应薪资。" /><div className="mt-3 grid grid-cols-2 gap-2"><Field label="计薪时薪" value={rate} onChange={setRate} /><label className="mt-3 block text-sm font-semibold">生效日期<input className="ui-input mt-1" onChange={(event) => setEffectiveFrom(event.target.value)} type="date" value={effectiveFrom} /></label></div><label className="mt-3 block text-sm font-semibold">修改原因（选填）<input className="ui-input mt-1" onChange={(event) => setReason(event.target.value)} value={reason} /></label><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">保存计薪时薪</button></SectionCard><SectionCard><SectionHeader title="工时申请与审批" description="员工和兼职申请由店长审批；店长申请由管理员审批。" /><div className="mt-3 space-y-2">{setup?.overtimeRequests.map((item) => { const requester = setup.profiles.find((profile) => profile.id === item.profile_id); const term = requester?.employment_type === 'part_time' ? '兼职工时' : '加班'; const managerPending = requester?.role === 'manager' && item.status === 'pending'; return <article className={`rounded-lg p-3 ${managerPending ? 'border border-amber-200 bg-amber-50' : 'bg-slate-50'}`} key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{requester?.display_name ?? '员工'}{requester?.role === 'manager' ? ' · 店长' : requester?.employment_type === 'part_time' ? ' · 兼职' : ''}</b><p className="mt-1 text-sm text-slate-600">{item.overtime_date} · {term} {item.hours} 小时 · {auth.availableStores.find((store) => store.id === item.store_id)?.short_name ?? '门店'}</p>{item.reason ? <p className="mt-1 text-xs text-slate-500">{item.reason}</p> : null}</div><StatusBadge tone={item.status === 'approved' ? 'success' : item.status === 'rejected' ? 'danger' : 'warning'}>{item.status === 'approved' ? '已通过' : item.status === 'rejected' ? '已驳回' : managerPending ? '待管理员审批' : '待店长审批'}</StatusBadge></div>{managerPending ? <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => setReview({ id: item.id, action: 'rejected' })} type="button">驳回</button><button className="ui-button-primary" onClick={() => setReview({ id: item.id, action: 'approved' })} type="button">通过</button></div> : null}</article>; })}{!setup?.overtimeRequests.length ? <EmptyState title="暂无工时申请" /> : null}</div></SectionCard><ConfirmDialog confirmLabel={review?.action === 'approved' ? '确认通过' : '确认驳回'} danger={review?.action === 'rejected'} onCancel={() => { setReview(null); setReviewNote(''); }} onConfirm={() => void confirmReview()} open={Boolean(review)} title={`${review?.action === 'approved' ? '通过' : '驳回'}${reviewTerm}申请`}><label className="block text-sm font-semibold">审批说明{review?.action === 'approved' ? '（选填）' : ''}<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setReviewNote(event.target.value)} value={reviewNote} /></label></ConfirmDialog><FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+  return <><SectionCard><SectionHeader icon={Clock3} title="工时计薪设置" description="加班与兼职工时默认 25 元/小时；审批通过后才计入对应薪资。" /><div className="mt-3 grid grid-cols-2 gap-2"><Field label="计薪时薪" value={rate} onChange={setRate} /><label className="mt-3 block text-sm font-semibold">生效日期<input className="ui-input mt-1" onChange={(event) => setEffectiveFrom(event.target.value)} type="date" value={effectiveFrom} /></label></div><label className="mt-3 block text-sm font-semibold">修改原因（选填）<input className="ui-input mt-1" onChange={(event) => setReason(event.target.value)} value={reason} /></label><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">保存计薪时薪</button></SectionCard><AdminOvertimeEntry onSaved={load} setup={setup} /><AdminOvertimeBatchImport onSaved={load} profiles={setup?.profiles ?? []} stores={auth.availableStores} /><SectionCard><SectionHeader title="工时申请与审批" description="员工和兼职申请由店长审批；店长申请由管理员审批。" /><div className="mt-3 space-y-2">{setup?.overtimeRequests.map((item) => { const requester = setup.profiles.find((profile) => profile.id === item.profile_id); const term = requester?.employment_type === 'part_time' ? '兼职工时' : '加班'; const managerPending = requester?.role === 'manager' && item.status === 'pending'; return <article className={`rounded-lg p-3 ${managerPending ? 'border border-amber-200 bg-amber-50' : 'bg-slate-50'}`} key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{requester?.display_name ?? '员工'}{requester?.role === 'manager' ? ' · 店长' : requester?.employment_type === 'part_time' ? ' · 兼职' : ''}</b><p className="mt-1 text-sm text-slate-600">{item.overtime_date} · {term} {item.hours} 小时 · {auth.availableStores.find((store) => store.id === item.store_id)?.short_name ?? '门店'}</p>{item.reason ? <p className="mt-1 text-xs text-slate-500">{item.reason}</p> : null}</div><StatusBadge tone={item.status === 'approved' ? 'success' : item.status === 'rejected' ? 'danger' : 'warning'}>{item.status === 'approved' ? '已通过' : item.status === 'rejected' ? '已驳回' : managerPending ? '待管理员审批' : '待店长审批'}</StatusBadge></div>{managerPending ? <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => setReview({ id: item.id, action: 'rejected' })} type="button">驳回</button><button className="ui-button-primary" onClick={() => setReview({ id: item.id, action: 'approved' })} type="button">通过</button></div> : null}</article>; })}{!setup?.overtimeRequests.length ? <EmptyState title="暂无工时申请" /> : null}</div></SectionCard><ConfirmDialog confirmLabel={review?.action === 'approved' ? '确认通过' : '确认驳回'} danger={review?.action === 'rejected'} onCancel={() => { setReview(null); setReviewNote(''); }} onConfirm={() => void confirmReview()} open={Boolean(review)} title={`${review?.action === 'approved' ? '通过' : '驳回'}${reviewTerm}申请`}><label className="block text-sm font-semibold">审批说明{review?.action === 'approved' ? '（选填）' : ''}<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setReviewNote(event.target.value)} value={reviewNote} /></label></ConfirmDialog><FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+}
+
+function AdminOvertimeEntry({ onSaved, setup }: { onSaved: () => Promise<void>; setup: Setup | null }) {
+  const auth = useAuth();
+  const profiles = useMemo(() => (setup?.profiles ?? []).filter((profile) => profile.employment_type === 'full_time'), [setup]);
+  const [profileId, setProfileId] = useState('');
+  const [storeId, setStoreId] = useState('');
+  const [date, setDate] = useState(todayInChina());
+  const [hours, setHours] = useState('0.5');
+  const [reason, setReason] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const selectedProfile = profiles.find((profile) => profile.id === profileId);
+  const hourOptions = Array.from({ length: 12 }, (_, index) => (index + 1) / 2);
+
+  useEffect(() => {
+    if (profileId || !profiles.length) return;
+    const profile = profiles[0];
+    setProfileId(profile.id);
+    setStoreId(auth.availableStores.some((store) => store.id === profile.store_id) ? profile.store_id : auth.availableStores[0]?.id ?? '');
+  }, [auth.availableStores, profileId, profiles]);
+
+  const chooseProfile = (nextId: string) => {
+    setProfileId(nextId);
+    const profile = profiles.find((item) => item.id === nextId);
+    if (profile && auth.availableStores.some((store) => store.id === profile.store_id)) setStoreId(profile.store_id);
+  };
+  const requestSave = () => {
+    if (!profileId || !storeId || !date || !hours) {
+      setFeedback({ title: '请完善加班信息', message: '员工、门店、日期和加班工时均不能为空。', tone: 'warning' });
+      return;
+    }
+    setConfirming(true);
+  };
+  const save = async () => {
+    if (!supabase || !profileId || !storeId) return;
+    setConfirming(false); setBusy(true);
+    try {
+      await adminRecordOvertime(supabase, { profileId, storeId, overtimeDate: date, hours: Number(hours), reason });
+      await onSaved();
+      setReason('');
+      setFeedback({ title: '加班工时已登记', message: '该记录已直接通过并计入员工实时薪资，员工通知也已发送。', tone: 'success' });
+    } catch (error) {
+      setFeedback({ title: '登记未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setBusy(false); }
+  };
+
+  return <SectionCard>
+    <SectionHeader icon={Clock3} title="手动登记员工加班" description="管理员登记后直接生效，无需员工再次申请或审批。" />
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      <label className="col-span-2 text-sm font-semibold">员工<select className="ui-input mt-1" onChange={(event) => chooseProfile(event.target.value)} value={profileId}><option value="">请选择员工</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {profile.role === 'manager' ? '店长' : '员工'}</option>)}</select></label>
+      <label className="text-sm font-semibold">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}><option value="">请选择门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.short_name ?? store.name}</option>)}</select></label>
+      <label className="text-sm font-semibold">加班日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
+      <label className="col-span-2 text-sm font-semibold">加班工时<select className="ui-input mt-1" onChange={(event) => setHours(event.target.value)} value={hours}>{hourOptions.map((value) => <option key={value} value={value}>{value} 小时</option>)}</select></label>
+    </div>
+    <label className="mt-3 block text-sm font-semibold">登记说明（选填）<input className="ui-input mt-1" onChange={(event) => setReason(event.target.value)} placeholder="例如闭店盘点、临时支援" value={reason} /></label>
+    <p className="mt-2 text-xs leading-5 text-slate-500">同一员工、门店和日期已有申请时，本次登记会更新该记录并直接确认通过。</p>
+    <button className="ui-button-primary mt-3 w-full" disabled={busy || !profiles.length} onClick={requestSave} type="button">{busy ? '正在登记' : '登记加班工时'}</button>
+    {!profiles.length ? <p className="mt-2 text-xs text-amber-700">当前没有可登记加班的全职员工或店长。</p> : null}
+    <ConfirmDialog confirmLabel="确认登记" onCancel={() => setConfirming(false)} onConfirm={() => void save()} open={confirming} title="确认登记员工加班"><p className="text-sm text-slate-600">{selectedProfile?.display_name ?? '员工'} · {date} · {hours} 小时。确认后将立即计入薪资统计。</p></ConfirmDialog>
+    <FeedbackDialog feedback={feedback} close={() => setFeedback(null)} />
+  </SectionCard>;
 }
 
 function FeedbackDialog({ close, feedback }: { close: () => void; feedback: Feedback | null }) { return <ActionFeedbackDialog message={feedback?.message ?? ''} onClose={close} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} />; }

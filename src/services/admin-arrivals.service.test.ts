@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { formatArrivalItemSummary, markAdminArrivalViewed, voidAdminArrival } from './admin-arrivals.service';
+import { formatArrivalItemSummary, loadAdminArrivalList, markAdminArrivalViewed, voidAdminArrival } from './admin-arrivals.service';
 
 describe('admin arrivals service mutations', () => {
   it('formats list headlines with product names and quantities instead of a kind count', () => {
@@ -18,6 +18,34 @@ describe('admin arrivals service mutations', () => {
     const client = { rpc } as unknown as SupabaseClient<Database>;
     await markAdminArrivalViewed(client, 'report-1');
     expect(rpc).toHaveBeenCalledWith('mark_arrival_viewed', { p_report_id: 'report-1' });
+  });
+
+  it('uses only submitted and viewed reports for the default Arrival Center list', async () => {
+    const query = {
+      eq: vi.fn(),
+      gte: vi.fn(),
+      in: vi.fn(),
+      lte: vi.fn(),
+      order: vi.fn(),
+      range: vi.fn(),
+      select: vi.fn(),
+      then: (resolve: (value: { count: number; data: never[]; error: null }) => unknown) =>
+        Promise.resolve({ count: 0, data: [], error: null }).then(resolve),
+    };
+    for (const method of ['eq', 'gte', 'in', 'lte', 'order', 'range', 'select'] as const) {
+      query[method].mockReturnValue(query);
+    }
+    const client = { from: vi.fn().mockReturnValue(query) } as unknown as SupabaseClient<Database>;
+
+    await loadAdminArrivalList(client, {
+      dateFrom: '2026-07-01',
+      dateTo: '2026-07-31',
+      page: 1,
+      status: 'all',
+      storeId: '',
+    });
+
+    expect(query.in).toHaveBeenCalledWith('status', ['submitted', 'viewed']);
   });
 
   it('requires a reason and trims it before voiding', async () => {

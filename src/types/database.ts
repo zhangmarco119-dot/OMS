@@ -421,6 +421,12 @@ export type Database = {
         Update: { audience?: 'staff_manager' | 'admin'; content_html?: string; document_version?: string; slug?: string; summary?: string; title?: string; updated_at?: string; updated_by?: string | null; };
         Relationships: [];
       };
+      system_release_control: {
+        Row: { active_release: string; allowed_releases: string[]; check_interval_seconds: number; enforcement_mode: 'off' | 'warn' | 'block'; message: string; minimum_database_contract: number; singleton: boolean; updated_at: string; updated_by: string | null };
+        Insert: { active_release: string; allowed_releases: string[]; check_interval_seconds?: number; enforcement_mode?: 'off' | 'warn' | 'block'; message?: string; minimum_database_contract?: number; singleton?: boolean; updated_at?: string; updated_by?: string | null };
+        Update: { active_release?: string; allowed_releases?: string[]; check_interval_seconds?: number; enforcement_mode?: 'off' | 'warn' | 'block'; message?: string; minimum_database_contract?: number; singleton?: boolean; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
       v2_sop_stores: {
         Row: { created_at: string; sop_id: string; store_id: string; };
         Insert: { created_at?: string; sop_id: string; store_id: string; };
@@ -599,9 +605,9 @@ export type Database = {
         Relationships: [];
       };
       system_operation_logs: {
-        Row: { actor_employment_type_snapshot: 'full_time' | 'part_time' | null; actor_id: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; entity_id: string | null; entity_type: string; id: string; metadata: Json; module: string; occurred_at: string; operation: 'created' | 'updated' | 'deleted'; store_id: string | null; summary: string };
-        Insert: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_id?: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; entity_id?: string | null; entity_type: string; id?: string; metadata?: Json; module: string; occurred_at?: string; operation: 'created' | 'updated' | 'deleted'; store_id?: string | null; summary: string };
-        Update: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_name_snapshot?: string; actor_role_snapshot?: 'staff' | 'manager' | 'admin' | 'system'; metadata?: Json; summary?: string };
+        Row: { actor_employment_type_snapshot: 'full_time' | 'part_time' | null; actor_id: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; actor_username_snapshot: string | null; entity_id: string | null; entity_type: string; id: string; metadata: Json; module: string; occurred_at: string; operation: 'created' | 'updated' | 'deleted' | 'login' | 'viewed'; store_id: string | null; summary: string };
+        Insert: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_id?: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; actor_username_snapshot?: string | null; entity_id?: string | null; entity_type: string; id?: string; metadata?: Json; module: string; occurred_at?: string; operation: 'created' | 'updated' | 'deleted' | 'login' | 'viewed'; store_id?: string | null; summary: string };
+        Update: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_name_snapshot?: string; actor_role_snapshot?: 'staff' | 'manager' | 'admin' | 'system'; actor_username_snapshot?: string | null; metadata?: Json; summary?: string };
         Relationships: [];
       };
       payroll_performance_overrides: {
@@ -967,6 +973,10 @@ export type Database = {
       };
     };
     Functions: {
+      record_system_activity: { Args: { p_module: string; p_view: string; p_period?: string | null; p_store_id?: string | null; p_target_profile_id?: string | null; p_context?: Json }; Returns: string };
+      list_system_operation_log_actors: { Args: Record<PropertyKey, never>; Returns: Json };
+      get_system_release_policy: { Args: Record<PropertyKey, never>; Returns: Json };
+      configure_system_release_policy: { Args: { p_active_release: string; p_allowed_releases: string[]; p_minimum_database_contract?: number; p_enforcement_mode?: string; p_check_interval_seconds?: number; p_message?: string }; Returns: Json };
       admin_save_operation_report_template: { Args: { p_enabled: boolean; p_fields: Json; p_refund_note: string; p_store_id: string; p_title: string }; Returns: Json };
       begin_operation_report_refresh: { Args: { p_report_date: string; p_store_id: string }; Returns: Json };
       get_operation_report_availability: { Args: { p_store_id: string }; Returns: Json };
@@ -992,6 +1002,7 @@ export type Database = {
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };
       admin_save_payroll_visibility_settings: { Args: { p_history_available_until_day: number; p_history_months: number }; Returns: Json };
       admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
+      admin_record_payroll_overtime: { Args: { p_hours: number; p_overtime_date: string; p_profile_id: string; p_reason?: string; p_store_id: string }; Returns: Json };
       admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
       admin_save_payroll_performance_override: { Args: { p_payroll_month: string; p_performance_score?: number | null; p_profile_id: string }; Returns: Json };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };

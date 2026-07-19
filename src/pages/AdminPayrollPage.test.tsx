@@ -93,6 +93,19 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
   });
 
+  it('offers administrators a direct employee overtime entry workflow', async () => {
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({
+      ...setup,
+      profiles: [{ id: 'profile-1', display_name: '测试员工', employment_type: 'full_time', role: 'staff', store_id: 'store-1' }],
+    } as never);
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=overtime']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText('手动登记员工加班')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '登记加班工时' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '测试员工 · 员工' })).toBeInTheDocument();
+    expect(screen.getByText('批量导入员工加班')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下载 Excel 模板' })).toBeInTheDocument();
+  });
+
   it('returns from employee details to the filtered payroll list', async () => {
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=overview&date=2026-07-18&store=store-1&employee=profile-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<><AdminPayrollPage /><LocationProbe /></>} /></Routes></MemoryRouter>);
     expect(await screen.findByText('测试员工')).toBeInTheDocument();

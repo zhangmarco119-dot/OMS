@@ -8,6 +8,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { loadAttendanceMonth } from '../services/attendance.service';
+import { recordSystemActivity } from '../services/operation-logs.service';
 
 export function MyAttendancePage() {
   const auth = useAuth();
@@ -18,7 +19,7 @@ export function MyAttendancePage() {
   const load = useCallback(async () => {
     if (!supabase || !auth.profile) { setStatus('error'); setMessage('账号或服务配置尚未就绪。'); return; }
     setStatus('loading');
-    try { setDetail(await loadAttendanceMonth(supabase, auth.profile.id, month)); setMessage(''); setStatus('ready'); }
+    try { setDetail(await loadAttendanceMonth(supabase, auth.profile.id, month)); setMessage(''); setStatus('ready'); void recordSystemActivity(supabase, { module: 'attendance', view: 'month_detail', period: month, targetProfileId: auth.profile.id, context: { scope: 'self' } }).catch(() => undefined); }
     catch (error) { setMessage(error instanceof Error ? error.message : '加载考勤失败。'); setStatus('error'); }
   }, [auth.profile, month]);
   useEffect(() => { void load(); }, [load]);

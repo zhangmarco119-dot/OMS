@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { hasSupabaseConfig } from '../../lib/env';
 import { supabase } from '../../lib/supabase';
+import { recordSystemActivity } from '../../services/operation-logs.service';
 import type { Database } from '../../types/database';
 
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
@@ -240,6 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       await applySession(data.session);
+      await recordSystemActivity(supabase, { module: 'auth', view: 'login', context: { loginMethod: 'email' } });
       return;
     }
 
@@ -287,6 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await applySession(sessionData.session);
+    await recordSystemActivity(supabase, { module: 'auth', view: 'login', context: { loginMethod: 'account' } });
   }, [applySession]);
 
   const signOut = useCallback(async () => {

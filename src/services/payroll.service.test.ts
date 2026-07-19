@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
+import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -87,6 +87,16 @@ describe('payroll service', () => {
     await expect(reviewOvertimeRequest({ rpc } as never, 'o1', 'approved', '')).resolves.toMatchObject({ status: 'approved' });
     expect(rpc).toHaveBeenNthCalledWith(1, 'submit_payroll_overtime_request', { p_store_id: 's1', p_overtime_date: '2026-07-17', p_hours: 2, p_reason: '闭店盘点' });
     expect(rpc).toHaveBeenNthCalledWith(2, 'review_payroll_overtime_request', { p_request_id: 'o1', p_action: 'approved', p_note: '' });
+  });
+
+  it('lets an administrator record already-approved employee overtime', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { id: 'o-admin', status: 'approved', approved_hourly_rate: 25 }, error: null });
+    await expect(adminRecordOvertime({ rpc } as never, {
+      profileId: 'p1', storeId: 's1', overtimeDate: '2026-07-18', hours: 2.5, reason: '闭店盘点',
+    })).resolves.toMatchObject({ status: 'approved' });
+    expect(rpc).toHaveBeenCalledWith('admin_record_payroll_overtime', {
+      p_profile_id: 'p1', p_store_id: 's1', p_overtime_date: '2026-07-18', p_hours: 2.5, p_reason: '闭店盘点',
+    });
   });
 
   it('allows an optional description and sends revisions back through approval', async () => {

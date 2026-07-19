@@ -455,6 +455,18 @@ export async function reviewOvertimeRequest(client: Client, id: string, action: 
   return data as unknown as OvertimeRequestRow;
 }
 
+export async function adminRecordOvertime(client: Client, input: { profileId: string; storeId: string; overtimeDate: string; hours: number; reason?: string }) {
+  const { data, error } = await client.rpc('admin_record_payroll_overtime', {
+    p_profile_id: input.profileId,
+    p_store_id: input.storeId,
+    p_overtime_date: input.overtimeDate,
+    p_hours: input.hours,
+    p_reason: input.reason?.trim() ?? '',
+  });
+  if (error) throw new Error(error.message || '管理员加班工时登记失败。');
+  return data as unknown as OvertimeRequestRow;
+}
+
 export async function saveOvertimeRate(client: Client, input: { hourlyRate: number; effectiveFrom: string; changeReason: string }) {
   const { error } = await client.rpc('admin_save_payroll_overtime_rate', { p_hourly_rate: input.hourlyRate, p_effective_from: input.effectiveFrom, p_change_reason: input.changeReason });
   if (error) throw new Error(error.message || '计薪时薪保存失败。');

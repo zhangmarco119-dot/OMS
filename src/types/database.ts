@@ -992,6 +992,7 @@ export type Database = {
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };
       admin_save_payroll_visibility_settings: { Args: { p_history_available_until_day: number; p_history_months: number }; Returns: Json };
       admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
+      admin_record_payroll_overtime: { Args: { p_hours: number; p_overtime_date: string; p_profile_id: string; p_reason?: string; p_store_id: string }; Returns: Json };
       admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
       admin_save_payroll_performance_override: { Args: { p_payroll_month: string; p_performance_score?: number | null; p_profile_id: string }; Returns: Json };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };

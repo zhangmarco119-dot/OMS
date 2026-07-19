@@ -211,6 +211,7 @@ const requiredFunctions = [
   'admin_attendance_month', 'admin_bind_dingtalk_employee', 'admin_unbind_dingtalk_employee',
   'get_attendance_incremental_schedule', 'admin_save_attendance_incremental_schedule',
   'admin_set_dingtalk_api_daily_limit',
+  'admin_record_payroll_overtime',
   'can_manage_v2_task_template',
   'can_view_v2_task_template',
   'attach_v2_task_template_reference_image',

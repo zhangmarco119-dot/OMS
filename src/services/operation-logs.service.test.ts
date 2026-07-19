@@ -10,14 +10,14 @@ describe('operation logs service', () => {
     const rpc = vi.fn().mockResolvedValue({ data: 'log-1', error: null });
     const client = { rpc } as unknown as SupabaseClient<Database>;
 
-    await recordSystemActivity(client, {
+    await expect(recordSystemActivity(client, {
       context: { scope: 'single_store' },
       module: 'payroll',
       period: '2026-07',
       storeId: 'store-1',
       targetProfileId: 'profile-2',
       view: 'estimate_detail',
-    });
+    })).resolves.toBe(true);
 
     expect(rpc).toHaveBeenCalledWith('record_system_activity', expect.objectContaining({
       p_context: expect.objectContaining({ pagePath: '/app/payroll?employee=profile-2', scope: 'single_store' }),
@@ -29,6 +29,27 @@ describe('operation logs service', () => {
     }));
     expect(rpc.mock.calls[0][1].p_context).not.toHaveProperty('salary');
     expect(rpc.mock.calls[0][1].p_context).not.toHaveProperty('password');
+  });
+
+  it('retries one failed audit write instead of silently discarding it', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: { message: 'temporary network error' } })
+      .mockResolvedValueOnce({ data: 'log-2', error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+
+    await expect(recordSystemActivity(client, { module: 'attendance', period: '2026-07', view: 'month_summary' })).resolves.toBe(true);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns a visible failure result after both audit attempts fail', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'permission denied' } });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+
+    await expect(recordSystemActivity(client, { module: 'payroll', view: 'estimate_summary' })).resolves.toBe(false);
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith('StoreHub activity log was not recorded:', 'permission denied');
+    warn.mockRestore();
   });
 
   it('normalizes the account selector result returned by the protected RPC', async () => {

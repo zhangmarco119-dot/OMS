@@ -15,24 +15,36 @@ export interface SystemActivityInput {
   view: 'login' | 'month_summary' | 'month_detail' | 'estimate_summary' | 'estimate_detail' | 'payslip_list' | 'payslip_detail' | 'settings';
 }
 const pageSize = 30;
+export const OPERATION_LOGS_CHANGED_EVENT = 'storehub:operation-logs-changed';
 
 const metadata = (value: Json): Record<string, Json | undefined> => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const objectAt = (value: Json): Record<string, Json | undefined> => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 
-export async function recordSystemActivity(client: Client, input: SystemActivityInput): Promise<void> {
+export async function recordSystemActivity(client: Client, input: SystemActivityInput): Promise<boolean> {
   const context: Record<string, Json | undefined> = {
     ...input.context,
     pagePath: typeof window === 'undefined' ? undefined : `${window.location.pathname}${window.location.search}`,
     clientPlatform: typeof navigator === 'undefined' ? undefined : navigator.platform,
   };
-  await client.rpc('record_system_activity', {
+  const args: Database['public']['Functions']['record_system_activity']['Args'] = {
     p_module: input.module,
     p_view: input.view,
     p_period: input.period ?? null,
     p_store_id: input.storeId ?? null,
     p_target_profile_id: input.targetProfileId ?? null,
     p_context: context as Json,
-  });
+  };
+  let result = await client.rpc('record_system_activity', args);
+  if (result.error) {
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    result = await client.rpc('record_system_activity', args);
+  }
+  if (result.error) {
+    console.warn('StoreHub activity log was not recorded:', result.error.message);
+    return false;
+  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(OPERATION_LOGS_CHANGED_EVENT));
+  return true;
 }
 
 export async function loadOperationLogActors(client: Client): Promise<OperationLogActor[]> {

@@ -12,6 +12,7 @@ import {
 type SalesAction =
   | { action: 'manual-sync'; date?: string; integrationId: string }
   | { action: 'manual-sync-month'; endDate?: string; integrationId: string }
+  | { action: 'report-sync'; date: string; storeId: string }
   | { action: 'scheduled-sync' };
 
 type IntegrationRow = {
@@ -206,8 +207,9 @@ Deno.serve(async (request) => {
       (item) =>
         minute >= item.sync_start_hour * 60 && minute <= item.sync_end_hour * 60,
     ) as IntegrationRow[];
-  } else if (payload.action === 'manual-sync' || payload.action === 'manual-sync-month') {
-    if (!uuidPattern.test(payload.integrationId)) {
+  } else if (payload.action === 'manual-sync' || payload.action === 'manual-sync-month' || payload.action === 'report-sync') {
+    const requestedIntegrationId = payload.action === 'report-sync' ? null : payload.integrationId;
+    if ((requestedIntegrationId && !uuidPattern.test(requestedIntegrationId)) || (payload.action === 'report-sync' && !uuidPattern.test(payload.storeId))) {
       return json({ error: '收银系统连接编号无效。' }, 400);
     }
 
@@ -229,7 +231,7 @@ Deno.serve(async (request) => {
       .single();
     if (
       profile.error ||
-      profile.data?.role !== 'admin' ||
+      (payload.action !== 'report-sync' && profile.data?.role !== 'admin') ||
       !profile.data.is_active ||
       profile.data.deleted_at
     ) {
@@ -248,7 +250,7 @@ Deno.serve(async (request) => {
     const integration = await adminClient
       .from('pos_sales_integrations')
       .select('*')
-      .eq('id', payload.integrationId)
+      .eq(payload.action === 'report-sync' ? 'store_id' : 'id', payload.action === 'report-sync' ? payload.storeId : payload.integrationId)
       .eq('provider', 'pospal')
       .single();
     if (integration.error || !integration.data || !allowed.has(integration.data.store_id)) {
@@ -265,6 +267,8 @@ Deno.serve(async (request) => {
 
   const requestedEndDate = payload.action === 'manual-sync'
     ? payload.date ?? chinaDate()
+    : payload.action === 'report-sync'
+      ? payload.date
     : payload.action === 'manual-sync-month'
       ? payload.endDate ?? chinaDate()
       : chinaDate();
@@ -334,7 +338,21 @@ Deno.serve(async (request) => {
         replaced.data && typeof replaced.data === 'object'
           ? (replaced.data as Record<string, unknown>)
           : {};
-      results.push({ integrationId: integration.id, status: 'succeeded', ...result });
+      const enriched = tickets.map((ticket) => ({
+        integration_id: integration.id, store_id: integration.store_id, sync_job_id: job.data.id,
+        revenue_date: ticket.occurredAt.slice(0, 10), external_key: ticket.externalKey,
+        external_sn: ticket.externalSn || null, occurred_at: ticket.occurredAt,
+        source_updated_at: ticket.sourceUpdatedAt || null, ticket_type: ticket.ticketType,
+        invalid: ticket.invalid, total_amount: ticket.totalAmount, order_source: ticket.orderSource || null,
+        web_order_no: ticket.webOrderNo || null, external_order_no: ticket.externalOrderNo || null,
+        order_no: ticket.orderNo || null, remark: ticket.remark || null,
+        sell_ticket_uid: ticket.sellTicketUid || null,
+      }));
+      if (enriched.length) {
+        const enrichment = await adminClient.from('pos_sales_tickets').upsert(enriched, { onConflict: 'integration_id,external_key' });
+        if (enrichment.error) throw new Error(enrichment.error.message);
+      }
+      results.push({ integrationId: integration.id, jobId: job.data.id, status: 'succeeded', ...result });
     } catch (error) {
       calls = client?.calls ?? calls;
       const message = safeError(error);
@@ -359,7 +377,7 @@ Deno.serve(async (request) => {
             : integration.next_sync_at,
         })
         .eq('id', integration.id);
-      results.push({ integrationId: integration.id, status: 'failed', error: message });
+      results.push({ integrationId: integration.id, jobId: job.data.id, status: 'failed', error: message });
     }
   }
 

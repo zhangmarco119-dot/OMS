@@ -31,6 +31,8 @@ import { MyPayrollPage } from './pages/MyPayrollPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { OvertimePage } from './pages/OvertimePage';
+import { OperationReportDetailPage } from './pages/OperationReportDetailPage';
+import { OperationReportsPage } from './pages/OperationReportsPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
 import { SopDetailPage } from './pages/SopDetailPage';
@@ -80,6 +82,8 @@ export const router = createBrowserRouter([
       { path: 'attendance', element: <MyAttendancePage /> },
       { path: 'payroll', element: <MyPayrollPage /> },
       { path: 'overtime', element: <OvertimePage /> },
+      { path: 'operation-reports', element: <OperationReportsPage /> },
+      { path: 'operation-reports/:reportId', element: <OperationReportDetailPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/about', element: <ProtectedRoute><AboutSystemPage /></ProtectedRoute> },
       { path: 'account/about/manual/:manualSlug', element: <ProtectedRoute><SystemManualPage /></ProtectedRoute> },

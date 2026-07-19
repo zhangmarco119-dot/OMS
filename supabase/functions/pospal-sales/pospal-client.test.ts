@@ -26,4 +26,9 @@ describe('Pospal sales normalization', () => {
     expect(chinaDateTimeToIso('not-a-date')).toBe('');
     expect(normalizePospalTickets([{ sn: 'bad', datetime: 'not-a-date', totalAmount: 10 }])).toEqual([]);
   });
+
+  it('preserves external-order identifiers and refund remarks for operation reports', () => {
+    const [ticket] = normalizePospalTickets([{ sn: 'R-1', datetime: '2026-07-18 18:00:00', totalAmount: 28, ticketType: 'SELL_RETURN', orderSource: '美团外卖', webOrderNo: 'MT-8', externalOrderNo: 'EXT-8', orderNo: '8', remark: '漏送蓝莓', sellTicketUid: 'sale-1' }]);
+    expect(ticket).toMatchObject({ externalOrderNo: 'EXT-8', orderNo: '8', orderSource: '美团外卖', remark: '漏送蓝莓', sellTicketUid: 'sale-1', webOrderNo: 'MT-8' });
+  });
 });

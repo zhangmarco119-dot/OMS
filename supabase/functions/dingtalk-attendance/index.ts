@@ -8,6 +8,7 @@ import { summarizeAttendanceSync } from './sync-result.ts';
 type AttendanceAction =
   | { action: 'refresh-directory'; rootDepartmentIds?: string[] }
   | { action: 'sync'; month?: string; profileId?: string; storeId?: string }
+  | { action: 'report-sync'; date: string; storeId: string }
   | { action: 'enqueue-history-sync'; startMonth: string; endMonth: string; storeId?: string }
   | { action: 'scheduled-sync'; mode?: 'hourly' | 'history-queue' | 'daily' | 'month-start' }
   | { action: 'retry-job'; jobId: string };
@@ -31,6 +32,7 @@ const requiredEnv = (key: string) => {
 
 const optionalEnv = (key: string, fallback = '') => Deno.env.get(key)?.trim() || fallback;
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+const datePattern = /^\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01])$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const unique = <T>(items: T[]) => [...new Set(items)];
 const datePart = (date: Date, timezone: string) => new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
@@ -98,12 +100,13 @@ Deno.serve(async (request) => {
     const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false } });
     const { data: authUser, error: authError } = await userClient.auth.getUser();
     if (authError || !authUser.user) return json({ error: '登录状态已失效，请重新登录。' }, 401);
-    const { data: profile, error: profileError } = await adminClient.from('profiles').select('id,role,is_active,deleted_at').eq('id', authUser.user.id).single();
-    if (profileError || profile?.role !== 'admin' || !profile.is_active || profile.deleted_at) return json({ error: '当前账号没有考勤管理权限。' }, 403);
+    const { data: profile, error: profileError } = await adminClient.from('profiles').select('id,role,store_id,is_active,deleted_at').eq('id', authUser.user.id).single();
+    const reportSyncAuthorized = payload.action === 'report-sync' && profile && ['staff', 'manager', 'admin'].includes(profile.role);
+    if (profileError || !profile || (!reportSyncAuthorized && profile.role !== 'admin') || !profile.is_active || profile.deleted_at) return json({ error: '当前账号没有考勤管理权限。' }, 403);
     actorId = profile.id;
     const { data: access, error: accessError } = await adminClient.from('profile_store_access').select('store_id').eq('profile_id', profile.id);
     if (accessError) return json({ error: '无法确认管理员门店范围。' }, 500);
-    allowedStoreIds = (access ?? []).map((item) => item.store_id);
+    allowedStoreIds = unique([profile.store_id, ...(access ?? []).map((item) => item.store_id)].filter(Boolean));
   }
 
   let enterpriseConfigs: ReturnType<typeof loadDingTalkEnterpriseConfigs>;
@@ -200,6 +203,13 @@ Deno.serve(async (request) => {
     if (previous.sync_type === 'directory') return json({ error: '通讯录任务请使用“更新钉钉员工通讯录”重新执行。' }, 400);
     if (!previous.range_start || !previous.range_end) return json({ error: '该同步任务缺少可重试的日期范围。' }, 400);
     startDate = previous.range_start; endDate = previous.range_end; requestedStoreId = previous.store_id; requestedProfileId = previous.profile_id; syncType = previous.sync_type === 'employee' ? 'employee' : 'date_range';
+  } else if (payload.action === 'report-sync') {
+    if (!uuidPattern.test(payload.storeId) || !allowedStoreIds.includes(payload.storeId)) return json({ error: '当前账号无权同步该门店。' }, 403);
+    if (!datePattern.test(payload.date) || payload.date > today) return json({ error: '运营报告日期无效。' }, 400);
+    requestedStoreId = payload.storeId;
+    startDate = payload.date;
+    endDate = payload.date;
+    syncType = 'date_range';
   } else if (payload.action === 'sync') {
     if (payload.storeId && (!uuidPattern.test(payload.storeId) || !allowedStoreIds.includes(payload.storeId))) return json({ error: '当前管理员无权同步该门店。' }, 403);
     if (payload.profileId && !uuidPattern.test(payload.profileId)) return json({ error: '员工编号无效。' }, 400);

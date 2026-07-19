@@ -1,4 +1,4 @@
-import { BarChart3, Bell, BookOpenCheck, CalendarClock, CircleDollarSign, ClipboardList, History, PackageCheck, PackagePlus, ShoppingBag, Users } from 'lucide-react';
+import { BarChart3, Bell, BookOpenCheck, CalendarClock, CircleDollarSign, ClipboardList, FileText, History, PackageCheck, PackagePlus, ShoppingBag, Users } from 'lucide-react';
 import { PageShell } from '../components/layout/PageShell';
 import { FeatureCard } from '../components/ui/Surface';
 import { featureFlags } from '../config/featureFlags';
@@ -10,6 +10,7 @@ export function AppMenuPage() {
   const isAdmin = auth.profile?.role === 'admin';
   const isPartTime = auth.profile?.employment_type === 'part_time';
   const canUseV2 = canOperateV2Modules(auth.profile?.role);
+  const canUseOperationReports = Boolean(auth.store?.name.includes('西直门'));
   const items = isAdmin ? [
     { icon: ClipboardList, label: '任务管理', note: '发布、模板、周期与审核', to: '/app/admin/tasks' },
     { icon: PackageCheck, label: '到货中心', note: '到货消息、记录和汇总', to: '/app/admin/arrivals' },
@@ -36,5 +37,8 @@ export function AppMenuPage() {
     { icon: CalendarClock, label: '加班管理', note: '填报加班并查看记录与工资汇总', to: '/app/overtime' },
     { icon: History, label: '运营历史', note: '点货、订货、到货和任务记录', to: '/app/operations-history' },
   ];
+  if (isAdmin || (!isPartTime && canUseOperationReports)) {
+    items.push({ icon: FileText, label: '运营报告', note: isAdmin ? '配置日报模板并查看员工提交的图文报告' : '拉取当日数据、填报物料并生成日报', to: '/app/operation-reports' });
+  }
   return <PageShell eyebrow="门店运营系统" title="工作台" contentGapClassName="gap-3"><section className="grid grid-cols-3 gap-2 sm:gap-3">{items.map((item) => <FeatureCard {...item} key={item.to} />)}</section></PageShell>;
 }

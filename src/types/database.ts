@@ -659,9 +659,27 @@ export type Database = {
         Relationships: [];
       };
       pos_sales_tickets: {
-        Row: { created_at: string; external_key: string; external_sn: string | null; id: string; integration_id: string; invalid: boolean; occurred_at: string; order_source: string | null; revenue_date: string; source_updated_at: string | null; store_id: string; sync_job_id: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at: string };
-        Insert: { created_at?: string; external_key: string; external_sn?: string | null; id?: string; integration_id: string; invalid?: boolean; occurred_at: string; order_source?: string | null; revenue_date: string; source_updated_at?: string | null; store_id: string; sync_job_id?: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at?: string };
-        Update: { external_key?: string; external_sn?: string | null; id?: string; integration_id?: string; invalid?: boolean; occurred_at?: string; order_source?: string | null; revenue_date?: string; source_updated_at?: string | null; store_id?: string; sync_job_id?: string | null; ticket_type?: 'SELL' | 'SELL_RETURN'; total_amount?: number; updated_at?: string };
+        Row: { created_at: string; external_key: string; external_order_no: string | null; external_sn: string | null; id: string; integration_id: string; invalid: boolean; occurred_at: string; order_no: string | null; order_source: string | null; remark: string | null; revenue_date: string; sell_ticket_uid: string | null; source_updated_at: string | null; store_id: string; sync_job_id: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at: string; web_order_no: string | null };
+        Insert: { created_at?: string; external_key: string; external_order_no?: string | null; external_sn?: string | null; id?: string; integration_id: string; invalid?: boolean; occurred_at: string; order_no?: string | null; order_source?: string | null; remark?: string | null; revenue_date: string; sell_ticket_uid?: string | null; source_updated_at?: string | null; store_id: string; sync_job_id?: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at?: string; web_order_no?: string | null };
+        Update: { external_key?: string; external_order_no?: string | null; external_sn?: string | null; id?: string; integration_id?: string; invalid?: boolean; occurred_at?: string; order_no?: string | null; order_source?: string | null; remark?: string | null; revenue_date?: string; sell_ticket_uid?: string | null; source_updated_at?: string | null; store_id?: string; sync_job_id?: string | null; ticket_type?: 'SELL' | 'SELL_RETURN'; total_amount?: number; updated_at?: string; web_order_no?: string | null };
+        Relationships: [];
+      };
+      operation_report_templates: {
+        Row: { created_at: string; enabled: boolean; fields: Json; id: string; refund_note: string; store_id: string; title: string; updated_at: string; updated_by: string | null };
+        Insert: { created_at?: string; enabled?: boolean; fields: Json; id?: string; refund_note?: string; store_id: string; title?: string; updated_at?: string; updated_by?: string | null };
+        Update: { enabled?: boolean; fields?: Json; refund_note?: string; title?: string; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
+      operation_reports: {
+        Row: { attendance_sync_job_id: string | null; computed_data: Json; created_at: string; created_by: string; field_config_snapshot: Json; id: string; manual_values: Json; refund_entries: Json; refund_note_snapshot: string; report_date: string; sales_sync_job_id: string | null; status: 'draft' | 'submitted'; store_id: string; submitted_at: string | null; text_report: string | null; title_snapshot: string; updated_at: string };
+        Insert: { attendance_sync_job_id?: string | null; computed_data?: Json; created_at?: string; created_by: string; field_config_snapshot: Json; id?: string; manual_values?: Json; refund_entries?: Json; refund_note_snapshot?: string; report_date: string; sales_sync_job_id?: string | null; status?: 'draft' | 'submitted'; store_id: string; submitted_at?: string | null; text_report?: string | null; title_snapshot: string; updated_at?: string };
+        Update: { attendance_sync_job_id?: string | null; computed_data?: Json; field_config_snapshot?: Json; manual_values?: Json; refund_entries?: Json; refund_note_snapshot?: string; sales_sync_job_id?: string | null; status?: 'draft' | 'submitted'; submitted_at?: string | null; text_report?: string | null; title_snapshot?: string; updated_at?: string };
+        Relationships: [];
+      };
+      operation_report_images: {
+        Row: { bucket: 'operation-report-images'; created_at: string; field_id: string; file_name: string; height: number | null; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; report_id: string; size_bytes: number; store_id: string; uploaded_by: string; width: number | null };
+        Insert: { bucket?: 'operation-report-images'; created_at?: string; field_id: string; file_name: string; height?: number | null; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; report_id: string; size_bytes: number; store_id: string; uploaded_by: string; width?: number | null };
+        Update: { field_id?: string; file_name?: string; height?: number | null; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp'; object_path?: string; size_bytes?: number; width?: number | null };
         Relationships: [];
       };
       profile_store_access: {
@@ -937,6 +955,10 @@ export type Database = {
       };
     };
     Functions: {
+      admin_save_operation_report_template: { Args: { p_enabled: boolean; p_fields: Json; p_refund_note: string; p_store_id: string; p_title: string }; Returns: Json };
+      get_operation_report_availability: { Args: { p_store_id: string }; Returns: Json };
+      prepare_operation_report: { Args: { p_attendance_sync_job_id: string; p_report_date: string; p_sales_sync_job_id: string; p_store_id: string }; Returns: Json };
+      submit_operation_report: { Args: { p_manual_values: Json; p_refund_entries: Json; p_report_id: string; p_text_report: string }; Returns: Json };
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
       complete_attendance_missing_punch_todo: { Args: { p_todo_id: string }; Returns: Json };
       confirm_my_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };

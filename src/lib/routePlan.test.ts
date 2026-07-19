@@ -40,4 +40,7 @@ describe('routePlan', () => {
       '/app/admin/users',
     ]));
   });
+  it('registers operation report composition and detail routes', () => {
+    expect(routePlan.map((item) => item.path)).toEqual(expect.arrayContaining(['/app/operation-reports', '/app/operation-reports/:reportId']));
+  });
 });

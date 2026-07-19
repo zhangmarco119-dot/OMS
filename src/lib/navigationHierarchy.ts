@@ -59,12 +59,13 @@ export function logicalParentPath(pathname: string, role?: UserRole) {
   if (/^\/app\/tasks\/[^/]+$/.test(path)) return '/app/tasks';
   if (/^\/app\/notices\/[^/]+$/.test(path)) return '/app/notices';
   if (/^\/app\/sops\/[^/]+$/.test(path)) return role === 'admin' ? '/app/admin/sops' : '/app/sops';
+  if (/^\/app\/operation-reports\/[^/]+$/.test(path)) return '/app/operation-reports';
   if (/^\/app\/arrivals\/[^/]+\/success$/.test(path) || path === '/app/arrivals/history') return '/app/arrivals';
 
   if (path.startsWith('/app/admin/')) return '/app/workbench';
   if ([
     '/app/inventory', '/app/order', '/app/arrivals', '/app/tasks', '/app/notices', '/app/sops',
-    '/app/history', '/app/operations-history', '/app/attendance', '/app/payroll', '/app/overtime',
+    '/app/history', '/app/operations-history', '/app/attendance', '/app/payroll', '/app/overtime', '/app/operation-reports',
   ].includes(path)) return '/app/workbench';
 
   return null;

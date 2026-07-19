@@ -41,4 +41,12 @@ describe('MyPayrollPage month picker', () => {
     expect(screen.getByRole('button', { name: '工资单' })).toBeInTheDocument();
     expect(screen.queryByText(/日前.*查看前/)).not.toBeInTheDocument();
   });
+
+  it('uses a concise empty-state description before a payslip is sent', async () => {
+    mocks.loadSettings.mockResolvedValue({ historyAvailableUntilDay: 31, historyMonths: 1, historyOpenNow: true });
+    mocks.loadEstimate.mockResolvedValue({});
+    render(<MemoryRouter initialEntries={['/app/payroll?tab=payslips']}><MyPayrollPage /></MemoryRouter>);
+    expect(await screen.findByText('暂未推送')).toBeInTheDocument();
+    expect(screen.queryByText(/每月.*自动/)).not.toBeInTheDocument();
+  });
 });

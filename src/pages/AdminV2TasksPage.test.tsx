@@ -42,5 +42,8 @@ describe('AdminV2TasksPage navigation', () => {
     render(<MemoryRouter><AdminV2TaskPublishPage /></MemoryRouter>);
     expect(await screen.findByRole('heading', { name: '发布任务' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '管理任务模板' })).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: '员工' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '店长' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '兼职' })).not.toBeChecked();
   });
 });

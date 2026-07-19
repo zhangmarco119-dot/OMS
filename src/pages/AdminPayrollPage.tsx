@@ -17,9 +17,9 @@ import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   addPayrollPenalty, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
-  generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPerformanceOverride, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, updatePayrollPayslip, withdrawPayrollPayslip,
+  generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollPerformanceOverride, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, updatePayrollPayslip, withdrawPayrollPayslip,
   savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
-  savePayrollPerformanceOverride, savePayrollVisibilitySettings,
+  savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
 
@@ -90,6 +90,8 @@ function PayrollPayslipManager() {
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [action, setAction] = useState<Action | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [schedule, setSchedule] = useState({ dayOfMonth: 1, enabled: false, frequencyMonths: 1, lastIssuedMonth: null as string | null, lastRunAt: null as string | null, sendTime: '09:00' });
+  const [scheduleBusy, setScheduleBusy] = useState(false);
   const load = useCallback(async () => {
     if (!supabase) return;
     setStatus('loading');
@@ -100,6 +102,27 @@ function PayrollPayslipManager() {
     } catch { setStatus('error'); }
   }, [month, setProfileId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!supabase) return;
+    void loadPayrollPayslipScheduleSettings(supabase)
+      .then(setSchedule)
+      .catch((error) => setFeedback({ title: '自动推送设置加载失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }));
+  }, []);
+  const saveSchedule = async () => {
+    if (!supabase) return;
+    if (!Number.isInteger(schedule.frequencyMonths) || schedule.frequencyMonths < 1 || schedule.frequencyMonths > 12 || !Number.isInteger(schedule.dayOfMonth) || schedule.dayOfMonth < 1 || schedule.dayOfMonth > 28 || !schedule.sendTime) {
+      setFeedback({ title: '请检查自动推送设置', message: '周期应为 1 到 12 个月，推送日期应为每月 1 到 28 日，并请选择推送时间。', tone: 'warning' });
+      return;
+    }
+    setScheduleBusy(true);
+    try {
+      const saved = await savePayrollPayslipScheduleSettings(supabase, schedule);
+      setSchedule(saved);
+      setFeedback({ title: '自动推送设置已保存', message: saved.enabled ? `系统将在每 ${saved.frequencyMonths} 个月的 ${saved.dayOfMonth} 日 ${saved.sendTime} 自动推送上一工资周期的工资单。` : '工资单自动推送已关闭，工资单仅由管理员手动生成并发送。', tone: 'success' });
+    } catch (error) {
+      setFeedback({ title: '自动推送设置保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setScheduleBusy(false); }
+  };
   const generate = async () => {
     if (!supabase || (scope === 'single' && !profileId)) return;
     setGenerateOpen(false); setBusy(true);
@@ -152,7 +175,8 @@ function PayrollPayslipManager() {
   if (viewing) return <><button className="ui-button-secondary" onClick={() => setViewing(null)} type="button">返回工资单列表</button><div className="flex items-center justify-between gap-2"><StatusBadge tone={statusTone(viewing)}>{statusLabel(viewing)}</StatusBadge><span className="text-xs text-slate-500">第 {viewing.revision} 版</span></div><PayrollStatementView adminNote={viewing.admin_note} estimate={viewing.estimate} payrollMonth={viewing.payroll_month} /><div className="grid grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={viewing.status === 'withdrawn'} onClick={() => beginEdit(viewing)} type="button">修改</button>{viewing.status === 'draft' ? <button className="ui-button-primary" onClick={() => setAction({ item:viewing,type:'send' })} type="button">发送工资单</button> : <button className="ui-button-danger" disabled={viewing.status === 'withdrawn'} onClick={() => setAction({ item:viewing,type:'withdraw' })} type="button">撤回工资单</button>}</div><ConfirmDialog confirmLabel={action?.type === 'send' ? '确认发送' : '确认撤回'} danger={action?.type === 'withdraw'} onCancel={() => setAction(null)} onConfirm={() => void executeAction()} open={Boolean(action)} title={action?.type === 'send' ? '发送工资单' : '撤回工资单'}><p>{action?.type === 'send' ? '发送后，员工会收到工资单通知和确认待办。' : '撤回后，员工将无法再查看该工资单，对应通知和待办也会移除。'}</p></ConfirmDialog><ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} /></>;
   if (editing) return <><button className="ui-button-secondary" onClick={() => setEditing(null)} type="button">取消修改</button><SectionCard><SectionHeader title="修改工资单" description={editing.status === 'confirmed' ? '此工资单已被员工确认。保存修改后，系统会要求员工重新确认。' : '修改金额后，实发合计会自动重新计算。'} /><div className="mt-3 grid grid-cols-2 gap-2">{([['accruedBaseSalary','基本工资'],['accruedHousingAllowance','房补'],['accruedPerformance','绩效'],['accruedFullAttendanceBonus','全勤奖'],['accruedExtraAttendanceBonus','超勤奖'],['accruedServiceAward','工龄奖'],['accruedExtraReward','额外奖励'],['accruedCommission','提成'],['accruedOvertime','加班'],['fineTotal','罚款'],['individualIncomeTax','个税扣除']] as const).map(([key,label]) => <label className="text-sm font-semibold" key={key}>{label}<input className="ui-input mt-1" min="0" onChange={(event) => setEditForm((value) => ({ ...value,[key]:event.target.value }))} step="0.01" type="number" value={editForm[key] ?? ''} /></label>)}</div><label className="mt-3 block text-sm font-semibold">工资单备注（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setEditForm((value) => ({ ...value,adminNote:event.target.value }))} value={editForm.adminNote ?? ''} /></label><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void saveEdit()} type="button">保存工资单修改</button></SectionCard><ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} /></>;
   return <>
-    <SectionCard><SectionHeader icon={FileText} title="生成工资单" description="先生成草稿并预览，确认无误后再逐份发送。每月 1 日的自动工资单仍会直接发送上月单据。" />
+    <SectionCard><SectionHeader icon={Settings2} title="工资单自动推送" description="默认关闭；开关、推送周期、日期和时间均由管理员设置。" /><label className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 p-3 text-sm font-semibold"><span>启用自动推送</span><input checked={schedule.enabled} className="h-5 w-5 accent-emerald-700" onChange={(event) => setSchedule((value) => ({ ...value, enabled: event.target.checked }))} type="checkbox" /></label><div className="mt-3 grid gap-2 sm:grid-cols-3"><label className="text-sm font-semibold">推送周期<select className="ui-input mt-1" disabled={!schedule.enabled} onChange={(event) => setSchedule((value) => ({ ...value, frequencyMonths: Number(event.target.value) }))} value={schedule.frequencyMonths}>{[1,2,3,6,12].map((value) => <option key={value} value={value}>每 {value} 个月</option>)}</select></label><label className="text-sm font-semibold">每月日期<input className="ui-input mt-1" disabled={!schedule.enabled} max="28" min="1" onChange={(event) => setSchedule((value) => ({ ...value, dayOfMonth: Number(event.target.value) }))} type="number" value={schedule.dayOfMonth} /></label><label className="text-sm font-semibold">推送时间<input className="ui-input mt-1" disabled={!schedule.enabled} onChange={(event) => setSchedule((value) => ({ ...value, sendTime: event.target.value }))} type="time" value={schedule.sendTime} /></label></div>{schedule.lastIssuedMonth ? <p className="mt-2 text-xs text-slate-500">最近自动推送工资月份：{schedule.lastIssuedMonth.slice(0, 7)}</p> : null}<button className="ui-button-primary mt-3 w-full" disabled={scheduleBusy} onClick={() => void saveSchedule()} type="button">{scheduleBusy ? '正在保存' : '保存自动推送设置'}</button></SectionCard>
+    <SectionCard><SectionHeader icon={FileText} title="生成工资单" description="先生成草稿并预览，确认无误后再逐份发送。" />
       <div className="mt-3 grid grid-cols-2 gap-2"><MonthPicker label="工资月份" maxMonth={todayInChina().slice(0, 7)} onChange={setMonth} value={month} /><label className="text-sm font-semibold">生成范围<select className="ui-input mt-1" onChange={(event) => setScope(event.target.value as 'all' | 'single')} value={scope}><option value="all">全部员工和店长</option><option value="single">指定一人</option></select></label></div>
       {scope === 'single' ? <label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollProfileLabel(profile)}</option>)}</select></label> : null}
       <button className="ui-button-primary mt-3 w-full" disabled={busy || !profiles.length} onClick={() => setGenerateOpen(true)} type="button">{busy ? '正在处理' : `生成 ${month.slice(0,4)}年${Number(month.slice(5,7))}月工资单`}</button>

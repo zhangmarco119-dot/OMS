@@ -111,6 +111,44 @@ export async function loadMyPayrollEstimate(client: Client, profileId: string, a
   return parsePayrollEstimate(data);
 }
 
+export interface PayrollPayslipScheduleSettings {
+  dayOfMonth: number;
+  enabled: boolean;
+  frequencyMonths: number;
+  lastIssuedMonth: string | null;
+  lastRunAt: string | null;
+  sendTime: string;
+}
+
+const parsePayrollPayslipScheduleSettings = (value: Json): PayrollPayslipScheduleSettings => {
+  const row = objectAt(value);
+  return {
+    dayOfMonth: numberAt(row.dayOfMonth) || 1,
+    enabled: boolAt(row.enabled),
+    frequencyMonths: numberAt(row.frequencyMonths) || 1,
+    lastIssuedMonth: nullableTextAt(row.lastIssuedMonth),
+    lastRunAt: nullableTextAt(row.lastRunAt),
+    sendTime: textAt(row.sendTime, '09:00').slice(0, 5),
+  };
+};
+
+export async function loadPayrollPayslipScheduleSettings(client: Client) {
+  const { data, error } = await client.rpc('get_payroll_payslip_schedule_settings');
+  if (error) throw new Error(error.message || '暂时无法加载工资单自动推送设置。');
+  return parsePayrollPayslipScheduleSettings(data);
+}
+
+export async function savePayrollPayslipScheduleSettings(client: Client, settings: Pick<PayrollPayslipScheduleSettings, 'dayOfMonth' | 'enabled' | 'frequencyMonths' | 'sendTime'>) {
+  const { data, error } = await client.rpc('admin_save_payroll_payslip_schedule_settings', {
+    p_day_of_month: settings.dayOfMonth,
+    p_enabled: settings.enabled,
+    p_frequency_months: settings.frequencyMonths,
+    p_send_time: settings.sendTime,
+  });
+  if (error) throw new Error(error.message || '工资单自动推送设置保存失败。');
+  return parsePayrollPayslipScheduleSettings(data);
+}
+
 export async function loadPayrollPerformanceOverride(client: Client, profileId: string, month: string) {
   const { data, error } = await client
     .from('payroll_performance_overrides')

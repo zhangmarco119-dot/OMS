@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
+import { addPayrollPenalty, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -66,6 +66,16 @@ describe('payroll service', () => {
     await savePayrollVisibilitySettings({ rpc } as never, { historyMonths: 6, historyAvailableUntilDay: 15 });
     expect(rpc).toHaveBeenNthCalledWith(1, 'get_payroll_visibility_settings');
     expect(rpc).toHaveBeenNthCalledWith(2, 'admin_save_payroll_visibility_settings', { p_history_available_until_day: 15, p_history_months: 6 });
+  });
+
+  it('loads and saves the administrator-controlled payslip schedule', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { enabled:false,frequencyMonths:1,dayOfMonth:1,sendTime:'09:00',lastIssuedMonth:null,lastRunAt:null }, error:null })
+      .mockResolvedValueOnce({ data: { enabled:true,frequencyMonths:2,dayOfMonth:5,sendTime:'10:30',lastIssuedMonth:null,lastRunAt:null }, error:null });
+    await expect(loadPayrollPayslipScheduleSettings({ rpc } as never)).resolves.toMatchObject({ enabled:false,dayOfMonth:1 });
+    await expect(savePayrollPayslipScheduleSettings({ rpc } as never, { enabled:true,frequencyMonths:2,dayOfMonth:5,sendTime:'10:30' })).resolves.toMatchObject({ enabled:true,frequencyMonths:2 });
+    expect(rpc).toHaveBeenNthCalledWith(1,'get_payroll_payslip_schedule_settings');
+    expect(rpc).toHaveBeenNthCalledWith(2,'admin_save_payroll_payslip_schedule_settings',{ p_enabled:true,p_frequency_months:2,p_day_of_month:5,p_send_time:'10:30' });
   });
 
   it('submits and reviews overtime through the permission-protected RPCs', async () => {

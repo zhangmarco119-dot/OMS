@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollProfiles, loadPosSalesSetup } from '../services/payroll.service';
+import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPosSalesSetup } from '../services/payroll.service';
 import { AdminPayrollPage } from './AdminPayrollPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -15,6 +15,7 @@ vi.mock('../services/payroll.service', async (original) => {
     loadAdminPayrollEstimates: vi.fn(),
     loadAdminPayrollPayslips: vi.fn(),
     loadPayrollAdminSetup: vi.fn(),
+    loadPayrollPayslipScheduleSettings: vi.fn(),
     loadPayrollProfiles: vi.fn(),
     loadPosSalesSetup: vi.fn(),
   };
@@ -49,6 +50,7 @@ describe('AdminPayrollPage update guidance', () => {
     } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(loadAdminPayrollEstimates).mockResolvedValue({ items: [estimate as never], employeeCount: 1, completeCount: 0, incompleteCount: 1, knownEstimatedTotal: 2537.04, completeEstimatedTotal: 0 });
     vi.mocked(loadPayrollAdminSetup).mockResolvedValue(setup as never);
+    vi.mocked(loadPayrollPayslipScheduleSettings).mockResolvedValue({ dayOfMonth:1,enabled:false,frequencyMonths:1,lastIssuedMonth:null,lastRunAt:null,sendTime:'09:00' });
     vi.mocked(loadPayrollProfiles).mockResolvedValue([{ id:'profile-1',display_name:'测试员工',role:'staff' }] as never);
     vi.mocked(loadAdminPayrollPayslips).mockResolvedValue([]);
     vi.mocked(loadPosSalesSetup).mockResolvedValue({ integrations: [], jobs: [] });
@@ -82,5 +84,7 @@ describe('AdminPayrollPage update guidance', () => {
     expect(await screen.findByText('生成工资单')).toBeInTheDocument();
     expect(screen.getByText(/先生成草稿并预览/)).toBeInTheDocument();
     expect(screen.queryByRole('button',{ name:/立即发放/ })).not.toBeInTheDocument();
+    expect(screen.getByText('工资单自动推送')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
   });
 });

@@ -26,6 +26,7 @@ import {
   updateV2TaskContent,
   updateV2TaskScheduleAll,
   withdrawV2TaskSchedule,
+  type TaskAudience,
   type V2TaskRecipient,
   type V2TaskRow,
   type V2TaskScheduleFields,
@@ -136,6 +137,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [due, setDue] = useState(defaultSingleDue);
   const [creationMode, setCreationMode] = useState<'single' | 'recurring'>('single');
   const [recipientMode, setRecipientMode] = useState<'stores' | 'employee'>('stores');
+  const [targetAudiences, setTargetAudiences] = useState<TaskAudience[]>(['staff', 'manager']);
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [fields, setFields] = useState<V2TaskScheduleFields>(defaultFields);
   const [editingSchedule, setEditingSchedule] = useState<V2TaskScheduleRow | null>(null);
@@ -162,18 +164,21 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   useEffect(() => { void load(); }, [load]);
   const selectedTemplate = useMemo(() => templates.find((item) => item.id === templateId) ?? null, [templateId, templates]);
   const selectedRecipient = recipients.find((item) => item.id === selectedProfileId);
+  const selectedRecipientAudience: TaskAudience | null = selectedRecipient ? selectedRecipient.employment_type === 'part_time' ? 'part_time' : selectedRecipient.role === 'manager' ? 'manager' : 'staff' : null;
 
   const publish = async () => {
     if (!supabase) return;
     if (!selectedTemplate) return setMessage('请先选择已发布的任务模板。');
     if (!storeIds.length) return setMessage('请至少选择一个门店。');
-    if (recipientMode === 'employee' && !selectedProfileId) return setMessage('请选择单独接收任务的员工或店长。');
+    if (recipientMode === 'stores' && !targetAudiences.length) return setMessage('请至少勾选一个接收范围。');
+    if (recipientMode === 'employee' && !selectedProfileId) return setMessage('请选择单独接收任务的员工、店长或兼职。');
     if (creationMode === 'single' && (!due || new Date(due) <= new Date())) return setMessage('单次任务的验收时间必须晚于当前时间。');
     if (creationMode === 'recurring') { const issue = validateSchedule(fields); if (issue) return setMessage(issue); }
     setBusy(true);
     try {
-      if (creationMode === 'single') await publishV2Tasks(supabase, templateId, storeIds, new Date(due).toISOString(), recipientMode === 'employee' ? [selectedProfileId] : []);
-      else await createV2TaskSchedule(supabase, { ...fields, profileIds: recipientMode === 'employee' ? [selectedProfileId] : [], storeIds, templateId });
+      const audiences = recipientMode === 'employee' && selectedRecipientAudience ? [selectedRecipientAudience] : targetAudiences;
+      if (creationMode === 'single') await publishV2Tasks(supabase, templateId, storeIds, new Date(due).toISOString(), recipientMode === 'employee' ? [selectedProfileId] : [], audiences);
+      else await createV2TaskSchedule(supabase, { ...fields, profileIds: recipientMode === 'employee' ? [selectedProfileId] : [], storeIds, targetAudiences: audiences, templateId });
       setMessage(creationMode === 'single' ? '单次任务已发布。' : '周期任务已创建，首个任务已立即发布。');
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务发布失败'); }
@@ -297,9 +302,10 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-semibold">任务模板<select className="ui-input mt-1" onChange={(event) => { const id = event.target.value; setTemplateId(id); setStoreIds(templates.find((item) => item.id === id)?.storeIds ?? []); }} value={templateId}><option value="">请选择模板</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label className="text-sm font-semibold">发布方式<select className="ui-input mt-1" onChange={(event) => setCreationMode(event.target.value as 'single' | 'recurring')} value={creationMode}><option value="single">单次任务</option><option value="recurring">周期任务</option></select></label>
-        <label className="text-sm font-semibold">接收范围<select className="ui-input mt-1" onChange={(event) => setRecipientMode(event.target.value as 'stores' | 'employee')} value={recipientMode}><option value="stores">所选门店全体员工与店长</option><option value="employee">单独指定一位员工或店长</option></select></label>
-        {recipientMode === 'employee' ? <label className="text-sm font-semibold">接收人<select className="ui-input mt-1" onChange={(event) => { const id = event.target.value; setSelectedProfileId(id); const recipient = recipients.find((item) => item.id === id); if (recipient?.store_id) setStoreIds([recipient.store_id]); }} value={selectedProfileId}><option value="">请选择人员</option>{recipients.map((item) => <option key={item.id} value={item.id}>{item.display_name} · {item.role === 'manager' ? '店长' : '员工'}</option>)}</select></label> : null}
+        <label className="text-sm font-semibold">发布对象<select className="ui-input mt-1" onChange={(event) => setRecipientMode(event.target.value as 'stores' | 'employee')} value={recipientMode}><option value="stores">按门店角色发布</option><option value="employee">单独指定一人</option></select></label>
+        {recipientMode === 'employee' ? <label className="text-sm font-semibold">接收人<select className="ui-input mt-1" onChange={(event) => { const id = event.target.value; setSelectedProfileId(id); const recipient = recipients.find((item) => item.id === id); if (recipient?.store_id) setStoreIds([recipient.store_id]); }} value={selectedProfileId}><option value="">请选择人员</option>{recipients.map((item) => <option key={item.id} value={item.id}>{item.display_name} · {item.employment_type === 'part_time' ? '兼职' : item.role === 'manager' ? '店长' : '员工'}</option>)}</select></label> : null}
       </div>
+      {recipientMode === 'stores' ? <fieldset className="mt-3"><legend className="text-sm font-semibold">接收范围（可多选）</legend><div className="mt-2 grid grid-cols-3 gap-2">{([['staff','员工'],['manager','店长'],['part_time','兼职']] as const).map(([value,label]) => <label className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold" key={value}><input checked={targetAudiences.includes(value)} onChange={(event) => setTargetAudiences((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} type="checkbox" />{label}</label>)}</div><p className="mt-2 text-xs text-slate-500">兼职默认不勾选；只有主动勾选后，兼职账号才会收到门店任务。</p></fieldset> : null}
       <fieldset className="mt-3"><legend className="text-sm font-semibold">适用门店</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{auth.availableStores.map((store) => <label className="flex min-h-11 items-center rounded-lg border px-3 text-sm" key={store.id}><input checked={storeIds.includes(store.id)} className="mr-2" disabled={recipientMode === 'employee'} onChange={() => setStoreIds((current) => current.includes(store.id) ? current.filter((id) => id !== store.id) : [...current, store.id])} type="checkbox" />{store.name}</label>)}</div>{recipientMode === 'employee' && selectedRecipient ? <p className="mt-2 text-xs text-slate-500">已按 {selectedRecipient.display_name} 的所属门店锁定。</p> : null}</fieldset>
       {creationMode === 'single' ? <label className="mt-3 block text-sm font-semibold">验收截止时间<input className="ui-input mt-1" onChange={(event) => setDue(event.target.value)} type="datetime-local" value={due} /></label> : <ScheduleRuleEditor fields={fields} onChange={setFields} />}
       <button className="ui-button-primary mt-4 w-full" disabled={busy} onClick={() => void publish()} type="button"><Rocket className="h-4 w-4" />{busy ? '正在发布' : '确认发布'}</button>

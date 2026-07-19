@@ -1,4 +1,4 @@
-import { BarChart3, Bell, BookOpenCheck, CalendarClock, CircleDollarSign, ClipboardList, History, PackageCheck, PackagePlus, ShoppingBag, Users } from 'lucide-react';
+import { BarChart3, Bell, BookOpenCheck, CalendarClock, CircleDollarSign, ClipboardList, FileText, History, PackageCheck, PackagePlus, ScrollText, ShoppingBag, Users } from 'lucide-react';
 import { PageShell } from '../components/layout/PageShell';
 import { FeatureCard } from '../components/ui/Surface';
 import { featureFlags } from '../config/featureFlags';
@@ -8,7 +8,9 @@ import { useAuth } from '../features/auth/AuthContext';
 export function AppMenuPage() {
   const auth = useAuth();
   const isAdmin = auth.profile?.role === 'admin';
+  const isPartTime = auth.profile?.employment_type === 'part_time';
   const canUseV2 = canOperateV2Modules(auth.profile?.role);
+  const canUseOperationReports = Boolean(auth.store?.name.includes('西直门'));
   const items = isAdmin ? [
     { icon: ClipboardList, label: '任务管理', note: '发布、模板、周期与审核', to: '/app/admin/tasks' },
     { icon: PackageCheck, label: '到货中心', note: '到货消息、记录和汇总', to: '/app/admin/arrivals' },
@@ -20,6 +22,10 @@ export function AppMenuPage() {
     { icon: CircleDollarSign, label: '实时薪资', note: '预估工资、参数、提成与处罚管理', to: '/app/admin/payroll' },
     { icon: BarChart3, label: '运营统计', note: '到货、任务、巡店与历史摘要', to: '/app/admin/analytics' },
     { icon: History, label: '点货订货记录', note: '查看已提交的点货与订货单据', to: '/app/history' },
+  ] : isPartTime ? [
+    { icon: CalendarClock, label: '兼职工时填报', note: '填报兼职工时并查看审批进度', to: '/app/overtime?tab=submit' },
+    { icon: CircleDollarSign, label: '我的薪资', note: '查看累计兼职工时、薪资和工资单', to: '/app/payroll' },
+    ...(featureFlags.noticesAndSops && canUseV2 ? [{ icon: Bell, label: '门店公告', note: '查看门店公告和已读状态', to: '/app/notices' }, { icon: BookOpenCheck, label: 'SOP 手册', note: '查看标准作业流程', to: '/app/sops' }] : []),
   ] : [
     { icon: ClipboardList, label: '点货', note: '录入实际库存并自动保存', to: '/app/inventory' },
     { icon: PackagePlus, label: '订货', note: '填写订货数量和无需订货', to: '/app/order' },
@@ -31,5 +37,9 @@ export function AppMenuPage() {
     { icon: CalendarClock, label: '加班管理', note: '填报加班并查看记录与工资汇总', to: '/app/overtime' },
     { icon: History, label: '运营历史', note: '点货、订货、到货和任务记录', to: '/app/operations-history' },
   ];
+  if (isAdmin || (!isPartTime && canUseOperationReports)) {
+    items.push({ icon: FileText, label: '运营报告', note: isAdmin ? '配置日报模板并查看员工提交的图文报告' : '拉取当日数据、填报物料并生成日报', to: '/app/operation-reports' });
+  }
+  if (isAdmin) items.push({ icon: ScrollText, label: '操作日志', note: '查看所有账号的关键业务操作记录', to: '/app/admin/operation-logs' });
   return <PageShell eyebrow="门店运营系统" title="工作台" contentGapClassName="gap-3"><section className="grid grid-cols-3 gap-2 sm:gap-3">{items.map((item) => <FeatureCard {...item} key={item.to} />)}</section></PageShell>;
 }

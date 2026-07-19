@@ -40,7 +40,7 @@ describe('OvertimePage employee workflow', () => {
 
     expect(screen.getByRole('button', { name: '加班填报' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '加班记录' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /点击选择加班小时/ }));
+    fireEvent.click(screen.getByRole('button', { name: /点击选择加班/ }));
     expect(screen.getByRole('button', { name: '0 小时' })).toHaveAttribute('aria-pressed', 'false');
     const halfHour = screen.getByRole('button', { name: '0.5 小时' });
     expect(halfHour).toHaveAttribute('aria-pressed', 'false');
@@ -55,5 +55,22 @@ describe('OvertimePage employee workflow', () => {
     expect(screen.getByText('2 小时')).toBeInTheDocument();
     expect(screen.getByText('¥50.00')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /申请修改/ })).toBeInTheDocument();
+  });
+
+  it('uses part-time terminology throughout the part-time workflow', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      profile: { id: 'p1', role: 'staff', employment_type: 'part_time' },
+      store: { id: 's1' },
+      availableStores: [{ id: 's1', name: '测试门店', short_name: '测试店' }],
+    } as ReturnType<typeof useAuth>);
+
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><OvertimePage /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: '兼职工时' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '兼职工时填报' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '兼职工时记录' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /点击选择兼职工时/ }));
+    expect(screen.getByRole('textbox', { name: '兼职工时说明（选填）' })).toBeInTheDocument();
+    expect(screen.queryByText(/加班/)).not.toBeInTheDocument();
   });
 });

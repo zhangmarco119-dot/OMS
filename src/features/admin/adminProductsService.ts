@@ -16,7 +16,6 @@ export interface ProductFeedbackRecord {
 
 export interface ProductDraft {
   count_unit: string;
-  is_active: boolean;
   name: string;
   product_code: string;
   sort_order: number;
@@ -26,7 +25,6 @@ export interface ProductDraft {
 
 export interface ProductImportRow {
   count_unit: string;
-  is_active: boolean;
   name: string;
   product_code: string | null;
   row_number: number;
@@ -73,13 +71,6 @@ const pick = (row: Record<string, unknown>, keys: string[]) => {
     }
   }
   return '';
-};
-
-const toBoolean = (value: string) => {
-  if (!value) {
-    return true;
-  }
-  return !['false', '0', '否', '停用', '禁用', 'no'].includes(value.trim().toLowerCase());
 };
 
 const readFileAsArrayBuffer = (file: File) => {
@@ -160,13 +151,13 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
     规格: product.spec,
     单位: product.count_unit,
     排序: product.sort_order,
-    状态: product.is_active ? '启用' : '停用',
+    归档状态: product.is_active ? '使用中' : '已归档',
     创建时间: product.created_at,
     更新时间: product.updated_at,
   }));
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.json_to_sheet(rows, {
-    header: ['门店', '货品名称', '规格', '单位', '排序', '状态', '创建时间', '更新时间'],
+    header: ['门店', '货品名称', '规格', '单位', '排序', '归档状态', '创建时间', '更新时间'],
   });
   sheet['!cols'] = [
     { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
@@ -233,7 +224,7 @@ export const createProduct = async (draft: ProductDraft) => {
   const client = requireClient();
   const { error } = await client.from('products').insert({
     count_unit: draft.count_unit,
-    is_active: draft.is_active,
+    is_active: true,
     name: draft.name,
     product_code: draft.product_code || null,
     sort_order: draft.sort_order,
@@ -252,7 +243,7 @@ export const updateProduct = async (productId: string, draft: ProductDraft) => {
     .from('products')
     .update({
       count_unit: draft.count_unit,
-      is_active: draft.is_active,
+      is_active: true,
       name: draft.name,
       product_code: draft.product_code || null,
       sort_order: draft.sort_order,
@@ -272,6 +263,19 @@ export const archiveProduct = async (productId: string) => {
     .from('products')
     .update({ is_active: false })
     .eq('id', productId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
+export const archiveProducts = async (productIds: string[]) => {
+  if (!productIds.length) return;
+  const client = requireClient();
+  const { error } = await client
+    .from('products')
+    .update({ is_active: false })
+    .in('id', productIds);
 
   if (error) {
     throw new Error(error.message);
@@ -319,7 +323,6 @@ export const parseProductImportFile = async (file: File): Promise<ProductImportR
     const sortOrder = Number(pick(row, ['排序', 'sort_order', 'order']));
     return {
       count_unit: countUnit,
-      is_active: toBoolean(pick(row, ['启用', '是否启用', 'is_active', 'active'])),
       name,
       product_code: productCode || null,
       row_number: index + 2,
@@ -329,17 +332,24 @@ export const parseProductImportFile = async (file: File): Promise<ProductImportR
   });
 };
 
-export const importProducts = async (storeId: string, rows: ProductImportRow[]): Promise<ProductImportResult> => {
+export const importProducts = async (
+  storeId: string,
+  rows: ProductImportRow[],
+  onProgress?: (completed: number, total: number) => void,
+): Promise<ProductImportResult> => {
   const client = requireClient();
   let inserted = 0;
   let updated = 0;
   const failures: ProductImportFailure[] = [];
 
+  let completed = 0;
   for (const row of rows) {
     const missingFields = [!row.name && '货品名称', !row.spec && '规格', !row.count_unit && '单位'].filter(Boolean);
     const item = `Excel 第 ${row.row_number} 行${row.name ? ` · ${row.name}` : ''}`;
     if (missingFields.length) {
       failures.push({ item, reason: `缺少必填字段：${missingFields.join('、')}。`, rowNumber: row.row_number });
+      completed += 1;
+      onProgress?.(completed, rows.length);
       continue;
     }
 
@@ -375,7 +385,7 @@ export const importProducts = async (storeId: string, rows: ProductImportRow[]):
 
       const payload = {
         count_unit: row.count_unit,
-        is_active: row.is_active,
+        is_active: true,
         name: row.name,
         product_code: row.product_code,
         sort_order: row.sort_order,
@@ -402,6 +412,9 @@ export const importProducts = async (storeId: string, rows: ProductImportRow[]):
         reason: error instanceof Error ? error.message : '该货品写入失败。',
         rowNumber: row.row_number,
       });
+    } finally {
+      completed += 1;
+      onProgress?.(completed, rows.length);
     }
   }
 

@@ -12,6 +12,7 @@ export interface AdminUserRow extends ProfileRow {
 }
 
 export interface CreateUserInput {
+  employmentType: ProfileRow['employment_type'];
   password: string;
   username: string;
   displayName: string;
@@ -82,12 +83,12 @@ export const loadAdminUsers = async () => {
 
 export const updateProfileAdminFields = async (
   profileId: string,
-  values: Pick<ProfileRow, 'role' | 'is_active'> & { storeIds: string[] },
+  values: Pick<ProfileRow, 'employment_type' | 'role' | 'is_active'> & { storeIds: string[] },
 ) => {
   const client = requireClient();
   const { error } = await client
     .from('profiles')
-    .update({ role: values.role, is_active: values.is_active })
+    .update({ employment_type: values.role === 'staff' ? values.employment_type : 'full_time', role: values.role, is_active: values.is_active })
     .eq('id', profileId);
 
   if (error) {
@@ -150,6 +151,7 @@ export const createAuthUserWithProfile = (input: CreateUserInput) =>
     password: input.password,
     username: input.username,
     displayName: input.displayName,
+    employmentType: input.role === 'staff' ? input.employmentType : 'full_time',
     role: input.role,
     storeIds: input.storeIds,
   });

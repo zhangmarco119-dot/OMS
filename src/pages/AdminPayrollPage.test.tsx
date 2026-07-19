@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollProfiles, loadPosSalesSetup } from '../services/payroll.service';
+import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPosSalesSetup } from '../services/payroll.service';
 import { AdminPayrollPage } from './AdminPayrollPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -15,6 +15,7 @@ vi.mock('../services/payroll.service', async (original) => {
     loadAdminPayrollEstimates: vi.fn(),
     loadAdminPayrollPayslips: vi.fn(),
     loadPayrollAdminSetup: vi.fn(),
+    loadPayrollPayslipScheduleSettings: vi.fn(),
     loadPayrollProfiles: vi.fn(),
     loadPosSalesSetup: vi.fn(),
   };
@@ -27,7 +28,7 @@ const setup = {
 const estimate = {
   profileId: 'profile-1', displayName: '测试员工', username: 'staff', primaryStoreId: 'store-1', asOf: '2026-07-18', monthStart: '2026-07-01', monthEnd: '2026-07-31',
   fullAttendanceDays: 27, attendanceDays: 10, ruleId: 'rule-1', ruleConfirmed: true, monthlyBaseSalary: 5500, monthlyHousingAllowance: 0,
-  fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: false, performanceEnabled: true, performanceOverrideEnabled: false, performanceOverrideAmount: 0, performanceCalculationMode: 'automatic', commissionEnabled: true,
+  fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: false, performanceEnabled: true, performanceOverrideEnabled: false, performanceOverrideAmount: 0, performanceOverrideScore: null, performanceCalculationMode: 'automatic', commissionEnabled: true,
   fullAttendanceBonusEnabled: false, fullAttendanceBonusAmount: 0, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0,
   extraAttendanceDays: 0, extraAttendanceBonusRate: 300, accruedExtraAttendanceBonus: 0,
   serviceAwardEnabled: false, serviceAwardAmount: 100, accruedServiceAward: 0, extraRewardAmount: 0, accruedExtraReward: 0,
@@ -40,6 +41,11 @@ const estimate = {
   dataIssues: ['营业收入待更新'],
 };
 
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+}
+
 describe('AdminPayrollPage update guidance', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,6 +55,7 @@ describe('AdminPayrollPage update guidance', () => {
     } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(loadAdminPayrollEstimates).mockResolvedValue({ items: [estimate as never], employeeCount: 1, completeCount: 0, incompleteCount: 1, knownEstimatedTotal: 2537.04, completeEstimatedTotal: 0 });
     vi.mocked(loadPayrollAdminSetup).mockResolvedValue(setup as never);
+    vi.mocked(loadPayrollPayslipScheduleSettings).mockResolvedValue({ dayOfMonth:1,enabled:false,frequencyMonths:1,lastIssuedMonth:null,lastRunAt:null,sendTime:'09:00' });
     vi.mocked(loadPayrollProfiles).mockResolvedValue([{ id:'profile-1',display_name:'测试员工',role:'staff' }] as never);
     vi.mocked(loadAdminPayrollPayslips).mockResolvedValue([]);
     vi.mocked(loadPosSalesSetup).mockResolvedValue({ integrations: [], jobs: [] });
@@ -82,5 +89,15 @@ describe('AdminPayrollPage update guidance', () => {
     expect(await screen.findByText('生成工资单')).toBeInTheDocument();
     expect(screen.getByText(/先生成草稿并预览/)).toBeInTheDocument();
     expect(screen.queryByRole('button',{ name:/立即发放/ })).not.toBeInTheDocument();
+    expect(screen.getByText('工资单自动推送')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
+  });
+
+  it('returns from employee details to the filtered payroll list', async () => {
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=overview&date=2026-07-18&store=store-1&employee=profile-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<><AdminPayrollPage /><LocationProbe /></>} /></Routes></MemoryRouter>);
+    expect(await screen.findByText('测试员工')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/admin/payroll?tab=overview&date=2026-07-18&store=store-1'));
+    expect(await screen.findByPlaceholderText('搜索员工姓名或账号')).toBeInTheDocument();
   });
 });

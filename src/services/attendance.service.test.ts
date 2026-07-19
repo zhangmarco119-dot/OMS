@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { loadAdminAttendanceMonth, loadAttendanceMonth } from './attendance.service';
+import { loadAdminAttendanceMonth, loadAttendanceAutomationSettings, loadAttendanceMonth, saveAttendanceAutomationSettings } from './attendance.service';
 
 describe('attendance service', () => {
   const clientWithEmptyOvertime = (rpc: ReturnType<typeof vi.fn>) => {
@@ -36,5 +36,19 @@ describe('attendance service', () => {
     const rpc = vi.fn().mockResolvedValue({ data: { summary: { attendanceDates: [], attendanceDays: 0, workedMinutes: 0 }, days: [] }, error: null });
     await loadAttendanceMonth(clientWithEmptyOvertime(rpc) as never, 'profile-1', '2026-07', 'store-2');
     expect(rpc).toHaveBeenCalledWith('get_attendance_month_detail', { p_profile_id: 'profile-1', p_month: '2026-07-01', p_store_id: 'store-2' });
+  });
+
+  it('loads administrator-controlled current-month automation settings', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { configured: true, configuredAt: '2026-07-19T09:00:00Z', enabled: true, intervalMinutes: 30, startTime: '08:00:00', endTime: '22:30:00', lastDispatchedAt: null }, error: null });
+    const result = await loadAttendanceAutomationSettings({ rpc } as never);
+    expect(rpc).toHaveBeenCalledWith('get_attendance_automation_settings');
+    expect(result).toMatchObject({ configured: true, enabled: true, intervalMinutes: 30, startTime: '08:00', endTime: '22:30' });
+  });
+
+  it('saves the selected current-month sync interval and time window', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { configured: true, enabled: true, intervalMinutes: 120, startTime: '09:00', endTime: '21:00' }, error: null });
+    const result = await saveAttendanceAutomationSettings({ rpc } as never, { enabled: true, intervalMinutes: 120, startTime: '09:00', endTime: '21:00' });
+    expect(rpc).toHaveBeenCalledWith('admin_save_attendance_automation_settings', { p_enabled: true, p_end_time: '21:00', p_interval_minutes: 120, p_start_time: '09:00' });
+    expect(result.intervalMinutes).toBe(120);
   });
 });

@@ -6,14 +6,19 @@ export interface PospalSecretConfig {
 }
 
 export interface NormalizedPospalTicket {
+  externalOrderNo: string;
   externalKey: string;
   externalSn: string;
   invalid: boolean;
   occurredAt: string;
+  orderNo: string;
   orderSource: string;
+  remark: string;
+  sellTicketUid: string;
   sourceUpdatedAt: string;
   ticketType: 'SELL' | 'SELL_RETURN';
   totalAmount: number;
+  webOrderNo: string;
 }
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -46,14 +51,19 @@ export const normalizePospalTickets = (values: unknown[]): NormalizedPospalTicke
   const externalKey = externalSn || rawUid || `${occurredAt}:${number(item.totalAmount)}:${index}`;
   if (!occurredAt || !externalKey) return [];
   return [{
+    externalOrderNo: text(item.externalOrderNo),
     externalKey,
     externalSn,
     invalid: item.invalid === true || number(item.invalid) === 1,
     occurredAt,
-    orderSource: text(item.orderSource || item.webOrderNo || item.orderNo),
+    orderNo: text(item.orderNo),
+    orderSource: text(item.orderSource),
+    remark: text(item.remark),
+    sellTicketUid: text(item.sellTicketUid),
     sourceUpdatedAt,
     ticketType: text(item.ticketType).toUpperCase() === 'SELL_RETURN' ? 'SELL_RETURN' : 'SELL',
     totalAmount: number(item.totalAmount),
+    webOrderNo: text(item.webOrderNo),
   }];
 });
 

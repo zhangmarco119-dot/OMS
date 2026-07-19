@@ -68,11 +68,15 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
   return {
     profileId: textAt(item.profileId), displayName: textAt(item.displayName, '未命名员工'), username: textAt(item.username),
     primaryStoreId: textAt(item.primaryStoreId), asOf: textAt(item.asOf), monthStart, monthEnd: textAt(item.monthEnd),
+    employmentType: item.employmentType === 'part_time' ? 'part_time' : 'full_time',
+    partTimeHours: numberAt(item.partTimeHours), partTimeHourlyRate: nullableNumberAt(item.partTimeHourlyRate),
+    accruedPartTimeWage: numberAt(item.accruedPartTimeWage),
     fullAttendanceDays: numberAt(item.fullAttendanceDays), attendanceDays: numberAt(item.attendanceDays), ruleId: nullableTextAt(item.ruleId),
     ruleConfirmed: boolAt(item.ruleConfirmed), monthlyBaseSalary: nullableNumberAt(item.monthlyBaseSalary),
     monthlyHousingAllowance: nullableNumberAt(item.monthlyHousingAllowance), fullPerformanceAmount: nullableNumberAt(item.fullPerformanceAmount),
     commissionRate: nullableNumberAt(item.commissionRate), housingEnabled: boolAt(item.housingEnabled), performanceEnabled: boolAt(item.performanceEnabled),
     performanceOverrideEnabled: boolAt(item.performanceOverrideEnabled), performanceOverrideAmount: numberAt(item.performanceOverrideAmount),
+    performanceOverrideScore: nullableNumberAt(item.performanceOverrideScore),
     performanceCalculationMode: item.performanceCalculationMode === 'override' ? 'override' : 'automatic',
     commissionEnabled: boolAt(item.commissionEnabled), fullAttendanceBonusEnabled: boolAt(item.fullAttendanceBonusEnabled),
     fullAttendanceBonusAmount: numberAt(item.fullAttendanceBonusAmount), fullAttendanceBonusAwarded: boolAt(item.fullAttendanceBonusAwarded),
@@ -105,6 +109,65 @@ export async function loadMyPayrollEstimate(client: Client, profileId: string, a
   const { data, error } = await client.rpc('get_payroll_estimate', { p_profile_id: profileId, p_as_of: asOf });
   if (error) throw new Error(error.message || '暂时无法计算预估工资。');
   return parsePayrollEstimate(data);
+}
+
+export interface PayrollPayslipScheduleSettings {
+  dayOfMonth: number;
+  enabled: boolean;
+  frequencyMonths: number;
+  lastIssuedMonth: string | null;
+  lastRunAt: string | null;
+  sendTime: string;
+}
+
+const parsePayrollPayslipScheduleSettings = (value: Json): PayrollPayslipScheduleSettings => {
+  const row = objectAt(value);
+  return {
+    dayOfMonth: numberAt(row.dayOfMonth) || 1,
+    enabled: boolAt(row.enabled),
+    frequencyMonths: numberAt(row.frequencyMonths) || 1,
+    lastIssuedMonth: nullableTextAt(row.lastIssuedMonth),
+    lastRunAt: nullableTextAt(row.lastRunAt),
+    sendTime: textAt(row.sendTime, '09:00').slice(0, 5),
+  };
+};
+
+export async function loadPayrollPayslipScheduleSettings(client: Client) {
+  const { data, error } = await client.rpc('get_payroll_payslip_schedule_settings');
+  if (error) throw new Error(error.message || '暂时无法加载工资单自动推送设置。');
+  return parsePayrollPayslipScheduleSettings(data);
+}
+
+export async function savePayrollPayslipScheduleSettings(client: Client, settings: Pick<PayrollPayslipScheduleSettings, 'dayOfMonth' | 'enabled' | 'frequencyMonths' | 'sendTime'>) {
+  const { data, error } = await client.rpc('admin_save_payroll_payslip_schedule_settings', {
+    p_day_of_month: settings.dayOfMonth,
+    p_enabled: settings.enabled,
+    p_frequency_months: settings.frequencyMonths,
+    p_send_time: settings.sendTime,
+  });
+  if (error) throw new Error(error.message || '工资单自动推送设置保存失败。');
+  return parsePayrollPayslipScheduleSettings(data);
+}
+
+export async function loadPayrollPerformanceOverride(client: Client, profileId: string, month: string) {
+  const { data, error } = await client
+    .from('payroll_performance_overrides')
+    .select('performance_score')
+    .eq('profile_id', profileId)
+    .eq('payroll_month', `${month.slice(0, 7)}-01`)
+    .maybeSingle();
+  if (error) throw new Error(error.message || '暂时无法加载该月绩效设置。');
+  return data?.performance_score ?? null;
+}
+
+export async function savePayrollPerformanceOverride(client: Client, profileId: string, month: string, score: number | null) {
+  const { data, error } = await client.rpc('admin_save_payroll_performance_override', {
+    p_profile_id: profileId,
+    p_payroll_month: `${month.slice(0, 7)}-01`,
+    p_performance_score: score,
+  });
+  if (error) throw new Error(error.message || '本月绩效分设置保存失败。');
+  return data;
 }
 
 export async function loadPayrollDeductionItems(client: Client, profileId: string, from: string, to: string) {
@@ -350,51 +413,51 @@ export async function uploadPayrollEvidence(client: Client, input: { file: File;
 
 export async function loadMyOvertimeRequests(client: Client, profileId: string) {
   const { data, error } = await client.from('payroll_overtime_requests').select('*').eq('profile_id', profileId).order('overtime_date', { ascending: false });
-  if (error) throw new Error(error.message || '暂时无法加载加班申请。');
+  if (error) throw new Error(error.message || '暂时无法加载工时申请。');
   return data ?? [];
 }
 
 export async function loadManagerOvertimeRequests(client: Client, storeIds: string[]) {
   if (!storeIds.length) return [];
   const { data, error } = await client.from('payroll_overtime_requests').select('*').in('store_id', storeIds).order('created_at', { ascending: false });
-  if (error) throw new Error(error.message || '暂时无法加载加班审批。');
+  if (error) throw new Error(error.message || '暂时无法加载工时审批。');
   return data ?? [];
 }
 
 export async function loadAllOvertimeRequests(client: Client) {
   const { data, error } = await client.from('payroll_overtime_requests').select('*').order('created_at', { ascending: false });
-  if (error) throw new Error(error.message || '暂时无法加载加班审批。');
+  if (error) throw new Error(error.message || '暂时无法加载工时审批。');
   return data ?? [];
 }
 
 export async function loadOvertimeProfiles(client: Client, profileIds: string[]) {
   if (!profileIds.length) return [];
   const { data, error } = await client.from('profiles').select('*').in('id', Array.from(new Set(profileIds)));
-  if (error) throw new Error(error.message || '暂时无法加载加班申请人信息。');
+  if (error) throw new Error(error.message || '暂时无法加载工时申请人信息。');
   return data ?? [];
 }
 
 export async function submitOvertimeRequest(client: Client, input: { storeId: string; overtimeDate: string; hours: number; reason?: string }) {
   const { data, error } = await client.rpc('submit_payroll_overtime_request', { p_store_id: input.storeId, p_overtime_date: input.overtimeDate, p_hours: input.hours, p_reason: input.reason });
-  if (error) throw new Error(error.message || '加班申请提交失败。');
+  if (error) throw new Error(error.message || '工时申请提交失败。');
   return data as unknown as OvertimeRequestRow;
 }
 
 export async function updateOvertimeRequest(client: Client, id: string, input: { storeId: string; overtimeDate: string; hours: number; reason?: string }) {
   const { data, error } = await client.rpc('update_payroll_overtime_request', { p_request_id: id, p_store_id: input.storeId, p_overtime_date: input.overtimeDate, p_hours: input.hours, p_reason: input.reason });
-  if (error) throw new Error(error.message || '加班申请修改失败。');
+  if (error) throw new Error(error.message || '工时申请修改失败。');
   return data as unknown as OvertimeRequestRow;
 }
 
 export async function reviewOvertimeRequest(client: Client, id: string, action: 'approved' | 'rejected', note: string) {
   const { data, error } = await client.rpc('review_payroll_overtime_request', { p_request_id: id, p_action: action, p_note: note });
-  if (error) throw new Error(error.message || '加班审批提交失败。');
+  if (error) throw new Error(error.message || '工时审批提交失败。');
   return data as unknown as OvertimeRequestRow;
 }
 
 export async function saveOvertimeRate(client: Client, input: { hourlyRate: number; effectiveFrom: string; changeReason: string }) {
   const { error } = await client.rpc('admin_save_payroll_overtime_rate', { p_hourly_rate: input.hourlyRate, p_effective_from: input.effectiveFrom, p_change_reason: input.changeReason });
-  if (error) throw new Error(error.message || '加班时薪保存失败。');
+  if (error) throw new Error(error.message || '计薪时薪保存失败。');
 }
 
 export type PayrollEmployeeRule = RuleRow;

@@ -115,7 +115,7 @@ function PayslipPanel() {
   return <>
     {status === 'loading' ? <LoadingState label="正在加载工资单" /> : null}
     {status === 'error' ? <ErrorState message="暂时无法加载工资单。" onRetry={() => void load()} /> : null}
-    {status === 'ready' && !items.length ? <EmptyState description="管理员发放后，工资单会显示在这里。系统也会在每月 1 日自动发放上月工资单。" icon={FileText} title="暂无工资单" /> : null}
+    {status === 'ready' && !items.length ? <EmptyState description="暂未推送" icon={FileText} title="暂无工资单" /> : null}
     {status === 'ready' ? <section className="space-y-2">{items.map((item) => <article className="ui-card p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{monthLabel(item.payroll_month)}工资单</b><p className="mt-1 text-xs text-slate-500">发放：{item.issued_at ? new Date(item.issued_at).toLocaleString('zh-CN') : '尚未发送'}</p></div><StatusBadge tone={item.status === 'confirmed' ? 'success' : 'warning'}>{item.status === 'confirmed' ? '已确认' : '待确认'}</StatusBadge></div><div className="mt-3 flex items-end justify-between gap-3"><div><span className="text-xs text-slate-500">实发金额</span><strong className="mt-0.5 block text-xl tabular-nums">{formatMoney(item.estimate.dataComplete ? item.estimate.estimatedPayable : item.estimate.knownEstimatedPayable)}</strong></div><button className={item.status === 'issued' ? 'ui-button-primary' : 'ui-button-secondary'} onClick={() => open(item.id)} type="button">{item.status === 'issued' ? '查看并确认' : '查看工资单'}</button></div></article>)}</section> : null}
     <ActionFeedbackDialog message={feedback} onClose={() => setFeedback('')} open={Boolean(feedback)} title="工资单处理结果" tone="success" />
   </>;

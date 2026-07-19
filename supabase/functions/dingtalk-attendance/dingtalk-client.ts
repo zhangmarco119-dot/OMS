@@ -1,3 +1,5 @@
+import { eachDate, groupContiguousDates } from './incremental-plan.ts';
+
 export interface DingTalkCredentials {
   appKey: string;
   appSecret: string;
@@ -21,6 +23,7 @@ export interface DingTalkAttendanceBundle {
 }
 
 interface DingTalkClientOptions {
+  beforeRequest?: (url: string) => Promise<void>;
   fetchImpl?: typeof fetch;
   maxRetries?: number;
   now?: () => number;
@@ -58,18 +61,6 @@ const maskMobile = (value: unknown) => {
 
 const formatDateTime = (date: string, end = false) => `${date} ${end ? '23:59:59' : '00:00:00'}`;
 
-const eachDate = (startDate: string, endDate: string) => {
-  const dates: string[] = [];
-  let cursor = new Date(`${startDate}T00:00:00Z`);
-  const final = new Date(`${endDate}T00:00:00Z`);
-  if (Number.isNaN(cursor.getTime()) || Number.isNaN(final.getTime()) || cursor > final) throw new Error('无效的考勤日期范围。');
-  while (cursor <= final) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor = new Date(cursor.getTime() + 86_400_000);
-  }
-  return dates;
-};
-
 export const splitDateRange = (startDate: string, endDate: string, maxDays = 7) => {
   const result: Array<{ startDate: string; endDate: string }> = [];
   let cursor = new Date(`${startDate}T00:00:00Z`);
@@ -97,6 +88,7 @@ export class DingTalkApiError extends Error {
 }
 
 export class DingTalkClient {
+  private readonly beforeRequest?: (url: string) => Promise<void>;
   private readonly fetchImpl: typeof fetch;
   private readonly maxRetries: number;
   private readonly now: () => number;
@@ -106,6 +98,7 @@ export class DingTalkClient {
   private readonly tokenUrl: string;
 
   constructor(private readonly credentials: DingTalkCredentials, options: DingTalkClientOptions = {}) {
+    this.beforeRequest = options.beforeRequest;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.maxRetries = options.maxRetries ?? 3;
     this.now = options.now ?? Date.now;
@@ -141,6 +134,7 @@ export class DingTalkClient {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
+        await this.beforeRequest?.(url);
         const response = await this.fetchImpl(url, { ...init, signal: controller.signal });
         if (response.status === 429 || response.status >= 500) {
           if (attempt < this.maxRetries) { await this.sleep(Math.min(4000, 250 * 2 ** attempt)); continue; }
@@ -253,8 +247,12 @@ export class DingTalkClient {
   }
 
   async getAttendanceBundle(userIds: string[], startDate: string, endDate: string): Promise<DingTalkAttendanceBundle> {
+    return this.getAttendanceBundleForDates(userIds, eachDate(startDate, endDate));
+  }
+
+  async getAttendanceBundleForDates(userIds: string[], dates: string[]): Promise<DingTalkAttendanceBundle> {
     const bundle: DingTalkAttendanceBundle = { punches: [], results: [], schedules: [] };
-    for (const dateRange of splitDateRange(startDate, endDate, 7)) {
+    for (const dateRange of groupContiguousDates(dates, 7)) {
       for (const users of chunk([...new Set(userIds)], 50)) {
         if (!users.length) continue;
         const common = { userIdList: users, workDateFrom: formatDateTime(dateRange.startDate), workDateTo: formatDateTime(dateRange.endDate, true), isI18n: false };
@@ -267,8 +265,12 @@ export class DingTalkClient {
   }
 
   async listSchedules(startDate: string, endDate: string) {
+    return this.listSchedulesForDates(eachDate(startDate, endDate));
+  }
+
+  async listSchedulesForDates(dates: string[]) {
     const schedules: Record<string, unknown>[] = [];
-    for (const workDate of eachDate(startDate, endDate)) {
+    for (const workDate of [...new Set(dates)].sort()) {
       let offset = 0;
       let hasMore = true;
       while (hasMore) {

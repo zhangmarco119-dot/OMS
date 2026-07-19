@@ -61,6 +61,9 @@ describe('DashboardPage administrator payroll cost', () => {
       </MemoryRouter>,
     );
     expect(await screen.findByText('实时薪资成本')).toBeInTheDocument();
+    expect(screen.getByText('到货数量')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.queryByText('到货待看')).not.toBeInTheDocument();
     expect(screen.getByText('¥8,037.48')).toBeInTheDocument();
     expect(screen.getByText('数据完整 1/2')).toBeInTheDocument();
     expect(loadAdminPayrollEstimates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ asOf: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));

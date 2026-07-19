@@ -7,22 +7,27 @@ describe('V2 task workflow service', () => {
   it('publishes immutable template tasks through RPC', async () => {
     const rpc=vi.fn().mockResolvedValue({data:[],error:null});const client={rpc} as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client,'template-1',['store-1'],'2026-07-20T12:00:00Z');
-    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks',{p_due_at:'2026-07-20T12:00:00Z',p_profile_ids:[],p_store_ids:['store-1'],p_template_id:'template-1'});
+    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks',{p_due_at:'2026-07-20T12:00:00Z',p_profile_ids:[],p_store_ids:['store-1'],p_target_audiences:['staff','manager'],p_template_id:'template-1'});
   });
   it('lets the server derive the next recurring deadline', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client, 'template-1', ['store-1'], null);
-    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks', { p_due_at: null, p_profile_ids: [], p_store_ids: ['store-1'], p_template_id: 'template-1' });
+    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks', { p_due_at: null, p_profile_ids: [], p_store_ids: ['store-1'], p_target_audiences: ['staff', 'manager'], p_template_id: 'template-1' });
   });
   it('creates a recurring task schedule through the guarded RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await createV2TaskSchedule(client, { acceptanceIntervalDays: null, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'weekly', acceptanceWeekday: 5, intervalDays: null, monthDay: null, publishTime: '09:00', scheduleType: 'weekly', storeIds: ['store-1'], templateId: 'template-1', weekdays: [1, 5] });
-    expect(rpc).toHaveBeenCalledWith('create_v2_task_schedule_v2', { p_fields: { acceptanceIntervalDays: null, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'weekly', acceptanceWeekday: 5, intervalDays: null, monthDay: null, publishTime: '09:00', scheduleType: 'weekly', weekdays: [1, 5] }, p_profile_ids: [], p_store_ids: ['store-1'], p_template_id: 'template-1' });
+    expect(rpc).toHaveBeenCalledWith('create_v2_task_schedule_v2', { p_fields: { acceptanceIntervalDays: null, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'weekly', acceptanceWeekday: 5, intervalDays: null, monthDay: null, publishTime: '09:00', scheduleType: 'weekly', targetAudiences: ['staff', 'manager'], weekdays: [1, 5] }, p_profile_ids: [], p_store_ids: ['store-1'], p_template_id: 'template-1' });
   });
   it('publishes a task only to the selected employee', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client, 'template-1', ['store-1'], '2026-07-20T12:00:00Z', ['profile-1']);
     expect(rpc).toHaveBeenCalledWith('publish_v2_tasks', expect.objectContaining({ p_profile_ids: ['profile-1'] }));
+  });
+  it('lets administrators opt part-time employees into a store-wide task', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
+    await publishV2Tasks(client, 'template-1', ['store-1'], '2026-07-20T12:00:00Z', [], ['staff', 'part_time']);
+    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks', expect.objectContaining({ p_target_audiences: ['staff', 'part_time'] }));
   });
   it('updates a single published task through the guarded RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {}, error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;

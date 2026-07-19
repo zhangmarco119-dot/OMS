@@ -6,6 +6,7 @@ import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialo
 import { BatchImportReportDialog } from '../components/feedback/BatchImportReportDialog';
 import {
   archiveProduct,
+  archiveProducts,
   createProduct,
   createAllProductsExportFile,
   deleteProduct,
@@ -36,10 +37,18 @@ import { useRememberedPageState } from '../lib/useRememberedPageState';
 
 export type AdminSection = 'products' | 'users';
 type ProductTab = 'catalog' | 'batch' | 'archived';
+type AccountType = 'staff' | 'manager' | 'part_time' | 'admin';
+
+const accountTypeOf = (role: CreateUserInput['role'], employmentType: CreateUserInput['employmentType']): AccountType =>
+  role === 'staff' && employmentType === 'part_time' ? 'part_time' : role;
+
+const accountTypeFields = (accountType: AccountType) => ({
+  employmentType: accountType === 'part_time' ? 'part_time' as const : 'full_time' as const,
+  role: accountType === 'part_time' ? 'staff' as const : accountType,
+});
 
 const emptyProductDraft = (storeId = ''): ProductDraft => ({
   count_unit: '',
-  is_active: true,
   name: '',
   product_code: '',
   sort_order: 0,
@@ -49,7 +58,6 @@ const emptyProductDraft = (storeId = ''): ProductDraft => ({
 
 const productToDraft = (product: ProductRow): ProductDraft => ({
   count_unit: product.count_unit,
-  is_active: product.is_active,
   name: product.name,
   product_code: product.product_code ?? '',
   sort_order: product.sort_order,
@@ -65,6 +73,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [productSearch, setProductSearch] = useRememberedPageState('product-search', '');
   const [selectedArchivedProductIds, setSelectedArchivedProductIds] = useState<string[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useRememberedPageState('selected-store', '');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,11 +81,14 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const [newProduct, setNewProduct] = useState<ProductDraft>(emptyProductDraft());
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [importProgress, setImportProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [importing, setImporting] = useState(false);
   const [productImportReport, setProductImportReport] = useState<ProductImportResult | null>(null);
   const [newUser, setNewUser] = useState<CreateUserInput>({
     password: '',
     username: '',
     displayName: '',
+    employmentType: 'full_time',
     role: 'staff',
     storeIds: [],
   });
@@ -120,6 +132,8 @@ export function AdminPage({ section }: { section: AdminSection }) {
 
   const changeStore = (storeId: string) => {
     setSelectedStoreId(storeId);
+    setSelectedProductIds([]);
+    setSelectedArchivedProductIds([]);
     setNewProduct(emptyProductDraft(storeId));
     void refresh(storeId);
   };
@@ -205,6 +219,20 @@ export function AdminPage({ section }: { section: AdminSection }) {
     setMessage(failed.length ? `已删除 ${deleted} 个，${failed.length} 个未删除：${failed.join('、')}` : `已永久删除 ${deleted} 个已归档货品。`);
   };
 
+  const archiveSelectedProducts = async () => {
+    if (!selectedProductIds.length || !window.confirm(`确认归档选中的 ${selectedProductIds.length} 个货品？归档后不会出现在日常货品列表中。`)) return;
+    setMessage(null);
+    try {
+      await archiveProducts(selectedProductIds);
+      const count = selectedProductIds.length;
+      setSelectedProductIds([]);
+      await refresh(selectedStoreId);
+      setMessage(`已归档 ${count} 个货品。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '批量归档货品失败');
+    }
+  };
+
   const importExcel = async () => {
     if (!importFile) {
       setMessage('请先选择 Excel 文件。');
@@ -212,14 +240,19 @@ export function AdminPage({ section }: { section: AdminSection }) {
     }
 
     setMessage(null);
+    setImporting(true);
+    setImportProgress(null);
     try {
       const rows = await parseProductImportFile(importFile);
-      const result = await importProducts(selectedStoreId, rows);
+      setImportProgress({ completed: 0, total: rows.length });
+      const result = await importProducts(selectedStoreId, rows, (completed, total) => setImportProgress({ completed, total }));
       setImportFile(null);
       await refresh(selectedStoreId);
       setProductImportReport(result);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导入失败');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -246,7 +279,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
     }
     try {
       await createAuthUserWithProfile(newUser);
-      setNewUser({ password: '', username: '', displayName: '', role: 'staff', storeIds: stores[0]?.id ? [stores[0].id] : [] });
+      setNewUser({ password: '', username: '', displayName: '', employmentType: 'full_time', role: 'staff', storeIds: stores[0]?.id ? [stores[0].id] : [] });
       await refresh(selectedStoreId);
       setMessage('账号已创建。');
     } catch (error) {
@@ -282,6 +315,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
         username: user.username,
       });
       await updateProfileAdminFields(user.id, {
+        employment_type: user.role === 'staff' ? user.employment_type : 'full_time',
         role: user.role,
         is_active: user.is_active,
         storeIds: user.storeIds,
@@ -412,8 +446,10 @@ export function AdminPage({ section }: { section: AdminSection }) {
           </div>
 
           <div className="space-y-2">
+            {visibleActiveProducts.length ? <div className="flex items-center justify-between gap-2 rounded-lg bg-white p-3 shadow-sm"><label className="text-sm font-bold"><input checked={selectedProductIds.length === visibleActiveProducts.length} className="mr-2" onChange={(event) => setSelectedProductIds(event.target.checked ? visibleActiveProducts.map((item) => item.id) : [])} type="checkbox" />全选当前结果</label><button className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-amber-600 px-3 text-sm font-bold text-white disabled:opacity-40" disabled={!selectedProductIds.length} onClick={() => void archiveSelectedProducts()} type="button"><Archive className="h-4 w-4" />批量归档（{selectedProductIds.length}）</button></div> : null}
             {visibleActiveProducts.map((product) => (
               <article className="rounded-lg bg-white p-2.5 shadow-sm" key={product.id}>
+                <label className="mb-2 flex items-center text-xs font-bold text-slate-500"><input aria-label={`选择 ${product.name}`} checked={selectedProductIds.includes(product.id)} className="mr-2 h-4 w-4" onChange={(event) => setSelectedProductIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} type="checkbox" />选择此货品</label>
                 <ProductDraftForm
                   draft={productDrafts[product.id] ?? productToDraft(product)}
                   onChange={(draft) => setProductDrafts((current) => ({ ...current, [product.id]: draft }))}
@@ -430,7 +466,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 </div>
               </article>
             ))}
-            {visibleActiveProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">{normalizedProductSearch ? '没有符合检索条件的使用中货品。' : '当前门店暂无使用中的货品。'}</p> : null}
+            {visibleActiveProducts.length === 0 ? <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500 shadow-sm">{normalizedProductSearch ? '没有符合检索条件的货品。' : '当前门店暂无货品。'}</p> : null}
           </div>
             </>
           ) : null}
@@ -446,22 +482,24 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 </a>
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、排序、启用。导入时按“货品名称 + 规格 + 单位”匹配，已存在则更新，未匹配则新增。单行不合规范或写入失败时会继续处理其余货品，完成后统一报告失败原因。
+                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、排序。导入的货品会直接进入货品列表；已有的同名同规格货品会更新并取消归档。单行不合规范或写入失败时会继续处理其余货品，完成后统一报告失败原因。
               </p>
               <input
                 accept=".xlsx,.xls"
                 className="mt-4 block w-full rounded-xl border border-slate-200 p-3 text-sm"
-                onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+                disabled={importing}
+                onChange={(event) => { setImportFile(event.target.files?.[0] ?? null); setImportProgress(null); }}
                 type="file"
               />
-              <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void importExcel()} type="button">
+              {importProgress ? <div className="mt-4" aria-live="polite"><div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600"><span>{importing ? '正在导入货品' : '导入处理完成'}</span><span>{importProgress.completed}/{importProgress.total}</span></div><div className="h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-600 transition-[width]" style={{ width: `${importProgress.total ? Math.round(importProgress.completed / importProgress.total * 100) : 0}%` }} /></div></div> : null}
+              <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white disabled:opacity-50" disabled={importing || !importFile} onClick={() => void importExcel()} type="button">
                 <FileUp className="h-4 w-4" aria-hidden="true" />
-                导入到当前门店
+                {importing ? '正在导入' : '导入到当前门店'}
               </button>
             </div>
             <div className="rounded-lg bg-white p-4 shadow-sm">
               <h2 className="text-lg font-bold text-slate-900">导出全部货品</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店货品，包括门店、名称、规格、单位、排序、状态和更新时间。</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">导出您有权限查看的全部门店货品，包括门店、名称、规格、单位、排序、归档状态和更新时间。</p>
               <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white" onClick={() => void exportAllProducts()} type="button">
                 <Download className="h-4 w-4" aria-hidden="true" />
                 导出全部货品 Excel
@@ -520,9 +558,10 @@ export function AdminPage({ section }: { section: AdminSection }) {
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))} placeholder="账号名" value={newUser.username} />
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} placeholder="姓名" value={newUser.displayName} />
               <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} placeholder="初始密码" type={showPassword ? 'text' : 'password'} value={newUser.password} />
-              <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as CreateUserInput['role'] }))} value={newUser.role}>
+              <select aria-label="账号类型" className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setNewUser((current) => ({ ...current, ...accountTypeFields(event.target.value as AccountType) }))} value={accountTypeOf(newUser.role, newUser.employmentType)}>
                 <option value="staff">员工</option>
                 <option value="manager">店长</option>
+                <option value="part_time">兼职</option>
                 <option value="admin">管理员</option>
               </select>
             </div>
@@ -550,16 +589,17 @@ export function AdminPage({ section }: { section: AdminSection }) {
                   <div className="font-semibold text-slate-900">{index + 1}. {user.display_name}</div>
                   <div>{user.username}</div>
                   <div>{user.storeName}</div>
-                  <div>{user.is_active ? '启用' : '禁用'}</div>
+                  <div>{user.employment_type === 'part_time' ? '兼职' : user.role === 'manager' ? '店长' : user.role === 'admin' ? '管理员' : '全职员工'}</div>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3">
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, username: event.target.value } : entry))} placeholder="账号名" value={user.username} />
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, display_name: event.target.value } : entry))} placeholder="姓名" value={user.display_name} />
                   {user.id === initialAdminId ? <input aria-label="初始管理员邮箱" className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" inputMode="email" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, email: event.target.value } : entry))} placeholder="初始管理员邮箱" type="email" value={user.email} /> : null}
                   <input className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setPasswordDrafts((current) => ({ ...current, [user.id]: event.target.value }))} placeholder="新密码（留空不修改）" type={showPassword ? 'text' : 'password'} value={passwordDrafts[user.id] ?? ''} />
-                  <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, role: event.target.value as AdminUserRow['role'] } : entry))} value={user.role}>
+                  <select aria-label={`${user.display_name}账号类型`} className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, employment_type: accountTypeFields(event.target.value as AccountType).employmentType, role: accountTypeFields(event.target.value as AccountType).role } : entry))} value={accountTypeOf(user.role, user.employment_type)}>
                     <option value="staff">员工</option>
                     <option value="manager">店长</option>
+                    <option value="part_time">兼职</option>
                     <option value="admin">管理员</option>
                   </select>
                   <select className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm" onChange={(event) => setUsers((current) => current.map((entry) => entry.id === user.id ? { ...entry, is_active: event.target.value === 'true' } : entry))} value={String(user.is_active)}>

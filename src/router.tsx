@@ -8,6 +8,7 @@ import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAttendanceDetailPage } from './pages/AdminAttendanceDetailPage';
 import { AdminAttendancePage } from './pages/AdminAttendancePage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
+import { AdminOperationLogsPage } from './pages/AdminOperationLogsPage';
 import { AdminLegacyRedirect } from './pages/AdminLegacyRedirect';
 import { AdminProductsPage, AdminUsersPage } from './pages/AdminPage';
 import { AdminAnnouncementsPage, AdminSopsPage } from './pages/AdminContentPage';
@@ -31,6 +32,8 @@ import { MyPayrollPage } from './pages/MyPayrollPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { OvertimePage } from './pages/OvertimePage';
+import { OperationReportDetailPage } from './pages/OperationReportDetailPage';
+import { OperationReportsPage } from './pages/OperationReportsPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
 import { SopDetailPage } from './pages/SopDetailPage';
@@ -80,6 +83,8 @@ export const router = createBrowserRouter([
       { path: 'attendance', element: <MyAttendancePage /> },
       { path: 'payroll', element: <MyPayrollPage /> },
       { path: 'overtime', element: <OvertimePage /> },
+      { path: 'operation-reports', element: <OperationReportsPage /> },
+      { path: 'operation-reports/:reportId', element: <OperationReportDetailPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/about', element: <ProtectedRoute><AboutSystemPage /></ProtectedRoute> },
       { path: 'account/about/manual/:manualSlug', element: <ProtectedRoute><SystemManualPage /></ProtectedRoute> },
@@ -122,6 +127,7 @@ export const router = createBrowserRouter([
       { path: 'admin/attendance', element: <ProtectedRoute requireAdmin><AdminAttendancePage /></ProtectedRoute> },
       { path: 'admin/attendance/:profileId', element: <ProtectedRoute requireAdmin><AdminAttendanceDetailPage /></ProtectedRoute> },
       { path: 'admin/payroll', element: <ProtectedRoute requireAdmin><AdminPayrollPage /></ProtectedRoute> },
+      { path: 'admin/operation-logs', element: <ProtectedRoute requireAdmin><AdminOperationLogsPage /></ProtectedRoute> },
     ],
   },
   {

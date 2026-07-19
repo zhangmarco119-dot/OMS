@@ -540,6 +540,7 @@ export type Database = {
           created_at: string;
           deleted_at: string | null;
           display_name: string;
+          employment_type: 'full_time' | 'part_time';
           id: string;
           is_active: boolean;
           role: 'staff' | 'manager' | 'admin';
@@ -551,6 +552,7 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           display_name: string;
+          employment_type?: 'full_time' | 'part_time';
           id: string;
           is_active?: boolean;
           role: 'staff' | 'manager' | 'admin';
@@ -562,6 +564,7 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           display_name?: string;
+          employment_type?: 'full_time' | 'part_time';
           id?: string;
           is_active?: boolean;
           role?: 'staff' | 'manager' | 'admin';
@@ -587,6 +590,24 @@ export type Database = {
         Row: { attendance_weight: number; change_reason: string; created_at: string; created_by: string | null; discipline_weight: number; effective_from: string; effective_to: string | null; grade_a_coefficient: number; grade_a_min: number; grade_b_coefficient: number; grade_b_min: number; grade_c_coefficient: number; grade_c_min: number; grade_d_coefficient: number; id: string; late_deduction_1_10: number; late_deduction_11_20: number; late_deduction_21_30: number; late_deduction_31_plus: number; task_weight: number };
         Insert: { attendance_weight?: number; change_reason: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
         Update: { attendance_weight?: number; change_reason?: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from?: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
+        Relationships: [];
+      };
+      dingtalk_api_calls: {
+        Row: { action: string; corp_id: string; created_at: string; endpoint: string; id: number; usage_date: string };
+        Insert: { action: string; corp_id: string; created_at?: string; endpoint: string; id?: number; usage_date?: string };
+        Update: { action?: string; corp_id?: string; endpoint?: string; usage_date?: string };
+        Relationships: [];
+      };
+      system_operation_logs: {
+        Row: { actor_employment_type_snapshot: 'full_time' | 'part_time' | null; actor_id: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; entity_id: string | null; entity_type: string; id: string; metadata: Json; module: string; occurred_at: string; operation: 'created' | 'updated' | 'deleted'; store_id: string | null; summary: string };
+        Insert: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_id?: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; entity_id?: string | null; entity_type: string; id?: string; metadata?: Json; module: string; occurred_at?: string; operation: 'created' | 'updated' | 'deleted'; store_id?: string | null; summary: string };
+        Update: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_name_snapshot?: string; actor_role_snapshot?: 'staff' | 'manager' | 'admin' | 'system'; metadata?: Json; summary?: string };
+        Relationships: [];
+      };
+      payroll_performance_overrides: {
+        Row: { created_at: string; created_by: string; id: string; payroll_month: string; performance_score: number; profile_id: string; updated_at: string };
+        Insert: { created_at?: string; created_by: string; id?: string; payroll_month: string; performance_score: number; profile_id: string; updated_at?: string };
+        Update: { created_at?: string; created_by?: string; id?: string; payroll_month?: string; performance_score?: number; profile_id?: string; updated_at?: string };
         Relationships: [];
       };
       payroll_store_revenues: {
@@ -625,6 +646,12 @@ export type Database = {
         Update: { admin_note?: string; confirmed_at?: string | null; estimate_snapshot?: Json; id?: string; issue_source?: 'scheduled' | 'admin'; issued_at?: string | null; issued_by?: string | null; last_modified_by?: string | null; payroll_month?: string; profile_id?: string; revision?: number; status?: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id?: string | null; updated_at?: string; withdrawn_at?: string | null; withdrawn_by?: string | null };
         Relationships: [];
       };
+      payroll_payslip_schedule_settings: {
+        Row: { created_at: string; day_of_month: number; enabled: boolean; frequency_months: number; id: number; last_issued_month: string | null; last_run_at: string | null; send_time: string; updated_at: string; updated_by: string | null };
+        Insert: { created_at?: string; day_of_month?: number; enabled?: boolean; frequency_months?: number; id?: number; last_issued_month?: string | null; last_run_at?: string | null; send_time?: string; updated_at?: string; updated_by?: string | null };
+        Update: { created_at?: string; day_of_month?: number; enabled?: boolean; frequency_months?: number; id?: number; last_issued_month?: string | null; last_run_at?: string | null; send_time?: string; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
       payroll_penalty_assets: {
         Row: { bucket: 'payroll-evidence'; created_at: string; file_name: string; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
         Insert: { bucket?: 'payroll-evidence'; created_at?: string; file_name: string; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; penalty_id: string; size_bytes: number; uploaded_by: string };
@@ -644,9 +671,27 @@ export type Database = {
         Relationships: [];
       };
       pos_sales_tickets: {
-        Row: { created_at: string; external_key: string; external_sn: string | null; id: string; integration_id: string; invalid: boolean; occurred_at: string; order_source: string | null; revenue_date: string; source_updated_at: string | null; store_id: string; sync_job_id: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at: string };
-        Insert: { created_at?: string; external_key: string; external_sn?: string | null; id?: string; integration_id: string; invalid?: boolean; occurred_at: string; order_source?: string | null; revenue_date: string; source_updated_at?: string | null; store_id: string; sync_job_id?: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at?: string };
-        Update: { external_key?: string; external_sn?: string | null; id?: string; integration_id?: string; invalid?: boolean; occurred_at?: string; order_source?: string | null; revenue_date?: string; source_updated_at?: string | null; store_id?: string; sync_job_id?: string | null; ticket_type?: 'SELL' | 'SELL_RETURN'; total_amount?: number; updated_at?: string };
+        Row: { created_at: string; external_key: string; external_order_no: string | null; external_sn: string | null; id: string; integration_id: string; invalid: boolean; occurred_at: string; order_no: string | null; order_source: string | null; remark: string | null; revenue_date: string; sell_ticket_uid: string | null; source_updated_at: string | null; store_id: string; sync_job_id: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at: string; web_order_no: string | null };
+        Insert: { created_at?: string; external_key: string; external_order_no?: string | null; external_sn?: string | null; id?: string; integration_id: string; invalid?: boolean; occurred_at: string; order_no?: string | null; order_source?: string | null; remark?: string | null; revenue_date: string; sell_ticket_uid?: string | null; source_updated_at?: string | null; store_id: string; sync_job_id?: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at?: string; web_order_no?: string | null };
+        Update: { external_key?: string; external_order_no?: string | null; external_sn?: string | null; id?: string; integration_id?: string; invalid?: boolean; occurred_at?: string; order_no?: string | null; order_source?: string | null; remark?: string | null; revenue_date?: string; sell_ticket_uid?: string | null; source_updated_at?: string | null; store_id?: string; sync_job_id?: string | null; ticket_type?: 'SELL' | 'SELL_RETURN'; total_amount?: number; updated_at?: string; web_order_no?: string | null };
+        Relationships: [];
+      };
+      operation_report_templates: {
+        Row: { created_at: string; enabled: boolean; fields: Json; id: string; refund_note: string; store_id: string; title: string; updated_at: string; updated_by: string | null };
+        Insert: { created_at?: string; enabled?: boolean; fields: Json; id?: string; refund_note?: string; store_id: string; title?: string; updated_at?: string; updated_by?: string | null };
+        Update: { enabled?: boolean; fields?: Json; refund_note?: string; title?: string; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
+      operation_reports: {
+        Row: { attendance_sync_job_id: string | null; computed_data: Json; created_at: string; created_by: string; field_config_snapshot: Json; id: string; manual_values: Json; refund_entries: Json; refund_note_snapshot: string; refresh_started_at: string | null; report_date: string; sales_sync_job_id: string | null; source_synced_at: string | null; status: 'draft' | 'submitted'; store_id: string; submitted_at: string | null; text_report: string | null; title_snapshot: string; updated_at: string };
+        Insert: { attendance_sync_job_id?: string | null; computed_data?: Json; created_at?: string; created_by: string; field_config_snapshot: Json; id?: string; manual_values?: Json; refund_entries?: Json; refund_note_snapshot?: string; refresh_started_at?: string | null; report_date: string; sales_sync_job_id?: string | null; source_synced_at?: string | null; status?: 'draft' | 'submitted'; store_id: string; submitted_at?: string | null; text_report?: string | null; title_snapshot: string; updated_at?: string };
+        Update: { attendance_sync_job_id?: string | null; computed_data?: Json; field_config_snapshot?: Json; manual_values?: Json; refund_entries?: Json; refund_note_snapshot?: string; refresh_started_at?: string | null; sales_sync_job_id?: string | null; source_synced_at?: string | null; status?: 'draft' | 'submitted'; submitted_at?: string | null; text_report?: string | null; title_snapshot?: string; updated_at?: string };
+        Relationships: [];
+      };
+      operation_report_images: {
+        Row: { bucket: 'operation-report-images'; created_at: string; field_id: string; file_name: string; height: number | null; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; report_id: string; size_bytes: number; store_id: string; uploaded_by: string; width: number | null };
+        Insert: { bucket?: 'operation-report-images'; created_at?: string; field_id: string; file_name: string; height?: number | null; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; report_id: string; size_bytes: number; store_id: string; uploaded_by: string; width?: number | null };
+        Update: { field_id?: string; file_name?: string; height?: number | null; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp'; object_path?: string; size_bytes?: number; width?: number | null };
         Relationships: [];
       };
       profile_store_access: {
@@ -770,14 +815,14 @@ export type Database = {
         Relationships: [];
       };
       v2_task_schedules: {
-        Row: { acceptance_interval_days: number | null; acceptance_month_day: number | null; acceptance_type: 'daily' | 'weekly' | 'monthly'; acceptance_weekday: number | null; assigned_profile_id: string | null; content_name: string | null; content_snapshot: Json | null; created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; last_published_at: string | null; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; publish_time: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at: string; weekdays: number[]; withdrawn_at: string | null; withdrawn_by: string | null };
-        Insert: { acceptance_interval_days?: number | null; acceptance_month_day?: number | null; acceptance_type?: 'daily' | 'weekly' | 'monthly'; acceptance_weekday?: number | null; assigned_profile_id?: string | null; content_name?: string | null; content_snapshot?: Json | null; created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; last_published_at?: string | null; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; publish_time?: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[]; withdrawn_at?: string | null; withdrawn_by?: string | null };
+        Row: { acceptance_interval_days: number | null; acceptance_month_day: number | null; acceptance_type: 'daily' | 'weekly' | 'monthly'; acceptance_weekday: number | null; assigned_profile_id: string | null; content_name: string | null; content_snapshot: Json | null; created_at: string; created_by: string; due_time: string; id: string; interval_days: number | null; is_active: boolean; last_published_at: string | null; month_day: number | null; next_due_at: string; paused_at: string | null; paused_by: string | null; publish_time: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; target_audiences: ('staff' | 'manager' | 'part_time')[]; template_id: string; template_version_id: string; updated_at: string; weekdays: number[]; withdrawn_at: string | null; withdrawn_by: string | null };
+        Insert: { acceptance_interval_days?: number | null; acceptance_month_day?: number | null; acceptance_type?: 'daily' | 'weekly' | 'monthly'; acceptance_weekday?: number | null; assigned_profile_id?: string | null; content_name?: string | null; content_snapshot?: Json | null; created_at?: string; created_by: string; due_time: string; id?: string; interval_days?: number | null; is_active?: boolean; last_published_at?: string | null; month_day?: number | null; next_due_at: string; paused_at?: string | null; paused_by?: string | null; publish_time?: string; schedule_type: 'interval_days' | 'weekly' | 'monthly'; store_id: string; target_audiences?: ('staff' | 'manager' | 'part_time')[]; template_id: string; template_version_id: string; updated_at?: string; weekdays?: number[]; withdrawn_at?: string | null; withdrawn_by?: string | null };
         Update: Partial<Database['public']['Tables']['v2_task_schedules']['Insert']>;
         Relationships: [];
       };
       v2_tasks: {
-        Row: { allow_overdue: boolean; assigned_profile_id: string | null; category: string; correction_item_ids: string[]; created_at: string; created_by: string; due_at: string; id: string; name: string; requires_review: boolean; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; schedule_id: string | null; snapshot: Json; started_at: string | null; started_by: string | null; status: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key: string | null; submitted_at: string | null; submitted_by: string | null; task_no: string; template_id: string; template_version_id: string; updated_at: string; version: number };
-        Insert: { allow_overdue?: boolean; assigned_profile_id?: string | null; category: string; correction_item_ids?: string[]; created_at?: string; created_by: string; due_at: string; id?: string; name: string; requires_review?: boolean; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; schedule_id?: string | null; snapshot: Json; started_at?: string | null; started_by?: string | null; status?: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key?: string | null; submitted_at?: string | null; submitted_by?: string | null; task_no?: string; template_id: string; template_version_id: string; updated_at?: string; version?: number };
+        Row: { allow_overdue: boolean; assigned_profile_id: string | null; category: string; correction_item_ids: string[]; created_at: string; created_by: string; due_at: string; id: string; name: string; requires_review: boolean; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; schedule_id: string | null; snapshot: Json; started_at: string | null; started_by: string | null; status: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key: string | null; submitted_at: string | null; submitted_by: string | null; target_audiences: ('staff' | 'manager' | 'part_time')[]; task_no: string; template_id: string; template_version_id: string; updated_at: string; version: number };
+        Insert: { allow_overdue?: boolean; assigned_profile_id?: string | null; category: string; correction_item_ids?: string[]; created_at?: string; created_by: string; due_at: string; id?: string; name: string; requires_review?: boolean; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; schedule_id?: string | null; snapshot: Json; started_at?: string | null; started_by?: string | null; status?: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key?: string | null; submitted_at?: string | null; submitted_by?: string | null; target_audiences?: ('staff' | 'manager' | 'part_time')[]; task_no?: string; template_id: string; template_version_id: string; updated_at?: string; version?: number };
         Update: Partial<Database['public']['Tables']['v2_tasks']['Insert']>;
         Relationships: [];
       };
@@ -922,6 +967,17 @@ export type Database = {
       };
     };
     Functions: {
+      admin_save_operation_report_template: { Args: { p_enabled: boolean; p_fields: Json; p_refund_note: string; p_store_id: string; p_title: string }; Returns: Json };
+      begin_operation_report_refresh: { Args: { p_report_date: string; p_store_id: string }; Returns: Json };
+      get_operation_report_availability: { Args: { p_store_id: string }; Returns: Json };
+      get_dingtalk_api_usage: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_set_dingtalk_api_daily_limit: { Args: { p_limit: number }; Returns: Json };
+      get_attendance_incremental_schedule: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_save_attendance_incremental_schedule: { Args: { p_enabled: boolean; p_times: string[] }; Returns: Json };
+      prepare_operation_report: { Args: { p_attendance_sync_job_id: string | null; p_report_date: string; p_sales_sync_job_id: string; p_store_id: string }; Returns: Json };
+      release_operation_report_refresh: { Args: { p_report_id: string }; Returns: undefined };
+      save_operation_report_draft: { Args: { p_manual_values: Json; p_refund_entries: Json; p_report_id: string }; Returns: Json };
+      submit_operation_report: { Args: { p_manual_values: Json; p_refund_entries: Json; p_report_id: string; p_text_report: string }; Returns: Json };
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
       complete_attendance_missing_punch_todo: { Args: { p_todo_id: string }; Returns: Json };
       confirm_my_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
@@ -937,13 +993,18 @@ export type Database = {
       admin_save_payroll_visibility_settings: { Args: { p_history_available_until_day: number; p_history_months: number }; Returns: Json };
       admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
       admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
+      admin_save_payroll_performance_override: { Args: { p_payroll_month: string; p_performance_score?: number | null; p_profile_id: string }; Returns: Json };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
+      get_attendance_automation_settings: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_save_attendance_automation_settings: { Args: { p_enabled: boolean; p_end_time: string; p_interval_minutes: number; p_start_time: string }; Returns: Json };
       configure_pos_sales_integration: { Args: { p_enabled: boolean; p_end_hour: number; p_integration_id: string; p_interval_minutes: number; p_start_hour: number }; Returns: Json };
       replace_pos_sales_range: { Args: { p_api_call_count: number; p_end_date: string; p_integration_id: string; p_start_date: string; p_sync_job_id: string; p_tickets: Json }; Returns: Json };
       save_payroll_store_revenue_input: { Args: { p_as_of_date: string; p_input_mode: string; p_manual_cumulative_amount?: number | null; p_note?: string; p_store_id: string }; Returns: Json };
       get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
       get_payroll_estimate: { Args: { p_as_of?: string; p_profile_id: string }; Returns: Json };
       get_payroll_visibility_settings: { Args: Record<PropertyKey, never>; Returns: Json };
+      get_payroll_payslip_schedule_settings: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_save_payroll_payslip_schedule_settings: { Args: { p_day_of_month: number; p_enabled: boolean; p_frequency_months: number; p_send_time: string }; Returns: Json };
       payroll_overtime_todo_count: { Args: Record<PropertyKey, never>; Returns: number };
       review_payroll_overtime_request: { Args: { p_action: string; p_note?: string; p_request_id: string }; Returns: Json };
       submit_payroll_overtime_request: { Args: { p_hours: number; p_overtime_date: string; p_reason?: string; p_store_id: string }; Returns: Json };
@@ -982,7 +1043,7 @@ export type Database = {
       publish_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       publish_v2_sop: { Args: { p_sop_id: string }; Returns: Json };
       publish_v2_sop_with_options: { Args: { p_silent: boolean; p_sop_id: string }; Returns: Json };
-      publish_v2_tasks: { Args: { p_due_at: string | null; p_profile_ids: string[]; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
+      publish_v2_tasks: { Args: { p_due_at: string | null; p_profile_ids: string[]; p_store_ids: string[]; p_target_audiences: ('staff' | 'manager' | 'part_time')[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       update_v2_task_content: { Args: { p_due_at: string | null; p_name: string; p_snapshot: Json; p_task_id: string }; Returns: Json };
       update_v2_task_schedule_all: { Args: { p_fields: Json; p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
       update_v2_task_schedule_content: { Args: { p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };

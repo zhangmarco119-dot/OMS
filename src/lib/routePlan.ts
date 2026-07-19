@@ -18,6 +18,9 @@ export const routePlan: RoutePlanItem[] = [
   { path: '/app/admin/users', phase: 8, purpose: '独立的账号资料与权限管理页面' },
   { path: '/app/admin/announcements', phase: 9, purpose: '独立的管理员公告发布与已读管理页面' },
   { path: '/app/admin/sops', phase: 9, purpose: '独立的管理员 SOP 制作、发布与归档页面' },
+  { path: '/app/operation-reports', phase: 9, purpose: '西直门店生成、复制和管理每日运营报告' },
+  { path: '/app/operation-reports/:reportId', phase: 9, purpose: '查看纯文字报告及有权限的现场照片' },
+  { path: '/app/admin/operation-logs', phase: 9, purpose: '管理员查看所有账号的关键业务操作日志' },
 ];
 
 export const currentPhase = 9;

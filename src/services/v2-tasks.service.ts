@@ -25,7 +25,8 @@ export interface V2TaskScheduleFields {
   weekdays: number[];
 }
 export interface V2TaskScheduleContent { name: string; snapshot: Json }
-export type V2TaskRecipient = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'id' | 'role' | 'store_id' | 'username'>;
+export type TaskAudience = 'staff' | 'manager' | 'part_time';
+export type V2TaskRecipient = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'employment_type' | 'id' | 'role' | 'store_id' | 'username'>;
 export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
 export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
@@ -94,18 +95,18 @@ export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<
   if (!task.data) throw new Error('任务不存在或无权查看。');
   return { answers: orderV2TaskAnswers(task.data.snapshot, answers.data ?? []), images: images.data ?? [], reviews: reviews.data ?? [], task: task.data };
 };
-export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string | null, profileIds: string[] = []) => {
-  const { data, error } = await client.rpc('publish_v2_tasks', { p_due_at: dueAt, p_profile_ids: profileIds, p_store_ids: storeIds, p_template_id: templateId }); fail(error); return data ?? [];
+export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string | null, profileIds: string[] = [], targetAudiences: TaskAudience[] = ['staff', 'manager']) => {
+  const { data, error } = await client.rpc('publish_v2_tasks', { p_due_at: dueAt, p_profile_ids: profileIds, p_store_ids: storeIds, p_target_audiences: targetAudiences, p_template_id: templateId }); fail(error); return data ?? [];
 };
 export const loadV2TaskRecipients = async (client: Client): Promise<V2TaskRecipient[]> => {
-  const { data, error } = await client.from('profiles').select('id,username,display_name,role,store_id').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null).order('display_name');
+  const { data, error } = await client.from('profiles').select('id,username,display_name,employment_type,role,store_id').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null).order('display_name');
   fail(error);
   return data ?? [];
 };
 export const loadV2TaskSchedules = async (client: Client) => {
   const { data, error } = await client.from('v2_task_schedules').select('*').is('withdrawn_at', null).order('next_due_at'); fail(error); return data ?? [];
 };
-export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { profileIds?: string[]; storeIds: string[]; templateId: string }) => {
+export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { profileIds?: string[]; storeIds: string[]; targetAudiences?: TaskAudience[]; templateId: string }) => {
   const { data, error } = await client.rpc('create_v2_task_schedule_v2', {
     p_fields: {
       acceptanceIntervalDays: input.acceptanceIntervalDays,
@@ -117,6 +118,7 @@ export const createV2TaskSchedule = async (client: Client, input: V2TaskSchedule
       monthDay: input.monthDay,
       publishTime: input.publishTime,
       scheduleType: input.scheduleType,
+      targetAudiences: input.targetAudiences ?? ['staff', 'manager'],
       weekdays: input.weekdays,
     },
     p_profile_ids: input.profileIds ?? [],

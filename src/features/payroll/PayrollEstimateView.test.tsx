@@ -6,8 +6,9 @@ import { PayrollEstimateView } from './PayrollEstimateView';
 
 const estimate = {
   profileId: 'p1', displayName: '员工甲', username: 'staff', primaryStoreId: 's1', asOf: '2026-07-17', monthStart: '2026-07-01', monthEnd: '2026-07-31',
+  employmentType: 'full_time', partTimeHours: 0, partTimeHourlyRate: null, accruedPartTimeWage: 0,
   fullAttendanceDays: 27, attendanceDays: 13, ruleId: 'r1', ruleConfirmed: false, monthlyBaseSalary: 5500, monthlyHousingAllowance: 1100,
-  fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: true, performanceEnabled: true, performanceOverrideEnabled: false, performanceOverrideAmount: 0, performanceCalculationMode: 'automatic', commissionEnabled: true,
+  fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: true, performanceEnabled: true, performanceOverrideEnabled: false, performanceOverrideAmount: 0, performanceOverrideScore: null, performanceCalculationMode: 'automatic', commissionEnabled: true,
   fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0,
   extraAttendanceDays: 0, extraAttendanceBonusRate: 300, accruedExtraAttendanceBonus: 0,
   serviceAwardEnabled: true, serviceAwardAmount: 100, accruedServiceAward: 48.15, regularizationDate: null, eligibleAttendanceDays: 13, regularizationFactor: 1, isProbation: false,
@@ -61,10 +62,11 @@ describe('PayrollEstimateView', () => {
     expect(screen.getByText('2026年7月10日')).toBeInTheDocument();
   });
 
-  it('marks a performance amount that was forcibly overridden', () => {
-    render(<PayrollEstimateView estimate={{ ...estimate, performanceCalculationMode: 'override', performanceOverrideEnabled: true, performanceOverrideAmount: 800, accruedPerformance: 800, performanceReady: true }} />);
-    expect(screen.getByText('管理员强制覆盖绩效结果')).toBeInTheDocument();
-    expect(screen.getByText(/当前使用管理员强制覆盖结果/)).toBeInTheDocument();
+  it('shows a monthly adjusted performance score like a normal calculated score', () => {
+    render(<PayrollEstimateView estimate={{ ...estimate, performanceCalculationMode: 'override', performanceOverrideEnabled: true, performanceOverrideScore: 88, performanceScore: 88, performanceGrade: 'B', accruedPerformance: 800, performanceReady: true }} />);
+    expect(screen.getByText('当前 B 级，88 分')).toBeInTheDocument();
+    expect(screen.getByText('88 分 · B 级')).toBeInTheDocument();
+    expect(screen.queryByText(/强制覆盖/)).not.toBeInTheDocument();
   });
 
   it('links administrator data issues to their update location', () => {
@@ -84,5 +86,13 @@ describe('PayrollEstimateView', () => {
     expect(screen.queryByText(/2026-06-15.*转正/)).not.toBeInTheDocument();
     rerender(<PayrollEstimateView estimate={{ ...estimate, regularizationDate: '2026-07-15', regularizationFactor: .5, eligibleAttendanceDays: 7 }} />);
     expect(screen.getAllByText(/转正日 2026-07-15/).length).toBeGreaterThan(0);
+  });
+
+  it('shows only approved part-time hours and part-time wage for a part-time account', () => {
+    render(<PayrollEstimateView estimate={{ ...estimate, employmentType: 'part_time', partTimeHours: 12.5, partTimeHourlyRate: 25, accruedPartTimeWage: 312.5, knownEstimatedPayable: 312.5, estimatedPayable: 312.5 }} />);
+    expect(screen.getByText('12.5 小时')).toBeInTheDocument();
+    expect(screen.getAllByText('兼职薪资')).toHaveLength(2);
+    expect(screen.queryByText('累计基本工资')).not.toBeInTheDocument();
+    expect(screen.queryByText('绩效评分')).not.toBeInTheDocument();
   });
 });

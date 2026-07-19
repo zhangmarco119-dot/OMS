@@ -107,7 +107,7 @@ const requiredTables = [
   'profile_product_permissions', 'v2_notice_recipients', 'v2_notice_assets',
   'v2_system_documents',
   'dingtalk_employee_directory', 'dingtalk_employee_bindings', 'attendance_daily_records', 'attendance_punch_records',
-  'attendance_sync_jobs', 'attendance_sync_failures', 'attendance_audit_logs',
+  'attendance_sync_jobs', 'attendance_sync_failures', 'attendance_audit_logs', 'attendance_sync_day_states',
   'pos_sales_integrations', 'pos_sales_sync_jobs', 'pos_sales_tickets', 'payroll_store_revenue_inputs',
 ];
 
@@ -122,7 +122,7 @@ const storeScopedTables = [
   'arrival_report_images',
   'v2_tasks',
   'v2_task_images',
-  'attendance_daily_records', 'attendance_punch_records',
+  'attendance_daily_records', 'attendance_punch_records', 'attendance_sync_day_states',
   'pos_sales_integrations', 'pos_sales_sync_jobs', 'pos_sales_tickets', 'payroll_store_revenue_inputs',
 ];
 
@@ -175,6 +175,7 @@ const requiredPolicies = [
   'dingtalk_employee_directory_select_admin', 'dingtalk_employee_bindings_select_allowed',
   'attendance_daily_records_select_allowed', 'attendance_punch_records_select_allowed',
   'attendance_sync_jobs_select_admin', 'attendance_sync_failures_select_admin', 'attendance_audit_logs_select_admin',
+  'attendance_sync_day_states_admin_read',
   'pos_sales_integrations_admin_all', 'pos_sales_sync_jobs_admin_read', 'payroll_store_revenue_inputs_admin_all',
 ];
 
@@ -208,6 +209,8 @@ const requiredFunctions = [
   'can_write_arrival_image_object',
   'can_admin_read_attendance_store', 'can_admin_manage_attendance_profile', 'get_attendance_month_detail',
   'admin_attendance_month', 'admin_bind_dingtalk_employee', 'admin_unbind_dingtalk_employee',
+  'get_attendance_incremental_schedule', 'admin_save_attendance_incremental_schedule',
+  'admin_set_dingtalk_api_daily_limit',
   'can_manage_v2_task_template',
   'can_view_v2_task_template',
   'attach_v2_task_template_reference_image',

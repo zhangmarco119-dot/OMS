@@ -190,18 +190,28 @@ Deno.serve(async (request) => {
   }
 
   if (payload.action === 'sync') {
-    let recentQuery = adminClient.from('attendance_sync_jobs').select('id,status,message:error_summary,created_at')
-      .eq('range_start', startDate).eq('range_end', endDate)
-      .in('status', ['succeeded','partial'])
-      .gte('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
-      .order('created_at', { ascending: false }).limit(1);
-    if (requestedStoreId) recentQuery = recentQuery.eq('store_id', requestedStoreId);
-    if (requestedProfileId) recentQuery = recentQuery.eq('profile_id', requestedProfileId);
-    const recent = await recentQuery.maybeSingle();
-    if (!recent.error && recent.data) return json({
-      cached: true, jobId: recent.data.id, status: recent.data.status,
-      message: '已使用 5 分钟内完成的考勤同步结果，未重复调用钉钉接口。',
-    });
+    let exceptionQuery = adminClient.from('attendance_daily_records').select('id')
+      .gte('attendance_date', startDate).lte('attendance_date', endDate).lt('attendance_date', today)
+      .or('missing_punch.neq.none,daily_status.in.(missing,abnormal)').limit(1);
+    if (requestedStoreId) exceptionQuery = exceptionQuery.eq('store_id', requestedStoreId);
+    else if (allowedStoreIds.length) exceptionQuery = exceptionQuery.in('store_id', allowedStoreIds);
+    if (requestedProfileId) exceptionQuery = exceptionQuery.eq('profile_id', requestedProfileId);
+    const historicalExceptions = await exceptionQuery;
+    if (historicalExceptions.error) return json({ error: '无法确认历史缺卡和异常记录。' }, 500);
+    if (!historicalExceptions.data?.length) {
+      let recentQuery = adminClient.from('attendance_sync_jobs').select('id,status,message:error_summary,created_at')
+        .eq('range_start', startDate).eq('range_end', endDate)
+        .in('status', ['succeeded','partial'])
+        .gte('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
+        .order('created_at', { ascending: false }).limit(1);
+      if (requestedStoreId) recentQuery = recentQuery.eq('store_id', requestedStoreId);
+      if (requestedProfileId) recentQuery = recentQuery.eq('profile_id', requestedProfileId);
+      const recent = await recentQuery.maybeSingle();
+      if (!recent.error && recent.data) return json({
+        cached: true, jobId: recent.data.id, status: recent.data.status,
+        message: '已使用 5 分钟内完成的考勤同步结果，未重复调用钉钉接口。',
+      });
+    }
     let runningQuery = adminClient.from('attendance_sync_jobs').select('id')
       .eq('range_start', startDate).eq('range_end', endDate).eq('status', 'running')
       .gte('created_at', new Date(Date.now() - 30_000).toISOString()).limit(1);

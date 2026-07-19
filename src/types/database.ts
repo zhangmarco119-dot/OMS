@@ -592,6 +592,12 @@ export type Database = {
         Update: { attendance_weight?: number; change_reason?: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from?: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
         Relationships: [];
       };
+      system_operation_logs: {
+        Row: { actor_employment_type_snapshot: 'full_time' | 'part_time' | null; actor_id: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; entity_id: string | null; entity_type: string; id: string; metadata: Json; module: string; occurred_at: string; operation: 'created' | 'updated' | 'deleted'; store_id: string | null; summary: string };
+        Insert: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_id?: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; entity_id?: string | null; entity_type: string; id?: string; metadata?: Json; module: string; occurred_at?: string; operation: 'created' | 'updated' | 'deleted'; store_id?: string | null; summary: string };
+        Update: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_name_snapshot?: string; actor_role_snapshot?: 'staff' | 'manager' | 'admin' | 'system'; metadata?: Json; summary?: string };
+        Relationships: [];
+      };
       payroll_performance_overrides: {
         Row: { created_at: string; created_by: string; id: string; payroll_month: string; performance_score: number; profile_id: string; updated_at: string };
         Insert: { created_at?: string; created_by: string; id?: string; payroll_month: string; performance_score: number; profile_id: string; updated_at?: string };

@@ -8,6 +8,7 @@ import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAttendanceDetailPage } from './pages/AdminAttendanceDetailPage';
 import { AdminAttendancePage } from './pages/AdminAttendancePage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
+import { AdminOperationLogsPage } from './pages/AdminOperationLogsPage';
 import { AdminLegacyRedirect } from './pages/AdminLegacyRedirect';
 import { AdminProductsPage, AdminUsersPage } from './pages/AdminPage';
 import { AdminAnnouncementsPage, AdminSopsPage } from './pages/AdminContentPage';
@@ -126,6 +127,7 @@ export const router = createBrowserRouter([
       { path: 'admin/attendance', element: <ProtectedRoute requireAdmin><AdminAttendancePage /></ProtectedRoute> },
       { path: 'admin/attendance/:profileId', element: <ProtectedRoute requireAdmin><AdminAttendanceDetailPage /></ProtectedRoute> },
       { path: 'admin/payroll', element: <ProtectedRoute requireAdmin><AdminPayrollPage /></ProtectedRoute> },
+      { path: 'admin/operation-logs', element: <ProtectedRoute requireAdmin><AdminOperationLogsPage /></ProtectedRoute> },
     ],
   },
   {

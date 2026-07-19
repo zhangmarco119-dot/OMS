@@ -151,7 +151,9 @@ function StaffDashboard() {
 
         <section className="grid grid-cols-2 gap-2.5">
           <MetricCard label="今日待办" note="任务及需确认公告" to="/app/todos" value={summary?.count ?? '—'} />
-          <MetricCard label={auth.profile?.employment_type === 'part_time' ? '兼职工作台' : '工作台'} note={auth.profile?.employment_type === 'part_time' ? '工时填报、记录与薪资' : '点货、订货、到货与任务'} to="/app/workbench" value="进入" />
+          {auth.profile?.employment_type === 'part_time'
+            ? <MetricCard label="工时填报" note="快速提交本次兼职工时" to="/app/overtime?tab=submit" value="填报" />
+            : <MetricCard label="工作台" note="点货、订货、到货与任务" to="/app/workbench" value="进入" />}
         </section>
 
         <SectionCard>

@@ -33,4 +33,16 @@ describe('AppMenuPage administrator workbench', () => {
     expect(screen.getByRole('link', { name: /加班管理/ })).toHaveAttribute('href', '/app/overtime');
     expect(screen.queryByRole('link', { name: /考勤管理/ })).not.toBeInTheDocument();
   });
+
+  it('gives administrators an operation-log entry', () => {
+    vi.mocked(useAuth).mockReturnValue({ profile: { role: 'admin' } } as ReturnType<typeof useAuth>);
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AppMenuPage /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /操作日志/ })).toHaveAttribute('href', '/app/admin/operation-logs');
+  });
+
+  it('labels the part-time entry as part-time work-hour submission', () => {
+    vi.mocked(useAuth).mockReturnValue({ profile: { employment_type: 'part_time', role: 'staff' } } as ReturnType<typeof useAuth>);
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AppMenuPage /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /兼职工时填报/ })).toHaveAttribute('href', '/app/overtime?tab=submit');
+  });
 });

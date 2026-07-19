@@ -421,6 +421,12 @@ export type Database = {
         Update: { audience?: 'staff_manager' | 'admin'; content_html?: string; document_version?: string; slug?: string; summary?: string; title?: string; updated_at?: string; updated_by?: string | null; };
         Relationships: [];
       };
+      system_release_control: {
+        Row: { active_release: string; allowed_releases: string[]; check_interval_seconds: number; enforcement_mode: 'off' | 'warn' | 'block'; message: string; minimum_database_contract: number; singleton: boolean; updated_at: string; updated_by: string | null };
+        Insert: { active_release: string; allowed_releases: string[]; check_interval_seconds?: number; enforcement_mode?: 'off' | 'warn' | 'block'; message?: string; minimum_database_contract?: number; singleton?: boolean; updated_at?: string; updated_by?: string | null };
+        Update: { active_release?: string; allowed_releases?: string[]; check_interval_seconds?: number; enforcement_mode?: 'off' | 'warn' | 'block'; message?: string; minimum_database_contract?: number; singleton?: boolean; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
       v2_sop_stores: {
         Row: { created_at: string; sop_id: string; store_id: string; };
         Insert: { created_at?: string; sop_id: string; store_id: string; };
@@ -967,6 +973,8 @@ export type Database = {
       };
     };
     Functions: {
+      get_system_release_policy: { Args: Record<PropertyKey, never>; Returns: Json };
+      configure_system_release_policy: { Args: { p_active_release: string; p_allowed_releases: string[]; p_minimum_database_contract?: number; p_enforcement_mode?: string; p_check_interval_seconds?: number; p_message?: string }; Returns: Json };
       admin_save_operation_report_template: { Args: { p_enabled: boolean; p_fields: Json; p_refund_note: string; p_store_id: string; p_title: string }; Returns: Json };
       begin_operation_report_refresh: { Args: { p_report_date: string; p_store_id: string }; Returns: Json };
       get_operation_report_availability: { Args: { p_store_id: string }; Returns: Json };

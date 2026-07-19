@@ -1,5 +1,7 @@
 # StoreHub 部署说明
 
+强制更新、两阶段启用和回滚操作见 [RELEASE_UPDATE_AND_ROLLBACK.md](./RELEASE_UPDATE_AND_ROLLBACK.md)。
+
 StoreHub 只允许以下发布关系，详细安全规则见 [ENVIRONMENT_ISOLATION.md](./ENVIRONMENT_ISOLATION.md)。
 
 | Git 分支 | 应用环境 | Supabase | Cloudflare 用途 |

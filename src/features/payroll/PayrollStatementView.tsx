@@ -11,7 +11,7 @@ const monthLabel = (month: string) => {
 
 export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }: { adminNote?: string; estimate: PayrollEstimate; payrollMonth: string }) {
   const earnings = estimate.employmentType === 'part_time' ? [
-    ['兼职工资', estimate.accruedPartTimeWage],
+    ['兼职薪资', estimate.accruedPartTimeWage],
   ] as const : [
     ['基本工资', estimate.accruedBaseSalary],
     ['房补', estimate.accruedHousingAllowance],

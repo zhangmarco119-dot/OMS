@@ -954,6 +954,8 @@ export type Database = {
       admin_save_payroll_performance_rule: { Args: { p_fields: Json }; Returns: string };
       admin_save_payroll_performance_override: { Args: { p_payroll_month: string; p_performance_score?: number | null; p_profile_id: string }; Returns: Json };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
+      get_attendance_automation_settings: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_save_attendance_automation_settings: { Args: { p_enabled: boolean; p_end_time: string; p_interval_minutes: number; p_start_time: string }; Returns: Json };
       configure_pos_sales_integration: { Args: { p_enabled: boolean; p_end_hour: number; p_integration_id: string; p_interval_minutes: number; p_start_hour: number }; Returns: Json };
       replace_pos_sales_range: { Args: { p_api_call_count: number; p_end_date: string; p_integration_id: string; p_start_date: string; p_sync_job_id: string; p_tickets: Json }; Returns: Json };
       save_payroll_store_revenue_input: { Args: { p_as_of_date: string; p_input_mode: string; p_manual_cumulative_amount?: number | null; p_note?: string; p_store_id: string }; Returns: Json };

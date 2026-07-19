@@ -413,51 +413,51 @@ export async function uploadPayrollEvidence(client: Client, input: { file: File;
 
 export async function loadMyOvertimeRequests(client: Client, profileId: string) {
   const { data, error } = await client.from('payroll_overtime_requests').select('*').eq('profile_id', profileId).order('overtime_date', { ascending: false });
-  if (error) throw new Error(error.message || '暂时无法加载加班申请。');
+  if (error) throw new Error(error.message || '暂时无法加载工时申请。');
   return data ?? [];
 }
 
 export async function loadManagerOvertimeRequests(client: Client, storeIds: string[]) {
   if (!storeIds.length) return [];
   const { data, error } = await client.from('payroll_overtime_requests').select('*').in('store_id', storeIds).order('created_at', { ascending: false });
-  if (error) throw new Error(error.message || '暂时无法加载加班审批。');
+  if (error) throw new Error(error.message || '暂时无法加载工时审批。');
   return data ?? [];
 }
 
 export async function loadAllOvertimeRequests(client: Client) {
   const { data, error } = await client.from('payroll_overtime_requests').select('*').order('created_at', { ascending: false });
-  if (error) throw new Error(error.message || '暂时无法加载加班审批。');
+  if (error) throw new Error(error.message || '暂时无法加载工时审批。');
   return data ?? [];
 }
 
 export async function loadOvertimeProfiles(client: Client, profileIds: string[]) {
   if (!profileIds.length) return [];
   const { data, error } = await client.from('profiles').select('*').in('id', Array.from(new Set(profileIds)));
-  if (error) throw new Error(error.message || '暂时无法加载加班申请人信息。');
+  if (error) throw new Error(error.message || '暂时无法加载工时申请人信息。');
   return data ?? [];
 }
 
 export async function submitOvertimeRequest(client: Client, input: { storeId: string; overtimeDate: string; hours: number; reason?: string }) {
   const { data, error } = await client.rpc('submit_payroll_overtime_request', { p_store_id: input.storeId, p_overtime_date: input.overtimeDate, p_hours: input.hours, p_reason: input.reason });
-  if (error) throw new Error(error.message || '加班申请提交失败。');
+  if (error) throw new Error(error.message || '工时申请提交失败。');
   return data as unknown as OvertimeRequestRow;
 }
 
 export async function updateOvertimeRequest(client: Client, id: string, input: { storeId: string; overtimeDate: string; hours: number; reason?: string }) {
   const { data, error } = await client.rpc('update_payroll_overtime_request', { p_request_id: id, p_store_id: input.storeId, p_overtime_date: input.overtimeDate, p_hours: input.hours, p_reason: input.reason });
-  if (error) throw new Error(error.message || '加班申请修改失败。');
+  if (error) throw new Error(error.message || '工时申请修改失败。');
   return data as unknown as OvertimeRequestRow;
 }
 
 export async function reviewOvertimeRequest(client: Client, id: string, action: 'approved' | 'rejected', note: string) {
   const { data, error } = await client.rpc('review_payroll_overtime_request', { p_request_id: id, p_action: action, p_note: note });
-  if (error) throw new Error(error.message || '加班审批提交失败。');
+  if (error) throw new Error(error.message || '工时审批提交失败。');
   return data as unknown as OvertimeRequestRow;
 }
 
 export async function saveOvertimeRate(client: Client, input: { hourlyRate: number; effectiveFrom: string; changeReason: string }) {
   const { error } = await client.rpc('admin_save_payroll_overtime_rate', { p_hourly_rate: input.hourlyRate, p_effective_from: input.effectiveFrom, p_change_reason: input.changeReason });
-  if (error) throw new Error(error.message || '加班时薪保存失败。');
+  if (error) throw new Error(error.message || '计薪时薪保存失败。');
 }
 
 export type PayrollEmployeeRule = RuleRow;

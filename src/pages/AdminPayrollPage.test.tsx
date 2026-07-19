@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
@@ -40,6 +40,11 @@ const estimate = {
   attendanceUpdatedAt: null, tasksUpdatedAt: null, revenueUpdatedAt: null, penaltiesUpdatedAt: null, overtimeUpdatedAt: null,
   dataIssues: ['营业收入待更新'],
 };
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+}
 
 describe('AdminPayrollPage update guidance', () => {
   beforeEach(() => {
@@ -86,5 +91,13 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.queryByRole('button',{ name:/立即发放/ })).not.toBeInTheDocument();
     expect(screen.getByText('工资单自动推送')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
+  });
+
+  it('returns from employee details to the filtered payroll list', async () => {
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=overview&date=2026-07-18&store=store-1&employee=profile-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<><AdminPayrollPage /><LocationProbe /></>} /></Routes></MemoryRouter>);
+    expect(await screen.findByText('测试员工')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/admin/payroll?tab=overview&date=2026-07-18&store=store-1'));
+    expect(await screen.findByPlaceholderText('搜索员工姓名或账号')).toBeInTheDocument();
   });
 });

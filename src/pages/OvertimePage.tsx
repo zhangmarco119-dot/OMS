@@ -44,6 +44,8 @@ export function OvertimePage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') === 'records' ? 'records' : 'submit';
   const isManager = auth.profile?.role === 'manager';
+  const isPartTime = auth.profile?.employment_type === 'part_time';
+  const workTerm = isPartTime ? '兼职工时' : '加班';
   const today = todayInChina();
   const earliestDate = daysAgoInChina(5);
   const [mine, setMine] = useState<RequestRow[]>([]);
@@ -87,10 +89,10 @@ export function OvertimePage() {
       setProfiles(Object.fromEntries(profileRows.map((profile) => [profile.id, profile])));
       setStatus('ready');
     } catch (error) {
-      setFeedback({ title: '加载失败', message: error instanceof Error ? error.message : '暂时无法加载加班记录。', tone: 'danger' });
+      setFeedback({ title: '加载失败', message: error instanceof Error ? error.message : `暂时无法加载${workTerm}记录。`, tone: 'danger' });
       setStatus('ready');
     }
-  }, [auth.availableStores, auth.profile, isManager]);
+  }, [auth.availableStores, auth.profile, isManager, workTerm]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -105,11 +107,11 @@ export function OvertimePage() {
 
   const submit = async () => {
     if (!supabase || !auth.profile || !storeId || !hours) {
-      setFeedback({ title: '请完善加班信息', message: '请选择门店、加班日期和加班小时。', tone: 'warning' });
+      setFeedback({ title: `请完善${workTerm}信息`, message: `请选择门店、${workTerm}日期和${workTerm}小时。`, tone: 'warning' });
       return;
     }
     if (date < earliestDate || date > today) {
-      setFeedback({ title: '加班日期不在可填范围', message: '只能填报今天或过去 5 日内的加班。', tone: 'warning' });
+      setFeedback({ title: `${workTerm}日期不在可填范围`, message: `只能填报今天或过去 5 日内的${workTerm}。`, tone: 'warning' });
       return;
     }
     setBusy(true);
@@ -119,8 +121,8 @@ export function OvertimePage() {
       else await submitOvertimeRequest(supabase, input);
       const reviewer = auth.profile.role === 'manager' ? '管理员' : '店长';
       setFeedback({
-        title: editingId ? '加班修改已提交' : '加班申请已提交',
-        message: `申请已发送到${reviewer}待办，只有审批通过后才会计入预估工资。`,
+        title: editingId ? `${workTerm}修改已提交` : `${workTerm}申请已提交`,
+        message: `申请已发送到${reviewer}待办，只有审批通过后才会计入${isPartTime ? '预估薪资' : '预估工资'}。`,
         tone: 'success',
       });
       resetForm();
@@ -147,7 +149,8 @@ export function OvertimePage() {
   const confirmReview = async () => {
     if (!supabase || !review) return;
     if (review.action === 'rejected' && !reviewNote.trim()) {
-      setFeedback({ title: '请填写驳回原因', message: '驳回加班申请时必须说明原因。', tone: 'warning' });
+      const term = profiles[review.request.profile_id]?.employment_type === 'part_time' ? '兼职工时' : '加班';
+      setFeedback({ title: '请填写驳回原因', message: `驳回${term}申请时必须说明原因。`, tone: 'warning' });
       return;
     }
     const copy = review;
@@ -156,9 +159,10 @@ export function OvertimePage() {
       await reviewOvertimeRequest(supabase, copy.request.id, copy.action, reviewNote.trim());
       setReviewNote('');
       window.dispatchEvent(new Event('storehub:todos-changed'));
+      const term = profiles[copy.request.profile_id]?.employment_type === 'part_time' ? '兼职工时' : '加班';
       setFeedback({
-        title: copy.action === 'approved' ? '加班申请已通过' : '加班申请已驳回',
-        message: copy.action === 'approved' ? '审批时薪已经锁定，加班工资将计入员工预估工资。' : '员工会在通知中心看到驳回结果和原因。',
+        title: copy.action === 'approved' ? `${term}申请已通过` : `${term}申请已驳回`,
+        message: copy.action === 'approved' ? `审批时薪已经锁定，${term === '兼职工时' ? '兼职薪资' : '加班工资'}将计入员工预估工资。` : '员工会在通知中心看到驳回结果和原因。',
         tone: 'success',
       });
       await load();
@@ -180,15 +184,15 @@ export function OvertimePage() {
   const approvedHours = approvedRows.reduce((total, item) => total + Number(item.hours), 0);
   const approvedWage = approvedRows.reduce((total, item) => total + Number(item.hours) * Number(item.approved_hourly_rate ?? 0), 0);
 
-  return <PageShell eyebrow="门店运营系统" title="加班管理" backTo="/app/workbench" contentGapClassName="gap-3">
-    <nav aria-label="加班管理菜单" className="ui-card grid grid-cols-2 gap-1 p-1.5">
-      <button className={`min-h-10 rounded-lg text-sm font-bold ${tab === 'submit' ? 'bg-brand-700 text-white' : 'text-slate-600'}`} onClick={() => setTab('submit')} type="button">加班填报</button>
-      <button className={`min-h-10 rounded-lg text-sm font-bold ${tab === 'records' ? 'bg-brand-700 text-white' : 'text-slate-600'}`} onClick={() => setTab('records')} type="button">加班记录</button>
+  return <PageShell eyebrow="门店运营系统" title={isPartTime ? '兼职工时' : '加班管理'} backTo="/app/workbench" contentGapClassName="gap-3">
+    <nav aria-label={isPartTime ? '兼职工时菜单' : '加班管理菜单'} className="ui-card grid grid-cols-2 gap-1 p-1.5">
+      <button className={`min-h-10 rounded-lg text-sm font-bold ${tab === 'submit' ? 'bg-brand-700 text-white' : 'text-slate-600'}`} onClick={() => setTab('submit')} type="button">{isPartTime ? '兼职工时填报' : '加班填报'}</button>
+      <button className={`min-h-10 rounded-lg text-sm font-bold ${tab === 'records' ? 'bg-brand-700 text-white' : 'text-slate-600'}`} onClick={() => setTab('records')} type="button">{isPartTime ? '兼职工时记录' : '加班记录'}</button>
     </nav>
 
     {tab === 'submit' ? <>
       {isManager ? <SectionCard>
-        <SectionHeader icon={CheckCircle2} title="员工加班审批" description={`当前 ${pendingApprovals.length} 条待处理`} />
+        <SectionHeader icon={CheckCircle2} title="员工工时审批" description={`当前 ${pendingApprovals.length} 条待处理`} />
         <div className="mt-3 space-y-2">
           {pendingApprovals.map((item) => <article className="rounded-lg border border-amber-200 bg-amber-50 p-3" key={item.id}>
             <div className="flex items-start justify-between gap-3">
@@ -197,22 +201,22 @@ export function OvertimePage() {
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => setReview({ request: item, action: 'rejected' })} type="button">驳回</button><button className="ui-button-primary" onClick={() => setReview({ request: item, action: 'approved' })} type="button">通过</button></div>
           </article>)}
-          {!pendingApprovals.length ? <p className="py-2 text-sm text-slate-500">当前没有待审批的员工加班申请。</p> : null}
+          {!pendingApprovals.length ? <p className="py-2 text-sm text-slate-500">当前没有待审批的员工工时申请。</p> : null}
         </div>
       </SectionCard> : null}
 
       <SectionCard>
-        <SectionHeader icon={Clock3} title={editingId ? '修改加班申请' : '填写加班申请'} />
+        <SectionHeader icon={Clock3} title={editingId ? `修改${workTerm}申请` : `填写${workTerm}`} />
         {editingId ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">修改后会重新进入审批，原审批结果暂时失效。</p> : null}
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <label className="text-sm font-semibold">加班门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
-          <label className="text-sm font-semibold">加班日期<input className="ui-input mt-1" max={today} min={earliestDate} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
-          <fieldset className="col-span-2"><legend className="text-sm font-semibold">加班小时</legend><button aria-expanded={hoursOpen} className="ui-input mt-1 flex items-center justify-between text-left font-semibold" onClick={() => setHoursOpen((value) => !value)} type="button"><span>{hours ? `${hours} 小时` : '点击选择加班小时'}</span><span className="text-slate-400">{hoursOpen ? '收起' : '展开'}</span></button>{hoursOpen ? <div className="mt-2 grid grid-cols-3 gap-2">{hourOptions.map((value) => <button aria-pressed={hours === String(value)} className={`min-h-10 rounded-lg border text-sm font-bold ${hours === String(value) ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} key={value} onClick={() => { setHours(String(value)); setHoursOpen(false); }} type="button">{value} 小时</button>)}</div> : null}</fieldset>
+          <label className="text-sm font-semibold">{isPartTime ? '兼职门店' : '加班门店'}<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+          <label className="text-sm font-semibold">{workTerm}日期<input className="ui-input mt-1" max={today} min={earliestDate} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
+          <fieldset className="col-span-2"><legend className="text-sm font-semibold">{workTerm}</legend><button aria-expanded={hoursOpen} className="ui-input mt-1 flex items-center justify-between text-left font-semibold" onClick={() => setHoursOpen((value) => !value)} type="button"><span>{hours ? `${hours} 小时` : `点击选择${workTerm}`}</span><span className="text-slate-400">{hoursOpen ? '收起' : '展开'}</span></button>{hoursOpen ? <div className="mt-2 grid grid-cols-3 gap-2">{hourOptions.map((value) => <button aria-pressed={hours === String(value)} className={`min-h-10 rounded-lg border text-sm font-bold ${hours === String(value) ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} key={value} onClick={() => { setHours(String(value)); setHoursOpen(false); }} type="button">{value} 小时</button>)}</div> : null}</fieldset>
         </div>
-        <label className="mt-3 block text-sm font-semibold">加班说明（选填）<textarea className="ui-input mt-1 min-h-16 py-2" onChange={(event) => setReason(event.target.value)} placeholder="可简要说明加班完成的工作" value={reason} /></label>
+        <label className="mt-3 block text-sm font-semibold">{workTerm}说明（选填）<textarea className="ui-input mt-1 min-h-16 py-2" onChange={(event) => setReason(event.target.value)} placeholder={`可简要说明${workTerm}完成的工作`} value={reason} /></label>
         <div className={`mt-3 grid gap-2 ${editingId ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {editingId ? <button className="ui-button-secondary" onClick={resetForm} type="button">取消修改</button> : null}
-          <button className="ui-button-primary w-full" disabled={busy} onClick={() => void submit()} type="button">{busy ? '正在提交' : editingId ? '提交修改申请' : '提交加班申请'}</button>
+          <button className="ui-button-primary w-full" disabled={busy} onClick={() => void submit()} type="button">{busy ? '正在提交' : editingId ? '提交修改申请' : `提交${workTerm}`}</button>
         </div>
       </SectionCard>
     </> : null}
@@ -220,12 +224,12 @@ export function OvertimePage() {
     {tab === 'records' ? <>
       <label className="ui-card block p-3 text-sm font-semibold text-slate-700">查看月份<input className="ui-input mt-1" max={today.slice(0, 7)} onChange={(event) => setRecordMonth(event.target.value)} type="month" value={recordMonth} /></label>
       <section className="grid grid-cols-2 gap-2">
-        <SectionCard className="p-3"><p className="text-xs font-semibold text-slate-500">本月加班汇总</p><b className="mt-1 block text-xl text-slate-900">{approvedHours} 小时</b><p className="mt-1 text-[11px] text-slate-500">申报 {monthRows.length} 次 · 通过 {approvedRows.length} 次</p></SectionCard>
-        <SectionCard className="p-3"><p className="text-xs font-semibold text-slate-500">本月加班工资汇总</p><b className="mt-1 block text-xl text-brand-700">{formatMoney(approvedWage)}</b><p className="mt-1 text-[11px] text-slate-500">仅统计已审批通过记录</p></SectionCard>
+        <SectionCard className="p-3"><p className="text-xs font-semibold text-slate-500">本月{workTerm}汇总</p><b className="mt-1 block text-xl text-slate-900">{approvedHours} 小时</b><p className="mt-1 text-[11px] text-slate-500">申报 {monthRows.length} 次 · 通过 {approvedRows.length} 次</p></SectionCard>
+        <SectionCard className="p-3"><p className="text-xs font-semibold text-slate-500">本月{isPartTime ? '兼职薪资' : '加班工资'}汇总</p><b className="mt-1 block text-xl text-brand-700">{formatMoney(approvedWage)}</b><p className="mt-1 text-[11px] text-slate-500">仅统计已审批通过记录</p></SectionCard>
       </section>
       <SectionCard>
-        <SectionHeader title="加班记录" description="修改申请后需要重新审批，审批通过后才计入工资。" />
-        {status === 'loading' ? <LoadingState label="正在加载加班记录" /> : <div className="mt-3 space-y-2">
+        <SectionHeader title={`${workTerm}记录`} description={`修改申请后需要重新审批，审批通过后才计入${isPartTime ? '兼职薪资' : '工资'}。`} />
+        {status === 'loading' ? <LoadingState label={`正在加载${workTerm}记录`} /> : <div className="mt-3 space-y-2">
           {monthRows.map((item) => {
             const editable = submittedDateInChina(item.created_at) >= earliestDate;
             return <article className="rounded-lg bg-slate-50 p-3" key={item.id}>
@@ -233,12 +237,12 @@ export function OvertimePage() {
               {editable ? <button className="ui-button-secondary mt-2 min-h-9 w-full text-xs" onClick={() => beginEdit(item)} type="button"><Pencil className="h-3.5 w-3.5" />申请修改</button> : null}
             </article>;
           })}
-          {!monthRows.length ? <EmptyState title="本月暂无加班记录" /> : null}
+          {!monthRows.length ? <EmptyState title={`本月暂无${workTerm}记录`} /> : null}
         </div>}
       </SectionCard>
     </> : null}
 
-    <ConfirmDialog confirmLabel={review?.action === 'approved' ? '确认通过' : '确认驳回'} danger={review?.action === 'rejected'} onCancel={() => { setReview(null); setReviewNote(''); }} onConfirm={() => void confirmReview()} open={Boolean(review)} title={review?.action === 'approved' ? '确认通过加班申请' : '驳回加班申请'}>
+    <ConfirmDialog confirmLabel={review?.action === 'approved' ? '确认通过' : '确认驳回'} danger={review?.action === 'rejected'} onCancel={() => { setReview(null); setReviewNote(''); }} onConfirm={() => void confirmReview()} open={Boolean(review)} title={review ? `${review.action === 'approved' ? '确认通过' : '驳回'}${profiles[review.request.profile_id]?.employment_type === 'part_time' ? '兼职工时' : '加班'}申请` : ''}>
       <p className="text-sm text-slate-600">{review?.request.overtime_date} · {review?.request.hours} 小时</p>
       <label className="mt-3 block text-sm font-semibold">审批说明{review?.action === 'approved' ? '（选填）' : ''}<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setReviewNote(event.target.value)} value={reviewNote} /></label>
     </ConfirmDialog>

@@ -146,7 +146,7 @@ function StaffDashboard() {
 
         {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
 
-        {auth.profile?.employment_type === 'part_time' ? <section className="grid grid-cols-2 gap-2.5"><MetricCard label="本月兼职工时" note="仅统计已审批工时" tone="brand" to="/app/overtime?tab=records" value={partTimePayroll ? `${partTimePayroll.partTimeHours} 小时` : '—'} /><MetricCard label="本月累计薪资" note="兼职工资实时汇总" tone="brand" to="/app/payroll" value={partTimePayroll ? formatMoney(partTimePayroll.accruedPartTimeWage) : '—'} /></section> : null}
+        {auth.profile?.employment_type === 'part_time' ? <section className="grid grid-cols-2 gap-2.5"><MetricCard label="本月兼职工时" note="仅统计已审批工时" tone="brand" to="/app/overtime?tab=records" value={partTimePayroll ? `${partTimePayroll.partTimeHours} 小时` : '—'} /><MetricCard label="本月累计薪资" note="兼职薪资实时汇总" tone="brand" to="/app/payroll" value={partTimePayroll ? formatMoney(partTimePayroll.accruedPartTimeWage) : '—'} /></section> : null}
 
         <section className="grid grid-cols-2 gap-2.5">
           <MetricCard label="今日待办" note="任务及需确认公告" to="/app/todos" value={summary?.count ?? '—'} />

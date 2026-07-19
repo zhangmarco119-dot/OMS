@@ -38,6 +38,7 @@ const objectAt = (value: Json | null | undefined): Record<string, Json | undefin
 const arrayAt = (value: Json | undefined) => Array.isArray(value) ? value : [];
 const textAt = (value: Json | undefined, fallback = '') => typeof value === 'string' ? value : fallback;
 const numberAt = (value: Json | undefined) => typeof value === 'number' ? value : 0;
+const boolAt = (value: Json | undefined) => value === true;
 
 const parseSummary = (value: Json | undefined): AttendanceMonthSummary => {
   const source = objectAt(value);
@@ -162,10 +163,44 @@ export const invokeAttendanceSync = async (client: Client, body: Record<string, 
   return response;
 };
 
-export const configureAttendanceAutomation = async (client: Client) => {
-  const { data, error } = await client.rpc('configure_attendance_automation');
-  if (error) throw new Error('每小时自动同步暂时无法启用，请稍后重试。');
-  return objectAt(data);
+export interface AttendanceAutomationSettings {
+  configured: boolean;
+  configuredAt: string | null;
+  enabled: boolean;
+  endTime: string;
+  intervalMinutes: number;
+  lastDispatchedAt: string | null;
+  startTime: string;
+}
+
+const parseAttendanceAutomationSettings = (value: Json | null): AttendanceAutomationSettings => {
+  const source = objectAt(value);
+  return {
+    configured: boolAt(source.configured),
+    configuredAt: typeof source.configuredAt === 'string' ? source.configuredAt : null,
+    enabled: boolAt(source.enabled),
+    endTime: textAt(source.endTime, '23:55').slice(0, 5),
+    intervalMinutes: numberAt(source.intervalMinutes) || 60,
+    lastDispatchedAt: typeof source.lastDispatchedAt === 'string' ? source.lastDispatchedAt : null,
+    startTime: textAt(source.startTime, '00:05').slice(0, 5),
+  };
+};
+
+export const loadAttendanceAutomationSettings = async (client: Client) => {
+  const { data, error } = await client.rpc('get_attendance_automation_settings');
+  if (error) throw new Error('暂时无法加载考勤自动同步设置。');
+  return parseAttendanceAutomationSettings(data);
+};
+
+export const saveAttendanceAutomationSettings = async (client: Client, settings: Pick<AttendanceAutomationSettings, 'enabled' | 'endTime' | 'intervalMinutes' | 'startTime'>) => {
+  const { data, error } = await client.rpc('admin_save_attendance_automation_settings', {
+    p_enabled: settings.enabled,
+    p_end_time: settings.endTime,
+    p_interval_minutes: settings.intervalMinutes,
+    p_start_time: settings.startTime,
+  });
+  if (error) throw new Error(error.message || '考勤自动同步设置保存失败。');
+  return parseAttendanceAutomationSettings(data);
 };
 
 export const loadAttendanceSyncJobs = async (client: Client): Promise<AttendanceSyncJob[]> => {

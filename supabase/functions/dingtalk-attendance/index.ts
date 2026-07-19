@@ -223,8 +223,8 @@ Deno.serve(async (request) => {
     if (payload.mode === 'month-start' && today.slice(8, 10) !== '01') {
       return json({ status: 'skipped', message: '当前企业日期不是每月 1 日，月初回补任务已安全跳过。' });
     }
-    startDate = payload.mode === 'month-start' ? shiftDate(today.slice(0, 7) + '-01', -5) : shiftDate(today, -6);
-    endDate = today; syncType = 'date_range';
+    startDate = payload.mode === 'month-start' ? shiftDate(today.slice(0, 7) + '-01', -5) : `${today.slice(0, 7)}-01`;
+    endDate = today; syncType = payload.mode === 'month-start' ? 'date_range' : 'current_month';
     }
   } else {
     return json({ error: '未知考勤操作。' }, 400);

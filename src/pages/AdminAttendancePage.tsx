@@ -1,4 +1,4 @@
-import { AlertTriangle, Building2, Link2, ListChecks, RefreshCw, Search, Unlink, Users } from 'lucide-react';
+import { AlertTriangle, Building2, Link2, ListChecks, RefreshCw, Search, Settings2, Unlink, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
@@ -6,12 +6,12 @@ import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/fee
 import { PageShell } from '../components/layout/PageShell';
 import { ConfirmDialog } from '../components/ui/Actions';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
-import { SectionCard } from '../components/ui/Surface';
+import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { currentMonth } from '../features/attendance/model';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
-import { bindAttendanceEmployee, configureAttendanceAutomation, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceSyncJobs, removeAttendanceEnterpriseMapping, saveAttendanceEnterpriseMapping, unbindAttendanceEmployee, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceSyncJob } from '../services/attendance.service';
+import { bindAttendanceEmployee, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceAutomationSettings, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceSyncJobs, removeAttendanceEnterpriseMapping, saveAttendanceAutomationSettings, saveAttendanceEnterpriseMapping, unbindAttendanceEmployee, type AttendanceAutomationSettings, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceSyncJob } from '../services/attendance.service';
 
 type Tab = 'overview' | 'enterprises' | 'bindings' | 'logs';
 
@@ -42,7 +42,8 @@ function AttendanceOverview() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [syncing, setSyncing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [automationReady, setAutomationReady] = useState(false);
+  const [automation, setAutomation] = useState<AttendanceAutomationSettings>({ configured: false, configuredAt: null, enabled: false, endTime: '23:55', intervalMinutes: 60, lastDispatchedAt: null, startTime: '00:05' });
+  const [automationBusy, setAutomationBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ title: string; message: string; tone: ActionFeedbackTone } | null>(null);
   const load = useCallback(async () => {
     if (!supabase) { setStatus('error'); return; }
@@ -53,8 +54,22 @@ function AttendanceOverview() {
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => {
     if (!supabase) return;
-    void configureAttendanceAutomation(supabase).then(() => setAutomationReady(true)).catch(() => setAutomationReady(false));
+    void loadAttendanceAutomationSettings(supabase).then(setAutomation).catch(() => setFeedback({ title: '自动同步设置加载失败', message: '暂时无法读取当前设置，请稍后重试。', tone: 'warning' }));
   }, []);
+  const saveAutomation = async () => {
+    if (!supabase) return;
+    if (!automation.startTime || !automation.endTime || automation.startTime > automation.endTime) {
+      setFeedback({ title: '请检查同步时段', message: '结束时间不能早于开始时间。', tone: 'warning' });
+      return;
+    }
+    setAutomationBusy(true);
+    try {
+      const saved = await saveAttendanceAutomationSettings(supabase, automation);
+      setAutomation(saved);
+      setFeedback({ title: '考勤自动同步设置已保存', message: saved.enabled ? `系统将在每天 ${saved.startTime}–${saved.endTime}，每 ${saved.intervalMinutes} 分钟同步一次当月考勤。` : '考勤自动同步已关闭，仍可使用手动同步。', tone: 'success' });
+    } catch (error) { setFeedback({ title: '自动同步设置保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); }
+    finally { setAutomationBusy(false); }
+  };
   const sync = async () => {
     if (!supabase) return;
     setSyncing(true);
@@ -99,7 +114,13 @@ function AttendanceOverview() {
         <div className="mt-2 grid grid-cols-2 gap-2"><label className="text-xs font-semibold text-slate-600">开始月份<input className="ui-input mt-1" max={historyEnd} onChange={(event) => setHistoryStart(event.target.value)} type="month" value={historyStart} /></label><label className="text-xs font-semibold text-slate-600">结束月份<input className="ui-input mt-1" max={currentMonth()} min={historyStart} onChange={(event) => setHistoryEnd(event.target.value)} type="month" value={historyEnd} /></label></div>
         <button className="ui-button-secondary mt-2 w-full" disabled={syncing} onClick={() => void syncHistory()} type="button">建立时间段同步队列</button>
       </details>
-      <p className={`mt-2 text-xs ${automationReady ? 'text-emerald-700' : 'text-amber-700'}`}>{automationReady ? '每小时自动同步已启用；历史队列每 10 分钟处理一个月份。' : '正在确认每小时自动同步设置。'}</p>
+    </SectionCard>
+    <SectionCard className="p-3.5">
+      <SectionHeader icon={Settings2} title="当月考勤自动同步" description="自动同步会重新拉取本月 1 日至当天的数据；历史月份仍通过时间段同步队列处理。" />
+      <label className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 p-3 text-sm font-semibold"><span>启用自动同步</span><input checked={automation.enabled} className="h-5 w-5 accent-emerald-700" onChange={(event) => setAutomation((value) => ({ ...value, enabled: event.target.checked }))} type="checkbox" /></label>
+      <div className="mt-3 grid grid-cols-3 gap-2"><label className="text-xs font-semibold text-slate-600">同步周期<select className="ui-input mt-1" disabled={!automation.enabled} onChange={(event) => setAutomation((value) => ({ ...value, intervalMinutes: Number(event.target.value) }))} value={automation.intervalMinutes}>{[30,60,120,180,360,720].map((value) => <option key={value} value={value}>{value < 60 ? `${value} 分钟` : `${value / 60} 小时`}</option>)}</select></label><label className="text-xs font-semibold text-slate-600">开始时间<input className="ui-input mt-1" disabled={!automation.enabled} onChange={(event) => setAutomation((value) => ({ ...value, startTime: event.target.value }))} type="time" value={automation.startTime} /></label><label className="text-xs font-semibold text-slate-600">结束时间<input className="ui-input mt-1" disabled={!automation.enabled} onChange={(event) => setAutomation((value) => ({ ...value, endTime: event.target.value }))} type="time" value={automation.endTime} /></label></div>
+      <p className="mt-2 text-xs leading-5 text-slate-500">历史同步队列每 10 分钟处理一个月份，不受本设置影响。{automation.lastDispatchedAt ? ` 最近自动同步：${new Date(automation.lastDispatchedAt).toLocaleString('zh-CN')}。` : ''}</p>
+      <button className="ui-button-primary mt-3 w-full" disabled={automationBusy} onClick={() => void saveAutomation()} type="button">{automationBusy ? '正在保存' : '保存自动同步设置'}</button>
     </SectionCard>
     {status === 'loading' ? <LoadingState label="正在汇总员工考勤" /> : null}
     {status === 'error' ? <ErrorState message="暂时无法加载门店考勤汇总。" onRetry={() => void load()} /> : null}

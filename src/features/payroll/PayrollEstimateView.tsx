@@ -57,10 +57,10 @@ function PartTimePayrollEstimateView({ estimate, mode }: { estimate: PayrollEsti
   return <>
     <SectionCard className="border-brand-100 bg-gradient-to-br from-brand-700 to-emerald-800 text-white">
       <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-white">{estimate.displayName} · 兼职</p><p className="mt-1 text-xs font-semibold text-emerald-100">{mode === 'payslip' ? `截至 ${estimate.asOf} 的工资单金额` : `截至 ${estimate.asOf} 的实时薪资`}</p><p className="mt-2 text-3xl font-bold tabular-nums">{formatMoney(estimate.accruedPartTimeWage)}</p></div><StatusBadge tone="success">数据完整</StatusBadge></div>
-      <p className="mt-3 text-xs leading-5 text-emerald-100">{mode === 'payslip' ? '这是管理员发放时保存的兼职工资快照。' : '只统计本月已经审批通过的兼职工时，未审批申请不会计入。'}</p>
+      <p className="mt-3 text-xs leading-5 text-emerald-100">{mode === 'payslip' ? '这是管理员发放时保存的兼职薪资快照。' : '只统计本月已经审批通过的兼职工时，未审批申请不会计入。'}</p>
     </SectionCard>
     <SectionCard><SectionHeader icon={Clock3} title="本月兼职汇总" /><div className="mt-3 grid grid-cols-2 gap-2 text-center"><Metric label="累计兼职工时" value={`${estimate.partTimeHours} 小时`} /><Metric label="兼职薪资" value={formatMoney(estimate.accruedPartTimeWage)} /></div></SectionCard>
-    <SectionCard><SectionHeader icon={CircleDollarSign} title="工资明细" description="兼职账号仅计算审批通过的兼职工资。" /><div className="mt-2"><AmountRow label="兼职工资" note={`${estimate.partTimeHours} 小时${estimate.partTimeHourlyRate == null ? '' : ` · 参考时薪 ${formatMoney(estimate.partTimeHourlyRate)}/小时`}`} value={estimate.accruedPartTimeWage} /></div></SectionCard>
+    <SectionCard><SectionHeader icon={CircleDollarSign} title="薪资明细" description="兼职账号仅计算审批通过的兼职工时。" /><div className="mt-2"><AmountRow label="兼职薪资" note={`${estimate.partTimeHours} 小时${estimate.partTimeHourlyRate == null ? '' : ` · 参考时薪 ${formatMoney(estimate.partTimeHourlyRate)}/小时`}`} value={estimate.accruedPartTimeWage} /></div></SectionCard>
     <SectionCard><SectionHeader icon={Database} title="数据更新时间" /><p className="mt-3 text-xs text-slate-600"><Clock3 className="mr-1 inline h-3.5 w-3.5" />兼职工时：{updated(estimate.overtimeUpdatedAt)}</p></SectionCard>
   </>;
 }

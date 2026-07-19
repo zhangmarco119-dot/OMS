@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, ClipboardCheck as ClipboardClock, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, ClipboardCheck as ClipboardClock, RefreshCw, RotateCcw, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -10,6 +10,7 @@ import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   loadOperationLogActors,
   loadOperationLogs,
+  OPERATION_LOGS_CHANGED_EVENT,
   type OperationLog,
   type OperationLogActor,
 } from '../services/operation-logs.service';
@@ -81,18 +82,31 @@ export function AdminOperationLogsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loadingMore, setLoadingMore] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const filters = useMemo(() => ({ actorId, endDate, module, operation, search, startDate, storeId }), [actorId, endDate, module, operation, search, startDate, storeId]);
+  const hasFilters = Boolean(actorId || endDate || module || operation || search || startDate || storeId);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (showLoading = true) => {
     if (!supabase) { setStatus('error'); return; }
-    setStatus('loading');
+    if (showLoading) setStatus('loading');
     try {
       const result = await loadOperationLogs(supabase, filters);
-      setItems(result.items); setTotal(result.total); setStatus('ready');
-    } catch { setStatus('error'); }
+      setItems(result.items); setTotal(result.total); setStatus('ready'); setLastUpdatedAt(new Date());
+    } catch { if (showLoading) setStatus('error'); }
   }, [filters]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => { if (!supabase) return; void loadOperationLogActors(supabase).then(setActors).catch(() => setActors([])); }, []);
+  useEffect(() => {
+    const refresh = () => { if (!document.hidden) void load(false); };
+    const timer = window.setInterval(refresh, 15_000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener(OPERATION_LOGS_CHANGED_EVENT, refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener(OPERATION_LOGS_CHANGED_EVENT, refresh); };
+  }, [load]);
+
+  const resetFilters = () => {
+    setSearch(''); setActorId(''); setStoreId(''); setModule(''); setOperation(''); setStartDate(''); setEndDate('');
+  };
 
   const more = async () => {
     if (!supabase) return;
@@ -114,6 +128,11 @@ export function AdminOperationLogsPage() {
         <select aria-label="操作筛选" className="ui-input" onChange={(event) => setOperation(event.target.value)} value={operation}><option value="">全部操作</option><option value="login">登录</option><option value="viewed">查看</option><option value="created">新建</option><option value="updated">修改/提交/审批</option><option value="deleted">删除</option></select>
         <div className="grid grid-cols-2 gap-1"><input aria-label="开始日期" className="ui-input px-2" onChange={(event) => setStartDate(event.target.value)} type="date" value={startDate} /><input aria-label="结束日期" className="ui-input px-2" min={startDate} onChange={(event) => setEndDate(event.target.value)} type="date" value={endDate} /></div>
       </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button className="ui-button-secondary min-h-10" onClick={() => void load(false)} type="button"><RefreshCw className="h-4 w-4" />立即刷新</button>
+        <button className="ui-button-secondary min-h-10" disabled={!hasFilters} onClick={resetFilters} type="button"><RotateCcw className="h-4 w-4" />清除筛选</button>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">日志每 15 秒自动更新{lastUpdatedAt ? ` · 最近更新 ${lastUpdatedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</p>
     </SectionCard>
     {status === 'loading' ? <LoadingState label="正在加载操作日志" /> : status === 'error' ? <ErrorState message="暂时无法读取操作日志。" onRetry={() => void load()} /> : !items.length ? <EmptyState title="暂无匹配的操作日志" description="可以调整账号、模块、操作或日期筛选条件。" /> : <>
       <p className="px-1 text-xs text-slate-500">共 {total} 条记录</p>

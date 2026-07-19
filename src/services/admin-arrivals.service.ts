@@ -179,14 +179,17 @@ export const loadAdminArrivalList = async (client: Client, filters: AdminArrival
   let query = client
     .from('arrival_reports')
     .select('*', { count: 'exact' })
-    .neq('status', 'draft')
     .order('submitted_at', { ascending: false })
     .range(from, from + pageSize - 1);
 
   if (filters.storeId) query = query.eq('store_id', filters.storeId);
   if (filters.dateFrom) query = query.gte('arrival_date', filters.dateFrom);
   if (filters.dateTo) query = query.lte('arrival_date', filters.dateTo);
-  if (filters.status !== 'all') query = query.eq('status', filters.status);
+  // The default arrival center is the same set used by the dashboard count:
+  // formally submitted, non-voided reports only. Voided reports remain
+  // available through the dedicated audit filter; drafts are never visible.
+  if (filters.status === 'all') query = query.in('status', ['submitted', 'viewed']);
+  else query = query.eq('status', filters.status);
 
   const { data, error, count } = await query;
   throwIfError(error);

@@ -208,7 +208,12 @@ function AdminDashboard() {
       setMessage(error instanceof Error ? error.message : '运营概览加载失败。');
     }
   }, [auth.profile]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const refreshArrivals = () => { void load(); };
+    window.addEventListener('storehub:arrivals-changed', refreshArrivals);
+    return () => window.removeEventListener('storehub:arrivals-changed', refreshArrivals);
+  }, [load]);
 
   return (
     <section className="app-page-min-height bg-canvas px-4 pb-8 pt-4 sm:px-6">

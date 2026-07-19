@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Download, Eye, FileDown, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, FileDown, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -45,7 +45,13 @@ export function AdminArrivalDetailPage() {
     }
     setStatus('loading');
     try {
-      setDetail(await loadAdminArrivalDetail(supabase, reportId));
+      let nextDetail = await loadAdminArrivalDetail(supabase, reportId);
+      if (nextDetail.report.status === 'submitted') {
+        await markAdminArrivalViewed(supabase, reportId);
+        nextDetail = await loadAdminArrivalDetail(supabase, reportId);
+        window.dispatchEvent(new Event('storehub:arrivals-changed'));
+      }
+      setDetail(nextDetail);
       setStatus('ready');
       setMessage(null);
     } catch (error) {
@@ -55,20 +61,6 @@ export function AdminArrivalDetailPage() {
   }, [reportId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const markViewed = async () => {
-    if (!supabase || !detail) return;
-    setBusy(true);
-    try {
-      await markAdminArrivalViewed(supabase, detail.report.id);
-      await load();
-      setMessage('到货记录已标记为已查看。');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '标记查看失败。');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const confirmVoid = async () => {
     if (!supabase || !detail) return;
@@ -86,6 +78,7 @@ export function AdminArrivalDetailPage() {
     try {
       if (detail.report.status === 'submitted') await markAdminArrivalViewed(supabase, detail.report.id);
       await voidAdminArrival(supabase, detail.report.id, voidReason);
+      window.dispatchEvent(new Event('storehub:arrivals-changed'));
       setShowVoidDialog(false);
       setVoidReason('');
       await load();
@@ -140,7 +133,6 @@ export function AdminArrivalDetailPage() {
         <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">操作日志</h2>{detail.auditLogs.length ? <ol className="mt-3 space-y-3">{detail.auditLogs.map((log) => <li className="border-l-2 border-brand-200 pl-3 text-sm" key={log.id}><p className="font-semibold text-slate-800">{auditLabel[log.action] ?? log.action}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(log.created_at)}</p></li>)}</ol> : <p className="mt-3 text-sm text-slate-500">暂无操作日志。</p>}</section>
 
         <section className="grid gap-3 rounded-lg bg-white p-4 shadow-sm sm:grid-cols-3">
-          {detail.report.status === 'submitted' ? <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void markViewed()} type="button"><Eye className="h-5 w-5" />标记已查看</button> : null}
           <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 font-bold text-slate-800" onClick={exportReport} type="button"><FileDown className="h-5 w-5" />导出记录</button>
           {detail.report.status !== 'voided' ? <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-red-200 px-4 font-bold text-red-700" disabled={busy} onClick={() => setShowVoidDialog(true)} type="button"><Trash2 className="h-5 w-5" />作废</button> : null}
         </section>

@@ -11,7 +11,7 @@ import { currentMonth } from '../features/attendance/model';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
-import { bindAttendanceEmployee, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceIncrementalSchedule, loadAttendanceSyncJobs, loadDingTalkApiUsage, removeAttendanceEnterpriseMapping, saveAttendanceEnterpriseMapping, saveAttendanceIncrementalSchedule, unbindAttendanceEmployee, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceIncrementalSchedule, type AttendanceSyncJob, type DingTalkApiUsage } from '../services/attendance.service';
+import { bindAttendanceEmployee, invokeAttendanceSync, loadAdminAttendanceMonth, loadAttendanceBindings, loadAttendanceEnterpriseSetup, loadAttendanceIncrementalSchedule, loadAttendanceSyncJobs, loadDingTalkApiUsage, removeAttendanceEnterpriseMapping, saveAttendanceEnterpriseMapping, saveAttendanceIncrementalSchedule, saveDingTalkApiDailyLimit, unbindAttendanceEmployee, type AttendanceBindingCandidate, type AttendanceEmployeeBinding, type AttendanceEnterpriseSetup, type AttendanceIncrementalSchedule, type AttendanceSyncJob, type DingTalkApiUsage } from '../services/attendance.service';
 
 type Tab = 'overview' | 'enterprises' | 'bindings' | 'logs';
 
@@ -41,6 +41,8 @@ function AttendanceOverview() {
   const [syncing, setSyncing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [apiUsage, setApiUsage] = useState<DingTalkApiUsage | null>(null);
+  const [dailyLimit, setDailyLimit] = useState(150);
+  const [savingLimit, setSavingLimit] = useState(false);
   const [schedule, setSchedule] = useState<AttendanceIncrementalSchedule>({ configured: false, configuredAt: null, enabled: false, lastDispatchedAt: null, times: ['10:00', '14:00', '22:00'] });
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [feedback, setFeedback] = useState<{ title: string; message: string; tone: ActionFeedbackTone } | null>(null);
@@ -53,7 +55,7 @@ function AttendanceOverview() {
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
   const loadUsage = useCallback(async () => {
     if (!supabase) return;
-    try { setApiUsage(await loadDingTalkApiUsage(supabase)); } catch { setApiUsage(null); }
+    try { const usage = await loadDingTalkApiUsage(supabase); setApiUsage(usage); setDailyLimit(usage.limit); } catch { setApiUsage(null); }
   }, []);
   useEffect(() => { void loadUsage(); }, [loadUsage]);
   const loadSchedule = useCallback(async () => {
@@ -98,6 +100,20 @@ function AttendanceOverview() {
       setFeedback({ title: '设置未保存', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'warning' });
     } finally { setSavingSchedule(false); }
   };
+  const saveApiLimit = async () => {
+    if (!supabase || !Number.isInteger(dailyLimit) || dailyLimit < 1 || dailyLimit > 300) {
+      setFeedback({ title: '限额不正确', message: '当日临时限额应为 1 至 300 次。', tone: 'warning' });
+      return;
+    }
+    setSavingLimit(true);
+    try {
+      const usage = await saveDingTalkApiDailyLimit(supabase, dailyLimit);
+      setApiUsage(usage); setDailyLimit(usage.limit);
+      setFeedback({ title: '当日限额已调整', message: `今天的钉钉接口限额已临时调整为 ${usage.limit} 次，明天自动恢复默认 150 次。`, tone: 'success' });
+    } catch (error) {
+      setFeedback({ title: '限额未调整', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'warning' });
+    } finally { setSavingLimit(false); }
+  };
   return <>
     <SectionCard className="p-3.5">
       <div className="grid grid-cols-2 gap-2"><label className="text-xs font-semibold text-slate-600">月份<input className="ui-input mt-1" max={currentMonth()} onChange={(event) => setMonth(event.target.value)} type="month" value={month} /></label><label className="text-xs font-semibold text-slate-600">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div>
@@ -107,8 +123,10 @@ function AttendanceOverview() {
       <p className="mt-2 text-xs leading-5 text-slate-500">增量同步只补齐未同步日期，并刷新当天及必要的近期数据；5 分钟内重复操作会直接复用已有结果。</p>
     </SectionCard>
     <SectionCard className="p-3.5">
-      <SectionHeader icon={Gauge} title="钉钉接口调用量" description="系统按真实外部请求计数，并将每日总量硬性限制在 149 次以内。" />
-      <div className={`mt-3 rounded-lg p-3 ${apiUsage && apiUsage.remaining <= 29 ? 'bg-amber-50 text-amber-900' : 'bg-emerald-50 text-emerald-900'}`}><div className="flex items-end justify-between gap-3"><b className="text-2xl">{apiUsage?.used ?? '—'} / {apiUsage?.limit ?? 149}</b><span className="text-sm font-semibold">剩余 {apiUsage?.remaining ?? '—'} 次</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/70"><div className="h-full rounded-full bg-current transition-all" style={{ width: `${apiUsage ? Math.min(100, apiUsage.used / apiUsage.limit * 100) : 0}%` }} /></div></div>
+      <SectionHeader icon={Gauge} title="钉钉接口调用量" description="系统按真实外部请求计数，每日默认限额为 150 次。" />
+      <div className={`mt-3 rounded-lg p-3 ${apiUsage && apiUsage.remaining <= 30 ? 'bg-amber-50 text-amber-900' : 'bg-emerald-50 text-emerald-900'}`}><div className="flex items-end justify-between gap-3"><b className="text-2xl">{apiUsage?.used ?? '—'} / {apiUsage?.limit ?? 150}</b><span className="text-sm font-semibold">剩余 {apiUsage?.remaining ?? '—'} 次</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/70"><div className="h-full rounded-full bg-current transition-all" style={{ width: `${apiUsage ? Math.min(100, apiUsage.used / apiUsage.limit * 100) : 0}%` }} /></div></div>
+      <div className="mt-3 grid grid-cols-[1fr_auto] gap-2"><label className="text-xs font-semibold text-slate-600">今日临时限额<input className="ui-input mt-1" max={300} min={1} onChange={(event) => setDailyLimit(Number(event.target.value))} type="number" value={dailyLimit} /></label><button className="ui-button-secondary mt-5 px-4" disabled={savingLimit} onClick={() => void saveApiLimit()} type="button">{savingLimit ? '调整中' : '临时调整'}</button></div>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{apiUsage?.temporaryOverride ? '今天正在使用临时限额；次日会自动恢复 150 次。' : '如有临时需要可只调整今天的限额，次日自动恢复 150 次。'}</p>
       <p className="mt-2 text-xs leading-5 text-slate-500">系统按企业批量读取员工，并只请求增量日期；运营报告不会调用钉钉接口。</p>
     </SectionCard>
     <SectionCard className="p-3.5">

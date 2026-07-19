@@ -23,11 +23,14 @@ export const selectIncrementalDates = (
   endDate: string,
   today: string,
   states: AttendanceDayState[],
+  recheckDates: string[] = [],
 ) => {
   const stateByDate = new Map(states.map((state) => [state.syncDate, state.lastSyncedAt]));
+  const recheck = new Set(recheckDates);
   const yesterday = previousDate(today);
   const todayStart = new Date(`${today}T00:00:00+08:00`).getTime();
   return eachDate(startDate, endDate).filter((date) => {
+    if (recheck.has(date)) return true;
     const lastSyncedAt = stateByDate.get(date);
     if (!lastSyncedAt) return true;
     if (date === today) return true;

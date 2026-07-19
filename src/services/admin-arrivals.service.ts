@@ -71,6 +71,22 @@ export const localIsoDate = (date = new Date()) => {
   return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 };
 
+export const formatArrivalItemSummary = (items: Array<{ product_name_snapshot: string; quantity: number; unit: string }>) => {
+  const quantityByProduct = items.reduce((summary, item) => {
+    const name = item.product_name_snapshot?.trim() || '未命名货品';
+    const unit = item.unit?.trim() || '个';
+    const key = `${name}:${unit}`;
+    const current = summary.get(key) ?? { name, quantity: 0, unit };
+    current.quantity += Number(item.quantity ?? 0);
+    summary.set(key, current);
+    return summary;
+  }, new Map<string, { name: string; quantity: number; unit: string }>());
+  return {
+    count: quantityByProduct.size,
+    text: [...quantityByProduct.values()].map((item) => `${item.name}到货${Number(item.quantity.toFixed(2))}${item.unit}`).join('、') || '暂无货品明细',
+  };
+};
+
 export const loadAdminArrivalMessages = async (client: Client, limit = 12): Promise<AdminArrivalMessage[]> => {
   const { data: notifications, error } = await client
     .from('notifications')
@@ -192,18 +208,12 @@ export const loadAdminArrivalList = async (client: Client, filters: AdminArrival
   }
   const listItems = await Promise.all(reports.map(async (report): Promise<AdminArrivalListItem> => {
     const items = itemsByReport.get(report.id) ?? [];
-    const productTypes = new Set(items.map((item) => `${item.product_name_snapshot}\u0000${item.unit}`));
-    const quantityByUnit = items.reduce((summary, item) => {
-      const unit = item.unit?.trim() || '件';
-      summary.set(unit, (summary.get(unit) ?? 0) + Number(item.quantity ?? 0));
-      return summary;
-    }, new Map<string, number>());
-    const quantity = [...quantityByUnit.entries()].map(([unit, value]) => `${Number(value.toFixed(2))}${unit}`).join(' / ');
+    const itemSummary = formatArrivalItemSummary(items);
     const image = firstImageByReport.get(report.id);
     return {
       ...report,
-      itemSummary: `${productTypes.size} 种${quantity ? ` · ${quantity}` : ''}`,
-      productTypeCount: productTypes.size,
+      itemSummary: itemSummary.text,
+      productTypeCount: itemSummary.count,
       thumbnailUrl: image ? await createSignedUrl(client, image.object_path) : null,
     };
   }));

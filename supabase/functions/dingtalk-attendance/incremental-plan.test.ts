@@ -23,4 +23,13 @@ describe('attendance incremental plan', () => {
       { startDate: '2026-07-05', endDate: '2026-07-06' },
     ]);
   });
+
+  it('rechecks an already-synced historical date when the database still marks it abnormal', () => {
+    const states = [
+      { syncDate: '2026-07-05', lastSyncedAt: '2026-07-05T12:00:00Z' },
+      { syncDate: '2026-07-19', lastSyncedAt: '2026-07-19T02:00:00Z' },
+    ];
+    expect(selectIncrementalDates('2026-07-05', '2026-07-19', '2026-07-19', states, ['2026-07-05']))
+      .toContain('2026-07-05');
+  });
 });

@@ -971,6 +971,7 @@ export type Database = {
       begin_operation_report_refresh: { Args: { p_report_date: string; p_store_id: string }; Returns: Json };
       get_operation_report_availability: { Args: { p_store_id: string }; Returns: Json };
       get_dingtalk_api_usage: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_set_dingtalk_api_daily_limit: { Args: { p_limit: number }; Returns: Json };
       get_attendance_incremental_schedule: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_save_attendance_incremental_schedule: { Args: { p_enabled: boolean; p_times: string[] }; Returns: Json };
       prepare_operation_report: { Args: { p_attendance_sync_job_id: string | null; p_report_date: string; p_sales_sync_job_id: string; p_store_id: string }; Returns: Json };

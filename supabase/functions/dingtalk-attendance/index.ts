@@ -234,13 +234,25 @@ Deno.serve(async (request) => {
     ? await adminClient.from('attendance_sync_day_states').select('corp_id,store_id,sync_date,last_synced_at').gte('sync_date', startDate).lte('sync_date', endDate)
     : { data: [], error: null };
   if (stateError) return json({ error: '无法读取考勤增量同步状态。' }, 500);
+  const { data: abnormalRows, error: abnormalError } = scopeKeys.length
+    ? await adminClient.from('attendance_daily_records').select('corp_id,store_id,attendance_date,last_synced_at')
+      .gte('attendance_date', startDate).lte('attendance_date', endDate).lt('attendance_date', today)
+      .or('missing_punch.neq.none,daily_status.in.(missing,abnormal)')
+    : { data: [], error: null };
+  if (abnormalError) return json({ error: '无法读取需要复查的历史缺卡和异常记录。' }, 500);
   const forceRequestedRange = payload.action === 'retry-job' || Boolean(requestedProfileId);
+  const todayStart = new Date(`${today}T00:00:00+08:00`).getTime();
   const datesByScope = new Map<string, string[]>();
   for (const scopeKey of scopeKeys) {
     const [corpId, storeId] = scopeKey.split('|');
     const states = (stateRows ?? []).filter((state) => state.corp_id === corpId && state.store_id === storeId)
       .map((state) => ({ syncDate: state.sync_date, lastSyncedAt: state.last_synced_at }));
-    datesByScope.set(scopeKey, forceRequestedRange ? eachDate(startDate, endDate) : selectIncrementalDates(startDate, endDate, today, states));
+    const stateByDate = new Map(states.map((state) => [state.syncDate, state.lastSyncedAt]));
+    const recheckDates = unique((abnormalRows ?? [])
+      .filter((row) => row.corp_id === corpId && row.store_id === storeId)
+      .map((row) => row.attendance_date))
+      .filter((date) => !isScheduled || new Date(stateByDate.get(date) ?? 0).getTime() < todayStart);
+    datesByScope.set(scopeKey, forceRequestedRange ? eachDate(startDate, endDate) : selectIncrementalDates(startDate, endDate, today, states, recheckDates));
   }
   const datesByCorp = new Map<string, string[]>();
   for (const binding of bindings) {

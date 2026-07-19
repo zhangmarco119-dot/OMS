@@ -115,8 +115,8 @@ function ArrivalFilters({ className, filters, onChange, stores }: { className: s
 }
 
 function ArrivalList({ reports }: { reports: AdminArrivalListItem[] }) {
-  return <div className="grid gap-2.5 md:grid-cols-2">{reports.map((report) => <Link className="ui-card ui-interactive flex min-h-28 gap-3 p-3.5" key={report.id} to={`/app/admin/arrivals/${report.id}`}>
-    {report.thumbnailUrl ? <img alt="到货照片预览" className="h-24 w-24 shrink-0 rounded-lg bg-slate-50 object-cover" loading="lazy" src={report.thumbnailUrl} /> : <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400">暂无照片</div>}
-    <div className="min-w-0 flex-1"><p className="truncate text-[11px] text-slate-400">{report.report_no} · {report.store_name_snapshot}</p><p className="mt-2 text-xl font-bold tracking-tight text-slate-900">{report.itemSummary}</p><p className="mt-2 line-clamp-1 text-sm text-slate-600">{report.generated_summary}</p><p className="mt-1 text-xs text-slate-500">{formatArrivalDateTime(report.arrival_date, report.arrival_time)} · {report.reporter_name_snapshot}{report.status === 'voided' ? ' · 已作废' : ''}</p></div>
+  return <div className="grid gap-2 md:grid-cols-2">{reports.map((report) => <Link className="ui-card ui-interactive flex gap-3 p-3" key={report.id} to={`/app/admin/arrivals/${report.id}`}>
+    {report.thumbnailUrl ? <img alt="到货照片预览" className="h-20 w-20 shrink-0 rounded-lg bg-slate-50 object-cover" loading="lazy" src={report.thumbnailUrl} /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] text-slate-400">暂无照片</div>}
+    <div className="min-w-0 flex-1"><p className="truncate text-[11px] text-slate-400">{report.store_name_snapshot}</p><p className="mt-1 line-clamp-2 text-lg font-bold leading-6 tracking-tight text-slate-900">{report.itemSummary}</p><p className="mt-1 text-xs text-slate-500">{formatArrivalDateTime(report.arrival_date, report.arrival_time)} · {report.reporter_name_snapshot}{report.status === 'voided' ? ' · 已作废' : ''}</p></div>
   </Link>)}</div>;
 }

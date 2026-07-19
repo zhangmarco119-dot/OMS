@@ -190,6 +190,7 @@ export interface DingTalkApiUsage {
   date: string;
   limit: number;
   remaining: number;
+  temporaryOverride: boolean;
   used: number;
 }
 
@@ -200,6 +201,17 @@ export interface AttendanceIncrementalSchedule {
   lastDispatchedAt: string | null;
   times: string[];
 }
+
+const parseDingTalkApiUsage = (value: Json | null): DingTalkApiUsage => {
+  const source = objectAt(value);
+  return {
+    date: textAt(source.date),
+    limit: numberAt(source.limit) || 150,
+    remaining: numberAt(source.remaining),
+    temporaryOverride: boolAt(source.temporaryOverride),
+    used: numberAt(source.used),
+  };
+};
 
 const parseAttendanceIncrementalSchedule = (value: Json | null): AttendanceIncrementalSchedule => {
   const source = objectAt(value);
@@ -215,13 +227,13 @@ const parseAttendanceIncrementalSchedule = (value: Json | null): AttendanceIncre
 export const loadDingTalkApiUsage = async (client: Client): Promise<DingTalkApiUsage> => {
   const { data, error } = await client.rpc('get_dingtalk_api_usage');
   if (error) throw new Error('暂时无法读取钉钉接口调用量。');
-  const value = objectAt(data);
-  return {
-    date: textAt(value.date),
-    limit: numberAt(value.limit) || 149,
-    remaining: numberAt(value.remaining),
-    used: numberAt(value.used),
-  };
+  return parseDingTalkApiUsage(data);
+};
+
+export const saveDingTalkApiDailyLimit = async (client: Client, limit: number) => {
+  const { data, error } = await client.rpc('admin_set_dingtalk_api_daily_limit', { p_limit: limit });
+  if (error) throw new Error(error.message || '钉钉接口当日限额调整失败。');
+  return parseDingTalkApiUsage(data);
 };
 
 export const loadAttendanceIncrementalSchedule = async (client: Client) => {

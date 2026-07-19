@@ -7,10 +7,10 @@ import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components
 import { FormField, SegmentedControl } from '../components/ui/FormField';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
-import { buildOperationReportText, type OperationReportField, type RefundEntry } from '../features/operation-reports/reportText';
+import { buildOperationReportText, getMissingOperationReportFields, type OperationReportField, type RefundEntry } from '../features/operation-reports/reportText';
 import { supabase } from '../lib/supabase';
 import { loadOperationReportImages, removeOperationReportImage, uploadOperationReportImage, type OperationReportImage } from '../services/operation-report-images.service';
-import { getOperationReportAvailability, listOperationReports, saveOperationReportTemplate, submitOperationReport, syncOperationReportSources, type OperationReport, type OperationReportAvailability } from '../services/operation-reports.service';
+import { getOperationReportAvailability, getOperationReportDraft, listOperationReports, saveOperationReportDraft, saveOperationReportTemplate, submitOperationReport, syncOperationReportSources, type OperationReport, type OperationReportAvailability } from '../services/operation-reports.service';
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 const stageCopy = { pos: '正在拉取银豹收银数据', attendance: '正在拉取钉钉考勤数据', prepare: '正在生成运营数据' } as const;
@@ -67,22 +67,54 @@ function ReportComposer({ availability, onSubmitted, storeId }: { availability: 
   const [stage, setStage] = useState<keyof typeof stageCopy | null>(null);
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState<Record<string, number>>({});
+  const [restoring, setRestoring] = useState(true);
   const [feedback, setFeedback] = useState<{ message: string; title: string; tone: 'success' | 'warning' } | null>(null);
   const interval = useRef<number>();
   const fields = useMemo(() => report?.field_config_snapshot ?? availability.fields ?? [], [availability.fields, report?.field_config_snapshot]);
 
   useEffect(() => () => window.clearInterval(interval.current), []);
+  useEffect(() => {
+    let active = true;
+    setRestoring(true);
+    setReport(null); setImages({}); setValues({}); setRefunds([]);
+    void (async () => {
+      try {
+        const draft = await getOperationReportDraft(storeId, date);
+        if (!active || !draft) return;
+        setReport(draft); setValues(draft.manual_values ?? {}); setRefunds(draft.refund_entries ?? []);
+        if (supabase) {
+          const loaded = await loadOperationReportImages(supabase, draft.id);
+          if (active) setImages(Object.fromEntries(loaded.map((image) => [image.field_id, image])));
+        }
+      } catch (cause) {
+        if (active) setFeedback({ title: '草稿恢复失败', message: cause instanceof Error ? cause.message : '请稍后重试。', tone: 'warning' });
+      } finally { if (active) setRestoring(false); }
+    })();
+    return () => { active = false; };
+  }, [date, storeId]);
+
+  useEffect(() => {
+    if (!report || report.status !== 'draft' || restoring) return;
+    const timer = window.setTimeout(() => {
+      void saveOperationReportDraft(report.id, values, refunds).catch(() => undefined);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [refunds, report, restoring, values]);
+
   const begin = async () => {
-    setReport(null); setImages({}); setValues({}); setRefunds([]); setProgress(3); setStage('pos');
+    setProgress(3); setStage('pos');
     interval.current = window.setInterval(() => setProgress((value) => Math.min(value + 2, 92)), 450);
     try {
-      const prepared = await syncOperationReportSources(storeId, date, (next) => { setStage(next); setProgress(next === 'pos' ? 5 : next === 'attendance' ? 45 : 85); });
+      const result = await syncOperationReportSources(storeId, date, (next) => { setStage(next); setProgress(next === 'pos' ? 5 : next === 'attendance' ? 45 : 85); });
+      const prepared = result.report;
       setReport(prepared); setValues(prepared.manual_values ?? {}); setRefunds(prepared.refund_entries ?? []); setProgress(100);
       if (supabase) {
         const loaded = await loadOperationReportImages(supabase, prepared.id);
         setImages(Object.fromEntries(loaded.map((image) => [image.field_id, image])));
       }
-      setFeedback({ title: '数据拉取完成', message: '收银与考勤数据已更新，请补充物料信息和照片。', tone: 'success' });
+      setFeedback(result.cached
+        ? { title: '已使用近期数据', message: '5 分钟内已有拉取结果，本次未重复调用收银或钉钉接口。', tone: 'warning' }
+        : { title: '数据拉取完成', message: '收银与考勤数据已更新并保存，请补充物料信息和照片。', tone: 'success' });
     } catch (cause) { setFeedback({ title: '数据拉取失败', message: cause instanceof Error ? cause.message : '请稍后重试。', tone: 'warning' }); }
     finally { window.clearInterval(interval.current); setStage(null); }
   };
@@ -101,17 +133,26 @@ function ReportComposer({ availability, onSubmitted, storeId }: { availability: 
     catch (cause) { setFeedback({ title: '照片删除失败', message: cause instanceof Error ? cause.message : '请稍后重试。', tone: 'warning' }); }
   };
   const text = useMemo(() => report ? buildOperationReportText({ computed: report.computed_data, date: report.report_date, fields, manualValues: values, refundNote: report.refund_note_snapshot, refunds, title: report.title_snapshot }) : '', [fields, refunds, report, values]);
+  const missingFields = () => getMissingOperationReportFields(fields, values, Object.keys(images));
+  const requireComplete = () => {
+    const missing = missingFields();
+    if (!missing.length) return true;
+    setFeedback({ title: '请完善必填项', message: `请填写必填内容并上传所需照片：${missing.map((item) => item.label).join('、')}`, tone: 'warning' });
+    return false;
+  };
   const submit = async () => {
     if (!report) return;
-    const missing = fields.filter((field) => field.kind === 'manual' && field.enabled !== false && ((field.required && !values[field.id]?.trim()) || (field.requiresPhoto && !images[field.id])));
-    if (missing.length) { setFeedback({ title: '请完善报告', message: `请填写并上传照片：${missing.map((item) => item.label).join('、')}`, tone: 'warning' }); return; }
+    if (!requireComplete()) return;
     try { const saved = await submitOperationReport(report.id, values, refunds, text); setReport(saved); setFeedback({ title: '报告已生成', message: '报告已推送给店长和管理员，现在可以一键复制纯文字内容。', tone: 'success' }); onSubmitted(); }
     catch (cause) { setFeedback({ title: '提交失败', message: cause instanceof Error ? cause.message : '请稍后重试。', tone: 'warning' }); }
   };
-  const copy = async () => { await navigator.clipboard.writeText(text); setFeedback({ title: '复制成功', message: '纯文字运营报告已复制到剪贴板。', tone: 'success' }); };
+  const copy = async () => {
+    if (!requireComplete()) return;
+    await navigator.clipboard.writeText(text); setFeedback({ title: '复制成功', message: '纯文字运营报告已复制到剪贴板。', tone: 'success' });
+  };
 
   return <>
-    <SectionCard><SectionHeader icon={FileText} title="选择报告日期" description="生成前会强制更新当日银豹收银与钉钉考勤数据。" /><div className="mt-3 grid grid-cols-[1fr_auto] gap-2"><input className="ui-input" max={today()} type="date" value={date} onChange={(event) => setDate(event.target.value)} /><button className="ui-button-primary px-4" disabled={Boolean(stage)} onClick={() => void begin()} type="button">{stage ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{report ? '重新拉取' : '拉取并生成'}</button></div>{stage ? <div className="mt-4"><div className="flex justify-between text-sm font-semibold text-brand-800"><span>{stageCopy[stage]}</span><span>{progress}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} /></div></div> : null}</SectionCard>
+    <SectionCard><SectionHeader icon={FileText} title="选择报告日期" description="首次生成会按需更新当日收银与考勤；5 分钟内重复生成会复用上次数据。" /><div className="mt-3 grid grid-cols-[1fr_auto] gap-2"><input className="ui-input" max={today()} type="date" value={date} onChange={(event) => setDate(event.target.value)} /><button className="ui-button-primary px-4" disabled={Boolean(stage) || restoring} onClick={() => void begin()} type="button">{stage || restoring ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{restoring ? '恢复草稿' : report ? '重新生成' : '拉取并生成'}</button></div>{stage ? <div className="mt-4"><div className="flex justify-between text-sm font-semibold text-brand-800"><span>{stageCopy[stage]}</span><span>{progress}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} /></div></div> : null}{report?.source_synced_at ? <p className="mt-2 text-xs text-slate-500">当前结果已保存 · 数据时间 {new Date(report.source_synced_at).toLocaleString('zh-CN')}</p> : null}</SectionCard>
     {report ? <>
       <SectionCard><SectionHeader icon={CheckCircle2} title="自动数据" description="以下内容来自刚刚完成的同步。" /><div className="mt-3 grid grid-cols-2 gap-2 text-sm">{fields.filter((field) => field.kind === 'computed' && field.enabled !== false).map((field) => <div className="rounded-lg bg-slate-50 p-3" key={field.id}><p className="text-xs text-slate-500">{field.label}</p><p className="mt-1 font-bold text-slate-900">{String(report.computed_data[field.id] ?? '-')}</p></div>)}</div></SectionCard>
       <div className="space-y-3">{fields.filter((field) => field.kind === 'manual' && field.enabled !== false).map((field) => <SectionCard key={field.id}><FormField label={field.label} required={field.required} hint={`${field.requiresPhoto ? '需上传一张现场照片' : ''}${field.unit ? ` · 单位：${field.unit}` : ''}`}><input className="ui-input" value={values[field.id] ?? ''} onChange={(event) => setValues((current) => ({ ...current, [field.id]: event.target.value }))} /></FormField><div className="mt-3">{images[field.id] ? <div className="relative overflow-hidden rounded-xl border border-slate-200"><img alt={`${field.label}现场照片`} className="h-44 w-full object-contain bg-slate-50" src={images[field.id].signedUrl} /><button aria-label={`删除${field.label}照片`} className="absolute right-2 top-2 rounded-lg bg-white/95 p-2 text-red-700 shadow" onClick={() => void removeImage(field.id)} type="button"><Trash2 className="h-4 w-4" /></button></div> : <label className="ui-button-secondary w-full cursor-pointer"><Camera className="h-4 w-4" />{uploading[field.id] != null ? `正在上传 ${uploading[field.id]}%` : '拍摄或上传照片'}<input accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" disabled={uploading[field.id] != null} onChange={(event) => void upload(field, event.target.files?.[0])} type="file" /></label>}</div></SectionCard>)}</div>

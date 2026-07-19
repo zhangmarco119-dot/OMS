@@ -186,6 +186,25 @@ const parseAttendanceAutomationSettings = (value: Json | null): AttendanceAutoma
   };
 };
 
+export interface DingTalkApiUsage {
+  date: string;
+  limit: number;
+  remaining: number;
+  used: number;
+}
+
+export const loadDingTalkApiUsage = async (client: Client): Promise<DingTalkApiUsage> => {
+  const { data, error } = await client.rpc('get_dingtalk_api_usage');
+  if (error) throw new Error('暂时无法读取钉钉接口调用量。');
+  const value = objectAt(data);
+  return {
+    date: textAt(value.date),
+    limit: numberAt(value.limit) || 149,
+    remaining: numberAt(value.remaining),
+    used: numberAt(value.used),
+  };
+};
+
 export const loadAttendanceAutomationSettings = async (client: Client) => {
   const { data, error } = await client.rpc('get_attendance_automation_settings');
   if (error) throw new Error('暂时无法加载考勤自动同步设置。');

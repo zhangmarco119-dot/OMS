@@ -15,6 +15,16 @@ export type RefundEntry = {
   ticketId?: string;
 };
 
+export const getMissingOperationReportFields = (
+  fields: OperationReportField[],
+  manualValues: Record<string, string>,
+  imageFieldIds: Iterable<string>,
+) => {
+  const images = new Set(imageFieldIds);
+  return fields.filter((field) => field.kind === 'manual' && field.enabled !== false
+    && (Boolean(field.required && !manualValues[field.id]?.trim()) || Boolean(field.requiresPhoto && !images.has(field.id))));
+};
+
 const dateLabel = (date: string) => `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
 const labels: Record<string, (value: unknown) => string> = {
   report_date: (value) => dateLabel(String(value)),

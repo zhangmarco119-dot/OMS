@@ -36,6 +36,12 @@ export interface AdminArrivalListFilters {
   storeId: string;
 }
 
+export type AdminArrivalListItem = AdminArrivalReport & {
+  itemSummary: string;
+  productTypeCount: number;
+  thumbnailUrl: string | null;
+};
+
 export interface AdminArrivalDetail {
   auditLogs: AdminArrivalAuditLog[];
   images: Array<AdminArrivalImage & { signedUrl: string }>;
@@ -168,7 +174,40 @@ export const loadAdminArrivalList = async (client: Client, filters: AdminArrival
 
   const { data, error, count } = await query;
   throwIfError(error);
-  return { count: count ?? 0, reports: data ?? [] };
+  const reports = data ?? [];
+  if (!reports.length) return { count: count ?? 0, reports: [] as AdminArrivalListItem[] };
+  const reportIds = reports.map((report) => report.id);
+  const [itemsResult, imagesResult] = await Promise.all([
+    client.from('arrival_report_items').select('report_id,product_name_snapshot,quantity,unit').in('report_id', reportIds).order('sort_order'),
+    client.from('arrival_report_images').select('*').in('report_id', reportIds).order('created_at'),
+  ]);
+  throwIfError(itemsResult.error);
+  throwIfError(imagesResult.error);
+  const itemsByReport = new Map<string, typeof itemsResult.data>();
+  for (const item of itemsResult.data ?? []) itemsByReport.set(item.report_id, [...(itemsByReport.get(item.report_id) ?? []), item]);
+  const firstImageByReport = new Map<string, AdminArrivalImage>();
+  for (const image of imagesResult.data ?? []) {
+    const existing = firstImageByReport.get(image.report_id);
+    if (!existing || existing.image_type === 'waybill' && image.image_type === 'goods') firstImageByReport.set(image.report_id, image);
+  }
+  const listItems = await Promise.all(reports.map(async (report): Promise<AdminArrivalListItem> => {
+    const items = itemsByReport.get(report.id) ?? [];
+    const productTypes = new Set(items.map((item) => `${item.product_name_snapshot}\u0000${item.unit}`));
+    const quantityByUnit = items.reduce((summary, item) => {
+      const unit = item.unit?.trim() || '件';
+      summary.set(unit, (summary.get(unit) ?? 0) + Number(item.quantity ?? 0));
+      return summary;
+    }, new Map<string, number>());
+    const quantity = [...quantityByUnit.entries()].map(([unit, value]) => `${Number(value.toFixed(2))}${unit}`).join(' / ');
+    const image = firstImageByReport.get(report.id);
+    return {
+      ...report,
+      itemSummary: `${productTypes.size} 种${quantity ? ` · ${quantity}` : ''}`,
+      productTypeCount: productTypes.size,
+      thumbnailUrl: image ? await createSignedUrl(client, image.object_path) : null,
+    };
+  }));
+  return { count: count ?? 0, reports: listItems };
 };
 
 export const loadAdminArrivalDetail = async (client: Client, reportId: string): Promise<AdminArrivalDetail> => {

@@ -592,6 +592,12 @@ export type Database = {
         Update: { attendance_weight?: number; change_reason?: string; created_at?: string; created_by?: string | null; discipline_weight?: number; effective_from?: string; effective_to?: string | null; grade_a_coefficient?: number; grade_a_min?: number; grade_b_coefficient?: number; grade_b_min?: number; grade_c_coefficient?: number; grade_c_min?: number; grade_d_coefficient?: number; id?: string; late_deduction_1_10?: number; late_deduction_11_20?: number; late_deduction_21_30?: number; late_deduction_31_plus?: number; task_weight?: number };
         Relationships: [];
       };
+      dingtalk_api_calls: {
+        Row: { action: string; corp_id: string; created_at: string; endpoint: string; id: number; usage_date: string };
+        Insert: { action: string; corp_id: string; created_at?: string; endpoint: string; id?: number; usage_date?: string };
+        Update: { action?: string; corp_id?: string; endpoint?: string; usage_date?: string };
+        Relationships: [];
+      };
       system_operation_logs: {
         Row: { actor_employment_type_snapshot: 'full_time' | 'part_time' | null; actor_id: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; entity_id: string | null; entity_type: string; id: string; metadata: Json; module: string; occurred_at: string; operation: 'created' | 'updated' | 'deleted'; store_id: string | null; summary: string };
         Insert: { actor_employment_type_snapshot?: 'full_time' | 'part_time' | null; actor_id?: string | null; actor_name_snapshot: string; actor_role_snapshot: 'staff' | 'manager' | 'admin' | 'system'; entity_id?: string | null; entity_type: string; id?: string; metadata?: Json; module: string; occurred_at?: string; operation: 'created' | 'updated' | 'deleted'; store_id?: string | null; summary: string };
@@ -677,9 +683,9 @@ export type Database = {
         Relationships: [];
       };
       operation_reports: {
-        Row: { attendance_sync_job_id: string | null; computed_data: Json; created_at: string; created_by: string; field_config_snapshot: Json; id: string; manual_values: Json; refund_entries: Json; refund_note_snapshot: string; report_date: string; sales_sync_job_id: string | null; status: 'draft' | 'submitted'; store_id: string; submitted_at: string | null; text_report: string | null; title_snapshot: string; updated_at: string };
-        Insert: { attendance_sync_job_id?: string | null; computed_data?: Json; created_at?: string; created_by: string; field_config_snapshot: Json; id?: string; manual_values?: Json; refund_entries?: Json; refund_note_snapshot?: string; report_date: string; sales_sync_job_id?: string | null; status?: 'draft' | 'submitted'; store_id: string; submitted_at?: string | null; text_report?: string | null; title_snapshot: string; updated_at?: string };
-        Update: { attendance_sync_job_id?: string | null; computed_data?: Json; field_config_snapshot?: Json; manual_values?: Json; refund_entries?: Json; refund_note_snapshot?: string; sales_sync_job_id?: string | null; status?: 'draft' | 'submitted'; submitted_at?: string | null; text_report?: string | null; title_snapshot?: string; updated_at?: string };
+        Row: { attendance_sync_job_id: string | null; computed_data: Json; created_at: string; created_by: string; field_config_snapshot: Json; id: string; manual_values: Json; refund_entries: Json; refund_note_snapshot: string; refresh_started_at: string | null; report_date: string; sales_sync_job_id: string | null; source_synced_at: string | null; status: 'draft' | 'submitted'; store_id: string; submitted_at: string | null; text_report: string | null; title_snapshot: string; updated_at: string };
+        Insert: { attendance_sync_job_id?: string | null; computed_data?: Json; created_at?: string; created_by: string; field_config_snapshot: Json; id?: string; manual_values?: Json; refund_entries?: Json; refund_note_snapshot?: string; refresh_started_at?: string | null; report_date: string; sales_sync_job_id?: string | null; source_synced_at?: string | null; status?: 'draft' | 'submitted'; store_id: string; submitted_at?: string | null; text_report?: string | null; title_snapshot: string; updated_at?: string };
+        Update: { attendance_sync_job_id?: string | null; computed_data?: Json; field_config_snapshot?: Json; manual_values?: Json; refund_entries?: Json; refund_note_snapshot?: string; refresh_started_at?: string | null; sales_sync_job_id?: string | null; source_synced_at?: string | null; status?: 'draft' | 'submitted'; submitted_at?: string | null; text_report?: string | null; title_snapshot?: string; updated_at?: string };
         Relationships: [];
       };
       operation_report_images: {
@@ -962,8 +968,12 @@ export type Database = {
     };
     Functions: {
       admin_save_operation_report_template: { Args: { p_enabled: boolean; p_fields: Json; p_refund_note: string; p_store_id: string; p_title: string }; Returns: Json };
+      begin_operation_report_refresh: { Args: { p_report_date: string; p_store_id: string }; Returns: Json };
       get_operation_report_availability: { Args: { p_store_id: string }; Returns: Json };
+      get_dingtalk_api_usage: { Args: Record<PropertyKey, never>; Returns: Json };
       prepare_operation_report: { Args: { p_attendance_sync_job_id: string; p_report_date: string; p_sales_sync_job_id: string; p_store_id: string }; Returns: Json };
+      release_operation_report_refresh: { Args: { p_report_id: string }; Returns: undefined };
+      save_operation_report_draft: { Args: { p_manual_values: Json; p_refund_entries: Json; p_report_id: string }; Returns: Json };
       submit_operation_report: { Args: { p_manual_values: Json; p_refund_entries: Json; p_report_id: string; p_text_report: string }; Returns: Json };
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
       complete_attendance_missing_punch_todo: { Args: { p_todo_id: string }; Returns: Json };

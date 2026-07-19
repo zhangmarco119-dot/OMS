@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildOperationReportText } from './reportText';
+import { buildOperationReportText, getMissingOperationReportFields } from './reportText';
 
 describe('buildOperationReportText', () => {
   it('builds the configured report and external refund sections', () => {
@@ -21,5 +21,17 @@ describe('buildOperationReportText', () => {
     expect(result).toContain('美团退单总数：1');
     expect(result).toContain('订单号：8 未给蓝莓退款');
     expect(result).toContain('饿了么退单总数：无');
+  });
+});
+
+describe('getMissingOperationReportFields', () => {
+  it('uses the same text and photo requirements for copy and submit actions', () => {
+    const fields = [
+      { id: 'computed', kind: 'computed' as const, label: '销售额' },
+      { id: 'milk', kind: 'manual' as const, label: '牛奶剩余', required: true, requiresPhoto: true },
+      { id: 'waste', kind: 'manual' as const, label: '报废', required: true, requiresPhoto: true },
+    ];
+    expect(getMissingOperationReportFields(fields, { milk: '1.5', waste: '' }, ['milk']).map((field) => field.id)).toEqual(['waste']);
+    expect(getMissingOperationReportFields(fields, { milk: '1.5', waste: '无' }, ['milk', 'waste'])).toEqual([]);
   });
 });

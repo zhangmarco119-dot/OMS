@@ -16,6 +16,20 @@ describe('DingTalkClient', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('checks the shared API budget before every real external request', async () => {
+    const beforeRequest = vi.fn(async () => undefined);
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response({ accessToken: 'token-budget', expireIn: 7200 }))
+      .mockResolvedValueOnce(response({ errcode: 0, result: { dept_id_list: [] } }));
+    const client = new DingTalkClient({ ...credentials, corpId: 'budget' }, { beforeRequest, fetchImpl });
+
+    await expect(client.listDepartmentIds()).resolves.toEqual(['1']);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(beforeRequest).toHaveBeenCalledTimes(2);
+    expect(beforeRequest.mock.calls[0]?.[0]).toContain('/oauth2/accessToken');
+    expect(beforeRequest.mock.calls[1]?.[0]).toContain('/topapi/v2/department/listsubid');
+  });
+
   it('retries rate limits and paginates directory users', async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response({ accessToken: 'token-1', expireIn: 7200 }))

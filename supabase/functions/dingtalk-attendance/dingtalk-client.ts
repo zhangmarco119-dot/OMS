@@ -21,6 +21,7 @@ export interface DingTalkAttendanceBundle {
 }
 
 interface DingTalkClientOptions {
+  beforeRequest?: (url: string) => Promise<void>;
   fetchImpl?: typeof fetch;
   maxRetries?: number;
   now?: () => number;
@@ -97,6 +98,7 @@ export class DingTalkApiError extends Error {
 }
 
 export class DingTalkClient {
+  private readonly beforeRequest?: (url: string) => Promise<void>;
   private readonly fetchImpl: typeof fetch;
   private readonly maxRetries: number;
   private readonly now: () => number;
@@ -106,6 +108,7 @@ export class DingTalkClient {
   private readonly tokenUrl: string;
 
   constructor(private readonly credentials: DingTalkCredentials, options: DingTalkClientOptions = {}) {
+    this.beforeRequest = options.beforeRequest;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.maxRetries = options.maxRetries ?? 3;
     this.now = options.now ?? Date.now;
@@ -141,6 +144,7 @@ export class DingTalkClient {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
+        await this.beforeRequest?.(url);
         const response = await this.fetchImpl(url, { ...init, signal: controller.signal });
         if (response.status === 429 || response.status >= 500) {
           if (attempt < this.maxRetries) { await this.sleep(Math.min(4000, 250 * 2 ** attempt)); continue; }

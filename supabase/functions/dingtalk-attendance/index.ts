@@ -9,7 +9,6 @@ type AttendanceAction =
   | { action: 'refresh-directory'; rootDepartmentIds?: string[] }
   | { action: 'sync'; month?: string; profileId?: string; storeId?: string }
   | { action: 'report-sync'; date: string; storeId: string }
-  | { action: 'enqueue-history-sync'; startMonth: string; endMonth: string; storeId?: string }
   | { action: 'scheduled-sync'; mode?: 'hourly' | 'history-queue' | 'daily' | 'month-start' }
   | { action: 'retry-job'; jobId: string };
 
@@ -36,27 +35,14 @@ const datePattern = /^\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01])$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const unique = <T>(items: T[]) => [...new Set(items)];
 const datePart = (date: Date, timezone: string) => new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
-const shiftDate = (date: string, days: number) => new Date(new Date(`${date}T12:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 const monthEnd = (month: string) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
-const monthsBetween = (start: string, end: string) => {
-  const result: string[] = [];
-  let year = Number(start.slice(0, 4));
-  let month = Number(start.slice(5, 7));
-  const last = Number(end.slice(0, 4)) * 12 + Number(end.slice(5, 7));
-  while (year * 12 + month <= last) {
-    result.push(`${year}-${String(month).padStart(2, '0')}`);
-    month += 1;
-    if (month > 12) { month = 1; year += 1; }
-  }
-  return result;
-};
-
 const publicError = (error: unknown) => {
   if (error instanceof DingTalkApiError) {
     if (error.code === 'TIMEOUT' || error.code === 'NETWORK_ERROR') return '钉钉服务暂时无法连接，请稍后重试。';
     if (error.code.startsWith('HTTP_') || error.retryable) return '钉钉服务繁忙，本次同步已记录，可稍后重试。';
     return `钉钉接口未能完成请求（${error.code}）。`;
   }
+  if (error instanceof Error && error.message.includes('DINGTALK_DAILY_API_LIMIT')) return '今日钉钉接口调用已达到安全上限，请明日再同步。';
   return '考勤同步暂时无法完成，请查看同步日志。';
 };
 
@@ -109,42 +95,30 @@ Deno.serve(async (request) => {
     allowedStoreIds = unique([profile.store_id, ...(access ?? []).map((item) => item.store_id)].filter(Boolean));
   }
 
+  if (payload.action === 'scheduled-sync') {
+    return json({ status: 'skipped', message: '自动同步队列已停用，请按实际需要手动同步。' });
+  }
+
   let enterpriseConfigs: ReturnType<typeof loadDingTalkEnterpriseConfigs>;
   try {
     enterpriseConfigs = loadDingTalkEnterpriseConfigs((key) => Deno.env.get(key));
   } catch {
     return json({ error: '钉钉服务尚未完成安全配置。' }, 503);
   }
-  const clientByCorp = new Map(enterpriseConfigs.map((config) => [config.corpId, new DingTalkClient(config)]));
+  const clientByCorp = new Map(enterpriseConfigs.map((config) => [config.corpId, new DingTalkClient(config, {
+    maxRetries: 1,
+    beforeRequest: async (url) => {
+      const endpoint = (() => { try { return new URL(url).pathname; } catch { return 'unknown'; } })();
+      const reservation = await adminClient.rpc('reserve_dingtalk_api_call', {
+        p_action: payload.action,
+        p_corp_id: config.corpId,
+        p_endpoint: endpoint,
+      });
+      if (reservation.error) throw new DingTalkApiError(reservation.error.message, 'DAILY_API_LIMIT', false);
+    },
+  })]));
   const configByCorp = new Map(enterpriseConfigs.map((config) => [config.corpId, config]));
   const jobCorpId = enterpriseConfigs.length === 1 ? enterpriseConfigs[0].corpId : 'multi-enterprise';
-
-  if (payload.action === 'enqueue-history-sync') {
-    if (!monthPattern.test(payload.startMonth) || !monthPattern.test(payload.endMonth) || payload.startMonth > payload.endMonth) {
-      return json({ error: '请选择正确的开始月份和结束月份。' }, 400);
-    }
-    if (payload.storeId && (!uuidPattern.test(payload.storeId) || !allowedStoreIds.includes(payload.storeId))) {
-      return json({ error: '当前管理员无权同步该门店。' }, 403);
-    }
-    const months = monthsBetween(payload.startMonth, payload.endMonth);
-    if (months.length > 120) return json({ error: '单次最多可建立 120 个月的历史同步任务。' }, 400);
-    const rows = months.map((month) => ({
-      corp_id: jobCorpId,
-      sync_type: 'history_month' as const,
-      scope_type: payload.storeId ? 'store' as const : 'organization' as const,
-      month_start: `${month}-01`,
-      range_start: `${month}-01`,
-      range_end: month === datePart(new Date(), timezone).slice(0, 7) ? datePart(new Date(), timezone) : monthEnd(month),
-      store_id: payload.storeId ?? null,
-      trigger_type: 'manual' as const,
-      initiated_by: actorId,
-      status: 'queued' as const,
-      progress_cursor: { queuedByRange: true },
-    }));
-    const { data: queued, error } = await adminClient.from('attendance_sync_jobs').insert(rows).select('id');
-    if (error) return json({ error: '无法建立历史考勤同步队列。' }, 500);
-    return json({ status: 'queued', queuedCount: queued?.length ?? 0, message: `已建立 ${queued?.length ?? 0} 个月的同步队列，后台将按月份自动处理。` });
-  }
 
   if (payload.action === 'refresh-directory') {
     const { data: job, error: jobError } = await adminClient.from('attendance_sync_jobs').insert({
@@ -193,7 +167,6 @@ Deno.serve(async (request) => {
   const triggerType: 'manual' | 'scheduled' | 'retry' = isScheduled ? 'scheduled' : payload.action === 'retry-job' ? 'retry' : 'manual';
   let requestedStoreId: string | null = null;
   let requestedProfileId: string | null = null;
-  let claimedHistoryJob: Record<string, unknown> | null = null;
   const today = datePart(new Date(), timezone);
 
   if (payload.action === 'retry-job') {
@@ -218,26 +191,31 @@ Deno.serve(async (request) => {
     if (!monthPattern.test(month)) return json({ error: '月份格式应为 YYYY-MM。' }, 400);
     startDate = `${month}-01`; endDate = month === today.slice(0, 7) ? today : monthEnd(month);
     syncType = requestedProfileId ? 'employee' : month === today.slice(0, 7) ? 'current_month' : 'month';
-  } else if (payload.action === 'scheduled-sync') {
-    if (payload.mode === 'history-queue') {
-      const claimed = await adminClient.rpc('claim_attendance_history_sync_job');
-      if (claimed.error) return json({ error: '无法读取历史同步队列。' }, 500);
-      if (!claimed.data) return json({ status: 'skipped', message: '历史同步队列当前为空。' });
-      claimedHistoryJob = claimed.data as Record<string, unknown>;
-      startDate = String(claimedHistoryJob.range_start);
-      endDate = String(claimedHistoryJob.range_end);
-      requestedStoreId = claimedHistoryJob.store_id ? String(claimedHistoryJob.store_id) : null;
-      requestedProfileId = claimedHistoryJob.profile_id ? String(claimedHistoryJob.profile_id) : null;
-      syncType = 'history_month';
-    } else {
-    if (payload.mode === 'month-start' && today.slice(8, 10) !== '01') {
-      return json({ status: 'skipped', message: '当前企业日期不是每月 1 日，月初回补任务已安全跳过。' });
-    }
-    startDate = payload.mode === 'month-start' ? shiftDate(today.slice(0, 7) + '-01', -5) : `${today.slice(0, 7)}-01`;
-    endDate = today; syncType = payload.mode === 'month-start' ? 'date_range' : 'current_month';
-    }
   } else {
     return json({ error: '未知考勤操作。' }, 400);
+  }
+
+  if (payload.action === 'report-sync' || payload.action === 'sync') {
+    let recentQuery = adminClient.from('attendance_sync_jobs').select('id,status,message:error_summary,created_at')
+      .eq('range_start', startDate).eq('range_end', endDate)
+      .in('status', ['succeeded','partial'])
+      .gte('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      .order('created_at', { ascending: false }).limit(1);
+    if (requestedStoreId) recentQuery = recentQuery.eq('store_id', requestedStoreId);
+    if (requestedProfileId) recentQuery = recentQuery.eq('profile_id', requestedProfileId);
+    if (payload.action === 'report-sync' && actorId) recentQuery = recentQuery.eq('initiated_by', actorId);
+    const recent = await recentQuery.maybeSingle();
+    if (!recent.error && recent.data) return json({
+      cached: true, jobId: recent.data.id, status: recent.data.status,
+      message: '已使用 5 分钟内完成的考勤同步结果，未重复调用钉钉接口。',
+    });
+    let runningQuery = adminClient.from('attendance_sync_jobs').select('id')
+      .eq('range_start', startDate).eq('range_end', endDate).eq('status', 'running')
+      .gte('created_at', new Date(Date.now() - 30_000).toISOString()).limit(1);
+    if (requestedStoreId) runningQuery = runningQuery.eq('store_id', requestedStoreId);
+    if (requestedProfileId) runningQuery = runningQuery.eq('profile_id', requestedProfileId);
+    const running = await runningQuery.maybeSingle();
+    if (!running.error && running.data) return json({ error: '同步正在进行，请至少等待 30 秒后再试。' }, 429);
   }
 
   let bindingsQuery = adminClient.from('dingtalk_employee_bindings').select('profile_id,corp_id,dingtalk_user_id,store_id').eq('binding_status', 'active');
@@ -258,9 +236,7 @@ Deno.serve(async (request) => {
     return [{ corpId: binding.corp_id, dingtalkUserId: binding.dingtalk_user_id, profileId: binding.profile_id, storeId: binding.store_id }];
   });
 
-  const createdJob = claimedHistoryJob
-    ? { data: { id: String(claimedHistoryJob.id) }, error: null }
-    : await adminClient.from('attendance_sync_jobs').insert({
+  const createdJob = await adminClient.from('attendance_sync_jobs').insert({
       corp_id: jobCorpId, sync_type: syncType, scope_type: requestedProfileId ? 'employee' : requestedStoreId ? 'store' : 'organization',
       month_start: `${startDate.slice(0, 7)}-01`, range_start: startDate, range_end: endDate,
       store_id: requestedStoreId, profile_id: requestedProfileId, trigger_type: triggerType, initiated_by: actorId,
@@ -268,16 +244,22 @@ Deno.serve(async (request) => {
     }).select('id').single();
   const job = createdJob.data;
   if (createdJob.error || !job) return json({ error: '无法创建考勤同步任务。' }, 500);
-  if (claimedHistoryJob) await adminClient.from('attendance_sync_jobs').update({ progress_cursor: { totalEmployees: bindings.length, completedEmployees: 0 } }).eq('id', job.id);
   if (actorId) await adminClient.from('attendance_audit_logs').insert({ actor_id: actorId, action: triggerType === 'retry' ? 'sync_retried' : 'sync_requested', entity_type: 'sync_job', entity_id: job.id, store_id: requestedStoreId, metadata: { startDate, endDate, employeeCount: bindings.length } });
 
   let successCount = 0; let failureCount = 0; let insertedCount = 0; let updatedCount = 0; let skippedCount = 0;
-  const schedulesByCorp = new Map<string, Record<string, unknown>[]>();
+  const bundlesByCorp = new Map<string, { punches: Record<string, unknown>[]; results: Record<string, unknown>[]; schedules: Record<string, unknown>[] }>();
   try {
     for (const corpId of unique(bindings.map((binding) => binding.corpId))) {
       const client = clientByCorp.get(corpId);
       if (!client) throw new Error(`DingTalk enterprise ${corpId} is not configured`);
-      schedulesByCorp.set(corpId, await client.listSchedules(startDate, endDate));
+      const corpBindings = bindings.filter((binding) => binding.corpId === corpId);
+      await client.getAccessToken();
+      const [bundle, schedules] = await Promise.all([
+        client.getAttendanceBundle(unique(corpBindings.map((binding) => binding.dingtalkUserId)), startDate, endDate),
+        client.listSchedules(startDate, endDate),
+      ]);
+      bundle.schedules = schedules;
+      bundlesByCorp.set(corpId, bundle);
     }
   } catch (error) {
     const message = publicError(error);
@@ -289,8 +271,8 @@ Deno.serve(async (request) => {
       const client = clientByCorp.get(binding.corpId);
       const config = configByCorp.get(binding.corpId);
       if (!client || !config) throw new Error(`DingTalk enterprise ${binding.corpId} is not configured`);
-      const bundle = await client.getAttendanceBundle([binding.dingtalkUserId], startDate, endDate);
-      bundle.schedules = schedulesByCorp.get(binding.corpId) ?? [];
+      const bundle = bundlesByCorp.get(binding.corpId);
+      if (!bundle) throw new Error(`DingTalk attendance bundle ${binding.corpId} is unavailable`);
       const days = normalizeAttendanceBundle(binding, bundle);
       const normalizedDates = new Set(days.map((day) => day.attendanceDate));
       const { data: persistedDays, error: persistedDaysError } = await adminClient.from('attendance_daily_records')

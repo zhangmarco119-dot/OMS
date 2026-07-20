@@ -544,7 +544,7 @@ function OvertimeManager() {
 
 function AdminOvertimeEntry({ onSaved, setup }: { onSaved: () => Promise<void>; setup: Setup | null }) {
   const auth = useAuth();
-  const profiles = useMemo(() => (setup?.profiles ?? []).filter((profile) => profile.employment_type === 'full_time'), [setup]);
+  const profiles = useMemo(() => setup?.profiles ?? [], [setup]);
   const [profileId, setProfileId] = useState('');
   const [storeId, setStoreId] = useState('');
   const [date, setDate] = useState(todayInChina());
@@ -554,6 +554,8 @@ function AdminOvertimeEntry({ onSaved, setup }: { onSaved: () => Promise<void>; 
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const selectedProfile = profiles.find((profile) => profile.id === profileId);
+  const isPartTime = selectedProfile?.employment_type === 'part_time';
+  const hoursTerm = isPartTime ? '兼职工时' : '加班工时';
   const hourOptions = Array.from({ length: 12 }, (_, index) => (index + 1) / 2);
 
   useEffect(() => {
@@ -570,7 +572,7 @@ function AdminOvertimeEntry({ onSaved, setup }: { onSaved: () => Promise<void>; 
   };
   const requestSave = () => {
     if (!profileId || !storeId || !date || !hours) {
-      setFeedback({ title: '请完善加班信息', message: '员工、门店、日期和加班工时均不能为空。', tone: 'warning' });
+      setFeedback({ title: '请完善工时信息', message: `员工、门店、日期和${hoursTerm}均不能为空。`, tone: 'warning' });
       return;
     }
     setConfirming(true);
@@ -582,25 +584,25 @@ function AdminOvertimeEntry({ onSaved, setup }: { onSaved: () => Promise<void>; 
       await adminRecordOvertime(supabase, { profileId, storeId, overtimeDate: date, hours: Number(hours), reason });
       await onSaved();
       setReason('');
-      setFeedback({ title: '加班工时已登记', message: '该记录已直接通过并计入员工实时薪资，员工通知也已发送。', tone: 'success' });
+      setFeedback({ title: `${hoursTerm}已登记`, message: `该记录已直接通过并计入${isPartTime ? '兼职薪资' : '员工实时薪资'}，员工通知也已发送。`, tone: 'success' });
     } catch (error) {
       setFeedback({ title: '登记未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
     } finally { setBusy(false); }
   };
 
   return <SectionCard>
-    <SectionHeader icon={Clock3} title="手动登记员工加班" description="管理员登记后直接生效，无需员工再次申请或审批。" />
+    <SectionHeader icon={Clock3} title="手动登记加班/兼职工时" description="管理员登记后直接生效，无需员工再次申请或审批。" />
     <div className="mt-3 grid grid-cols-2 gap-2">
-      <label className="col-span-2 text-sm font-semibold">员工<select className="ui-input mt-1" onChange={(event) => chooseProfile(event.target.value)} value={profileId}><option value="">请选择员工</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {profile.role === 'manager' ? '店长' : '员工'}</option>)}</select></label>
+      <label className="col-span-2 text-sm font-semibold">员工<select className="ui-input mt-1" onChange={(event) => chooseProfile(event.target.value)} value={profileId}><option value="">请选择员工</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollProfileLabel(profile)}</option>)}</select></label>
       <label className="text-sm font-semibold">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}><option value="">请选择门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.short_name ?? store.name}</option>)}</select></label>
-      <label className="text-sm font-semibold">加班日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
-      <label className="col-span-2 text-sm font-semibold">加班工时<select className="ui-input mt-1" onChange={(event) => setHours(event.target.value)} value={hours}>{hourOptions.map((value) => <option key={value} value={value}>{value} 小时</option>)}</select></label>
+      <label className="text-sm font-semibold">{isPartTime ? '兼职日期' : '加班日期'}<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
+      <label className="col-span-2 text-sm font-semibold">{hoursTerm}<select className="ui-input mt-1" onChange={(event) => setHours(event.target.value)} value={hours}>{hourOptions.map((value) => <option key={value} value={value}>{value} 小时</option>)}</select></label>
     </div>
     <label className="mt-3 block text-sm font-semibold">登记说明（选填）<input className="ui-input mt-1" onChange={(event) => setReason(event.target.value)} placeholder="例如闭店盘点、临时支援" value={reason} /></label>
-    <p className="mt-2 text-xs leading-5 text-slate-500">同一员工、门店和日期已有申请时，本次登记会更新该记录并直接确认通过。</p>
-    <button className="ui-button-primary mt-3 w-full" disabled={busy || !profiles.length} onClick={requestSave} type="button">{busy ? '正在登记' : '登记加班工时'}</button>
-    {!profiles.length ? <p className="mt-2 text-xs text-amber-700">当前没有可登记加班的全职员工或店长。</p> : null}
-    <ConfirmDialog confirmLabel="确认登记" onCancel={() => setConfirming(false)} onConfirm={() => void save()} open={confirming} title="确认登记员工加班"><p className="text-sm text-slate-600">{selectedProfile?.display_name ?? '员工'} · {date} · {hours} 小时。确认后将立即计入薪资统计。</p></ConfirmDialog>
+    <p className="mt-2 text-xs leading-5 text-slate-500">同一员工、门店和日期已有工时记录时，本次登记会更新该记录并直接确认通过。</p>
+    <button className="ui-button-primary mt-3 w-full" disabled={busy || !profiles.length} onClick={requestSave} type="button">{busy ? '正在登记' : `登记${hoursTerm}`}</button>
+    {!profiles.length ? <p className="mt-2 text-xs text-amber-700">当前没有可登记工时的员工、店长或兼职员工。</p> : null}
+    <ConfirmDialog confirmLabel="确认登记" onCancel={() => setConfirming(false)} onConfirm={() => void save()} open={confirming} title={`确认登记${hoursTerm}`}><p className="text-sm text-slate-600">{selectedProfile?.display_name ?? '员工'} · {date} · {hours} 小时。确认后将立即计入薪资统计。</p></ConfirmDialog>
     <FeedbackDialog feedback={feedback} close={() => setFeedback(null)} />
   </SectionCard>;
 }

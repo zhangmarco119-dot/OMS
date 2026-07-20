@@ -96,12 +96,19 @@ describe('AdminPayrollPage update guidance', () => {
   it('offers administrators a direct employee overtime entry workflow', async () => {
     vi.mocked(loadPayrollAdminSetup).mockResolvedValue({
       ...setup,
-      profiles: [{ id: 'profile-1', display_name: '测试员工', employment_type: 'full_time', role: 'staff', store_id: 'store-1' }],
+      profiles: [
+        { id: 'profile-1', display_name: '测试员工', employment_type: 'full_time', role: 'staff', store_id: 'store-1' },
+        { id: 'profile-2', display_name: '测试兼职', employment_type: 'part_time', role: 'staff', store_id: 'store-1' },
+      ],
     } as never);
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=overtime']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
-    expect(await screen.findByText('手动登记员工加班')).toBeInTheDocument();
+    expect(await screen.findByText('手动登记加班/兼职工时')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '登记加班工时' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '测试员工 · 员工' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '测试兼职 · 兼职员工' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('员工'), { target: { value: 'profile-2' } });
+    expect(screen.getByRole('button', { name: '登记兼职工时' })).toBeInTheDocument();
+    expect(screen.getByText('兼职日期')).toBeInTheDocument();
     expect(screen.getByText('批量导入员工加班')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下载 Excel 模板' })).toBeInTheDocument();
   });

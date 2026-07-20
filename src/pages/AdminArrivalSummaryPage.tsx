@@ -5,6 +5,8 @@ import { PageShell } from '../components/layout/PageShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/Feedback';
 import { SegmentedControl } from '../components/ui/FormField';
 import { SectionCard } from '../components/ui/Surface';
+import { ArrivalPeriodFilter } from '../features/arrivals/ArrivalPeriodFilter';
+import { arrivalPeriodLabel, createDefaultArrivalPeriod, resolveArrivalPeriod } from '../features/arrivals/arrivalPeriod';
 import { createArrivalSummaryExport, downloadArrivalExport } from '../features/export/arrivalExport';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -15,10 +17,7 @@ type SummaryTab = 'details' | 'products';
 
 export function AdminArrivalSummaryPage() {
   const auth = useAuth();
-  const [dateMode, setDateMode] = useRememberedPageState<'day' | 'range'>('date-mode', 'day');
-  const [date, setDate] = useRememberedPageState('date', localIsoDate());
-  const [dateFrom, setDateFrom] = useRememberedPageState('date-from', localIsoDate());
-  const [dateTo, setDateTo] = useRememberedPageState('date-to', localIsoDate());
+  const [period, setPeriod] = useRememberedPageState('period-v2', createDefaultArrivalPeriod(localIsoDate()));
   const [storeId, setStoreId] = useRememberedPageState('store', '');
   const [tab, setTab] = useRememberedPageState<SummaryTab>('tab', 'details');
   const [summary, setSummary] = useState<AdminArrivalSummary>({ details: [], products: [] });
@@ -29,12 +28,11 @@ export function AdminArrivalSummaryPage() {
     if (!supabase) { setStatus('error'); setMessage('需要配置 Supabase 才能加载每日汇总。'); return; }
     setStatus('loading');
     try {
-      const range = dateMode === 'day' ? { dateFrom: date, dateTo: date } : { dateFrom, dateTo };
-      if (range.dateFrom > range.dateTo) throw new Error('开始日期不能晚于结束日期。');
+      const range = resolveArrivalPeriod(period);
       setSummary(await loadAdminArrivalSummary(supabase, range, storeId)); setStatus('ready'); setMessage(null);
     }
     catch (error) { setStatus('error'); setMessage(error instanceof Error ? error.message : '加载每日汇总失败。'); }
-  }, [date, dateFrom, dateMode, dateTo, storeId]);
+  }, [period, storeId]);
   useEffect(() => { void load(); }, [load]);
 
   const metrics = useMemo(() => ({
@@ -44,9 +42,9 @@ export function AdminArrivalSummaryPage() {
     units: summary.details.reduce((total, row) => total + (Number(row.quantity) || 0), 0),
   }), [summary]);
 
-  const exportLabel = dateMode === 'day' ? date : `${dateFrom}至${dateTo}`;
+  const exportLabel = arrivalPeriodLabel(period);
   return <PageShell eyebrow="门店运营系统 · 管理员" title="到货中心" backTo="/app/admin/arrivals">
-    <SectionCard><SegmentedControl className="grid-cols-2" items={[{ active: dateMode === 'day', label: '选择某日', onClick: () => setDateMode('day') }, { active: dateMode === 'range', label: '选择时间区间', onClick: () => setDateMode('range') }]} /><div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">{dateMode === 'day' ? <label className="text-sm font-semibold text-slate-700">日期<input className="ui-input mt-1" onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label> : <><label className="text-sm font-semibold text-slate-700">开始日期<input className="ui-input mt-1" onChange={(event) => setDateFrom(event.target.value)} type="date" value={dateFrom} /></label><label className="text-sm font-semibold text-slate-700">结束日期<input className="ui-input mt-1" onChange={(event) => setDateTo(event.target.value)} type="date" value={dateTo} /></label></>}<label className="text-sm font-semibold text-slate-700">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}><option value="">全部门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label><button className="ui-button-primary mt-auto" disabled={status !== 'ready' || summary.details.length === 0} onClick={() => downloadArrivalExport(createArrivalSummaryExport(summary, exportLabel))} type="button"><FileDown className="h-5 w-5" />导出 Excel</button></div></SectionCard>
+    <SectionCard><ArrivalPeriodFilter onChange={setPeriod} value={period} /><div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]"><label className="text-sm font-semibold text-slate-700">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}><option value="">全部门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label><button className="ui-button-primary mt-auto" disabled={status !== 'ready' || summary.details.length === 0} onClick={() => downloadArrivalExport(createArrivalSummaryExport(summary, exportLabel))} type="button"><FileDown className="h-5 w-5" />导出 Excel</button></div></SectionCard>
     {message ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'loading' ? <LoadingState label="正在汇总到货数据" /> : null}
     {status === 'ready' ? <>

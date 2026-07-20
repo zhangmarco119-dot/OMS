@@ -1,13 +1,15 @@
-import { CalendarDays, Filter, RefreshCw, X } from 'lucide-react';
+import { CalendarDays, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/Feedback';
-import { SectionCard, SectionHeader } from '../components/ui/Surface';
+import { SectionCard } from '../components/ui/Surface';
 import {
   formatArrivalDateTime,
 } from '../features/arrivals/adminArrivalFormat';
+import { ArrivalPeriodFilter } from '../features/arrivals/ArrivalPeriodFilter';
+import { createDefaultArrivalPeriod, resolveArrivalPeriod } from '../features/arrivals/arrivalPeriod';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
@@ -18,14 +20,8 @@ import {
   type AdminArrivalListItem,
 } from '../services/admin-arrivals.service';
 
-const dateDaysAgo = (days: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return localIsoDate(date);
-};
-
 const initialFilters: AdminArrivalListFilters = {
-  dateFrom: dateDaysAgo(30),
+  dateFrom: localIsoDate(),
   dateTo: localIsoDate(),
   page: 1,
   status: 'all',
@@ -35,11 +31,11 @@ const initialFilters: AdminArrivalListFilters = {
 export function AdminArrivalsPage() {
   const auth = useAuth();
   const [filters, setFilters] = useRememberedPageState('filters', initialFilters);
+  const [period, setPeriod] = useRememberedPageState('period-v2', createDefaultArrivalPeriod(localIsoDate()));
   const [reports, setReports] = useState<AdminArrivalListItem[]>([]);
   const [count, setCount] = useState(0);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useRememberedPageState('show-filters', false);
   const pageCount = Math.max(1, Math.ceil(count / 20));
 
   const load = useCallback(async () => {
@@ -51,7 +47,7 @@ export function AdminArrivalsPage() {
     setStatus('loading');
     setErrorMessage(null);
     try {
-      const list = await loadAdminArrivalList(supabase, filters);
+      const list = await loadAdminArrivalList(supabase, { ...filters, ...resolveArrivalPeriod(period) });
       setReports(list.reports);
       setCount(list.count);
       setStatus('ready');
@@ -59,7 +55,7 @@ export function AdminArrivalsPage() {
       setStatus('error');
       setErrorMessage(error instanceof Error ? error.message : '加载到货中心失败。');
     }
-  }, [filters]);
+  }, [filters, period]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -67,26 +63,19 @@ export function AdminArrivalsPage() {
 
   return (
     <PageShell eyebrow="门店运营系统 · 管理员" title="到货中心" backTo="/app">
-      <SectionCard>
-        <SectionHeader title="到货记录" description={`共 ${count} 条`} action={
-          <div className="flex gap-2">
-            <Link className="ui-button-secondary px-3" to="/app/admin/arrivals/summary"><CalendarDays className="h-4 w-4" aria-hidden="true" />到货汇总</Link>
-            <button className="ui-button-secondary px-3 md:hidden" onClick={() => setShowFilters((value) => !value)} type="button"><Filter className="h-4 w-4" aria-hidden="true" />筛选</button>
-            <button aria-label="刷新到货记录" className="ui-icon-button" onClick={() => void load()} type="button"><RefreshCw className="h-4 w-4" aria-hidden="true" /></button>
+      <SectionCard className="p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <h2 className="shrink-0 text-base font-bold text-slate-900">到货记录</h2>
+            <span className="truncate text-xs text-slate-500">共 {count} 条</span>
           </div>
-        } />
-        <ArrivalFilters filters={filters} onChange={setFilters} stores={storeOptions} className="mt-4 hidden md:grid" />
-      </SectionCard>
-
-      {showFilters ? (
-        <div className="ui-dialog-overlay md:hidden" role="dialog" aria-modal="true" aria-label="筛选到货记录">
-          <div className="ui-dialog-panel max-w-lg p-5">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-bold">筛选</h2><button aria-label="关闭筛选" className="h-10 w-10" onClick={() => setShowFilters(false)} type="button"><X className="mx-auto h-5 w-5" /></button></div>
-            <ArrivalFilters filters={filters} onChange={setFilters} stores={storeOptions} className="mt-4 grid" />
-            <button className="mt-4 min-h-11 w-full rounded-lg bg-brand-600 font-bold text-white" onClick={() => setShowFilters(false)} type="button">查看结果</button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Link className="ui-button-secondary min-h-9 gap-1.5 px-2.5 py-1 text-xs" to="/app/admin/arrivals/summary"><CalendarDays className="h-4 w-4" aria-hidden="true" />到货汇总</Link>
+            <button aria-label="刷新到货记录" className="ui-icon-button h-9 min-h-9 w-9" onClick={() => void load()} type="button"><RefreshCw className="h-4 w-4" aria-hidden="true" /></button>
           </div>
         </div>
-      ) : null}
+        <ArrivalFilters filters={filters} onChange={setFilters} onPeriodChange={(value) => { setPeriod(value); setFilters((current) => ({ ...current, page: 1 })); }} period={period} stores={storeOptions} className="mt-2.5" />
+      </SectionCard>
 
       {errorMessage ? <ErrorState message={errorMessage} onRetry={() => void load()} /> : null}
       {status === 'loading' ? <LoadingState label="正在加载到货记录" /> : null}
@@ -104,13 +93,14 @@ export function AdminArrivalsPage() {
   );
 }
 
-function ArrivalFilters({ className, filters, onChange, stores }: { className: string; filters: AdminArrivalListFilters; onChange: (value: AdminArrivalListFilters) => void; stores: Array<{ id: string; name: string }> }) {
+function ArrivalFilters({ className, filters, onChange, onPeriodChange, period, stores }: { className: string; filters: AdminArrivalListFilters; onChange: (value: AdminArrivalListFilters) => void; onPeriodChange: Parameters<typeof ArrivalPeriodFilter>[0]['onChange']; period: Parameters<typeof ArrivalPeriodFilter>[0]['value']; stores: Array<{ id: string; name: string }> }) {
   const update = (patch: Partial<AdminArrivalListFilters>) => onChange({ ...filters, ...patch, page: 1 });
-  return <div className={`${className} gap-3 md:grid-cols-4`}>
-    <label className="text-sm font-semibold text-slate-700">门店<select className="ui-input mt-1" onChange={(event) => update({ storeId: event.target.value })} value={filters.storeId}><option value="">全部门店</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
-    <label className="text-sm font-semibold text-slate-700">开始日期<input className="ui-input mt-1" onChange={(event) => update({ dateFrom: event.target.value })} type="date" value={filters.dateFrom} /></label>
-    <label className="text-sm font-semibold text-slate-700">结束日期<input className="ui-input mt-1" onChange={(event) => update({ dateTo: event.target.value })} type="date" value={filters.dateTo} /></label>
-    <label className="text-sm font-semibold text-slate-700">状态<select className="ui-input mt-1" onChange={(event) => update({ status: event.target.value as AdminArrivalListFilters['status'] })} value={filters.status}><option value="all">有效到货</option><option value="submitted">未读</option><option value="viewed">已读</option><option value="voided">已作废</option></select></label>
+  return <div className={className}>
+    <ArrivalPeriodFilter compact onChange={onPeriodChange} value={period} />
+    <div className="mt-2 grid grid-cols-2 gap-2">
+      <label className="text-xs font-semibold text-slate-600">门店<select className="ui-input mt-0.5 min-h-9 py-1 text-sm" onChange={(event) => update({ storeId: event.target.value })} value={filters.storeId}><option value="">全部门店</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+      <label className="text-xs font-semibold text-slate-600">状态<select className="ui-input mt-0.5 min-h-9 py-1 text-sm" onChange={(event) => update({ status: event.target.value as AdminArrivalListFilters['status'] })} value={filters.status}><option value="all">有效到货</option><option value="submitted">未读</option><option value="viewed">已读</option><option value="voided">已作废</option></select></label>
+    </div>
   </div>;
 }
 

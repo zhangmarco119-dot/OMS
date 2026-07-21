@@ -264,18 +264,32 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     }));
   }, [updateForm]);
 
-  const removeItem = useCallback((itemId: string) => {
+  const removeItem = useCallback(async (itemId: string) => {
+    if (!supabase) throw new Error('Supabase 未配置。');
+    const itemImages = images.filter((image) => image.arrival_item_id === itemId);
+    try {
+      for (const image of itemImages) {
+        await removeArrivalImage(supabase, image);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '删除产品图片失败，请重试。');
+      return;
+    }
+    if (itemImages.length > 0) {
+      setImages((current) => current.filter((image) => image.arrival_item_id !== itemId));
+    }
     updateForm((current) => ({
       ...current,
       items: current.items.filter((item) => item.id !== itemId)
         .map((item, index) => ({ ...item, sortOrder: index })),
     }));
-  }, [updateForm]);
+  }, [images, updateForm]);
 
   const addImage = useCallback(async (
     file: File,
     imageType: ArrivalImageType,
     onProgress?: (progress: number) => void,
+    arrivalItemId?: string | null,
   ) => {
     if (!supabase || !profileId || !storeId || !reportRef.current) {
       throw new Error('到货草稿尚未加载。');
@@ -283,6 +297,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     setUploadCount((count) => count + 1);
     try {
       const uploaded = await uploadArrivalImage(supabase, {
+        arrivalItemId,
         file,
         imageType,
         profileId,
@@ -308,7 +323,9 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     }
 
     const issues = getArrivalValidationIssues({
-      goodsImageCount: images.filter((image) => image.image_type === 'goods').length,
+      goodsImageItemIds: images
+        .filter((image) => image.image_type === 'goods' && image.arrival_item_id)
+        .map((image) => image.arrival_item_id as string),
       items: formRef.current.items,
       uploadCount,
       waybillImageCount: images.filter((image) => image.image_type === 'waybill').length,

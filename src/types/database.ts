@@ -71,6 +71,7 @@ export type Database = {
       };
       arrival_report_images: {
         Row: {
+          arrival_item_id: string | null;
           bucket: string;
           created_at: string;
           file_name: string;
@@ -86,6 +87,7 @@ export type Database = {
           width: number | null;
         };
         Insert: {
+          arrival_item_id?: string | null;
           bucket?: string;
           created_at?: string;
           file_name: string;
@@ -101,6 +103,7 @@ export type Database = {
           width?: number | null;
         };
         Update: {
+          arrival_item_id?: string | null;
           bucket?: string;
           created_at?: string;
           file_name?: string;

@@ -115,6 +115,7 @@ export const loadArrivalImages = async (client: Client, reportId: string) => {
 export const uploadArrivalImage = async (
   client: Client,
   input: {
+    arrivalItemId?: string | null;
     file: File;
     imageType: ArrivalImageType;
     profileId: string;
@@ -142,6 +143,7 @@ export const uploadArrivalImage = async (
   const { data: metadata, error: metadataError } = await client
     .from('arrival_report_images')
     .insert({
+      arrival_item_id: input.imageType === 'goods' ? input.arrivalItemId ?? null : null,
       bucket,
       file_name: input.file.name || `${objectId}.${extensionForMime(processed.mimeType)}`,
       height: processed.height,

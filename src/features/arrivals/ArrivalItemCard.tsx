@@ -2,14 +2,23 @@ import { Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { ProductRow } from '../../services/arrivals.service';
+import type { ArrivalImageType, ArrivalImageWithUrl } from '../../services/arrival-images.service';
+import { ArrivalImageSection } from './ArrivalImageSection';
 import { isProhibitedArrivalUnit, type ArrivalDraftItem } from './arrivalForm';
 
 interface ArrivalItemCardProps {
   canRemove: boolean;
   index: number;
   item: ArrivalDraftItem;
+  images: ArrivalImageWithUrl[];
   onChange: (item: ArrivalDraftItem) => void;
+  onDeleteImage: (image: ArrivalImageWithUrl) => Promise<void>;
   onRemove: () => void;
+  onUploadImage: (
+    file: File,
+    imageType: ArrivalImageType,
+    onProgress: (progress: number) => void,
+  ) => Promise<unknown>;
   products: ProductRow[];
 }
 
@@ -26,8 +35,11 @@ export function ArrivalItemCard({
   canRemove,
   index,
   item,
+  images,
   onChange,
+  onDeleteImage,
   onRemove,
+  onUploadImage,
   products,
 }: ArrivalItemCardProps) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -163,6 +175,16 @@ export function ArrivalItemCard({
           value={item.note}
         />
       </label>
+
+      <ArrivalImageSection
+        embedded
+        imageType="goods"
+        images={images}
+        onDelete={onDeleteImage}
+        onUpload={onUploadImage}
+        prompt={`产品 ${index + 1} 至少上传一张拆包后的实际货品照片。`}
+        title="拆包货品照片"
+      />
     </article>
   );
 }

@@ -45,26 +45,40 @@ describe('arrival form', () => {
 
   it('reports missing images, uploads and invalid quantities', () => {
     expect(getArrivalValidationIssues({
-      goodsImageCount: 0,
+      goodsImageItemIds: [],
       items: [item({ quantity: '-1' })],
       uploadCount: 1,
       waybillImageCount: 0,
     })).toEqual([
       '至少上传一张面单照片。',
-      '至少上传一张拆包货品照片。',
       '还有 1 张图片正在上传。',
       '产品 1：数量必须大于 0。',
+      '产品 1：至少上传一张拆包货品照片。',
     ]);
   });
 
   it.each(['箱', '整箱', '箱装', '件', '整件', '一件'])('rejects bulk packaging unit %s', (unit) => {
     expect(getArrivalValidationIssues({
-      goodsImageCount: 1,
+      goodsImageItemIds: [item().id],
       items: [item({ unit })],
       uploadCount: 0,
       waybillImageCount: 1,
     })).toEqual([
       '产品 1：禁止使用箱、整箱、件或整件作为单位，请按瓶、袋、盒、个、杯、克或毫升等最小单位计数。',
     ]);
+  });
+
+  it('requires at least one unpacked-goods image for every product item', () => {
+    const secondItem = item({
+      id: '00000000-0000-4000-8000-000000000002',
+      productName: '蓝莓',
+      sortOrder: 1,
+    });
+    expect(getArrivalValidationIssues({
+      goodsImageItemIds: [item().id],
+      items: [item(), secondItem],
+      uploadCount: 0,
+      waybillImageCount: 1,
+    })).toEqual(['产品 2：至少上传一张拆包货品照片。']);
   });
 });

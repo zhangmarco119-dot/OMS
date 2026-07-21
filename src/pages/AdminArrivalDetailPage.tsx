@@ -126,9 +126,26 @@ export function AdminArrivalDetailPage() {
         </section>
 
         <ImageGroup images={detail.images.filter((image) => image.image_type === 'waybill')} onView={setViewerUrl} title="面单照片" />
-        <ImageGroup images={detail.images.filter((image) => image.image_type === 'goods')} onView={setViewerUrl} title="货品照片" />
 
-        <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">产品明细</h2><div className="mt-3 divide-y divide-slate-100">{detail.items.map((item, index) => <div className="flex items-start justify-between gap-4 py-3" key={item.id}><div><p className="font-semibold text-slate-900">{index + 1}. {item.product_name_snapshot}</p>{item.note ? <p className="mt-1 text-xs text-slate-500">{item.note}</p> : null}{item.is_unmatched_product ? <span className="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">未匹配货品</span> : null}</div><p className="shrink-0 font-bold text-brand-700">{item.quantity} {item.unit}</p></div>)}</div></section>
+        <section className="rounded-lg bg-white p-5 shadow-sm">
+          <h2 className="font-bold text-slate-900">产品明细与拆包照片</h2>
+          <div className="mt-3 space-y-3">
+            {detail.items.map((item, index) => {
+              const itemImages = detail.images.filter((image) => image.image_type === 'goods' && image.arrival_item_id === item.id);
+              return <article className="rounded-lg border border-slate-200 p-3" key={item.id}>
+                <div className="flex items-start justify-between gap-4">
+                  <div><p className="font-semibold text-slate-900">{index + 1}. {item.product_name_snapshot}</p>{item.note ? <p className="mt-1 text-xs text-slate-500">{item.note}</p> : null}{item.is_unmatched_product ? <span className="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">未匹配货品</span> : null}</div>
+                  <p className="shrink-0 font-bold text-brand-700">{item.quantity} {item.unit}</p>
+                </div>
+                <ProductImageGrid images={itemImages} onView={setViewerUrl} productName={item.product_name_snapshot} />
+              </article>;
+            })}
+          </div>
+        </section>
+
+        {detail.images.some((image) => image.image_type === 'goods' && !image.arrival_item_id)
+          ? <ImageGroup images={detail.images.filter((image) => image.image_type === 'goods' && !image.arrival_item_id)} onView={setViewerUrl} title="历史货品照片（未关联具体产品）" />
+          : null}
 
         <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">操作日志</h2>{detail.auditLogs.length ? <ol className="mt-3 space-y-3">{detail.auditLogs.map((log) => <li className="border-l-2 border-brand-200 pl-3 text-sm" key={log.id}><p className="font-semibold text-slate-800">{auditLabel[log.action] ?? log.action}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(log.created_at)}</p></li>)}</ol> : <p className="mt-3 text-sm text-slate-500">暂无操作日志。</p>}</section>
 
@@ -150,4 +167,9 @@ function Info({ label, value }: { label: string; value: string }) { return <div>
 
 function ImageGroup({ images, onView, title }: { images: AdminArrivalDetail['images']; onView: (url: string) => void; title: string }) {
   return <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">{title}</h2>{images.length ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{images.map((image) => <div key={image.id}><button className="block aspect-square w-full overflow-hidden rounded-lg bg-slate-100" onClick={() => onView(image.signedUrl)} type="button"><img alt={title} className="h-full w-full object-cover" src={image.signedUrl} /></button><a className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-1 rounded-md border border-slate-200 text-xs font-bold text-slate-700" download={image.file_name} href={image.signedUrl}><Download className="h-3.5 w-3.5" />下载</a></div>)}</div> : <p className="mt-3 text-sm text-slate-500">没有图片。</p>}</section>;
+}
+
+function ProductImageGrid({ images, onView, productName }: { images: AdminArrivalDetail['images']; onView: (url: string) => void; productName: string }) {
+  if (!images.length) return <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-500">该产品没有关联照片。</p>;
+  return <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">{images.map((image) => <button className="aspect-square overflow-hidden rounded-lg bg-slate-100" key={image.id} onClick={() => onView(image.signedUrl)} type="button"><img alt={`${productName}拆包照片`} className="h-full w-full object-cover" src={image.signedUrl} /></button>)}</div>;
 }

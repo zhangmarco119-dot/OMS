@@ -1,5 +1,5 @@
 import { AlertCircle, History, PackagePlus, Plus, Save, Send } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -32,12 +32,14 @@ export function ArrivalEntryPage() {
   const waybillImages = draft.images.filter((image) => image.image_type === 'waybill');
   const goodsImages = draft.images.filter((image) => image.image_type === 'goods');
   const summary = draft.form ? generateArrivalSummary(draft.form.items) : '';
-  const validationIssues = useMemo(() => draft.form ? getArrivalValidationIssues({
-    goodsImageCount: goodsImages.length,
+  const validationIssues = draft.form ? getArrivalValidationIssues({
+    goodsImageItemIds: goodsImages
+      .filter((image) => image.arrival_item_id)
+      .map((image) => image.arrival_item_id as string),
     items: draft.form.items,
     uploadCount: draft.uploadCount,
     waybillImageCount: waybillImages.length,
-  }) : ['草稿尚未加载。'], [draft.form, draft.uploadCount, goodsImages.length, waybillImages.length]);
+  }) : ['草稿尚未加载。'];
 
   if (!featureFlags.arrivalEntry) {
     return (
@@ -143,8 +145,6 @@ export function ArrivalEntryPage() {
       </section>
 
       <ArrivalImageSection imageType="waybill" images={waybillImages} onDelete={draft.deleteImage} onUpload={draft.addImage} prompt="请拍摄完整的快递面单或配送标签，确保关键信息清晰可见。" title="快递面单照片" />
-      <ArrivalImageSection imageType="goods" images={goodsImages} onDelete={draft.deleteImage} onUpload={draft.addImage} prompt="请拆开包装后拍摄内部实际货品，确保货品和数量尽量清晰。" title="拆包货品照片" />
-
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-3">
           <div><p className="text-xs font-semibold text-brand-700">结构化明细</p><h2 className="mt-0.5 text-lg font-bold text-slate-900">产品明细</h2></div>
@@ -155,9 +155,12 @@ export function ArrivalEntryPage() {
             canRemove={draft.form!.items.length > 1}
             index={index}
             item={item}
+            images={goodsImages.filter((image) => image.arrival_item_id === item.id)}
             key={item.id}
             onChange={(next) => draft.updateItem(item.id, () => next)}
-            onRemove={() => { if (window.confirm('确认删除这个产品吗？')) draft.removeItem(item.id); }}
+            onDeleteImage={draft.deleteImage}
+            onRemove={() => { if (window.confirm('确认删除这个产品及其照片吗？')) void draft.removeItem(item.id); }}
+            onUploadImage={(file, imageType, onProgress) => draft.addImage(file, imageType, onProgress, item.id)}
             products={draft.products}
           />
         ))}
@@ -205,7 +208,7 @@ export function ArrivalEntryPage() {
               <div className="flex justify-between gap-4"><dt className="text-slate-500">门店</dt><dd className="text-right font-semibold text-slate-900">{auth.store?.name}</dd></div>
               <div className="flex justify-between gap-4"><dt className="text-slate-500">产品种类</dt><dd className="font-semibold text-slate-900">{draft.form.items.length}</dd></div>
               <div className="flex justify-between gap-4"><dt className="text-slate-500">面单图片</dt><dd className="font-semibold text-slate-900">{waybillImages.length}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">货品图片</dt><dd className="font-semibold text-slate-900">{goodsImages.length}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-slate-500">货品图片</dt><dd className="font-semibold text-slate-900">{goodsImages.length} 张（每个产品均已上传）</dd></div>
             </dl>
             <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">{summary}</p>
             <div className="mt-5 grid grid-cols-2 gap-3">

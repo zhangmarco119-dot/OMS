@@ -15,7 +15,7 @@ export interface ArrivalDraftItem {
 }
 
 export interface ArrivalValidationInput {
-  goodsImageCount: number;
+  goodsImageItemIds: string[];
   items: ArrivalDraftItem[];
   uploadCount: number;
   waybillImageCount: number;
@@ -97,18 +97,16 @@ export const generateArrivalSummary = (items: ArrivalDraftItem[]) => {
 };
 
 export const getArrivalValidationIssues = ({
-  goodsImageCount,
+  goodsImageItemIds,
   items,
   uploadCount,
   waybillImageCount,
 }: ArrivalValidationInput) => {
   const issues: string[] = [];
+  const itemIdsWithGoodsImages = new Set(goodsImageItemIds);
 
   if (waybillImageCount < 1) {
     issues.push('至少上传一张面单照片。');
-  }
-  if (goodsImageCount < 1) {
-    issues.push('至少上传一张拆包货品照片。');
   }
   if (uploadCount > 0) {
     issues.push(`还有 ${uploadCount} 张图片正在上传。`);
@@ -122,6 +120,9 @@ export const getArrivalValidationIssues = ({
     if (!parsed.success) {
       const firstIssue = parsed.error.issues[0]?.message ?? '产品信息不完整。';
       issues.push(`产品 ${index + 1}：${firstIssue}`);
+    }
+    if (!itemIdsWithGoodsImages.has(item.id)) {
+      issues.push(`产品 ${index + 1}：至少上传一张拆包货品照片。`);
     }
   });
 

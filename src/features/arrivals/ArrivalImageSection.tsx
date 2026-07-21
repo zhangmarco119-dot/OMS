@@ -14,6 +14,7 @@ interface PendingUpload {
 }
 
 interface ArrivalImageSectionProps {
+  embedded?: boolean;
   imageType: ArrivalImageType;
   images: ArrivalImageWithUrl[];
   onDelete: (image: ArrivalImageWithUrl) => Promise<void>;
@@ -27,6 +28,7 @@ interface ArrivalImageSectionProps {
 }
 
 export function ArrivalImageSection({
+  embedded = false,
   imageType,
   images,
   onDelete,
@@ -104,7 +106,7 @@ export function ArrivalImageSection({
   };
 
   return (
-    <section className="ui-card p-3.5">
+    <section className={embedded ? 'mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3' : 'ui-card p-3.5'}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold text-red-700">必填</p>

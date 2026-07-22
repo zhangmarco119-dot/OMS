@@ -1,6 +1,6 @@
 import { AlertCircle, History, PackagePlus, Plus, Save, Send } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { MobileActionBar } from '../components/ui/Actions';
@@ -22,8 +22,10 @@ const saveStatusLabel = {
 export function ArrivalEntryPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const reportId = searchParams.get('reportId') ?? undefined;
   const canOperate = featureFlags.arrivalEntry && canOperateV2Modules(auth.profile?.role);
-  const draft = useArrivalDraft(canOperate ? auth.profile?.id : undefined, canOperate ? auth.store?.id : undefined);
+  const draft = useArrivalDraft(canOperate ? auth.profile?.id : undefined, canOperate ? auth.store?.id : undefined, reportId);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -113,7 +115,7 @@ export function ArrivalEntryPage() {
   };
 
   return (
-    <PageShell eyebrow="门店运营系统 · 门店执行" title="到货上报" backTo="/app" contentGapClassName="gap-3">
+    <PageShell eyebrow="门店运营系统 · 门店执行" title={reportId ? '修改到货上报' : '到货上报'} backTo={reportId ? '/app/arrivals/history' : '/app'} contentGapClassName="gap-3">
       <section className="rounded-lg bg-white p-3 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>

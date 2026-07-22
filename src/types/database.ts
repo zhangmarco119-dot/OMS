@@ -1217,6 +1217,10 @@ export type Database = {
         Args: { p_report_id: string };
         Returns: Json;
       };
+      reopen_voided_arrival_report: {
+        Args: { p_report_id: string };
+        Returns: Json;
+      };
       save_arrival_draft: {
         Args: {
           p_expected_version: number;

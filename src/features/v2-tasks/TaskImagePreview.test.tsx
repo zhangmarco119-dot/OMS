@@ -27,4 +27,11 @@ describe('TaskImagePreview', () => {
     render(<TaskImagePreview deletableImageIds={[]} imageUrls={{ [image.id]: 'blob:task-image' }} images={[image]} onDelete={vi.fn()} />);
     expect(screen.queryByRole('button', { name: '删除已上传图片 1' })).not.toBeInTheDocument();
   });
+
+  it('shows upload progress directly over a pending image', () => {
+    const pending = { ...image, id: 'local-image-1', upload_progress: 75 } as V2TaskImageRow;
+    render(<TaskImagePreview imageUrls={{ [pending.id]: 'blob:pending-image' }} images={[pending]} />);
+    expect(screen.getByRole('progressbar', { name: '已上传图片 1上传进度' })).toHaveAttribute('aria-valuenow', '75');
+    expect(screen.getByText('75%')).toBeInTheDocument();
+  });
 });

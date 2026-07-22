@@ -80,4 +80,29 @@ describe('V2TaskExecutionPage required submission state', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: '确认完成' }));
     await waitFor(() => expect(screen.getByRole('button', { name: '提交检查' })).toHaveClass('bg-brand-600'));
   });
+
+  it('shows the configured minimum image count on the matching task item', async () => {
+    const imageAnswer = {
+      ...requiredConfirmation,
+      item_id: 'freezer-item',
+      item_snapshot: {
+        field_type: 'multi_image',
+        id: 'freezer-item',
+        image_requirement: 'multiple',
+        is_required: true,
+        label: '大冰箱',
+        minimum_image_count: 8,
+      },
+    } as unknown as V2TaskAnswerRow;
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [imageAnswer], images: [], reviews: [], task } as V2TaskDetail);
+
+    render(
+      <MemoryRouter initialEntries={['/app/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<V2TaskExecutionPage />} path="/app/tasks/:taskId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('图片要求：至少上传 8 张')).toBeInTheDocument();
+    expect(screen.getByText('已完成 0/8')).toBeInTheDocument();
+  });
 });

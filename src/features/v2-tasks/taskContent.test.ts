@@ -31,7 +31,7 @@ describe('taskContent', () => {
       id: 'f0523948-29db-42e7-bff4-df54cc3d0bed',
       items: [{
         fieldType: 'single_choice', guidance: '请选择', id: 'dca3505c-19fc-49f1-af70-b2c00b16f36d',
-        imageRequirement: 'single', isRequired: true, label: '新项目', optionsText: '合格\n不合格', raw: {},
+        imageRequirement: 'single', isRequired: true, label: '新项目', minimumImageCount: 2, optionsText: '合格\n不合格', raw: {},
         referenceImagePaths: ['f0523948-29db-42e7-bff4-df54cc3d0bed/dca3505c-19fc-49f1-af70-b2c00b16f36d/image.jpg'], referenceImageUrls: ['blob:preview'],
       }],
       raw: {},

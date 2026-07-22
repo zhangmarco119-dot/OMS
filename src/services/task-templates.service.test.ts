@@ -24,15 +24,21 @@ describe('task templates service', () => {
     draft.name = '每周闭店清洁';
     draft.groups[0].title = '操作间';
     draft.groups[0].items[0].label = '确认操作台已消毒';
+    draft.groups[0].items[0].imageRequirement = 'multiple';
+    draft.groups[0].items[0].minimumImageCount = 8;
     await saveTaskTemplate(client, draft);
     expect(rpc).toHaveBeenCalledWith('save_v2_task_template', expect.objectContaining({
       p_store_ids: [storeId],
       p_template_id: null,
       p_groups: [expect.objectContaining({
         sort_order: 0,
-        items: [expect.objectContaining({ field_type: 'confirmation', sort_order: 0 })],
+        items: [expect.objectContaining({ field_type: 'confirmation', minimum_image_count: 8, sort_order: 0 })],
       })],
     }));
+    expect(rpc).toHaveBeenCalledWith('set_v2_task_template_minimum_image_counts', {
+      p_counts: [{ item_id: draft.groups[0].items[0].id, minimum_image_count: 8 }],
+      p_template_id: 'template-1',
+    });
   });
 
   it('publishes a version through the database RPC', async () => {

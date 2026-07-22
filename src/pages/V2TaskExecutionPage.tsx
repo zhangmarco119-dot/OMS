@@ -31,7 +31,7 @@ export function V2TaskExecutionPage() {
   const [deletingImageIds, setDeletingImageIds] = useState<string[]>([]);
   const dirty = useRef(false);
   const activeUploads = useRef(new Set<Promise<void>>());
-  const uploadedItemIds = useRef(new Set<string>());
+  const uploadedImages = useRef(new Map<string, string>());
   const contentSignature = useRef('');
 
   const taskContentSignature = (task: Pick<V2TaskDetail['task'], 'due_at' | 'name' | 'snapshot'>) => JSON.stringify([task.name, task.due_at, task.snapshot]);
@@ -42,7 +42,7 @@ export function V2TaskExecutionPage() {
       const next = await loadV2TaskDetail(supabase, taskId);
       contentSignature.current = taskContentSignature(next.task);
       setDetail(next);
-      uploadedItemIds.current = new Set(next.images.map((image) => image.item_id));
+      uploadedImages.current = new Map(next.images.map((image) => [image.id, image.item_id]));
       setAnswers(next.answers);
       setImageUrls(await loadV2TaskImageUrls(supabase, next.images));
       setReferenceImageUrls(await loadV2TaskReferenceImageUrls(supabase, next.answers));
@@ -107,16 +107,20 @@ export function V2TaskExecutionPage() {
       await Promise.all([...activeUploads.current]);
     }
     let validationImages = detail.images.filter((image) => !image.id.startsWith('local-'));
+    let refreshedImages = false;
     try {
       const latest = await loadV2TaskDetail(supabase, detail.task.id);
       validationImages = latest.images;
+      refreshedImages = true;
       setDetail((current) => current ? { ...current, images: latest.images } : current);
-      latest.images.forEach((image) => uploadedItemIds.current.add(image.item_id));
+      latest.images.forEach((image) => uploadedImages.current.set(image.id, image.item_id));
     } catch {
       // The upload callback also records successful item ids synchronously, so a
       // transient detail refresh failure must not force the user to reload the page.
     }
-    const availableImageItemIds = new Set([...validationImages.map((image) => image.item_id), ...uploadedItemIds.current]);
+    const availableImageItemIds = refreshedImages
+      ? validationImages.map((image) => image.item_id)
+      : [...uploadedImages.current.values()];
     const issues = getTaskSubmissionIssues(answers, availableImageItemIds);
     if (issues.length > 0) { setSubmissionIssues(issues); setBusy(false); return; }
     try {
@@ -136,7 +140,7 @@ export function V2TaskExecutionPage() {
     setBusy(true);
     try {
       const uploaded = await uploadV2TaskImage(supabase, detail.task, itemId, auth.profile.id, file);
-      uploadedItemIds.current.add(itemId);
+      uploadedImages.current.set(uploaded.id, itemId);
       setDetail((current) => current ? {
         ...current,
         images: current.images.map((image) => image.id === temporaryImage.id ? uploaded : image),
@@ -166,9 +170,7 @@ export function V2TaskExecutionPage() {
       setDetail((current) => {
         if (!current) return current;
         const images = current.images.filter((entry) => entry.id !== image.id);
-        if (!images.some((entry) => !entry.id.startsWith('local-') && entry.item_id === image.item_id)) {
-          uploadedItemIds.current.delete(image.item_id);
-        }
+        uploadedImages.current.delete(image.id);
         return { ...current, images };
       });
       setImageUrls((current) => {

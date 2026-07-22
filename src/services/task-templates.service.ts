@@ -91,6 +91,7 @@ const groupsToDraft = async (client: Client, groups: TaskTemplateGroupRow[], ite
         imageRequirement: item.image_requirement,
         isRequired: item.is_required,
         label: item.label,
+        minimumImageCount: item.minimum_image_count ?? 2,
         optionsText: Array.isArray(item.options) ? item.options.filter((entry): entry is string => typeof entry === 'string').join('\n') : '',
         referenceImagePath: paths[0] ?? null,
         referenceImageUrl: urls[0] ?? null,
@@ -133,6 +134,7 @@ const serializeGroups = (groups: TaskTemplateGroupDraft[]): Json => groups.map((
     image_requirement: item.imageRequirement,
     is_required: item.isRequired,
     label: item.label,
+    minimum_image_count: item.imageRequirement === 'multiple' ? item.minimumImageCount : null,
     options: item.optionsText.split('\n').map((option) => option.trim()).filter(Boolean),
     reference_image_path: item.referenceImagePaths[0] ?? item.referenceImagePath,
     reference_image_paths: item.referenceImagePaths,
@@ -207,7 +209,16 @@ export const saveTaskTemplate = async (client: Client, input: TaskTemplateDraft)
     }
   }
   throwIfError(error);
-  return data as unknown as SavedTaskTemplate;
+  const saved = data as unknown as SavedTaskTemplate;
+  const minimumImageCounts = draft.groups.flatMap((group) => group.items
+    .filter((item) => item.imageRequirement === 'multiple')
+    .map((item) => ({ item_id: item.id, minimum_image_count: item.minimumImageCount })));
+  const countsResult = await client.rpc('set_v2_task_template_minimum_image_counts', {
+    p_counts: minimumImageCounts,
+    p_template_id: saved.id,
+  });
+  throwIfError(countsResult.error);
+  return saved;
 };
 
 export const publishTaskTemplate = async (client: Client, templateId: string) => {

@@ -18,18 +18,23 @@ const answerIsMissing = (answer: V2TaskAnswerRow) => {
 };
 
 export const getTaskSubmissionIssues = (answers: V2TaskAnswerRow[], imageItemIds: Iterable<string>): TaskSubmissionIssue[] => {
-  const itemsWithImages = new Set(imageItemIds);
+  const imageCounts = new Map<string, number>();
+  for (const itemId of imageItemIds) imageCounts.set(itemId, (imageCounts.get(itemId) ?? 0) + 1);
   return answers.flatMap((answer) => {
     const item = asTaskItemSnapshot(answer.item_snapshot);
     if (!item.is_required) return [];
     const missingAnswer = answerIsMissing(answer);
     const needsImage = ['image', 'multi_image'].includes(item.field_type)
       || ['single', 'multiple'].includes(item.image_requirement ?? 'none');
-    const missingImage = needsImage && !itemsWithImages.has(answer.item_id);
+    const requiredImageCount = item.image_requirement === 'multiple'
+      ? typeof item.minimum_image_count === 'number' ? Math.max(2, Math.min(20, item.minimum_image_count)) : 1
+      : 1;
+    const currentImageCount = imageCounts.get(answer.item_id) ?? 0;
+    const missingImage = needsImage && currentImageCount < requiredImageCount;
     if (!missingAnswer && !missingImage) return [];
     const reason = missingAnswer && missingImage
-      ? '请完成填写或确认，并上传至少一张图片'
-      : missingImage ? '请上传至少一张图片' : '请完成填写或确认';
+      ? `请完成填写或确认，并至少上传 ${requiredImageCount} 张图片（当前 ${currentImageCount} 张）`
+      : missingImage ? `请至少上传 ${requiredImageCount} 张图片（当前 ${currentImageCount} 张）` : '请完成填写或确认';
     return [{ itemId: answer.item_id, label: item.label, reason }];
   });
 };

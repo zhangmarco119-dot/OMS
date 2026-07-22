@@ -326,6 +326,10 @@ function LegacyItemEditor({ busy, item, itemNumber, onChange, onRemove, onUpload
 }
 
 function ItemEditor(props: { busy: boolean; item: TaskTemplateItemDraft; itemNumber: string; onChange: (item: TaskTemplateItemDraft) => void; onDeleteReferenceImage: (itemId: string, path: string) => Promise<void>; onRemove: () => void; onUploadReferenceImage: (itemId: string, file: File, onProgress: (progress: number) => void) => Promise<void> }) {
+  return <div><ItemEditorWithReferences {...props} />{props.item.imageRequirement === 'multiple' ? <label className="mt-2 block rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm font-semibold">至少上传张数<input className="mt-1 min-h-10 w-full rounded-lg border bg-white p-2" max={20} min={2} onChange={(event) => props.onChange({ ...props.item, minimumImageCount: Math.max(2, Math.min(20, Number(event.target.value) || 2)) })} type="number" value={props.item.minimumImageCount} /><span className="mt-1 block text-xs font-normal text-slate-500">员工少于此数量时无法提交。</span></label> : null}</div>;
+}
+
+function ItemEditorWithReferences(props: { busy: boolean; item: TaskTemplateItemDraft; itemNumber: string; onChange: (item: TaskTemplateItemDraft) => void; onDeleteReferenceImage: (itemId: string, path: string) => Promise<void>; onRemove: () => void; onUploadReferenceImage: (itemId: string, file: File, onProgress: (progress: number) => void) => Promise<void> }) {
   const { item } = props;
   const [activeReferenceUrl, setActiveReferenceUrl] = useState<string | null>(null);
   const removeReference = async (index: number) => {

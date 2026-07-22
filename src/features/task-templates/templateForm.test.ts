@@ -25,4 +25,14 @@ describe('task template form', () => {
     draft.groups[0].items[0].optionsText = '优秀\n需整改';
     expect(validateTaskTemplateDraft(draft).groups[0].items[0].optionsText).toContain('优秀');
   });
+
+  it('validates the minimum count for multiple-image items', () => {
+    const draft = createEmptyTaskTemplate([storeId]);
+    draft.name = '打烊检查';
+    draft.groups[0].title = '冰箱';
+    draft.groups[0].items[0].label = '大冰箱';
+    draft.groups[0].items[0].imageRequirement = 'multiple';
+    draft.groups[0].items[0].minimumImageCount = 8;
+    expect(validateTaskTemplateDraft(draft).groups[0].items[0].minimumImageCount).toBe(8);
+  });
 });

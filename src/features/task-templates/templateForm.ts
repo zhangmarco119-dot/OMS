@@ -19,6 +19,7 @@ export interface TaskTemplateItemDraft {
   imageRequirement: ImageRequirement;
   isRequired: boolean;
   label: string;
+  minimumImageCount: number;
   optionsText: string;
   referenceImagePath: string | null;
   referenceImageUrl: string | null;
@@ -54,6 +55,7 @@ export const createEmptyTemplateItem = (): TaskTemplateItemDraft => ({
   imageRequirement: 'none',
   isRequired: true,
   label: '',
+  minimumImageCount: 2,
   optionsText: '',
   referenceImagePath: null,
   referenceImageUrl: null,
@@ -88,6 +90,7 @@ const itemSchema = z.object({
   id: z.string().uuid(),
   imageRequirement: z.enum(['none', 'single', 'multiple']),
   isRequired: z.boolean(),
+  minimumImageCount: z.number().int().min(2, '多张图片至少需要 2 张。').max(20, '每个项目最多可要求 20 张图片。'),
   label: z.string().trim().min(1, '每个项目都需要填写名称。'),
   optionsText: z.string(),
   referenceImagePath: z.string().nullable(),

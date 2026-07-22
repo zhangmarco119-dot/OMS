@@ -31,7 +31,7 @@ export function V2TaskExecutionPage() {
   const [deletingImageIds, setDeletingImageIds] = useState<string[]>([]);
   const dirty = useRef(false);
   const activeUploads = useRef(new Set<Promise<void>>());
-  const uploadedItemIds = useRef(new Set<string>());
+  const uploadedImages = useRef(new Map<string, string>());
   const contentSignature = useRef('');
 
   const taskContentSignature = (task: Pick<V2TaskDetail['task'], 'due_at' | 'name' | 'snapshot'>) => JSON.stringify([task.name, task.due_at, task.snapshot]);
@@ -42,7 +42,7 @@ export function V2TaskExecutionPage() {
       const next = await loadV2TaskDetail(supabase, taskId);
       contentSignature.current = taskContentSignature(next.task);
       setDetail(next);
-      uploadedItemIds.current = new Set(next.images.map((image) => image.item_id));
+      uploadedImages.current = new Map(next.images.map((image) => [image.id, image.item_id]));
       setAnswers(next.answers);
       setImageUrls(await loadV2TaskImageUrls(supabase, next.images));
       setReferenceImageUrls(await loadV2TaskReferenceImageUrls(supabase, next.answers));
@@ -107,16 +107,20 @@ export function V2TaskExecutionPage() {
       await Promise.all([...activeUploads.current]);
     }
     let validationImages = detail.images.filter((image) => !image.id.startsWith('local-'));
+    let refreshedImages = false;
     try {
       const latest = await loadV2TaskDetail(supabase, detail.task.id);
       validationImages = latest.images;
+      refreshedImages = true;
       setDetail((current) => current ? { ...current, images: latest.images } : current);
-      latest.images.forEach((image) => uploadedItemIds.current.add(image.item_id));
+      latest.images.forEach((image) => uploadedImages.current.set(image.id, image.item_id));
     } catch {
       // The upload callback also records successful item ids synchronously, so a
       // transient detail refresh failure must not force the user to reload the page.
     }
-    const availableImageItemIds = new Set([...validationImages.map((image) => image.item_id), ...uploadedItemIds.current]);
+    const availableImageItemIds = refreshedImages
+      ? validationImages.map((image) => image.item_id)
+      : [...uploadedImages.current.values()];
     const issues = getTaskSubmissionIssues(answers, availableImageItemIds);
     if (issues.length > 0) { setSubmissionIssues(issues); setBusy(false); return; }
     try {
@@ -130,19 +134,19 @@ export function V2TaskExecutionPage() {
   const upload = async (itemId: string, file: File | undefined) => {
     if (!file || !supabase || !detail || !auth.profile) return;
     const localPreviewUrl = URL.createObjectURL(file);
-    const temporaryImage = { bucket: 'v2-task-images', created_at: new Date().toISOString(), file_name: file.name || 'uploading-image', id: `local-${Date.now()}-${Math.random()}`, item_id: itemId, mime_type: file.type, object_path: '', size_bytes: file.size, store_id: detail.task.store_id, task_id: detail.task.id, uploaded_by: auth.profile.id } as V2TaskImageRow;
+    const temporaryImage = { bucket: 'v2-task-images', created_at: new Date().toISOString(), file_name: file.name || 'uploading-image', id: `local-${Date.now()}-${Math.random()}`, item_id: itemId, mime_type: file.type, object_path: '', size_bytes: file.size, store_id: detail.task.store_id, task_id: detail.task.id, uploaded_by: auth.profile.id, upload_progress: 5 } as V2TaskImageRow;
     setDetail((current) => current ? { ...current, images: [...current.images, temporaryImage] } : current);
     setImageUrls((current) => ({ ...current, [temporaryImage.id]: localPreviewUrl }));
     setBusy(true);
     try {
-      const uploaded = await uploadV2TaskImage(supabase, detail.task, itemId, auth.profile.id, file);
-      uploadedItemIds.current.add(itemId);
+      const uploaded = await uploadV2TaskImage(supabase, detail.task, itemId, auth.profile.id, file, (nextProgress) => setDetail((current) => current ? { ...current, images: current.images.map((image) => image.id === temporaryImage.id ? { ...image, upload_progress: nextProgress } as V2TaskImageRow : image) } : current));
+      uploadedImages.current.set(uploaded.id, itemId);
       setDetail((current) => current ? {
         ...current,
         images: current.images.map((image) => image.id === temporaryImage.id ? uploaded : image),
       } : current);
       setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return { ...next, [uploaded.id]: localPreviewUrl }; });
-      setSuccessMessage('图片已上传，可点击预览');
+      setMessage(null);
     }
     catch (error) { setDetail((current) => current ? { ...current, images: current.images.filter((image) => image.id !== temporaryImage.id) } : current); setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return next; }); setMessage(error instanceof Error ? error.message : '图片上传失败'); }
     finally { setBusy(false); }
@@ -166,9 +170,7 @@ export function V2TaskExecutionPage() {
       setDetail((current) => {
         if (!current) return current;
         const images = current.images.filter((entry) => entry.id !== image.id);
-        if (!images.some((entry) => !entry.id.startsWith('local-') && entry.item_id === image.item_id)) {
-          uploadedItemIds.current.delete(image.item_id);
-        }
+        uploadedImages.current.delete(image.id);
         return { ...current, images };
       });
       setImageUrls((current) => {
@@ -210,6 +212,10 @@ function AnswerCard({ answer, deletingImageIds, editable, images, imageUrls, nee
   const value = answer.answer;
   const expectsImages = ['image', 'multi_image'].includes(item.field_type) || item.image_requirement !== 'none';
   const canUpload = editable;
+  const requiredImageCount = item.image_requirement === 'multiple' && typeof item.minimum_image_count === 'number'
+    ? Math.max(2, Math.min(20, item.minimum_image_count))
+    : 1;
+  const uploadedImageCount = images.filter((image) => !image.id.startsWith('local-')).length;
   return <article className={`ui-card p-4 ${needsCorrection ? 'border-red-300 bg-red-50/20' : !editable && answer.review_status === 'approved' ? 'border-emerald-200 bg-emerald-50/20' : ''}`}><div className="flex flex-wrap items-center gap-2"><span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">{number}</span><h2 className="font-bold">{item.label}{item.is_required ? <span className="ml-1 text-red-600">*</span> : ''}</h2>{needsCorrection ? <span className="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-xs font-bold text-red-700">需整改</span> : !editable && answer.review_status === 'approved' ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">已通过 · 无需修改</span> : null}</div>{item.guidance ? <p className="mt-1 text-sm leading-5 text-slate-500">{item.guidance}</p> : null}<TaskReferenceImagePreview urls={referenceImageUrls} /><div className="mt-3">
     {item.field_type === 'instruction' ? <p className="rounded bg-slate-50 p-3 text-sm">请按说明完成本项。</p> : null}
     {['short_text', 'long_text'].includes(item.field_type) ? <textarea className="ui-input min-h-20 py-3" disabled={!editable} onChange={(event) => onChange(event.target.value)} value={typeof value === 'string' ? value : ''} /> : null}
@@ -217,6 +223,6 @@ function AnswerCard({ answer, deletingImageIds, editable, images, imageUrls, nee
     {['boolean', 'confirmation'].includes(item.field_type) ? <label className="flex min-h-12 items-center gap-3"><input checked={value === true} disabled={!editable} onChange={(event) => onChange(event.target.checked)} type="checkbox" />确认完成</label> : null}
     {item.field_type === 'single_choice' ? <select className="ui-input" disabled={!editable} onChange={(event) => onChange(event.target.value)} value={typeof value === 'string' ? value : ''}><option value="">请选择</option>{options.map((option) => <option key={option}>{option}</option>)}</select> : null}
     {item.field_type === 'multi_choice' ? <div>{options.map((option) => <label className="mr-4 inline-flex gap-2" key={option}><input checked={Array.isArray(value) && value.includes(option)} disabled={!editable} onChange={(event) => { const selected = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []; onChange(event.target.checked ? [...selected, option] : selected.filter((entry) => entry !== option)); }} type="checkbox" />{option}</label>)}</div> : null}
-    {expectsImages ? <div className="space-y-3"><label className="ui-button-secondary"><Camera className="h-4 w-4" />{images.length ? `继续上传（已上传 ${images.length} 张）` : '上传图片'}<input accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" disabled={!canUpload} onChange={(event) => { onUpload(event.target.files?.[0]); event.currentTarget.value = ''; }} type="file" /></label><TaskImagePreview deletableImageIds={images.filter((image) => image.uploaded_by === uploaderId).map((image) => image.id)} deletingImageIds={deletingImageIds} imageUrls={imageUrls} images={images} onDelete={editable ? onDeleteImage : undefined} /></div> : null}
+    {expectsImages ? <div className="space-y-3">{item.is_required ? <div className={`rounded-lg border px-3 py-2 text-sm ${uploadedImageCount >= requiredImageCount ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><b>图片要求：至少上传 {requiredImageCount} 张</b><span className="ml-2 text-xs">已完成 {uploadedImageCount}/{requiredImageCount}</span></div> : null}<label className="ui-button-secondary"><Camera className="h-4 w-4" />{images.length ? `继续上传（已选择 ${images.length} 张）` : '上传图片'}<input accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" disabled={!canUpload} onChange={(event) => { onUpload(event.target.files?.[0]); event.currentTarget.value = ''; }} type="file" /></label><TaskImagePreview deletableImageIds={images.filter((image) => image.uploaded_by === uploaderId).map((image) => image.id)} deletingImageIds={deletingImageIds} imageUrls={imageUrls} images={images} onDelete={editable ? onDeleteImage : undefined} /></div> : null}
   </div></article>;
 }

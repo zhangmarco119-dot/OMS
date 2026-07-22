@@ -846,19 +846,19 @@ export type Database = {
           field_type: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id: string; guidance: string; id: string;
           image_requirement: 'none' | 'single' | 'multiple'; is_required: boolean;
-          label: string; options: Json; reference_image_path: string | null; reference_image_paths: string[]; sort_order: number; template_id: string;
+          label: string; minimum_image_count: number | null; options: Json; reference_image_path: string | null; reference_image_paths: string[]; sort_order: number; template_id: string;
         };
         Insert: {
           field_type: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id: string; guidance?: string; id?: string;
           image_requirement?: 'none' | 'single' | 'multiple'; is_required?: boolean;
-          label: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number; template_id: string;
+          label: string; minimum_image_count?: number | null; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number; template_id: string;
         };
         Update: {
           field_type?: 'instruction' | 'short_text' | 'long_text' | 'integer' | 'decimal' | 'boolean' | 'single_choice' | 'multi_choice' | 'image' | 'multi_image' | 'confirmation' | 'rating';
           group_id?: string; guidance?: string; id?: string;
           image_requirement?: 'none' | 'single' | 'multiple'; is_required?: boolean;
-          label?: string; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number; template_id?: string;
+          label?: string; minimum_image_count?: number | null; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number; template_id?: string;
         };
         Relationships: [];
       };
@@ -1099,6 +1099,10 @@ export type Database = {
       save_v2_task_template: {
         Args: { p_fields: Json; p_groups: Json; p_store_ids: string[]; p_template_id: string | null };
         Returns: Json;
+      };
+      set_v2_task_template_minimum_image_counts: {
+        Args: { p_counts: Json; p_template_id: string };
+        Returns: undefined;
       };
       can_edit_arrival_report: {
         Args: { target_report_id: string };

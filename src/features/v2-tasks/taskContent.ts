@@ -15,6 +15,7 @@ export interface TaskContentItemDraft {
   imageRequirement: ImageRequirement;
   isRequired: boolean;
   label: string;
+  minimumImageCount: number;
   optionsText: string;
   raw: JsonObject;
   referenceImagePaths: string[];
@@ -51,6 +52,7 @@ const asFieldType = (value: Json | undefined): TaskTemplateFieldType => typeof v
   ? value as TaskTemplateFieldType
   : 'confirmation';
 const asImageRequirement = (value: Json | undefined): ImageRequirement => value === 'single' || value === 'multiple' ? value : 'none';
+const asMinimumImageCount = (value: Json | undefined) => typeof value === 'number' && Number.isInteger(value) && value >= 2 && value <= 20 ? value : 2;
 
 export const createEmptyTaskContentItem = (): TaskContentItemDraft => ({
   fieldType: 'confirmation',
@@ -59,6 +61,7 @@ export const createEmptyTaskContentItem = (): TaskContentItemDraft => ({
   imageRequirement: 'none',
   isRequired: true,
   label: '',
+  minimumImageCount: 2,
   optionsText: '',
   raw: {},
   referenceImagePaths: [],
@@ -98,6 +101,7 @@ export const taskContentFromSnapshot = (name: string, snapshot: Json, referenceU
             imageRequirement: asImageRequirement(item.image_requirement),
             isRequired: asBoolean(item.is_required, true),
             label: asString(item.label),
+            minimumImageCount: asMinimumImageCount(item.minimum_image_count),
             optionsText: asStringArray(item.options).join('\n'),
             raw: item,
             referenceImagePaths: paths,
@@ -130,6 +134,7 @@ export const taskContentToSnapshot = (draft: TaskContentDraft): Json => {
         image_requirement: item.imageRequirement,
         is_required: item.isRequired,
         label: item.label,
+        minimum_image_count: item.imageRequirement === 'multiple' ? item.minimumImageCount : null,
         options: item.optionsText.split('\n').map((option) => option.trim()).filter(Boolean),
         reference_image_path: item.referenceImagePaths[0] ?? null,
         reference_image_paths: item.referenceImagePaths,
@@ -160,6 +165,7 @@ export const validateTaskContent = (draft: TaskContentDraft) => {
     if (!group.items.length) return `分组“${group.title}”至少需要一个项目。`;
     for (const item of group.items) {
       if (!item.id || !item.label.trim()) return `分组“${group.title}”中的每个项目都需要填写名称。`;
+      if (item.imageRequirement === 'multiple' && (!Number.isInteger(item.minimumImageCount) || item.minimumImageCount < 2 || item.minimumImageCount > 20)) return `项目“${item.label}”需要设置 2 至 20 张的最低图片数量。`;
       if (['single_choice', 'multi_choice'].includes(item.fieldType) && !item.optionsText.split('\n').some((option) => option.trim())) return `项目“${item.label}”至少需要一个选项。`;
     }
   }

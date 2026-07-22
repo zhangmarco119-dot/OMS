@@ -24,6 +24,7 @@ const auditLabel: Record<string, string> = {
   arrival_report_submitted: '提交到货上报',
   arrival_report_viewed: '管理员标记查看',
   arrival_report_voided: '管理员作废记录',
+  arrival_report_reopened: '员工打开修改',
 };
 
 export function AdminArrivalDetailPage() {

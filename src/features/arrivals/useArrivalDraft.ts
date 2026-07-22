@@ -90,7 +90,7 @@ const writeCachedForm = (
   }
 };
 
-export function useArrivalDraft(profileId: string | undefined, storeId: string | undefined) {
+export function useArrivalDraft(profileId: string | undefined, storeId: string | undefined, reportId?: string) {
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [message, setMessage] = useState<string | null>(null);
@@ -123,7 +123,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
 
     void (async () => {
       try {
-        const draft = await loadOrCreateArrivalDraft(supabase, storeId, profileId);
+        const draft = await loadOrCreateArrivalDraft(supabase, storeId, profileId, reportId);
         const loadedImages = await loadArrivalImages(supabase, draft.report.id);
         if (cancelled) return;
 
@@ -144,7 +144,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
           : databaseForm;
         // Always show the actual device-local moment captured when this page was
         // opened. Existing draft products, images and notes remain untouched.
-        const restored = applyArrivalOpenedAt(restoredDraft, openedAt);
+        const restored = reportId ? restoredDraft : applyArrivalOpenedAt(restoredDraft, openedAt);
         reportRef.current = draft.report;
         formRef.current = restored;
         setReport(draft.report);
@@ -164,7 +164,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     return () => {
       cancelled = true;
     };
-  }, [profileId, reloadToken, storeId]);
+  }, [profileId, reloadToken, reportId, storeId]);
 
   const updateForm = useCallback((updater: (current: ArrivalDraftFormState) => ArrivalDraftFormState) => {
     setForm((current) => {

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 import { isCompleteArrivalItem, type ArrivalDraftItem } from '../features/arrivals/arrivalForm';
+import { loadArrivalImages, type ArrivalImageWithUrl } from './arrival-images.service';
 import type { Database } from '../types/database';
 
 type Client = SupabaseClient<Database>;
@@ -38,6 +39,12 @@ const arrivalReportRpcSchema = z.object({
 export interface ArrivalDraftData {
   items: ArrivalDraftItem[];
   products: ProductRow[];
+  report: ArrivalReportRow;
+}
+
+export interface ArrivalReportDetail {
+  images: ArrivalImageWithUrl[];
+  items: Database['public']['Tables']['arrival_report_items']['Row'][];
   report: ArrivalReportRow;
 }
 
@@ -87,22 +94,27 @@ export const loadOrCreateArrivalDraft = async (
   client: Client,
   storeId: string,
   profileId: string,
+  reportId?: string,
 ): Promise<ArrivalDraftData> => {
-  const { data: existing, error: existingError } = await client
+  let existingQuery = client
     .from('arrival_reports')
     .select('*')
     .eq('store_id', storeId)
     .eq('reported_by', profileId)
     .eq('status', 'draft')
     .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+  if (reportId) existingQuery = existingQuery.eq('id', reportId);
+  const { data: existing, error: existingError } = await existingQuery.maybeSingle();
 
   if (existingError) {
     throw new Error(existingError.message);
   }
 
   let report = existing;
+  if (reportId && !report) {
+    throw new Error('需要修改的到货草稿不存在或无权访问。');
+  }
   if (!report) {
     const { data: created, error: createError } = await client
       .from('arrival_reports')
@@ -245,4 +257,34 @@ export const loadArrivalReport = async (client: Client, reportId: string) => {
     throw new Error(error.message);
   }
   return data;
+};
+
+export const loadArrivalReportDetail = async (
+  client: Client,
+  reportId: string,
+): Promise<ArrivalReportDetail> => {
+  const [reportResult, itemResult, images] = await Promise.all([
+    client.from('arrival_reports').select('*').eq('id', reportId).single(),
+    client.from('arrival_report_items').select('*').eq('report_id', reportId).order('sort_order'),
+    loadArrivalImages(client, reportId),
+  ]);
+  if (reportResult.error) throw new Error(reportResult.error.message);
+  if (itemResult.error) throw new Error(itemResult.error.message);
+  return {
+    images,
+    items: itemResult.data ?? [],
+    report: reportResult.data,
+  };
+};
+
+export const reopenVoidedArrivalReport = async (client: Client, reportId: string) => {
+  const { data, error } = await client.rpc('reopen_voided_arrival_report', {
+    p_report_id: reportId,
+  });
+  if (error) throw new Error(error.message);
+  const parsed = arrivalReportRpcSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error('数据库返回的到货草稿格式无效，请刷新后重试。');
+  }
+  return parsed.data as ArrivalReportRow;
 };

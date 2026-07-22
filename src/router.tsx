@@ -20,6 +20,7 @@ import { AdminV2TaskReviewPage } from './pages/AdminV2TaskReviewPage';
 import { AdminV2TaskPublishPage, AdminV2TasksPage } from './pages/AdminV2TasksPage';
 import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
 import { ArrivalHistoryPage } from './pages/ArrivalHistoryPage';
+import { ArrivalReportDetailPage } from './pages/ArrivalReportDetailPage';
 import { ArrivalSuccessPage } from './pages/ArrivalSuccessPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { AnnouncementDetailPage } from './pages/AnnouncementDetailPage';
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
       { path: 'arrivals', element: <ArrivalEntryPage /> },
       { path: 'arrivals/history', element: <ArrivalHistoryPage /> },
       { path: 'arrivals/:reportId/success', element: <ArrivalSuccessPage /> },
+      { path: 'arrivals/:reportId', element: <ArrivalReportDetailPage /> },
       { path: 'tasks', element: <V2TaskCenterPage /> },
       { path: 'tasks/:taskId', element: <V2TaskExecutionPage /> },
       { path: 'notices', element: <AnnouncementsPage /> },

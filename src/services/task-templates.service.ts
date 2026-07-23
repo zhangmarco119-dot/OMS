@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { loadStorageImageResource } from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
 import {
   validateTaskTemplateDraft,
@@ -58,6 +59,14 @@ export const deleteTaskCategory = async (client: Client, code: string) => {
 
 const getReferenceImageUrl = async (client: Client, templateId: string, path: string | null) => {
   if (!path) return null;
+  try {
+    return await loadStorageImageResource(client, 'v2-task-template-reference-images', path, {
+      scope: 'session',
+      variant: 'task-reference',
+    });
+  } catch {
+    // Continue to the legacy signing fallback for older WebViews.
+  }
   const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
   if (!error && data?.signedUrl) return data.signedUrl;
 

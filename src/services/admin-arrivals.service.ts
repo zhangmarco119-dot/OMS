@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { loadStorageImageResource } from '../lib/imageResourceCache';
 import type { Database } from '../types/database';
 
 type Client = SupabaseClient<Database>;
@@ -61,9 +62,14 @@ const throwIfError = (error: { message: string } | null) => {
 };
 
 const createSignedUrl = async (client: Client, objectPath: string) => {
-  const { data, error } = await client.storage.from(imageBucket).createSignedUrl(objectPath, 3600);
-  throwIfError(error);
-  return data?.signedUrl ?? null;
+  try {
+    return await loadStorageImageResource(client, imageBucket, objectPath, {
+      scope: 'session',
+      variant: 'arrival',
+    });
+  } catch {
+    return null;
+  }
 };
 
 export const localIsoDate = (date = new Date()) => {

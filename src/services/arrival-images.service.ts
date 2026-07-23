@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import {
+  invalidateStorageImage,
+  loadStorageImageResource,
+  primeImageResource,
+  storageImageCacheKey,
+} from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
 import type { Database } from '../types/database';
 
@@ -88,11 +94,10 @@ const extensionForMime = (mimeType: ProcessedArrivalImage['mimeType']) => {
 };
 
 const createSignedUrl = async (client: Client, objectPath: string) => {
-  const { data, error } = await client.storage.from(bucket).createSignedUrl(objectPath, 3600);
-  if (error) {
-    throw new Error(error.message);
-  }
-  return data.signedUrl;
+  return loadStorageImageResource(client, bucket, objectPath, {
+    scope: 'session',
+    variant: 'arrival',
+  });
 };
 
 export const loadArrivalImages = async (client: Client, reportId: string) => {
@@ -164,14 +169,10 @@ export const uploadArrivalImage = async (
     throw new Error(metadataError.message);
   }
 
-  let signedUrl: string;
-  try {
-    signedUrl = await createSignedUrl(client, objectPath);
-  } catch (error) {
-    await client.from('arrival_report_images').delete().eq('id', metadata.id);
-    await client.storage.from(bucket).remove([objectPath]);
-    throw error;
-  }
+  const signedUrl = await primeImageResource(
+    storageImageCacheKey(bucket, objectPath, { variant: 'arrival' }),
+    processed.blob,
+  ) ?? await createSignedUrl(client, objectPath);
   onProgress?.(100);
   return { ...metadata, signedUrl };
 };
@@ -186,6 +187,10 @@ export const removeArrivalImage = async (client: Client, image: ArrivalImageWith
   }
 
   const { error: storageError } = await client.storage.from(bucket).remove([image.object_path]);
+  invalidateStorageImage(bucket, image.object_path, [
+    { variant: 'arrival' },
+    { variant: 'original' },
+  ]);
   if (storageError) {
     throw new Error('图片记录已删除，但存储清理失败，请联系管理员处理。');
   }

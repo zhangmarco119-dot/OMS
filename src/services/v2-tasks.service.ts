@@ -1,6 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { compressArrivalImage } from './arrival-images.service';
+import {
+  invalidateStorageImage,
+  loadSignedImageResource,
+  loadStorageImageResource,
+  primeImageResource,
+  storageImageCacheKey,
+} from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
 
@@ -168,8 +175,15 @@ export const resumeV2TaskSchedule = async (client: Client, scheduleId: string) =
 };
 export const loadV2TaskImageUrls = async (client: Client, images: V2TaskImageRow[]) => {
   const results = await Promise.all(images.map(async (image) => {
-    const { data, error } = await client.storage.from(image.bucket).createSignedUrl(image.object_path, 60 * 60);
-    return error || !data?.signedUrl ? null : [image.id, data.signedUrl] as const;
+    try {
+      const url = await loadStorageImageResource(client, image.bucket, image.object_path, {
+        scope: 'session',
+        variant: 'task-submission',
+      });
+      return [image.id, url] as const;
+    } catch {
+      return null;
+    }
   }));
   return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
 };
@@ -178,9 +192,17 @@ export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2Ta
   if (!taskId) return {};
   const { data, error } = await client.functions.invoke('task-template-images', { body: { action: 'task-references', taskId } });
   if (error || !data || typeof data !== 'object' || !('urls' in data) || typeof data.urls !== 'object' || data.urls === null) return {};
-  return Object.fromEntries(Object.entries(data.urls)
-    .map(([itemId, urls]) => [itemId, Array.isArray(urls) ? urls.filter((url): url is string => typeof url === 'string') : typeof urls === 'string' ? [urls] : []] as const)
-    .filter((entry) => entry[1].length > 0)) as Record<string, string[]>;
+  const entries = await Promise.all(Object.entries(data.urls).map(async ([itemId, urls]) => {
+    const sourceUrls = Array.isArray(urls)
+      ? urls.filter((url): url is string => typeof url === 'string')
+      : typeof urls === 'string' ? [urls] : [];
+    const cachedUrls = await Promise.all(sourceUrls.map((url) => loadSignedImageResource(url, {
+      scope: 'session',
+      variant: 'task-reference',
+    }).catch(() => url)));
+    return [itemId, cachedUrls] as const;
+  }));
+  return Object.fromEntries(entries.filter((entry) => entry[1].length > 0)) as Record<string, string[]>;
 };
 
 export const loadV2TaskContentReferenceImageUrls = async (client: Client, snapshot: Json) => {
@@ -199,8 +221,14 @@ export const loadV2TaskContentReferenceImageUrls = async (client: Client, snapsh
   });
   const result = await Promise.all(entries.map(async ([itemId, paths]) => {
     const urls = (await Promise.all(paths.map(async (path) => {
-      const { data, error } = await client.storage.from('v2-task-template-reference-images').createSignedUrl(path, 60 * 60);
-      return error ? null : data?.signedUrl ?? null;
+      try {
+        return await loadStorageImageResource(client, 'v2-task-template-reference-images', path, {
+          scope: 'session',
+          variant: 'task-reference',
+        });
+      } catch {
+        return null;
+      }
     }))).filter((url): url is string => Boolean(url));
     return [itemId, urls] as const;
   }));
@@ -223,8 +251,12 @@ export const uploadV2TaskReferenceImage = async (client: Client, assetOwnerId: s
     await bucket.remove([path]);
     throw new Error(signError?.message ?? '参考图片预览生成失败。');
   }
+  const previewUrl = await primeImageResource(
+    storageImageCacheKey('v2-task-template-reference-images', path, { variant: 'task-reference' }),
+    processed.blob,
+  ) ?? data.signedUrl;
   onProgress?.(100);
-  return { path, previewUrl: data.signedUrl };
+  return { path, previewUrl };
 };
 
 export const deleteV2TaskReferenceImages = async (client: Client, paths: string[]) => {
@@ -232,6 +264,10 @@ export const deleteV2TaskReferenceImages = async (client: Client, paths: string[
   if (!uniquePaths.length) return;
   const { error } = await client.storage.from('v2-task-template-reference-images').remove(uniquePaths);
   fail(error);
+  uniquePaths.forEach((path) => invalidateStorageImage('v2-task-template-reference-images', path, [
+    { variant: 'task-reference' },
+    { variant: 'original' },
+  ]));
 };
 export const saveV2TaskProgress = async (client: Client, taskId: string, version: number, answers: V2TaskAnswerRow[]) => {
   const { data, error } = await client.rpc('save_v2_task_progress', { p_answers: answers.map((a) => ({ answer: a.answer, is_issue: a.is_issue, item_id: a.item_id, note: a.note })), p_expected_version: version, p_task_id: taskId }); fail(error); return data as unknown as V2TaskRow;
@@ -264,6 +300,10 @@ export const uploadV2TaskImage = async (client: Client, task: V2TaskRow, itemId:
   const metadata = await client.from('v2_task_images').insert({ file_name: file.name || `${id}.${ext}`, item_id: itemId, mime_type: processed.mimeType, object_path: path, size_bytes: processed.blob.size, store_id: task.store_id, task_id: task.id, uploaded_by: profileId }).select('*').single();
   if (metadata.error) { await client.storage.from(bucket).remove([path]); throw new Error(metadata.error.message); }
   if (!metadata.data) { await client.storage.from(bucket).remove([path]); throw new Error('图片记录保存失败'); }
+  await primeImageResource(
+    storageImageCacheKey(bucket, path, { variant: 'task-submission' }),
+    processed.blob,
+  );
   onProgress?.(100);
   return metadata.data;
 };
@@ -272,5 +312,9 @@ export const deleteV2TaskImage = async (client: Client, image: V2TaskImageRow) =
   const metadata = await client.from('v2_task_images').delete().eq('id', image.id);
   fail(metadata.error);
   const storage = await client.storage.from(image.bucket).remove([image.object_path]);
+  invalidateStorageImage(image.bucket, image.object_path, [
+    { variant: 'task-submission' },
+    { variant: 'original' },
+  ]);
   return { storageCleanupFailed: Boolean(storage.error) };
 };

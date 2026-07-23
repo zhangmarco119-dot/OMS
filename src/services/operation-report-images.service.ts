@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { compressArrivalImage } from './arrival-images.service';
+import {
+  invalidateStorageImage,
+  loadStorageImageResource,
+  primeImageResource,
+  storageImageCacheKey,
+} from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
 import type { Database } from '../types/database';
 
@@ -8,10 +14,10 @@ type Row = Database['public']['Tables']['operation_report_images']['Row'];
 export type OperationReportImage = Row & { signedUrl: string };
 const bucket = 'operation-report-images';
 const extension = (mime: string) => mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
-const signed = async (client: Client, path: string) => {
-  const { data, error } = await client.storage.from(bucket).createSignedUrl(path, 3600);
-  if (error) throw new Error(error.message); return data.signedUrl;
-};
+const signed = async (client: Client, path: string) => loadStorageImageResource(client, bucket, path, {
+  scope: 'session',
+  variant: 'operation-report',
+});
 
 export async function loadOperationReportImages(client: Client, reportId: string) {
   const { data, error } = await client.from('operation_report_images').select('*').eq('report_id', reportId).order('created_at');
@@ -28,14 +34,20 @@ export async function uploadOperationReportImage(client: Client, input: { fieldI
   if (old.data) {
     await client.from('operation_report_images').delete().eq('id', old.data.id);
     await client.storage.from(bucket).remove([old.data.object_path]);
+    invalidateStorageImage(bucket, old.data.object_path, [{ variant: 'operation-report' }]);
   }
   const saved = await client.from('operation_report_images').insert({ bucket, field_id: input.fieldId, file_name: input.file.name, height: image.height, mime_type: image.mimeType, object_path: objectPath, report_id: input.reportId, size_bytes: image.blob.size, store_id: input.storeId, uploaded_by: input.profileId, width: image.width }).select('*').single();
   if (saved.error) { await client.storage.from(bucket).remove([objectPath]); throw new Error(saved.error.message); }
-  const signedUrl = await signed(client, objectPath); onProgress?.(100); return { ...saved.data, signedUrl } as OperationReportImage;
+  const signedUrl = await primeImageResource(
+    storageImageCacheKey(bucket, objectPath, { variant: 'operation-report' }),
+    image.blob,
+  ) ?? await signed(client, objectPath);
+  onProgress?.(100); return { ...saved.data, signedUrl } as OperationReportImage;
 }
 
 export async function removeOperationReportImage(client: Client, image: OperationReportImage) {
   const removed = await client.from('operation_report_images').delete().eq('id', image.id);
   if (removed.error) throw new Error(removed.error.message);
   await client.storage.from(bucket).remove([image.object_path]);
+  invalidateStorageImage(bucket, image.object_path, [{ variant: 'operation-report' }]);
 }

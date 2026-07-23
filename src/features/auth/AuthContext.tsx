@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { hasSupabaseConfig } from '../../lib/env';
+import { clearImageResourceCache } from '../../lib/imageResourceCache';
 import { supabase } from '../../lib/supabase';
 import { recordSystemActivity } from '../../services/operation-logs.service';
 import type { Database } from '../../types/database';
@@ -212,6 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySession]);
 
   const signIn = useCallback(async (identifier: string, password: string) => {
+    await clearImageResourceCache({ persistent: true });
     if (!supabase) {
       setState(initialState);
       throw new Error('请先配置 Supabase 环境变量');
@@ -294,6 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (!supabase) {
+      await clearImageResourceCache({ persistent: true });
       setState(initialState);
       return;
     }
@@ -304,6 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(error.message);
     }
 
+    await clearImageResourceCache({ persistent: true });
     setState({
       status: 'unauthenticated',
       session: null,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   parseDisplayedVersion,
-  validateProductionMinorRelease,
+  validateProductionRelease,
   validateVersionMetadata,
 } from './check-release-version.mjs';
 
@@ -22,11 +22,12 @@ describe('release version policy', () => {
     expect(() => validateVersionMetadata(version, '2.1.36')).toThrow(/不一致/);
   });
 
-  it('requires every production merge to advance exactly one minor version', () => {
+  it('accepts an explicit patch release or the next minor release', () => {
     const previous = parseDisplayedVersion("version: 'StoreHub v2.1.36'");
-    const current = parseDisplayedVersion("version: 'StoreHub v2.2.0'");
-    expect(() => validateProductionMinorRelease(previous, current)).not.toThrow();
-    expect(() => validateProductionMinorRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.1.37'"))).toThrow(/2\.2\.0/);
-    expect(() => validateProductionMinorRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.2.1'"))).toThrow(/2\.2\.0/);
+    expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.1.37'"))).not.toThrow();
+    expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.1.40'"))).not.toThrow();
+    expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.2.0'"))).not.toThrow();
+    expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.1.36'"))).toThrow(/提升版本号/);
+    expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.2.1'"))).toThrow(/提升版本号/);
   });
 });

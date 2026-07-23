@@ -145,7 +145,9 @@ export function V2TaskExecutionPage() {
         ...current,
         images: current.images.map((image) => image.id === temporaryImage.id ? uploaded : image),
       } : current);
-      setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return { ...next, [uploaded.id]: localPreviewUrl }; });
+      const persistedUrl = (await loadV2TaskImageUrls(supabase, [uploaded]))[uploaded.id] ?? localPreviewUrl;
+      if (persistedUrl !== localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+      setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return { ...next, [uploaded.id]: persistedUrl }; });
       setMessage(null);
     }
     catch (error) { setDetail((current) => current ? { ...current, images: current.images.filter((image) => image.id !== temporaryImage.id) } : current); setImageUrls((current) => { const next = { ...current }; delete next[temporaryImage.id]; return next; }); setMessage(error instanceof Error ? error.message : '图片上传失败'); }

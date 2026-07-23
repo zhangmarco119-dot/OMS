@@ -1,51 +1,36 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import {
+  clearImageResourceCache,
+  invalidateStorageImage,
+  loadStorageImageResource,
+  type StorageImageTransform,
+} from '../../lib/imageResourceCache';
 import type { Database } from '../../types/database';
 
 type Client = SupabaseClient<Database>;
 
 export type SopImageVariant = 'detail' | 'original' | 'thumbnail';
 
-const SIGNED_URL_SECONDS = 60 * 60;
-const CACHE_TTL_MS = 50 * 60 * 1_000;
-const MAX_CACHE_ENTRIES = 400;
 const THUMBNAIL_TRANSFORM_VERSION = 'square-center-v2';
 
-type CachedUrl = { expiresAt: number; url: string };
-
-const urlCache = new Map<string, CachedUrl>();
-const pendingUrls = new Map<string, Promise<string>>();
-
-const keyFor = (path: string, variant: SopImageVariant) => `${variant === 'thumbnail' ? `${variant}:${THUMBNAIL_TRANSFORM_VERSION}` : variant}:${path}`;
-
-const pruneCache = () => {
-  const now = Date.now();
-  for (const [key, value] of urlCache) {
-    if (value.expiresAt <= now) urlCache.delete(key);
-  }
-  while (urlCache.size > MAX_CACHE_ENTRIES) {
-    const oldestKey = urlCache.keys().next().value as string | undefined;
-    if (!oldestKey) break;
-    urlCache.delete(oldestKey);
-  }
-};
-
-const transformFor = (variant: SopImageVariant) => {
-  if (variant === 'thumbnail') return { height: 256, quality: 60, resize: 'cover' as const, width: 256 };
-  if (variant === 'detail') return { quality: 72, resize: 'contain' as const, width: 960 };
+const transformFor = (variant: SopImageVariant): StorageImageTransform | undefined => {
+  if (variant === 'thumbnail') return { height: 256, quality: 60, resize: 'cover', width: 256 };
+  if (variant === 'detail') return { quality: 72, resize: 'contain', width: 960 };
   return undefined;
 };
 
+const versionFor = (variant: SopImageVariant) =>
+  variant === 'thumbnail' ? THUMBNAIL_TRANSFORM_VERSION : 'v1';
+
 export const invalidateSopImageUrl = (path: string, variant?: SopImageVariant) => {
-  if (variant) {
-    urlCache.delete(keyFor(path, variant));
-    pendingUrls.delete(keyFor(path, variant));
-    return;
-  }
-  (['thumbnail', 'detail', 'original'] as const).forEach((entry) => {
-    urlCache.delete(keyFor(path, entry));
-    pendingUrls.delete(keyFor(path, entry));
-  });
+  const variants = variant
+    ? [{ variant, version: versionFor(variant) }]
+    : (['thumbnail', 'detail', 'original'] as const).map((entry) => ({
+      variant: entry,
+      version: versionFor(entry),
+    }));
+  invalidateStorageImage('v2-sop-assets', path, variants);
 };
 
 export const loadSopImageUrl = async (
@@ -53,39 +38,14 @@ export const loadSopImageUrl = async (
   path: string,
   variant: SopImageVariant,
   options: { forceRefresh?: boolean } = {},
-) => {
-  const cacheKey = keyFor(path, variant);
-  if (options.forceRefresh) invalidateSopImageUrl(path, variant);
-  const cached = urlCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    urlCache.delete(cacheKey);
-    urlCache.set(cacheKey, cached);
-    return cached.url;
-  }
-  const pending = pendingUrls.get(cacheKey);
-  if (pending) return pending;
-
-  const request = (async () => {
-    const transform = transformFor(variant);
-    const signed = await client.storage
-      .from('v2-sop-assets')
-      .createSignedUrl(path, SIGNED_URL_SECONDS, transform ? { transform } : undefined);
-    if (signed.error || !signed.data?.signedUrl) {
-      throw new Error(signed.error?.message ?? '无法加载 SOP 图片。');
-    }
-    pruneCache();
-    urlCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, url: signed.data.signedUrl });
-    return signed.data.signedUrl;
-  })();
-  pendingUrls.set(cacheKey, request);
-  try {
-    return await request;
-  } finally {
-    pendingUrls.delete(cacheKey);
-  }
-};
+) => loadStorageImageResource(client, 'v2-sop-assets', path, {
+  forceRefresh: options.forceRefresh,
+  scope: 'device',
+  transform: transformFor(variant),
+  variant,
+  version: versionFor(variant),
+});
 
 export const clearSopImageDeliveryCache = () => {
-  urlCache.clear();
-  pendingUrls.clear();
+  void clearImageResourceCache({ persistent: true });
 };

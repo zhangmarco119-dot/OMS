@@ -1,11 +1,24 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../../types/database';
 import { clearSopImageDeliveryCache, loadSopImageUrl } from './sopImageDelivery';
 
 describe('SOP progressive image delivery', () => {
-  beforeEach(() => clearSopImageDeliveryCache());
+  const originalWindowFetch = window.fetch;
+  const originalCreateObjectUrl = URL.createObjectURL;
+  const originalRevokeObjectUrl = URL.revokeObjectURL;
+
+  beforeEach(() => {
+    clearSopImageDeliveryCache();
+    window.fetch = undefined as unknown as typeof window.fetch;
+  });
+
+  afterEach(() => {
+    window.fetch = originalWindowFetch;
+    URL.createObjectURL = originalCreateObjectUrl;
+    URL.revokeObjectURL = originalRevokeObjectUrl;
+  });
 
   it('requests small transformed thumbnails instead of original files', async () => {
     const createSignedUrl = vi.fn().mockResolvedValue({ data: { signedUrl: 'https://example.test/thumb' }, error: null });
@@ -36,6 +49,6 @@ describe('SOP progressive image delivery', () => {
     const client = { storage: { from: vi.fn().mockReturnValue({ createSignedUrl }) } } as unknown as SupabaseClient<Database>;
 
     await loadSopImageUrl(client, 'sop-1/step.jpg', 'original');
-    expect(createSignedUrl).toHaveBeenCalledWith('sop-1/step.jpg', 3600, undefined);
+    expect(createSignedUrl).toHaveBeenCalledWith('sop-1/step.jpg', 3600);
   });
 });

@@ -3,7 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
 import { selectSopPreviewAsset } from '../features/content/sopPreview';
-import { loadSopImageUrl } from '../features/content/sopImageDelivery';
+import { invalidateSopImageUrl, loadSopImageUrl } from '../features/content/sopImageDelivery';
+import { primeImageResource, storageImageCacheKey } from '../lib/imageResourceCache';
 import { compressArrivalImage } from './arrival-images.service';
 
 type Client = SupabaseClient<Database>;
@@ -208,20 +209,6 @@ const parseSopCardPage = (data: Json | null) => {
   };
 };
 
-const createSopSignedUrlMap = async (client: Client, rawPaths: Array<string | null | undefined>) => {
-  const paths = [...new Set(rawPaths.filter((path): path is string => Boolean(path)))];
-  const signedByPath = new Map<string, string>();
-  if (paths.length) {
-    const signed = await client.storage.from('v2-sop-assets').createSignedUrls(paths, 3600);
-    throwIfError(signed.error);
-    (signed.data ?? []).forEach((entry, index) => {
-      const path = 'path' in entry && typeof entry.path === 'string' ? entry.path : paths[index];
-      if (path && entry.signedUrl) signedByPath.set(path, entry.signedUrl);
-    });
-  }
-  return signedByPath;
-};
-
 const signSopPreviewAssets = async (client: Client, items: SopCardRpcItem[]) => {
   return Promise.all(items.map(async (item) => ({
     item,
@@ -365,10 +352,17 @@ export const loadSopDetail = async (
     detail = await loadSopDetailMetadata(client, sopId);
   }
   if (!detail || !signAssets) return detail;
-  const signedByPath = await createSopSignedUrlMap(client, detail.assetUrls.map((asset) => asset.object_path));
   return {
     ...detail,
-    assetUrls: detail.assetUrls.map((asset) => ({ ...asset, signedUrl: asset.object_path ? signedByPath.get(asset.object_path) ?? null : null })),
+    assetUrls: await Promise.all(detail.assetUrls.map(async (asset) => {
+      if (!asset.object_path) return { ...asset, signedUrl: null };
+      if (asset.mime_type?.startsWith('image/')) {
+        return { ...asset, signedUrl: await loadSopImageUrl(client, asset.object_path, 'detail') };
+      }
+      const signed = await client.storage.from('v2-sop-assets').createSignedUrl(asset.object_path, 3600);
+      throwIfError(signed.error);
+      return { ...asset, signedUrl: signed.data?.signedUrl ?? null };
+    })),
   };
 };
 
@@ -499,8 +493,15 @@ export const uploadSopAsset = async (
     await bucket.remove([objectPath]);
     throw new Error(`预览生成失败：${signed.error?.message ?? '无法生成 SOP 图片访问地址。'}`);
   }
+  const previewUrl = mimeType.startsWith('image/')
+    ? await primeImageResource(
+      storageImageCacheKey('v2-sop-assets', objectPath, { variant: 'detail' }),
+      body,
+      'device',
+    ) ?? signed.data.signedUrl
+    : signed.data.signedUrl;
   onProgress?.(100);
-  return { ...data, signedUrl: signed.data.signedUrl };
+  return { ...data, signedUrl: previewUrl };
 };
 
 export const createSopTextStep = async (client: Client, input: { sopId: string; sortOrder: number; stepText: string }) => {
@@ -527,6 +528,7 @@ export const removeSopStepImage = async (client: Client, asset: SopAssetRow) => 
   throwIfError(error);
   if (!asset.object_path) return { storageCleanupFailed: false };
   const cleanup = await client.storage.from('v2-sop-assets').remove([asset.object_path]);
+  invalidateSopImageUrl(asset.object_path);
   return { storageCleanupFailed: Boolean(cleanup.error) };
 };
 
@@ -559,5 +561,6 @@ export const deleteSopAsset = async (client: Client, asset: Pick<SopAssetRow, 'i
   throwIfError(error);
   if (!asset.object_path) return { storageCleanupFailed: false };
   const storage = await client.storage.from('v2-sop-assets').remove([asset.object_path]);
+  invalidateSopImageUrl(asset.object_path);
   return { storageCleanupFailed: Boolean(storage.error) };
 };

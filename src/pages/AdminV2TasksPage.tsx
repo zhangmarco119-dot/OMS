@@ -4,12 +4,16 @@ import { Link } from 'react-router-dom';
 
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
+import { SegmentedControl } from '../components/ui/FormField';
+import { ArrivalPeriodFilter } from '../features/arrivals/ArrivalPeriodFilter';
+import { createDefaultArrivalPeriod, resolveArrivalPeriod, type ArrivalPeriodValue } from '../features/arrivals/arrivalPeriod';
 import { weeklyDeadlineOptions } from '../features/task-templates/recurrence';
 import { useAuth } from '../features/auth/AuthContext';
 import { TaskContentEditor } from '../features/v2-tasks/TaskContentEditor';
 import { taskContentFromSnapshot, taskContentReferencePaths, taskContentToSnapshot, validateTaskContent, type TaskContentDraft } from '../features/v2-tasks/taskContent';
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
+import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { loadTaskCategories, loadTaskTemplates, type TaskCategoryRow, type TaskTemplateListItem } from '../services/task-templates.service';
 import {
   createV2TaskSchedule,
@@ -34,6 +38,11 @@ import {
 } from '../services/v2-tasks.service';
 
 const pad = (value: number) => String(value).padStart(2, '0');
+const localDateValue = (value: Date | string = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+const completedAt = (task: V2TaskRow) => task.reviewed_at ?? task.submitted_at ?? task.updated_at;
 const toDatetimeLocalValue = (iso: string) => {
   const date = new Date(iso);
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -149,6 +158,14 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [scheduleContentEditorOpen, setScheduleContentEditorOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [taskView, setTaskView] = useRememberedPageState<'active' | 'completed'>('task-view', 'active');
+  const [completedPeriod, setCompletedPeriod] = useRememberedPageState<ArrivalPeriodValue>('completed-period', {
+    ...createDefaultArrivalPeriod(localDateValue()),
+    mode: 'month',
+  });
+  const [completedStoreId, setCompletedStoreId] = useRememberedPageState('completed-store', '');
+  const [completedCategory, setCompletedCategory] = useRememberedPageState('completed-category', '');
+  const [completedSearch, setCompletedSearch] = useRememberedPageState('completed-search', '');
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -165,6 +182,44 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const selectedTemplate = useMemo(() => templates.find((item) => item.id === templateId) ?? null, [templateId, templates]);
   const selectedRecipient = recipients.find((item) => item.id === selectedProfileId);
   const selectedRecipientAudience: TaskAudience | null = selectedRecipient ? selectedRecipient.employment_type === 'part_time' ? 'part_time' : selectedRecipient.role === 'manager' ? 'manager' : 'staff' : null;
+  const activeTasks = useMemo(
+    () => tasks.filter((task) => !['approved', 'cancelled'].includes(task.status)),
+    [tasks],
+  );
+  const completedTasks = useMemo(
+    () => tasks.filter((task) => task.status === 'approved')
+      .sort((left, right) => new Date(completedAt(right)).getTime() - new Date(completedAt(left)).getTime()),
+    [tasks],
+  );
+  const completedCategoryOptions = useMemo(() => {
+    const labels = new Map(categories.map((category) => [category.code, category.label]));
+    return [...new Set(completedTasks.map((task) => task.category))].sort().map((value) => ({
+      label: labels.get(value) ?? value,
+      value,
+    }));
+  }, [categories, completedTasks]);
+  const filteredCompletedTasks = useMemo(() => {
+    let dateFrom = '';
+    let dateTo = '';
+    try {
+      ({ dateFrom, dateTo } = resolveArrivalPeriod(completedPeriod));
+    } catch {
+      return [];
+    }
+    const keyword = completedSearch.trim().toLocaleLowerCase('zh-CN');
+    return completedTasks.filter((task) => {
+      const finishedDate = localDateValue(completedAt(task));
+      const storeName = auth.availableStores.find((store) => store.id === task.store_id)?.name ?? '';
+      const recipientName = task.assigned_profile_id
+        ? recipients.find((recipient) => recipient.id === task.assigned_profile_id)?.display_name ?? ''
+        : '门店全体';
+      return finishedDate >= dateFrom
+        && finishedDate <= dateTo
+        && (!completedStoreId || task.store_id === completedStoreId)
+        && (!completedCategory || task.category === completedCategory)
+        && (!keyword || `${task.name} ${task.task_no} ${storeName} ${recipientName}`.toLocaleLowerCase('zh-CN').includes(keyword));
+    });
+  }, [auth.availableStores, completedCategory, completedPeriod, completedSearch, completedStoreId, completedTasks, recipients]);
 
   const publish = async () => {
     if (!supabase) return;
@@ -312,8 +367,38 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     </section> : null}
 
     {!publisherOnly ? <>
-      <section className="space-y-3"><h2 className="font-bold">周期任务</h2>{schedules.length ? schedules.map((row) => <article className="ui-card p-4" key={row.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{row.content_name ?? templates.find((item) => item.id === row.template_id)?.name ?? '已归档模板的周期任务'}</b><p className="mt-1 text-sm text-slate-600">{auth.availableStores.find((store) => store.id === row.store_id)?.name}{row.assigned_profile_id ? ` · ${recipients.find((item) => item.id === row.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'}</p><p className="mt-1 text-xs leading-5 text-slate-500">{scheduleText(row)}<br />下次发布：{new Date(row.next_due_at).toLocaleString('zh-CN')}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${row.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{row.is_active ? '运行中' : '已暂停'}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><button className="ui-button-secondary px-2" disabled={busy} onClick={() => void startScheduleEdit(row)} type="button"><Pencil className="h-4 w-4" />编辑</button><button className="ui-button-secondary border-red-200 px-2 text-red-700" disabled={busy} onClick={() => void withdraw(row)} type="button"><Undo2 className="h-4 w-4" />撤回周期</button>{row.is_active ? <button className="ui-button-secondary px-2" disabled={busy} onClick={() => void pause(row)} type="button"><PauseCircle className="h-4 w-4" />暂停</button> : <button className="ui-button-primary px-2" disabled={busy} onClick={() => void resume(row)} type="button">继续</button>}</div></article>) : <p className="ui-card p-4 text-sm text-slate-500">暂无周期任务计划。</p>}</section>
-      <section className="space-y-3"><h2 className="font-bold">任务清单</h2>{tasks.filter((task) => task.status !== 'cancelled').map((task) => <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex justify-between gap-3"><b>{task.name}</b><span className={`rounded-full px-3 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · 截止 {new Date(task.due_at).toLocaleString('zh-CN')}{task.schedule_id ? ' · 周期任务' : ''}</p></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>)}</section>
+      <SegmentedControl className="grid-cols-2" items={[
+        { active: taskView === 'active', label: `进行中任务 ${activeTasks.length}`, onClick: () => setTaskView('active') },
+        { active: taskView === 'completed', label: `已完成任务 ${completedTasks.length}`, onClick: () => setTaskView('completed') },
+      ]} />
+
+      {taskView === 'active' ? <section className="space-y-3"><h2 className="font-bold">周期任务</h2>{schedules.length ? schedules.map((row) => <article className="ui-card p-4" key={row.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{row.content_name ?? templates.find((item) => item.id === row.template_id)?.name ?? '已归档模板的周期任务'}</b><p className="mt-1 text-sm text-slate-600">{auth.availableStores.find((store) => store.id === row.store_id)?.name}{row.assigned_profile_id ? ` · ${recipients.find((item) => item.id === row.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'}</p><p className="mt-1 text-xs leading-5 text-slate-500">{scheduleText(row)}<br />下次发布：{new Date(row.next_due_at).toLocaleString('zh-CN')}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${row.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{row.is_active ? '运行中' : '已暂停'}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><button className="ui-button-secondary px-2" disabled={busy} onClick={() => void startScheduleEdit(row)} type="button"><Pencil className="h-4 w-4" />编辑</button><button className="ui-button-secondary border-red-200 px-2 text-red-700" disabled={busy} onClick={() => void withdraw(row)} type="button"><Undo2 className="h-4 w-4" />撤回周期</button>{row.is_active ? <button className="ui-button-secondary px-2" disabled={busy} onClick={() => void pause(row)} type="button"><PauseCircle className="h-4 w-4" />暂停</button> : <button className="ui-button-primary px-2" disabled={busy} onClick={() => void resume(row)} type="button">继续</button>}</div></article>) : <p className="ui-card p-4 text-sm text-slate-500">暂无周期任务计划。</p>}</section> : null}
+
+      {taskView === 'completed' ? <section className="ui-card p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div><h2 className="font-bold">已完成任务筛选</h2><p className="mt-0.5 text-xs text-slate-500">共 {completedTasks.length} 条，当前显示 {filteredCompletedTasks.length} 条</p></div>
+          <button className="shrink-0 text-sm font-bold text-brand-700" onClick={() => {
+            setCompletedPeriod({ ...createDefaultArrivalPeriod(localDateValue()), mode: 'month' });
+            setCompletedStoreId('');
+            setCompletedCategory('');
+            setCompletedSearch('');
+          }} type="button">重置</button>
+        </div>
+        <div className="mt-3">
+          <ArrivalPeriodFilter compact onChange={setCompletedPeriod} value={completedPeriod} />
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <label className="text-xs font-semibold text-slate-600">门店<select className="ui-input mt-0.5 min-h-9 py-1 text-sm" onChange={(event) => setCompletedStoreId(event.target.value)} value={completedStoreId}><option value="">全部门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+          <label className="text-xs font-semibold text-slate-600">任务分类<select className="ui-input mt-0.5 min-h-9 py-1 text-sm" onChange={(event) => setCompletedCategory(event.target.value)} value={completedCategory}><option value="">全部分类</option>{completedCategoryOptions.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
+        </div>
+        <label className="mt-2 block text-xs font-semibold text-slate-600">搜索任务<input className="ui-input mt-0.5 min-h-9 py-1 text-sm" onChange={(event) => setCompletedSearch(event.target.value)} placeholder="任务名称、编号或人员" type="search" value={completedSearch} /></label>
+      </section> : null}
+
+      <section className="space-y-3">
+        <h2 className="font-bold">{taskView === 'active' ? '任务清单' : '已完成任务'}</h2>
+        {(taskView === 'active' ? activeTasks : filteredCompletedTasks).map((task) => <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex justify-between gap-3"><b>{task.name}</b><span className={`rounded-full px-3 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · {task.status === 'approved' ? `完成 ${new Date(completedAt(task)).toLocaleString('zh-CN')}` : `截止 ${new Date(task.due_at).toLocaleString('zh-CN')}`}{task.schedule_id ? ' · 周期任务' : ''}</p></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>)}
+        {(taskView === 'active' ? activeTasks : filteredCompletedTasks).length === 0 ? <p className="ui-card p-4 text-sm text-slate-500">{taskView === 'active' ? '当前没有进行中的任务。' : '当前筛选条件下没有已完成任务。'}</p> : null}
+      </section>
     </> : null}
 
     {editingSchedule ? <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3"><div className="mx-auto max-w-xl pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><div className="ui-card p-4"><h2 className="text-lg font-bold">编辑周期任务</h2><ScheduleRuleEditor fields={fields} onChange={setFields} /><button className="ui-button-secondary mt-3 w-full" onClick={() => setScheduleContentEditorOpen(true)} type="button"><Pencil className="h-4 w-4" />编辑完整任务内容</button><p className="mt-2 text-xs leading-5 text-slate-500">保存后会同步当前未完成任务，并用于以后自动发布的任务。</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { cleanupCancelledAssets(); setEditingSchedule(null); setContentDraft(null); }} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void saveSchedule()} type="button">保存全部修改</button></div></div></div></div> : null}

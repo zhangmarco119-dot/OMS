@@ -26,7 +26,7 @@ describe('buildOperationReportText', () => {
     expect(result).toContain('今日销售额：928.05');
     expect(result).toContain('牛奶剩余：1.5箱');
     expect(result).toContain('美团退单总数：1');
-    expect(result).toContain('21号：无花果抹茶红豆酸奶碗 ×1；订单总金额：26.00元；退款原因：门店漏装、错装');
+    expect(result).toContain('21号：无花果抹茶红豆酸奶碗 ×1\n订单总金额：26.00元\n退款原因：门店漏装、错装');
     expect(result).not.toContain('银豹网单号');
     expect(result).toContain('饿了么退单总数：无');
   });

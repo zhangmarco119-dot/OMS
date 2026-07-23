@@ -1,8 +1,8 @@
 import type { TaxStoreReport } from '../../services/tax-accounting.service';
 
 const safeFilePart = (value: string) => value.replace(/[\\/:*?"<>|]/g, '-').trim();
-export const taxCardFileName = (storeName: string, month: string) =>
-  `${safeFilePart(storeName)}-${month}-税务信息.png`;
+export const taxCardFileName = (companyName: string, month: string) =>
+  `${safeFilePart(companyName)}-${month}-员工个税申报.png`;
 
 const money = (value: number) => value.toLocaleString('zh-CN', {
   minimumFractionDigits: 2,
@@ -37,14 +37,14 @@ export async function downloadTaxCardImage(report: TaxStoreReport, month: string
 
   context.textAlign = 'center';
   context.fillStyle = '#10251f';
-  context.font = '700 50px "Microsoft YaHei", sans-serif';
-  context.fillText('税务成本统计', width / 2, 140);
-  context.font = '700 28px "Microsoft YaHei", sans-serif';
+  context.font = '700 48px "Microsoft YaHei", sans-serif';
+  context.fillText(report.companyName, width / 2, 140);
+  context.font = '700 25px "Microsoft YaHei", sans-serif';
   context.fillStyle = '#176b51';
-  context.fillText(report.store.name, width / 2, 195);
+  context.fillText('员工个税申报', width / 2, 190);
   context.font = '22px "Microsoft YaHei", sans-serif';
   context.fillStyle = '#61736c';
-  context.fillText(`${month.replace('-', '年')}月 · 工资报税资料`, width / 2, 235);
+  context.fillText(`${report.store.name} · ${month.replace('-', '年')}月`, width / 2, 230);
 
   const x = [80, 330, 585, 1035, 1420];
   const labels = ['姓名', '薪资（元）', '身份证号', '手机号'];
@@ -93,8 +93,7 @@ export async function downloadTaxCardImage(report: TaxStoreReport, month: string
   if (!blob) throw new Error('报税卡片生成失败。');
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = taxCardFileName(report.store.name, month);
+  link.download = taxCardFileName(report.companyName, month);
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
-

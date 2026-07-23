@@ -236,7 +236,7 @@ function ReportComposer({ availability, onSubmitted, storeId }: { availability: 
             </div>
             <div className="mt-3"><FormField label="退款原因" required>
                 <select className="ui-input" value={selectedReason} onChange={(event) => chooseRefundReason(index, event.target.value)}>
-                  <option value="">请选择退款原因</option>
+                  <option disabled hidden value="">请选择退款原因</option>
                   {reasonOptions.filter((item) => item.isActive).map((item) =>
                     <option key={item.id} value={item.label}>{item.label}</option>)}
                   <option value="__custom__">其他原因（手动填写）</option>

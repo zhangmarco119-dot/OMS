@@ -755,6 +755,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      tax_reporting_store_settings: {
+        Row: {
+          company_name: string;
+          created_at: string;
+          store_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          company_name: string;
+          created_at?: string;
+          store_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          company_name?: string;
+          created_at?: string;
+          store_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [];
+      };
       tax_reporting_people: {
         Row: {
           created_at: string;

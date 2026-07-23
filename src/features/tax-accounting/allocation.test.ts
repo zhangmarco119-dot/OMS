@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PayrollEstimate } from '../payroll/model';
-import { allocatePayrollCosts } from './allocation';
+import { allocatePayrollCosts, includeEmptyStoreAllocations } from './allocation';
 
 const estimate = (overrides: Partial<PayrollEstimate> = {}): PayrollEstimate => ({
   profileId: 'p1', displayName: '员工甲', username: 'staff', primaryStoreId: 's1',
@@ -62,5 +62,18 @@ describe('allocatePayrollCosts', () => {
       [],
     );
     expect(result).toEqual([{ amount: 1000.01, employees: [{ amount: 1000.01, attendanceDays: 0, overtimeHours: 0, profileId: 'p1', storeId: 's1' }], storeId: 's1' }]);
+  });
+});
+
+describe('includeEmptyStoreAllocations', () => {
+  it('keeps every active store visible even when one store has no payroll allocation', () => {
+    expect(includeEmptyStoreAllocations(['store-a', 'store-b'], [{
+      amount: 1200,
+      employees: [],
+      storeId: 'store-a',
+    }])).toEqual([
+      { amount: 1200, employees: [], storeId: 'store-a' },
+      { amount: 0, employees: [], storeId: 'store-b' },
+    ]);
   });
 });

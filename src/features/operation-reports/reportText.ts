@@ -49,7 +49,11 @@ const refundSection = (date: string, refunds: RefundEntry[], note: string) => {
         const sequenceText = sequence === '未提供' ? '平台序号未提供' : `${sequence}号`;
         const products = entry.productSummary?.trim() || '产品信息未提供';
         const total = Number(entry.orderTotalAmount ?? 0).toFixed(2);
-        return `${index + 1}. ${sequenceText}：${products}；订单总金额：${total}元${entry.reason ? `；退款原因：${entry.reason}` : ''}`;
+        return [
+          `${index + 1}. ${sequenceText}：${products}`,
+          `订单总金额：${total}元`,
+          ...(entry.reason ? [`退款原因：${entry.reason}`] : []),
+        ].join('\n');
       }) : []),
     ].join('\n');
   };
@@ -64,7 +68,11 @@ const refundSection = (date: string, refunds: RefundEntry[], note: string) => {
         const sequence = entry.platformSequence ?? entry.orderNumber ?? '未提供';
         const products = entry.productSummary?.trim() || '产品信息未提供';
         const total = Number(entry.orderTotalAmount ?? 0).toFixed(2);
-        return `${index + 1}. ${sequence}：${products}；订单总金额：${total}元${entry.reason ? `；退款原因：${entry.reason}` : ''}`;
+        return [
+          `${index + 1}. ${sequence}：${products}`,
+          `订单总金额：${total}元`,
+          ...(entry.reason ? [`退款原因：${entry.reason}`] : []),
+        ].join('\n');
       }),
     ] : []),
     `备注：${note}`,

@@ -36,6 +36,18 @@ export interface StoreCostAllocation {
   storeId: string;
 }
 
+export function includeEmptyStoreAllocations(
+  storeIds: string[],
+  allocations: StoreCostAllocation[],
+): StoreCostAllocation[] {
+  const byStore = new Map(allocations.map((item) => [item.storeId, item]));
+  return storeIds.map((storeId) => byStore.get(storeId) ?? {
+    amount: 0,
+    employees: [],
+    storeId,
+  });
+}
+
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const toCents = (value: number) => Math.max(0, Math.round((Number.isFinite(value) ? value : 0) * 100));
 
@@ -131,4 +143,3 @@ export function allocatePayrollCosts(
     storeId,
   })).sort((a, b) => a.storeId.localeCompare(b.storeId));
 }
-

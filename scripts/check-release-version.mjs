@@ -22,12 +22,16 @@ export const validateVersionMetadata = (displayedVersion, packageVersion) => {
   }
 };
 
-export const validateProductionMinorRelease = (previousVersion, currentVersion) => {
+export const validateProductionRelease = (previousVersion, currentVersion) => {
   if (currentVersion.major !== previousVersion.major) {
     throw new Error('正式合并不得在未明确调整发布策略时改变主版本号。');
   }
-  if (currentVersion.minor !== previousVersion.minor + 1 || currentVersion.patch !== 0) {
-    throw new Error(`正式合并必须把版本从 ${previousVersion.major}.${previousVersion.minor}.x 提升为 ${previousVersion.major}.${previousVersion.minor + 1}.0。`);
+  const isPatchRelease = currentVersion.minor === previousVersion.minor
+    && currentVersion.patch > previousVersion.patch;
+  const isMinorRelease = currentVersion.minor === previousVersion.minor + 1
+    && currentVersion.patch === 0;
+  if (!isPatchRelease && !isMinorRelease) {
+    throw new Error(`正式合并必须提升版本号：可从 ${previousVersion.value} 提升补丁版本，或提升为 ${previousVersion.major}.${previousVersion.minor + 1}.0。`);
   }
 };
 
@@ -55,7 +59,7 @@ export const verifyReleaseVersion = () => {
     const previousProductionCommit = commitAndParents[1];
     const previousSource = git('show', `${previousProductionCommit}:src/config/version.ts`);
     const previousVersion = parseDisplayedVersion(previousSource);
-    validateProductionMinorRelease(previousVersion, currentVersion);
+    validateProductionRelease(previousVersion, currentVersion);
     console.log(`正式版本规则校验通过：${previousVersion.value} -> ${currentVersion.value}。`);
     return;
   }

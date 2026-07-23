@@ -721,6 +721,73 @@ export type Database = {
         };
         Relationships: [];
       };
+      tax_reporting_monthly_salaries: {
+        Row: {
+          created_at: string;
+          manual_amount: number | null;
+          note: string;
+          payroll_month: string;
+          person_id: string;
+          updated_at: string;
+          updated_by: string;
+        };
+        Insert: {
+          created_at?: string;
+          manual_amount?: number | null;
+          note?: string;
+          payroll_month: string;
+          person_id: string;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Update: {
+          manual_amount?: number | null;
+          note?: string;
+          payroll_month?: string;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Relationships: [];
+      };
+      tax_reporting_people: {
+        Row: {
+          created_at: string;
+          created_by: string;
+          full_name: string;
+          id: string;
+          id_number: string;
+          is_active: boolean;
+          phone: string;
+          profile_id: string | null;
+          reporting_store_id: string | null;
+          updated_at: string;
+          updated_by: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string;
+          full_name: string;
+          id?: string;
+          id_number: string;
+          is_active?: boolean;
+          phone: string;
+          profile_id?: string | null;
+          reporting_store_id?: string | null;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Update: {
+          full_name?: string;
+          id_number?: string;
+          is_active?: boolean;
+          phone?: string;
+          profile_id?: string | null;
+          reporting_store_id?: string | null;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Relationships: [];
+      };
       stores: {
         Row: {
           created_at: string;

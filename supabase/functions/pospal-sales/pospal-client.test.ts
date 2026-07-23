@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPospalTicketRequest, chinaDateTimeToIso, normalizePospalTickets, pospalRevenue } from './pospal-client';
+import {
+  buildPospalOrderDetailRequest,
+  buildPospalTicketRequest,
+  chinaDateTimeToIso,
+  normalizePospalOrderDetail,
+  normalizePospalTickets,
+  pospalRevenue,
+} from './pospal-client';
 
 describe('Pospal sales normalization', () => {
   it('builds an exact one-day request and preserves the pagination cursor', () => {
@@ -28,7 +35,51 @@ describe('Pospal sales normalization', () => {
   });
 
   it('preserves external-order identifiers and refund remarks for operation reports', () => {
-    const [ticket] = normalizePospalTickets([{ sn: 'R-1', datetime: '2026-07-18 18:00:00', totalAmount: 28, ticketType: 'SELL_RETURN', orderSource: '美团外卖', webOrderNo: 'MT-8', externalOrderNo: 'EXT-8', orderNo: '8', remark: '漏送蓝莓', sellTicketUid: 'sale-1' }]);
-    expect(ticket).toMatchObject({ externalOrderNo: 'EXT-8', orderNo: '8', orderSource: '美团外卖', remark: '漏送蓝莓', sellTicketUid: 'sale-1', webOrderNo: 'MT-8' });
+    const [ticket] = normalizePospalTickets([{
+      datetime: '2026-07-18 18:00:00',
+      externalOrderNo: 'EXT-8',
+      items: [{ name: '蓝莓酸奶碗', quantity: 1 }],
+      orderNo: '8',
+      orderSource: '美团外卖',
+      remark: '漏送蓝莓',
+      sellTicketUid: 'sale-1',
+      sn: 'R-1',
+      ticketOnTable: { tableCardNo: 'M008' },
+      ticketType: 'SELL_RETURN',
+      totalAmount: 28,
+      webOrderNo: 'MT-8',
+    }]);
+    expect(ticket).toMatchObject({
+      externalOrderNo: 'EXT-8',
+      itemSummary: '蓝莓酸奶碗 ×1',
+      orderNo: '8',
+      orderSource: '美团外卖',
+      orderTotalAmount: 28,
+      platformSequence: '8',
+      remark: '漏送蓝莓',
+      sellTicketUid: 'sale-1',
+      webOrderNo: 'MT-8',
+    });
+  });
+
+  it('normalizes online-order details into platform sequence, products and total', () => {
+    expect(JSON.parse(buildPospalOrderDetailRequest('app', '26072318154976451634'))).toEqual({
+      appId: 'app',
+      orderNo: '26072318154976451634',
+    });
+    expect(normalizePospalOrderDetail({
+      daySeq: 'E045',
+      items: [
+        { productName: '酸奶碗', productQuantity: 1 },
+        { productName: '奶酪小方', productQuantity: 2 },
+      ],
+      orderNo: '26072318585962661951',
+      totalAmount: 19.4,
+    })).toEqual({
+      itemSummary: '酸奶碗 ×1；奶酪小方 ×2',
+      orderNo: '26072318585962661951',
+      orderTotalAmount: 19.4,
+      platformSequence: '45',
+    });
   });
 });

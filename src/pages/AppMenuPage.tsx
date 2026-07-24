@@ -1,4 +1,4 @@
-import { BarChart3, Bell, BookOpenCheck, CalendarClock, CircleDollarSign, ClipboardList, FileText, History, PackageCheck, PackagePlus, ScrollText, ShoppingBag, Users } from 'lucide-react';
+import { BarChart3, Bell, BookOpenCheck, CalendarClock, CircleDollarSign, ClipboardList, FileText, History, Landmark, PackageCheck, PackagePlus, ScrollText, ShoppingBag, Users } from 'lucide-react';
 import { PageShell } from '../components/layout/PageShell';
 import { FeatureCard } from '../components/ui/Surface';
 import { featureFlags } from '../config/featureFlags';
@@ -20,6 +20,7 @@ export function AppMenuPage() {
     { icon: Users, label: '账号管理', note: '账号资料与使用权限', to: '/app/admin/users' },
     { icon: CalendarClock, label: '考勤管理', note: '同步钉钉考勤、绑定员工与查看异常', to: '/app/admin/attendance' },
     { icon: CircleDollarSign, label: '实时薪资', note: '预估工资、参数、提成与处罚管理', to: '/app/admin/payroll' },
+    { icon: Landmark, label: '税务与记账', note: '报税人员、报税卡片与门店工资成本', to: '/app/admin/tax-accounting' },
     { icon: BarChart3, label: '运营统计', note: '到货、任务、巡店与历史摘要', to: '/app/admin/analytics' },
     { icon: History, label: '点货订货记录', note: '查看已提交的点货与订货单据', to: '/app/history' },
   ] : isPartTime ? [

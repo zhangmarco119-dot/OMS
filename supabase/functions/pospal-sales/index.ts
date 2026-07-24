@@ -2,9 +2,12 @@ import md5 from 'npm:blueimp-md5@2.19.0';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
 import {
+  buildPospalOrderDetailRequest,
   buildPospalTicketRequest,
+  normalizePospalOrderDetail,
   normalizePospalTickets,
   parsePospalSecretConfigs,
+  type NormalizedPospalOrderDetail,
   type NormalizedPospalTicket,
   type PospalSecretConfig,
 } from './pospal-client.ts';
@@ -89,6 +92,37 @@ class PospalClient {
 
   constructor(private readonly config: PospalSecretConfig) {}
 
+  private async post(endpoint: string, body: string) {
+    const signature = md5(this.config.appKey + body).toUpperCase();
+    this.calls += 1;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    let response: Response;
+
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'User-Agent': 'openApi',
+          'time-stamp': Date.now().toString(),
+          'data-signature': signature,
+        },
+        body,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const payload = (await response.json()) as Record<string, unknown>;
+    if (!response.ok || payload.status !== 'success') {
+      const messages = Array.isArray(payload.messages) ? payload.messages.join('；') : '';
+      throw new Error(messages || `银豹接口返回 HTTP ${response.status}`);
+    }
+    return payload;
+  }
+
   async queryDay(date: string) {
     const endpoint =
       `${this.config.host}/pospal-api2/openapi/v1/ticketOpenApi/queryTicketPages`;
@@ -98,33 +132,7 @@ class PospalClient {
 
     for (let page = 0; page < 10; page += 1) {
       const body = buildPospalTicketRequest(this.config.appId, date, postBackParameter);
-      const signature = md5(this.config.appKey + body).toUpperCase();
-      this.calls += 1;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 45_000);
-      let response: Response;
-
-      try {
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            'User-Agent': 'openApi',
-            'time-stamp': Date.now().toString(),
-            'data-signature': signature,
-          },
-          body,
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      const payload = (await response.json()) as Record<string, unknown>;
-      if (!response.ok || payload.status !== 'success') {
-        const messages = Array.isArray(payload.messages) ? payload.messages.join('；') : '';
-        throw new Error(messages || `银豹接口返回 HTTP ${response.status}`);
-      }
+      const payload = await this.post(endpoint, body);
 
       const data =
         payload.data && typeof payload.data === 'object'
@@ -144,6 +152,37 @@ class PospalClient {
     }
 
     return [...new Map(tickets.map((ticket) => [ticket.externalKey, ticket])).values()];
+  }
+
+  async queryOrderDetail(orderNo: string): Promise<NormalizedPospalOrderDetail> {
+    const host = new URL(this.config.host);
+    const areaId = host.hostname.match(/^area(\d+)-/i)?.[1];
+    if (!areaId) throw new Error('无法识别银豹接口分区');
+    const endpoint =
+      `https://openapi${areaId}.pospal.cn/openinterface/orderOpenApi/queryOrderByNo`;
+    const payload = await this.post(
+      endpoint,
+      buildPospalOrderDetailRequest(this.config.appId, orderNo),
+    );
+    return normalizePospalOrderDetail(payload.data);
+  }
+
+  async queryRefundOrderDetails(tickets: NormalizedPospalTicket[]) {
+    const orderNumbers = [...new Set(tickets
+      .filter((ticket) => ticket.ticketType === 'SELL_RETURN' || ticket.invalid)
+      .map((ticket) => ticket.webOrderNo || ticket.orderNo)
+      .filter(Boolean))];
+    const details = new Map<string, NormalizedPospalOrderDetail>();
+
+    for (const orderNo of orderNumbers) {
+      try {
+        details.set(orderNo, await this.queryOrderDetail(orderNo));
+      } catch {
+        // The base sales sync remains usable if the optional order-detail
+        // endpoint is temporarily unavailable.
+      }
+    }
+    return details;
   }
 
   async queryDays(dates: string[]) {
@@ -316,6 +355,7 @@ Deno.serve(async (request) => {
         dates.push(cursor.toISOString().slice(0, 10));
       }
       const tickets = dates.length === 1 ? await client.queryDay(dates[0]) : await client.queryDays(dates);
+      const refundOrderDetails = await client.queryRefundOrderDetails(tickets);
       calls = client.calls;
       const replaced = requestedStartDate === requestedEndDate
         ? await adminClient.rpc('replace_pos_sales_day', {
@@ -347,6 +387,12 @@ Deno.serve(async (request) => {
         web_order_no: ticket.webOrderNo || null, external_order_no: ticket.externalOrderNo || null,
         order_no: ticket.orderNo || null, remark: ticket.remark || null,
         sell_ticket_uid: ticket.sellTicketUid || null,
+        platform_sequence: refundOrderDetails.get(ticket.webOrderNo || ticket.orderNo)?.platformSequence
+          || ticket.platformSequence || null,
+        product_summary: refundOrderDetails.get(ticket.webOrderNo || ticket.orderNo)?.itemSummary
+          || ticket.itemSummary || null,
+        order_total_amount: refundOrderDetails.get(ticket.webOrderNo || ticket.orderNo)?.orderTotalAmount
+          || ticket.orderTotalAmount || Math.abs(ticket.totalAmount),
       }));
       if (enriched.length) {
         const enrichment = await adminClient.from('pos_sales_tickets').upsert(enriched, { onConflict: 'integration_id,external_key' });

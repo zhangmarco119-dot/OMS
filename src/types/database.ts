@@ -680,9 +680,15 @@ export type Database = {
         Relationships: [];
       };
       pos_sales_tickets: {
-        Row: { created_at: string; external_key: string; external_order_no: string | null; external_sn: string | null; id: string; integration_id: string; invalid: boolean; occurred_at: string; order_no: string | null; order_source: string | null; remark: string | null; revenue_date: string; sell_ticket_uid: string | null; source_updated_at: string | null; store_id: string; sync_job_id: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at: string; web_order_no: string | null };
-        Insert: { created_at?: string; external_key: string; external_order_no?: string | null; external_sn?: string | null; id?: string; integration_id: string; invalid?: boolean; occurred_at: string; order_no?: string | null; order_source?: string | null; remark?: string | null; revenue_date: string; sell_ticket_uid?: string | null; source_updated_at?: string | null; store_id: string; sync_job_id?: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at?: string; web_order_no?: string | null };
-        Update: { external_key?: string; external_order_no?: string | null; external_sn?: string | null; id?: string; integration_id?: string; invalid?: boolean; occurred_at?: string; order_no?: string | null; order_source?: string | null; remark?: string | null; revenue_date?: string; sell_ticket_uid?: string | null; source_updated_at?: string | null; store_id?: string; sync_job_id?: string | null; ticket_type?: 'SELL' | 'SELL_RETURN'; total_amount?: number; updated_at?: string; web_order_no?: string | null };
+        Row: { created_at: string; external_key: string; external_order_no: string | null; external_sn: string | null; id: string; integration_id: string; invalid: boolean; occurred_at: string; order_no: string | null; order_source: string | null; order_total_amount: number | null; platform_sequence: string | null; product_summary: string | null; remark: string | null; revenue_date: string; sell_ticket_uid: string | null; source_updated_at: string | null; store_id: string; sync_job_id: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at: string; web_order_no: string | null };
+        Insert: { created_at?: string; external_key: string; external_order_no?: string | null; external_sn?: string | null; id?: string; integration_id: string; invalid?: boolean; occurred_at: string; order_no?: string | null; order_source?: string | null; order_total_amount?: number | null; platform_sequence?: string | null; product_summary?: string | null; remark?: string | null; revenue_date: string; sell_ticket_uid?: string | null; source_updated_at?: string | null; store_id: string; sync_job_id?: string | null; ticket_type: 'SELL' | 'SELL_RETURN'; total_amount: number; updated_at?: string; web_order_no?: string | null };
+        Update: { external_key?: string; external_order_no?: string | null; external_sn?: string | null; id?: string; integration_id?: string; invalid?: boolean; occurred_at?: string; order_no?: string | null; order_source?: string | null; order_total_amount?: number | null; platform_sequence?: string | null; product_summary?: string | null; remark?: string | null; revenue_date?: string; sell_ticket_uid?: string | null; source_updated_at?: string | null; store_id?: string; sync_job_id?: string | null; ticket_type?: 'SELL' | 'SELL_RETURN'; total_amount?: number; updated_at?: string; web_order_no?: string | null };
+        Relationships: [];
+      };
+      operation_report_refund_reasons: {
+        Row: { created_at: string; created_by: string | null; display_order: number; id: string; is_active: boolean; label: string; normalized_label: string; updated_at: string };
+        Insert: { created_at?: string; created_by?: string | null; display_order?: number; id?: string; is_active?: boolean; label: string; updated_at?: string };
+        Update: { created_by?: string | null; display_order?: number; id?: string; is_active?: boolean; label?: string; updated_at?: string };
         Relationships: [];
       };
       operation_report_templates: {
@@ -718,6 +724,97 @@ export type Database = {
           created_at?: string;
           profile_id?: string;
           store_id?: string;
+        };
+        Relationships: [];
+      };
+      tax_reporting_monthly_salaries: {
+        Row: {
+          created_at: string;
+          manual_amount: number | null;
+          note: string;
+          payroll_month: string;
+          person_id: string;
+          updated_at: string;
+          updated_by: string;
+        };
+        Insert: {
+          created_at?: string;
+          manual_amount?: number | null;
+          note?: string;
+          payroll_month: string;
+          person_id: string;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Update: {
+          manual_amount?: number | null;
+          note?: string;
+          payroll_month?: string;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Relationships: [];
+      };
+      tax_reporting_store_settings: {
+        Row: {
+          company_name: string;
+          created_at: string;
+          store_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          company_name: string;
+          created_at?: string;
+          store_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          company_name?: string;
+          created_at?: string;
+          store_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [];
+      };
+      tax_reporting_people: {
+        Row: {
+          created_at: string;
+          created_by: string;
+          full_name: string;
+          id: string;
+          id_number: string;
+          is_active: boolean;
+          phone: string;
+          profile_id: string | null;
+          reporting_store_id: string | null;
+          updated_at: string;
+          updated_by: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string;
+          full_name: string;
+          id?: string;
+          id_number: string;
+          is_active?: boolean;
+          phone: string;
+          profile_id?: string | null;
+          reporting_store_id?: string | null;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Update: {
+          full_name?: string;
+          id_number?: string;
+          is_active?: boolean;
+          phone?: string;
+          profile_id?: string | null;
+          reporting_store_id?: string | null;
+          updated_at?: string;
+          updated_by?: string;
         };
         Relationships: [];
       };
@@ -981,6 +1078,9 @@ export type Database = {
       get_system_release_policy: { Args: Record<PropertyKey, never>; Returns: Json };
       configure_system_release_policy: { Args: { p_active_release: string; p_allowed_releases: string[]; p_minimum_database_contract?: number; p_enforcement_mode?: string; p_check_interval_seconds?: number; p_message?: string }; Returns: Json };
       admin_save_operation_report_template: { Args: { p_enabled: boolean; p_fields: Json; p_refund_note: string; p_store_id: string; p_title: string }; Returns: Json };
+      save_operation_report_refund_reason: { Args: { p_label: string }; Returns: Json };
+      admin_update_operation_report_refund_reason: { Args: { p_id: string; p_label: string }; Returns: Json };
+      admin_delete_operation_report_refund_reason: { Args: { p_id: string }; Returns: undefined };
       begin_operation_report_refresh: { Args: { p_report_date: string; p_store_id: string }; Returns: Json };
       get_operation_report_availability: { Args: { p_store_id: string }; Returns: Json };
       get_dingtalk_api_usage: { Args: Record<PropertyKey, never>; Returns: Json };

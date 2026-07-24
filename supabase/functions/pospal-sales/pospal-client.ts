@@ -10,9 +10,12 @@ export interface NormalizedPospalTicket {
   externalKey: string;
   externalSn: string;
   invalid: boolean;
+  itemSummary: string;
   occurredAt: string;
   orderNo: string;
   orderSource: string;
+  orderTotalAmount: number;
+  platformSequence: string;
   remark: string;
   sellTicketUid: string;
   sourceUpdatedAt: string;
@@ -21,11 +24,37 @@ export interface NormalizedPospalTicket {
   webOrderNo: string;
 }
 
+export interface NormalizedPospalOrderDetail {
+  itemSummary: string;
+  orderNo: string;
+  orderTotalAmount: number;
+  platformSequence: string;
+}
+
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : value == null ? '' : String(value);
 const number = (value: unknown) => {
   const result = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(result) ? result : 0;
+};
+const quantity = (value: unknown) => {
+  const result = number(value);
+  return Number.isInteger(result) ? String(result) : String(Number(result.toFixed(3)));
+};
+const summarizeItems = (value: unknown) => (Array.isArray(value) ? value : [])
+  .map((entry) => {
+    const item = record(entry);
+    const name = text(item.productName || item.name);
+    if (!name) return '';
+    const count = number(item.productQuantity ?? item.quantity);
+    return count > 0 ? `${name} ×${quantity(count)}` : name;
+  })
+  .filter(Boolean)
+  .join('；');
+const normalizeSequence = (value: unknown) => {
+  const source = text(value);
+  const match = source.match(/^[EM](0*)(\d+)$/i) ?? source.match(/^0*(\d+)$/);
+  return match ? String(Number(match[2] ?? match[1])) : source;
 };
 
 export const chinaDateTimeToIso = (value: unknown) => {
@@ -42,6 +71,21 @@ export const buildPospalTicketRequest = (appId: string, date: string, postBackPa
   ...(postBackParameter ? { postBackParameter } : {}),
 });
 
+export const buildPospalOrderDetailRequest = (appId: string, orderNo: string) => JSON.stringify({
+  appId,
+  orderNo,
+});
+
+export const normalizePospalOrderDetail = (value: unknown): NormalizedPospalOrderDetail => {
+  const item = record(value);
+  return {
+    itemSummary: summarizeItems(item.items),
+    orderNo: text(item.orderNo),
+    orderTotalAmount: number(item.totalAmount),
+    platformSequence: normalizeSequence(item.daySeq),
+  };
+};
+
 export const normalizePospalTickets = (values: unknown[]): NormalizedPospalTicket[] => values.flatMap((value, index) => {
   const item = record(value);
   const externalSn = text(item.sn);
@@ -55,9 +99,12 @@ export const normalizePospalTickets = (values: unknown[]): NormalizedPospalTicke
     externalKey,
     externalSn,
     invalid: item.invalid === true || number(item.invalid) === 1,
+    itemSummary: summarizeItems(item.items),
     occurredAt,
     orderNo: text(item.orderNo),
     orderSource: text(item.orderSource),
+    orderTotalAmount: Math.abs(number(item.totalAmount)),
+    platformSequence: normalizeSequence(record(item.ticketOnTable).tableCardNo),
     remark: text(item.remark),
     sellTicketUid: text(item.sellTicketUid),
     sourceUpdatedAt,

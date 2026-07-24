@@ -11,7 +11,20 @@ export type OperationReport = {
   source_synced_at: string | null; refresh_started_at: string | null;
 };
 
-export type OperationReportAvailability = { available: boolean; fields?: OperationReportField[]; refundNote?: string; title?: string };
+export type OperationReportRefundReason = {
+  displayOrder: number;
+  id: string;
+  isActive: boolean;
+  label: string;
+};
+
+export type OperationReportAvailability = {
+  available: boolean;
+  fields?: OperationReportField[];
+  refundNote?: string;
+  refundReasons?: OperationReportRefundReason[];
+  title?: string;
+};
 
 const client = () => { if (!supabase) throw new Error('数据库连接尚未配置。'); return supabase; };
 const dataObject = <T>(value: Json | null): T => value as T;
@@ -95,5 +108,31 @@ export async function getOperationReport(reportId: string) {
 
 export async function saveOperationReportTemplate(storeId: string, title: string, fields: OperationReportField[], refundNote: string, enabled: boolean) {
   const { error } = await client().rpc('admin_save_operation_report_template', { p_enabled: enabled, p_fields: fields as unknown as Json, p_refund_note: refundNote, p_store_id: storeId, p_title: title });
+  if (error) throw new Error(error.message);
+}
+
+const parseRefundReason = (data: Json | null) => dataObject<OperationReportRefundReason>(data);
+
+export async function addOperationReportRefundReason(label: string) {
+  const { data, error } = await client().rpc('save_operation_report_refund_reason', {
+    p_label: label,
+  });
+  if (error) throw new Error(error.message);
+  return parseRefundReason(data);
+}
+
+export async function updateOperationReportRefundReason(id: string, label: string) {
+  const { data, error } = await client().rpc('admin_update_operation_report_refund_reason', {
+    p_id: id,
+    p_label: label,
+  });
+  if (error) throw new Error(error.message);
+  return parseRefundReason(data);
+}
+
+export async function deleteOperationReportRefundReason(id: string) {
+  const { error } = await client().rpc('admin_delete_operation_report_refund_reason', {
+    p_id: id,
+  });
   if (error) throw new Error(error.message);
 }

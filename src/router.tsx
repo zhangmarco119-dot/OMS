@@ -16,6 +16,7 @@ import { AdminArrivalDetailPage } from './pages/AdminArrivalDetailPage';
 import { AdminArrivalsPage } from './pages/AdminArrivalsPage';
 import { AdminArrivalSummaryPage } from './pages/AdminArrivalSummaryPage';
 import { AdminTaskTemplatesPage } from './pages/AdminTaskTemplatesPage';
+import { AdminTaxAccountingPage } from './pages/AdminTaxAccountingPage';
 import { AdminV2TaskReviewPage } from './pages/AdminV2TaskReviewPage';
 import { AdminV2TaskPublishPage, AdminV2TasksPage } from './pages/AdminV2TasksPage';
 import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
@@ -129,6 +130,7 @@ export const router = createBrowserRouter([
       { path: 'admin/attendance', element: <ProtectedRoute requireAdmin><AdminAttendancePage /></ProtectedRoute> },
       { path: 'admin/attendance/:profileId', element: <ProtectedRoute requireAdmin><AdminAttendanceDetailPage /></ProtectedRoute> },
       { path: 'admin/payroll', element: <ProtectedRoute requireAdmin><AdminPayrollPage /></ProtectedRoute> },
+      { path: 'admin/tax-accounting', element: <ProtectedRoute requireAdmin><AdminTaxAccountingPage /></ProtectedRoute> },
       { path: 'admin/operation-logs', element: <ProtectedRoute requireAdmin><AdminOperationLogsPage /></ProtectedRoute> },
     ],
   },

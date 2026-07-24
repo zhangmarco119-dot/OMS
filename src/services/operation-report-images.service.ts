@@ -51,3 +51,14 @@ export async function removeOperationReportImage(client: Client, image: Operatio
   await client.storage.from(bucket).remove([image.object_path]);
   invalidateStorageImage(bucket, image.object_path, [{ variant: 'operation-report' }]);
 }
+
+export async function downloadOperationReportImage(client: Client, image: OperationReportImage) {
+  const { data, error } = await client.storage.from(bucket).download(image.object_path);
+  if (error || !data) throw new Error(error?.message || '现场图片下载失败。');
+  const objectUrl = URL.createObjectURL(data);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = image.file_name || '运营报告现场图片';
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}

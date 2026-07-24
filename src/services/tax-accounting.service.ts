@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { allocatePayrollCosts, includeEmptyStoreAllocations, type StoreCostAllocation } from '../features/tax-accounting/allocation';
+import { payrollMonthEndDate } from '../features/payroll/monthSelection';
+import { todayInChina, type PayrollEstimate } from '../features/payroll/model';
 import type { Database } from '../types/database';
-import { loadAdminPayrollPayslips, loadPayrollProfiles, type PayrollPayslip } from './payroll.service';
+import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollProfiles, type PayrollPayslip } from './payroll.service';
 
 type Client = SupabaseClient<Database>;
 export type TaxPerson = Database['public']['Tables']['tax_reporting_people']['Row'];
@@ -17,7 +19,7 @@ export interface TaxReportRow {
   idNumber: string;
   personId: string;
   phone: string;
-  salarySource: 'payslip' | 'manual' | 'missing';
+  salarySource: 'system' | 'manual' | 'missing';
 }
 
 export interface TaxStoreReport {
@@ -30,6 +32,7 @@ export interface TaxStoreReport {
 export interface TaxAccountingData {
   allocations: StoreCostAllocation[];
   attendance: Database['public']['Tables']['attendance_daily_records']['Row'][];
+  estimates: PayrollEstimate[];
   monthlySalaries: TaxMonthlySalary[];
   overtime: Database['public']['Tables']['payroll_overtime_requests']['Row'][];
   payslips: PayrollPayslip[];
@@ -47,36 +50,34 @@ const monthBounds = (month: string) => {
   return { end, start };
 };
 
-const payslipAmount = (payslip: PayrollPayslip | undefined) =>
-  payslip?.estimate.estimatedPayable ?? payslip?.estimate.knownEstimatedPayable ?? null;
+const estimateAmount = (estimate: PayrollEstimate | undefined) =>
+  estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable ?? null;
 
 export function createTaxReports(
   stores: TaxStore[],
   people: TaxPerson[],
   monthlySalaries: TaxMonthlySalary[],
-  payslips: PayrollPayslip[],
+  estimates: PayrollEstimate[],
   storeSettings: TaxStoreSetting[] = [],
 ): TaxStoreReport[] {
   const salaryByPerson = new Map(monthlySalaries.map((row) => [row.person_id, row]));
   const settingByStore = new Map(storeSettings.map((row) => [row.store_id, row]));
-  const payslipByProfile = new Map(
-    payslips.filter((row) => row.status !== 'withdrawn').map((row) => [row.profile_id, row]),
-  );
+  const estimateByProfile = new Map(estimates.map((row) => [row.profileId, row]));
   return stores.map((store) => {
     const rows = people
       .filter((person) => person.is_active && person.reporting_store_id === store.id)
       .map((person): TaxReportRow => {
         const monthly = salaryByPerson.get(person.id);
-        const payslip = person.profile_id ? payslipByProfile.get(person.profile_id) : undefined;
+        const estimate = person.profile_id ? estimateByProfile.get(person.profile_id) : undefined;
         const manualAmount = monthly?.manual_amount;
-        const amount = manualAmount ?? payslipAmount(payslip);
+        const amount = manualAmount ?? estimateAmount(estimate);
         return {
           amount,
           fullName: person.full_name,
           idNumber: person.id_number,
           personId: person.id,
           phone: person.phone,
-          salarySource: manualAmount != null ? 'manual' : payslip ? 'payslip' : 'missing',
+          salarySource: manualAmount != null ? 'manual' : person.profile_id ? 'system' : 'missing',
         };
       })
       .sort((a, b) => a.fullName.localeCompare(b.fullName, 'zh-CN'));
@@ -98,6 +99,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     salariesResult,
     profiles,
     payslips,
+    estimatesResult,
     attendanceResult,
     overtimeResult,
   ] = await Promise.all([
@@ -107,6 +109,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     client.from('tax_reporting_monthly_salaries').select('*').eq('payroll_month', start),
     loadPayrollProfiles(client),
     loadAdminPayrollPayslips(client, month),
+    loadAdminPayrollEstimates(client, { asOf: payrollMonthEndDate(month.slice(0, 7), todayInChina()) }),
     client.from('attendance_daily_records').select('*').gte('attendance_date', start).lte('attendance_date', end).eq('is_attended', true),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', start).lte('overtime_date', end).eq('status', 'approved'),
   ]);
@@ -129,6 +132,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
   return {
     allocations,
     attendance,
+    estimates: estimatesResult.items,
     monthlySalaries,
     overtime,
     payslips,
@@ -136,7 +140,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     profiles,
     storeSettings,
     stores,
-    taxReports: createTaxReports(stores, people, monthlySalaries, payslips, storeSettings),
+    taxReports: createTaxReports(stores, people, monthlySalaries, estimatesResult.items, storeSettings),
   };
 }
 
@@ -178,7 +182,7 @@ export async function saveTaxMonthlySalary(
   if (amount == null) {
     const { error } = await client.from('tax_reporting_monthly_salaries')
       .delete().eq('person_id', personId).eq('payroll_month', payrollMonth);
-    if (error) throw new Error(error.message || '恢复工资单金额失败。');
+    if (error) throw new Error(error.message || '切换系统实时工资失败。');
     return;
   }
   const { error } = await client.from('tax_reporting_monthly_salaries').upsert({

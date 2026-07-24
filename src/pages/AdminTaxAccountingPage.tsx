@@ -36,11 +36,11 @@ const currentMonth = () => new Intl.DateTimeFormat('sv-SE', {
 }).format(new Date());
 const money = (value: number | null | undefined) => value == null ? '待填写' : `¥${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const roleLabel = (role: string, employmentType: string) => employmentType === 'part_time' ? '兼职' : role === 'manager' ? '店长' : '员工';
-const payslipAmount = (data: TaxAccountingData | null, profileId: string | null) => {
-  const payslip = profileId
-    ? data?.payslips.find((item) => item.profile_id === profileId && item.status !== 'withdrawn')
+const realTimeSalaryAmount = (data: TaxAccountingData | null, profileId: string | null) => {
+  const estimate = profileId
+    ? data?.estimates.find((item) => item.profileId === profileId)
     : null;
-  return payslip?.estimate.estimatedPayable ?? payslip?.estimate.knownEstimatedPayable ?? null;
+  return estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable ?? null;
 };
 const emptyEditor = (): PersonEditor => ({
   fullName: '',
@@ -83,12 +83,12 @@ export function AdminTaxAccountingPage() {
 
   const profileById = useMemo(() => new Map(data?.profiles.map((item) => [item.id, item]) ?? []), [data]);
   const storeById = useMemo(() => new Map(data?.stores.map((item) => [item.id, item]) ?? []), [data]);
-  const payslipByProfile = useMemo(() => new Map(data?.payslips.filter((item) => item.status !== 'withdrawn').map((item) => [item.profile_id, item]) ?? []), [data]);
+  const estimateByProfile = useMemo(() => new Map(data?.estimates.map((item) => [item.profileId, item]) ?? []), [data]);
   const manualByPerson = useMemo(() => new Map(data?.monthlySalaries.map((item) => [item.person_id, item]) ?? []), [data]);
 
   const editPerson = (person: TaxPerson) => {
     const manual = manualByPerson.get(person.id)?.manual_amount;
-    const systemAmount = payslipAmount(data, person.profile_id);
+    const systemAmount = realTimeSalaryAmount(data, person.profile_id);
     setEditor({
       fullName: person.full_name,
       id: person.id,
@@ -114,11 +114,6 @@ export function AdminTaxAccountingPage() {
     }
     if (!/^1\d{10}$/.test(editor.phone.trim())) {
       setFeedback({ title: '手机号格式不正确', message: '请输入11位中国大陆手机号。', tone: 'warning' });
-      return;
-    }
-    const systemAmount = payslipAmount(data, editor.profileId);
-    if (editor.salaryMode === 'system' && systemAmount == null) {
-      setFeedback({ title: '暂无系统工资信息', message: '该人员未关联有效账号，或本月还没有有效工资单，请改用手动填写。', tone: 'warning' });
       return;
     }
     const manualAmount = Number(editor.manualSalary);
@@ -211,7 +206,7 @@ export function AdminTaxAccountingPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-left text-sm">
                   <thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-4 py-3">姓名</th><th className="px-4 py-3">薪资</th><th className="px-4 py-3">身份证号</th><th className="px-4 py-3">手机号</th><th className="px-4 py-3">来源</th></tr></thead>
-                  <tbody>{report.rows.map((row) => <tr className="border-t border-slate-100" key={row.personId}><td className="px-4 py-3 font-semibold">{row.fullName}</td><td className={`px-4 py-3 font-bold ${row.amount == null ? 'text-red-600' : ''}`}>{money(row.amount)}</td><td className="px-4 py-3 tabular-nums">{row.idNumber}</td><td className="px-4 py-3 tabular-nums">{row.phone}</td><td className="px-4 py-3"><StatusBadge tone={row.salarySource === 'missing' ? 'danger' : row.salarySource === 'manual' ? 'warning' : 'success'}>{row.salarySource === 'manual' ? '手动' : row.salarySource === 'payslip' ? '工资单' : '待填写'}</StatusBadge></td></tr>)}</tbody>
+                  <tbody>{report.rows.map((row) => <tr className="border-t border-slate-100" key={row.personId}><td className="px-4 py-3 font-semibold">{row.fullName}</td><td className={`px-4 py-3 font-bold ${row.amount == null ? 'text-red-600' : ''}`}>{money(row.amount)}</td><td className="px-4 py-3 tabular-nums">{row.idNumber}</td><td className="px-4 py-3 tabular-nums">{row.phone}</td><td className="px-4 py-3"><StatusBadge tone={row.salarySource === 'missing' ? 'danger' : row.salarySource === 'manual' ? 'warning' : 'success'}>{row.salarySource === 'manual' ? '手动填写' : row.salarySource === 'system' ? '系统实时工资' : '待填写'}</StatusBadge></td></tr>)}</tbody>
                 </table>
               </div>
             </SectionCard>
@@ -224,10 +219,10 @@ export function AdminTaxAccountingPage() {
           <button className="ui-button-primary w-full" onClick={() => setEditor(emptyEditor())} type="button"><Plus className="h-4 w-4" />新增报税人员</button>
           {data.people.map((person) => {
             const profile = person.profile_id ? profileById.get(person.profile_id) : null;
-            const payslip = person.profile_id ? payslipByProfile.get(person.profile_id) : null;
+            const estimate = person.profile_id ? estimateByProfile.get(person.profile_id) : null;
             const monthly = manualByPerson.get(person.id);
             return <SectionCard className={!person.is_active ? 'opacity-60' : ''} key={person.id}>
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{person.full_name}</b><p className="mt-1 text-xs text-slate-500">{profile ? `已关联：${profile.display_name} · ${roleLabel(profile.role, profile.employment_type)}` : '未关联系统账号'} · {person.reporting_store_id ? storeById.get(person.reporting_store_id)?.name ?? '未知门店' : '不计入报税'}</p><p className="mt-1 text-xs text-slate-500">{month.replace('-', '年')}月薪资：{monthly?.manual_amount != null ? `手动 ${money(monthly.manual_amount)}` : payslip ? `系统工资单 ${money(payslip.estimate.estimatedPayable ?? payslip.estimate.knownEstimatedPayable)}` : '待填写'}</p></div><button className="ui-button-secondary min-h-8 px-2 py-1 text-xs" onClick={() => editPerson(person)} type="button"><Edit3 className="h-3.5 w-3.5" />编辑</button></div>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{person.full_name}</b><p className="mt-1 text-xs text-slate-500">{profile ? `已关联：${profile.display_name} · ${roleLabel(profile.role, profile.employment_type)}` : '未关联系统账号'} · {person.reporting_store_id ? storeById.get(person.reporting_store_id)?.name ?? '未知门店' : '不计入报税'}</p><p className="mt-1 text-xs text-slate-500">{month.replace('-', '年')}月薪资：{monthly?.manual_amount != null ? `手动 ${money(monthly.manual_amount)}` : person.profile_id ? `系统实时工资 ${money(estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable)}` : '待填写'}</p></div><button className="ui-button-secondary min-h-8 px-2 py-1 text-xs" onClick={() => editPerson(person)} type="button"><Edit3 className="h-3.5 w-3.5" />编辑</button></div>
             </SectionCard>;
           })}
         </section>
@@ -264,12 +259,11 @@ export function AdminTaxAccountingPage() {
                 <FormField label="关联账号（选填）"><select className="ui-input" onChange={(event) => {
                   const profileId = event.target.value || null;
                   const profile = profileId ? profileById.get(profileId) : null;
-                  const systemAvailable = payslipAmount(data, profileId) != null;
                   setEditor((current) => current ? {
                     ...current,
                     fullName: profile?.display_name || current.fullName,
                     profileId,
-                    salaryMode: current.salaryMode === 'system' && !systemAvailable ? 'manual' : current.salaryMode,
+                    salaryMode: current.salaryMode === 'system' && !profileId ? 'manual' : current.salaryMode,
                   } : current);
                 }} value={editor.profileId ?? ''}><option value="">无关联账号</option>{data.profiles.map((profile) => <option disabled={data.people.some((person) => person.profile_id === profile.id && person.id !== editor.id)} key={profile.id} value={profile.id}>{profile.display_name} · {roleLabel(profile.role, profile.employment_type)}</option>)}</select></FormField>
                 <FormField label="报税归属门店"><select className="ui-input" onChange={(event) => setEditor((current) => current ? { ...current, reportingStoreId: event.target.value || null } : current)} value={editor.reportingStoreId ?? ''}><option value="">不计入报税</option>{data.stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></FormField>
@@ -280,12 +274,12 @@ export function AdminTaxAccountingPage() {
               </div>
             </SectionCard>
             <SectionCard>
-              <SectionHeader icon={ReceiptText} title={`${month.replace('-', '年')}月薪资来源`} description="选择系统工资单后无需手动填写；没有关联账号或有效工资单时只能手动填写。" />
+              <SectionHeader icon={ReceiptText} title={`${month.replace('-', '年')}月薪资来源`} description="选择系统工资后，金额会按当前所选月份的实时工资自动计算；没有关联账号时只能手动填写。" />
               <SegmentedControl className="mt-4 grid-cols-2" items={[
-                { active: editor.salaryMode === 'system', disabled: payslipAmount(data, editor.profileId) == null, label: `系统工资${payslipAmount(data, editor.profileId) == null ? '（不可用）' : ''}`, onClick: () => setEditor((current) => current ? { ...current, salaryMode: 'system' } : current) },
+                { active: editor.salaryMode === 'system', disabled: !editor.profileId, label: `系统工资${editor.profileId ? '' : '（不可用）'}`, onClick: () => setEditor((current) => current ? { ...current, salaryMode: 'system' } : current) },
                 { active: editor.salaryMode === 'manual', label: '手动填写', onClick: () => setEditor((current) => current ? { ...current, salaryMode: 'manual' } : current) },
               ]} />
-              {editor.salaryMode === 'system' ? <div className="mt-3 rounded-xl bg-brand-50 p-4"><p className="text-xs font-bold text-brand-700">本月有效工资单</p><p className="mt-1 text-xl font-bold text-brand-900">{money(payslipAmount(data, editor.profileId))}</p></div> : <FormField label="本月申报薪资" required><input className="ui-input" inputMode="decimal" min="0" onChange={(event) => setEditor((current) => current ? { ...current, manualSalary: event.target.value } : current)} placeholder="请输入本月薪资" type="number" value={editor.manualSalary} /></FormField>}
+              {editor.salaryMode === 'system' ? <div className="mt-3 rounded-xl bg-brand-50 p-4"><p className="text-xs font-bold text-brand-700">所选月份实时工资</p><p className="mt-1 text-xl font-bold text-brand-900">{money(realTimeSalaryAmount(data, editor.profileId))}</p></div> : <FormField label="本月申报薪资" required><input className="ui-input" inputMode="decimal" min="0" onChange={(event) => setEditor((current) => current ? { ...current, manualSalary: event.target.value } : current)} placeholder="请输入本月薪资" type="number" value={editor.manualSalary} /></FormField>}
             </SectionCard>
             <div className="grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => setEditor(null)} type="button">取消</button><button className="ui-button-primary" disabled={busy === 'person'} onClick={() => void submitPerson()} type="button"><Save className="h-4 w-4" />{busy === 'person' ? '正在保存' : '保存资料'}</button></div>
           </div>

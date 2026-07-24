@@ -4,7 +4,7 @@ import { allocatePayrollCosts, includeEmptyStoreAllocations, type StoreCostAlloc
 import { payrollMonthEndDate } from '../features/payroll/monthSelection';
 import { todayInChina, type PayrollEstimate } from '../features/payroll/model';
 import type { Database } from '../types/database';
-import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollProfiles, type PayrollPayslip } from './payroll.service';
+import { loadAdminPayrollEstimates, loadPayrollProfiles } from './payroll.service';
 
 type Client = SupabaseClient<Database>;
 export type TaxPerson = Database['public']['Tables']['tax_reporting_people']['Row'];
@@ -35,7 +35,6 @@ export interface TaxAccountingData {
   estimates: PayrollEstimate[];
   monthlySalaries: TaxMonthlySalary[];
   overtime: Database['public']['Tables']['payroll_overtime_requests']['Row'][];
-  payslips: PayrollPayslip[];
   people: TaxPerson[];
   profiles: TaxProfile[];
   storeSettings: TaxStoreSetting[];
@@ -98,7 +97,6 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     peopleResult,
     salariesResult,
     profiles,
-    payslips,
     estimatesResult,
     attendanceResult,
     overtimeResult,
@@ -108,7 +106,6 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     client.from('tax_reporting_people').select('*').order('is_active', { ascending: false }).order('full_name'),
     client.from('tax_reporting_monthly_salaries').select('*').eq('payroll_month', start),
     loadPayrollProfiles(client),
-    loadAdminPayrollPayslips(client, month),
     loadAdminPayrollEstimates(client, { asOf: payrollMonthEndDate(month.slice(0, 7), todayInChina()) }),
     client.from('attendance_daily_records').select('*').gte('attendance_date', start).lte('attendance_date', end).eq('is_attended', true),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', start).lte('overtime_date', end).eq('status', 'approved'),
@@ -123,7 +120,12 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
   const attendance = attendanceResult.data ?? [];
   const overtime = overtimeResult.data ?? [];
   const calculatedAllocations = allocatePayrollCosts(
-    payslips.map((row) => ({ estimate: row.estimate, profileId: row.profile_id, status: row.status, storeId: row.store_id })),
+    estimatesResult.items.map((estimate) => ({
+      estimate,
+      profileId: estimate.profileId,
+      status: 'draft' as const,
+      storeId: estimate.primaryStoreId,
+    })),
     attendance.map((row) => ({ attendanceDate: row.attendance_date, isAttended: row.is_attended, profileId: row.profile_id, storeId: row.store_id })),
     overtime.map((row) => ({ approvedHourlyRate: row.approved_hourly_rate, hours: row.hours, profileId: row.profile_id, status: row.status, storeId: row.store_id })),
   );
@@ -135,7 +137,6 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     estimates: estimatesResult.items,
     monthlySalaries,
     overtime,
-    payslips,
     people,
     profiles,
     storeSettings,
@@ -169,6 +170,11 @@ export async function saveTaxPerson(client: Client, actorId: string, input: Save
     : await client.from('tax_reporting_people').insert({ ...values, created_by: actorId }).select('*').single();
   if (error) throw new Error(error.message || '报税人员资料保存失败。');
   return data;
+}
+
+export async function deleteTaxPerson(client: Client, personId: string) {
+  const { error } = await client.from('tax_reporting_people').delete().eq('id', personId);
+  if (error) throw new Error(error.message || '报税人员删除失败。');
 }
 
 export async function saveTaxMonthlySalary(

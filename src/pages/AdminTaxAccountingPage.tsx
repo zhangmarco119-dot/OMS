@@ -1,9 +1,10 @@
-import { Building2, Download, Edit3, Plus, ReceiptText, RefreshCw, Save, Users, X } from 'lucide-react';
+import { Building2, Download, Edit3, Plus, ReceiptText, RefreshCw, Save, Trash2, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
 import { MonthPicker } from '../components/forms/MonthPicker';
 import { PageShell } from '../components/layout/PageShell';
+import { ConfirmDialog } from '../components/ui/Actions';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
 import { FormField, SegmentedControl } from '../components/ui/FormField';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
@@ -13,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   loadTaxAccountingData,
+  deleteTaxPerson,
   saveTaxMonthlySalary,
   saveTaxPerson,
   saveTaxStoreCompanyName,
@@ -63,6 +65,7 @@ export function AdminTaxAccountingPage() {
   const [editor, setEditor] = useState<PersonEditor | null>(null);
   const [busy, setBusy] = useState('');
   const [companyInputs, setCompanyInputs] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<TaxPerson | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -155,6 +158,22 @@ export function AdminTaxAccountingPage() {
     }
   };
 
+  const removePerson = async () => {
+    if (!supabase || !deleteTarget) return;
+    const current = deleteTarget;
+    setDeleteTarget(null);
+    setBusy(`delete:${current.id}`);
+    try {
+      await deleteTaxPerson(supabase, current.id);
+      await load();
+      setFeedback({ title: '报税人员已删除', message: `${current.full_name} 已从人员登记中删除，对应的手工薪资记录也已清除。`, tone: 'success' });
+    } catch (error) {
+      setFeedback({ title: '删除失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally {
+      setBusy('');
+    }
+  };
+
   const download = async (reportIndex: number) => {
     const report = data?.taxReports[reportIndex];
     if (!report) return;
@@ -222,7 +241,7 @@ export function AdminTaxAccountingPage() {
             const estimate = person.profile_id ? estimateByProfile.get(person.profile_id) : null;
             const monthly = manualByPerson.get(person.id);
             return <SectionCard className={!person.is_active ? 'opacity-60' : ''} key={person.id}>
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{person.full_name}</b><p className="mt-1 text-xs text-slate-500">{profile ? `已关联：${profile.display_name} · ${roleLabel(profile.role, profile.employment_type)}` : '未关联系统账号'} · {person.reporting_store_id ? storeById.get(person.reporting_store_id)?.name ?? '未知门店' : '不计入报税'}</p><p className="mt-1 text-xs text-slate-500">{month.replace('-', '年')}月薪资：{monthly?.manual_amount != null ? `手动 ${money(monthly.manual_amount)}` : person.profile_id ? `系统实时工资 ${money(estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable)}` : '待填写'}</p></div><button className="ui-button-secondary min-h-8 px-2 py-1 text-xs" onClick={() => editPerson(person)} type="button"><Edit3 className="h-3.5 w-3.5" />编辑</button></div>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{person.full_name}</b><p className="mt-1 text-xs text-slate-500">{profile ? `已关联：${profile.display_name} · ${roleLabel(profile.role, profile.employment_type)}` : '未关联系统账号'} · {person.reporting_store_id ? storeById.get(person.reporting_store_id)?.name ?? '未知门店' : '不计入报税'}</p><p className="mt-1 text-xs text-slate-500">{month.replace('-', '年')}月薪资：{monthly?.manual_amount != null ? `手动 ${money(monthly.manual_amount)}` : person.profile_id ? `系统实时工资 ${money(estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable)}` : '待填写'}</p></div><div className="grid shrink-0 grid-cols-2 gap-1.5"><button className="ui-button-secondary min-h-8 px-2 py-1 text-xs" onClick={() => editPerson(person)} type="button"><Edit3 className="h-3.5 w-3.5" />编辑</button><button className="ui-button-danger min-h-8 px-2 py-1 text-xs" disabled={busy === `delete:${person.id}`} onClick={() => setDeleteTarget(person)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button></div></div>
             </SectionCard>;
           })}
         </section>
@@ -231,14 +250,14 @@ export function AdminTaxAccountingPage() {
       {status === 'ready' && data && tab === 'accounting' ? (
         <section className="space-y-3">
           <SectionCard className="bg-brand-50/50">
-            <SectionHeader icon={Building2} title="门店实际工资成本" description="全职人员按有效出勤天数分摊基本薪资，已审批加班按实际门店计入；兼职薪资按各门店已审批工时分摊。" />
+            <SectionHeader icon={Building2} title="门店实时工资成本" description="直接使用所选月份的实时工资，无需等待工资单生成或发送；全职人员按有效出勤天数分摊，已审批工时按实际门店计入。" />
           </SectionCard>
           {data.allocations.map((allocation) => (
             <SectionCard key={allocation.storeId}>
               <SectionHeader icon={Users} title={storeById.get(allocation.storeId)?.name ?? '未知门店'} description={`${allocation.employees.length}人 · 工资成本 ${money(allocation.amount)}`} />
               {allocation.employees.length ? <div className="mt-3 divide-y divide-slate-100">{allocation.employees.map((employee) => {
                 const profile = profileById.get(employee.profileId);
-                return <div className="grid grid-cols-[1fr_auto] gap-3 py-3 first:pt-0 last:pb-0" key={employee.profileId}><div><b className="text-sm">{profile?.display_name ?? data.payslips.find((item) => item.profile_id === employee.profileId)?.estimate.displayName ?? '未命名员工'}</b><p className="mt-1 text-xs text-slate-500">出勤 {employee.attendanceDays} 天 · 已审批{profile?.employment_type === 'part_time' ? '兼职' : '加班'} {employee.overtimeHours} 小时</p></div><b className="self-center tabular-nums text-brand-800">{money(employee.amount)}</b></div>;
+                return <div className="grid grid-cols-[1fr_auto] gap-3 py-3 first:pt-0 last:pb-0" key={employee.profileId}><div><b className="text-sm">{profile?.display_name ?? data.estimates.find((item) => item.profileId === employee.profileId)?.displayName ?? '未命名员工'}</b><p className="mt-1 text-xs text-slate-500">出勤 {employee.attendanceDays} 天 · 已审批{profile?.employment_type === 'part_time' ? '兼职' : '加班'} {employee.overtimeHours} 小时</p></div><b className="self-center tabular-nums text-brand-800">{money(employee.amount)}</b></div>;
               })}</div> : <p className="mt-3 rounded-lg bg-slate-50 px-3 py-3 text-sm text-slate-500">本月该门店暂无可分摊工资记录。</p>}
             </SectionCard>
           ))}
@@ -286,6 +305,9 @@ export function AdminTaxAccountingPage() {
         </div>
       ) : null}
 
+      <ConfirmDialog confirmLabel="确认删除" danger onCancel={() => setDeleteTarget(null)} onConfirm={() => void removePerson()} open={Boolean(deleteTarget)} title="删除报税人员">
+        <p>确认删除“{deleteTarget?.full_name}”吗？该人员的报税登记和已有手工薪资记录会一并删除，系统账号本身不会受到影响。</p>
+      </ConfirmDialog>
       <ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} />
     </PageShell>
   );

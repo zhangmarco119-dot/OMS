@@ -1097,9 +1097,11 @@ export type Database = {
       admin_issue_payroll_payslips: { Args: { p_payroll_month: string; p_profile_ids?: string[] | null }; Returns: Json };
       admin_generate_payroll_payslips: { Args: { p_payroll_month: string; p_profile_ids?: string[] | null }; Returns: Json };
       admin_send_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
+      admin_send_payroll_payslips: { Args: { p_payslip_ids: string[] }; Returns: Json };
       admin_update_payroll_payslip: { Args: { p_fields: Json; p_payslip_id: string }; Returns: Json };
       get_payroll_deduction_items: { Args: { p_from: string; p_profile_id: string; p_to: string }; Returns: Json };
       admin_withdraw_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
+      admin_withdraw_payroll_payslips: { Args: { p_payslip_ids: string[] }; Returns: Json };
       admin_payroll_estimates: { Args: { p_as_of?: string; p_search?: string; p_store_id?: string | null }; Returns: Json };
       admin_create_payroll_penalty: { Args: { p_fields: Json }; Returns: Json };
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };

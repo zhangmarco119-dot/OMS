@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { createTaxReports } from './tax-accounting.service';
+import { createTaxReports, deleteTaxPerson } from './tax-accounting.service';
 
 describe('createTaxReports', () => {
   it('uses the selected month real-time estimate for every linked account', () => {
@@ -29,5 +29,15 @@ describe('createTaxReports', () => {
       rows: [{ amount: 4321.5, salarySource: 'system' }],
       total: 4321.5,
     });
+  });
+
+  it('deletes a tax reporting person and relies on the database cascade for monthly overrides', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const remove = vi.fn(() => ({ eq }));
+    const from = vi.fn(() => ({ delete: remove }));
+    await deleteTaxPerson({ from } as never, 'person-1');
+    expect(from).toHaveBeenCalledWith('tax_reporting_people');
+    expect(remove).toHaveBeenCalled();
+    expect(eq).toHaveBeenCalledWith('id', 'person-1');
   });
 });

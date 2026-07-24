@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip } from './payroll.service';
+import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -56,6 +56,16 @@ describe('payroll service', () => {
     expect(rpc).toHaveBeenNthCalledWith(1,'admin_send_payroll_payslip',{ p_payslip_id:'slip-1' });
     expect(rpc).toHaveBeenNthCalledWith(2,'admin_update_payroll_payslip',{ p_payslip_id:'slip-1',p_fields:fields });
     expect(rpc).toHaveBeenNthCalledWith(3,'admin_withdraw_payroll_payslip',{ p_payslip_id:'slip-1' });
+  });
+
+  it('sends and withdraws multiple payslips in one atomic request', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { processedCount: 3 }, error: null })
+      .mockResolvedValueOnce({ data: { processedCount: 2 }, error: null });
+    await expect(sendPayrollPayslips({ rpc } as never, ['slip-1', 'slip-2', 'slip-3'])).resolves.toEqual({ processedCount: 3 });
+    await expect(withdrawPayrollPayslips({ rpc } as never, ['slip-1', 'slip-2'])).resolves.toEqual({ processedCount: 2 });
+    expect(rpc).toHaveBeenNthCalledWith(1, 'admin_send_payroll_payslips', { p_payslip_ids: ['slip-1', 'slip-2', 'slip-3'] });
+    expect(rpc).toHaveBeenNthCalledWith(2, 'admin_withdraw_payroll_payslips', { p_payslip_ids: ['slip-1', 'slip-2'] });
   });
 
   it('loads and saves the employee historical-payroll viewing window', async () => {

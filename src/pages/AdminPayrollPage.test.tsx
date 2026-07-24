@@ -93,6 +93,16 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
   });
 
+  it('offers one-click send and withdrawal for all eligible monthly payslips', async () => {
+    vi.mocked(loadAdminPayrollPayslips).mockResolvedValue([
+      { id: 'draft-1', profile_id: 'profile-1', payroll_month: '2026-07-01', status: 'draft', revision: 1, admin_note: '', estimate },
+      { id: 'issued-1', profile_id: 'profile-2', payroll_month: '2026-07-01', status: 'issued', revision: 1, admin_note: '', estimate: { ...estimate, profileId: 'profile-2', displayName: '测试员工二' } },
+    ] as never);
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=payslips']} future={{ v7_relativeSplatPath:true,v7_startTransition:true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole('button', { name: '一键发送全部（1）' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '一键撤回全部（1）' })).toBeEnabled();
+  });
+
   it('offers administrators a direct employee overtime entry workflow', async () => {
     vi.mocked(loadPayrollAdminSetup).mockResolvedValue({
       ...setup,

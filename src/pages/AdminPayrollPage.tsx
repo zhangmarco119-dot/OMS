@@ -18,7 +18,7 @@ import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
-  generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollPerformanceOverride, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, updatePayrollPayslip, withdrawPayrollPayslip,
+  generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollPerformanceOverride, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, sendPayrollPayslips, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips,
   savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
   savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
@@ -93,6 +93,7 @@ function PayrollPayslipManager() {
   const [editing, setEditing] = useState<Payslip | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [action, setAction] = useState<Action | null>(null);
+  const [bulkAction, setBulkAction] = useState<'send' | 'withdraw' | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [schedule, setSchedule] = useState({ dayOfMonth: 1, enabled: false, frequencyMonths: 1, lastIssuedMonth: null as string | null, lastRunAt: null as string | null, sendTime: '09:00' });
   const [scheduleBusy, setScheduleBusy] = useState(false);
@@ -183,6 +184,36 @@ function PayrollPayslipManager() {
     } catch (error) { setFeedback({ title: '操作未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); }
     finally { setBusy(false); }
   };
+  const draftIds = items.filter((item) => item.status === 'draft').map((item) => item.id);
+  const sentIds = items.filter((item) => item.status === 'issued' || item.status === 'confirmed').map((item) => item.id);
+  const executeBulkAction = async () => {
+    if (!supabase || !bulkAction) return;
+    const current = bulkAction;
+    const ids = current === 'send' ? draftIds : sentIds;
+    setBulkAction(null);
+    if (!ids.length) {
+      setFeedback({ title: current === 'send' ? '没有待发送工资单' : '没有可撤回工资单', message: '当前月份没有符合条件的工资单。', tone: 'warning' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = current === 'send'
+        ? await sendPayrollPayslips(supabase, ids)
+        : await withdrawPayrollPayslips(supabase, ids);
+      setFeedback({
+        title: current === 'send' ? '工资单已全部发送' : '工资单已全部撤回',
+        message: current === 'send'
+          ? `已发送 ${result.processedCount} 份工资单，员工通知和确认待办已经生成。`
+          : `已撤回 ${result.processedCount} 份工资单，员工端通知和确认待办已同步移除。`,
+        tone: 'success',
+      });
+      await load();
+    } catch (error) {
+      setFeedback({ title: '批量操作未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally {
+      setBusy(false);
+    }
+  };
   const statusLabel = (item: Payslip) => item.status === 'draft' ? '待发送' : item.status === 'issued' ? '待员工确认' : item.status === 'confirmed' ? '员工已确认' : '已撤回';
   const statusTone = (item: Payslip) => item.status === 'confirmed' ? 'success' : item.status === 'withdrawn' ? 'danger' : item.status === 'draft' ? 'info' : 'warning';
   if (viewing) return <><button className="ui-button-secondary" onClick={() => setViewing(null)} type="button">返回工资单列表</button><div className="flex items-center justify-between gap-2"><StatusBadge tone={statusTone(viewing)}>{statusLabel(viewing)}</StatusBadge><span className="text-xs text-slate-500">第 {viewing.revision} 版</span></div><PayrollStatementView adminNote={viewing.admin_note} estimate={viewing.estimate} payrollMonth={viewing.payroll_month} /><div className="grid grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={viewing.status === 'withdrawn'} onClick={() => beginEdit(viewing)} type="button">修改</button>{viewing.status === 'draft' ? <button className="ui-button-primary" onClick={() => setAction({ item:viewing,type:'send' })} type="button">发送工资单</button> : <button className="ui-button-danger" disabled={viewing.status === 'withdrawn'} onClick={() => setAction({ item:viewing,type:'withdraw' })} type="button">撤回工资单</button>}</div><ConfirmDialog confirmLabel={action?.type === 'send' ? '确认发送' : '确认撤回'} danger={action?.type === 'withdraw'} onCancel={() => setAction(null)} onConfirm={() => void executeAction()} open={Boolean(action)} title={action?.type === 'send' ? '发送工资单' : '撤回工资单'}><p>{action?.type === 'send' ? '发送后，员工会收到工资单通知和确认待办。' : '撤回后，员工将无法再查看该工资单，对应通知和待办也会移除。'}</p></ConfirmDialog><ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} /></>;
@@ -195,11 +226,13 @@ function PayrollPayslipManager() {
       <button className="ui-button-primary mt-3 w-full" disabled={busy || !profiles.length} onClick={() => setGenerateOpen(true)} type="button">{busy ? '正在处理' : `生成 ${month.slice(0,4)}年${Number(month.slice(5,7))}月工资单`}</button>
     </SectionCard>
     <SectionCard><SectionHeader title={`${month.slice(0,4)}年${Number(month.slice(5,7))}月工资单`} description={`共 ${items.length} 份 · 待发送 ${items.filter((item) => item.status==='draft').length} · 待确认 ${items.filter((item) => item.status==='issued').length} · 已确认 ${items.filter((item) => item.status==='confirmed').length}`} />
+      {status === 'ready' && items.length ? <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-primary min-h-10 px-2 text-xs" disabled={busy || !draftIds.length} onClick={() => setBulkAction('send')} type="button">一键发送全部{draftIds.length ? `（${draftIds.length}）` : ''}</button><button className="ui-button-danger min-h-10 px-2 text-xs" disabled={busy || !sentIds.length} onClick={() => setBulkAction('withdraw')} type="button">一键撤回全部{sentIds.length ? `（${sentIds.length}）` : ''}</button></div> : null}
       {status === 'loading' ? <LoadingState label="正在加载工资单" /> : null}{status === 'error' ? <ErrorState message="暂时无法加载工资单。" onRetry={() => void load()} /> : null}{status === 'ready' && !items.length ? <EmptyState title="该月份尚未生成工资单" /> : null}
       {status === 'ready' ? <div className="mt-3 space-y-2">{items.map((item) => { const profile=profiles.find((entry)=>entry.id===item.profile_id); return <article className="rounded-lg border border-slate-200 bg-white p-3" key={item.id}><button className="w-full text-left" onClick={() => setViewing(item)} type="button"><div className="flex items-start justify-between gap-3"><div><b>{profile?.display_name??item.estimate.displayName}</b><p className="mt-1 text-xs text-slate-500">实发 {formatMoney(item.estimate.estimatedPayable??item.estimate.knownEstimatedPayable)} · 第 {item.revision} 版</p></div><StatusBadge tone={statusTone(item)}>{statusLabel(item)}</StatusBadge></div></button><div className="mt-3 grid grid-cols-3 gap-2"><button className="ui-button-secondary min-h-9 px-2 text-xs" onClick={() => setViewing(item)} type="button">查看</button><button className="ui-button-secondary min-h-9 px-2 text-xs" disabled={item.status==='withdrawn'} onClick={() => beginEdit(item)} type="button">修改</button>{item.status==='draft' ? <button className="ui-button-primary min-h-9 px-2 text-xs" onClick={() => setAction({ item,type:'send' })} type="button">发送</button> : <button className="ui-button-danger min-h-9 px-2 text-xs" disabled={item.status==='withdrawn'} onClick={() => setAction({ item,type:'withdraw' })} type="button">撤回</button>}</div></article>; })}</div> : null}
     </SectionCard>
     <ConfirmDialog confirmLabel="确认生成" onCancel={() => setGenerateOpen(false)} onConfirm={() => void generate()} open={generateOpen} title="生成工资单草稿"><p>系统只会生成工资单草稿，不会立即通知员工。请生成后逐份查看，确认无误再发送。</p></ConfirmDialog>
     <ConfirmDialog confirmLabel={action?.type==='send'?'确认发送':'确认撤回'} danger={action?.type==='withdraw'} onCancel={() => setAction(null)} onConfirm={() => void executeAction()} open={Boolean(action)} title={action?.type==='send'?'发送工资单':'撤回工资单'}><p>{action?.type==='send'?'发送后员工会收到通知和确认待办。':'撤回后员工端工资单、通知和待办会同步移除。'}</p></ConfirmDialog>
+    <ConfirmDialog confirmLabel={bulkAction === 'send' ? '确认全部发送' : '确认全部撤回'} danger={bulkAction === 'withdraw'} onCancel={() => setBulkAction(null)} onConfirm={() => void executeBulkAction()} open={Boolean(bulkAction)} title={bulkAction === 'send' ? '一键发送全部工资单' : '一键撤回全部工资单'}><p>{bulkAction === 'send' ? `将发送当前月份全部 ${draftIds.length} 份待发送工资单，并为员工生成通知和确认待办。` : `将撤回当前月份全部 ${sentIds.length} 份已发送或已确认工资单，对应通知和待办会同步移除。`}</p></ConfirmDialog>
     <ActionFeedbackDialog message={feedback?.message??''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title??''} tone={feedback?.tone} />
   </>;
 }

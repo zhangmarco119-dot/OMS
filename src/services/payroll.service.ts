@@ -252,6 +252,12 @@ export async function sendPayrollPayslip(client: Client, id: string) {
   return data;
 }
 
+export async function sendPayrollPayslips(client: Client, ids: string[]) {
+  const { data, error } = await client.rpc('admin_send_payroll_payslips', { p_payslip_ids: ids });
+  if (error) throw new Error(error.message || '工资单批量发送失败。');
+  return { processedCount: numberAt(objectAt(data).processedCount) };
+}
+
 export async function updatePayrollPayslip(client: Client, id: string, fields: PayrollPayslipDraftFields) {
   const { data, error } = await client.rpc('admin_update_payroll_payslip', { p_payslip_id: id, p_fields: fields as unknown as Json });
   if (error) throw new Error(error.message || '工资单修改失败。');
@@ -262,6 +268,12 @@ export async function withdrawPayrollPayslip(client: Client, id: string) {
   const { data, error } = await client.rpc('admin_withdraw_payroll_payslip', { p_payslip_id: id });
   if (error) throw new Error(error.message || '工资单撤回失败。');
   return data;
+}
+
+export async function withdrawPayrollPayslips(client: Client, ids: string[]) {
+  const { data, error } = await client.rpc('admin_withdraw_payroll_payslips', { p_payslip_ids: ids });
+  if (error) throw new Error(error.message || '工资单批量撤回失败。');
+  return { processedCount: numberAt(objectAt(data).processedCount) };
 }
 
 export async function loadAdminPayrollEstimates(client: Client, options: { asOf: string; storeId?: string; search?: string }): Promise<AdminPayrollSummary> {

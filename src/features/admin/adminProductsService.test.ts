@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 
 import type { Database } from '../../types/database';
-import { feedbackProductSnapshots, importProducts, isAppliedProductCorrection, parseProductImportFile } from './adminProductsService';
+import { feedbackProductSnapshots, handleProductFeedbackBatch, importProducts, isAppliedProductCorrection, parseProductImportFile } from './adminProductsService';
 
-const database = vi.hoisted(() => ({ from: vi.fn() }));
+const database = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 vi.mock('../../lib/supabase', () => ({ supabase: database }));
 
 type ProductFeedbackRow = Database['public']['Tables']['product_feedback']['Row'];
@@ -97,5 +97,19 @@ describe('adminProductsService', () => {
       original: { spec: '100g' },
       suggested: { spec: '120g' },
     });
+  });
+
+  it('handles every selected product request and reports partial batch failures', async () => {
+    database.rpc
+      .mockResolvedValueOnce({ data: {}, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: '货品已被其他管理员处理' } })
+      .mockResolvedValueOnce({ data: {}, error: null });
+
+    await expect(handleProductFeedbackBatch(['feedback-1', 'feedback-2', 'feedback-3'], 'acknowledge')).resolves.toEqual({
+      failed: [{ id: 'feedback-2', reason: '货品已被其他管理员处理' }],
+      succeeded: 2,
+      total: 3,
+    });
+    expect(database.rpc).toHaveBeenCalledTimes(3);
   });
 });

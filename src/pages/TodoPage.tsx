@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
-import { IconButton } from '../components/ui/Actions';
+import { ConfirmDialog, IconButton } from '../components/ui/Actions';
 import { EmptyState, FeedbackBanner, StatusBadge } from '../components/ui/Feedback';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
@@ -15,7 +15,12 @@ import { loadNotices, type NoticeListItem } from '../services/v2-content.service
 import { completeAttendanceCorrectionTodo, loadMyAttendanceCorrectionTodos, loadMyPayrollPayslipTodos, loadTodoSummary } from '../services/todo.service';
 import { loadAllOvertimeRequests, loadManagerOvertimeRequests, loadOvertimeProfiles } from '../services/payroll.service';
 import type { Database } from '../types/database';
-import { loadProductFeedbackRecords, type ProductFeedbackRecord } from '../features/admin/adminProductsService';
+import {
+  feedbackProductText,
+  handleProductFeedbackBatch,
+  loadProductFeedbackRecords,
+  type ProductFeedbackRecord,
+} from '../features/admin/adminProductsService';
 
 export function TodoPage() {
   const auth = useAuth(); const isAdmin = auth.profile?.role === 'admin'; const isManager = auth.profile?.role === 'manager';
@@ -23,6 +28,8 @@ export function TodoPage() {
   const [corrections, setCorrections] = useState<Database['public']['Tables']['attendance_missing_punch_todos']['Row'][]>([]);
   const [payslips, setPayslips] = useState<Database['public']['Tables']['payroll_payslips']['Row'][]>([]);
   const [completionMessage, setCompletionMessage] = useState('');
+  const [feedbackBatchAction, setFeedbackBatchAction] = useState<'acknowledge' | 'confirm_delete' | null>(null);
+  const [feedbackBatchBusy, setFeedbackBatchBusy] = useState(false);
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
@@ -58,16 +65,63 @@ export function TodoPage() {
       window.dispatchEvent(new Event('storehub:todos-changed'));
     } catch (error) { setMessage(error instanceof Error ? error.message : '补卡提醒暂时无法完成。'); }
   };
+  const productCorrections = feedback.filter((item) => item.feedback.feedback_type === 'incorrect');
+  const productDeletions = feedback.filter((item) => item.feedback.feedback_type === 'discontinued');
+  const newProductRequests = feedback.filter((item) => item.feedback.feedback_type === 'new');
+  const runFeedbackBatch = async () => {
+    if (!feedbackBatchAction) return;
+    const targets = feedbackBatchAction === 'acknowledge' ? productCorrections : productDeletions;
+    setFeedbackBatchBusy(true);
+    try {
+      const result = await handleProductFeedbackBatch(targets.map((item) => item.feedback.id), feedbackBatchAction);
+      const failureMessage = result.failed.length
+        ? `已处理 ${result.succeeded}/${result.total} 条，另有 ${result.failed.length} 条处理失败，请打开货品申请逐项检查。`
+        : null;
+      const successMessage = feedbackBatchAction === 'acknowledge'
+        ? `已将 ${result.succeeded} 条货品修改申请全部标记为已读。`
+        : `已同意 ${result.succeeded} 条货品删除申请。`;
+      setFeedbackBatchAction(null);
+      window.dispatchEvent(new Event('storehub:todos-changed'));
+      await load();
+      if (failureMessage) setMessage(failureMessage);
+      else setCompletionMessage(successMessage);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '批量处理货品申请失败。');
+    } finally {
+      setFeedbackBatchBusy(false);
+    }
+  };
   return <PageShell eyebrow="门店运营系统" title="待办" contentGapClassName="gap-3">
     <SectionCard><SectionHeader action={<IconButton aria-label="刷新待办" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description="这里只显示需要实际处理的事项，普通历史通知不会计入。" title="需要处理" /></SectionCard>
     {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
     {notices.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">待确认公告</h2>{notices.map((notice) => <Link className="ui-card ui-interactive block border-brand-200 bg-brand-50/30 p-4" key={notice.id} to={`/app/notices/${notice.id}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="line-clamp-2 text-slate-900">{notice.title}</b><p className="mt-1 text-sm leading-5 text-slate-600">阅读公告后点击“确认已阅读”。</p></div><StatusBadge tone="success">待确认</StatusBadge></div></Link>)}</section> : null}
-    {feedback.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">货品申请</h2>{feedback.map((item) => <Link className="ui-card ui-interactive block p-4" key={item.feedback.id} to={`/app/history?view=feedback&feedback=${item.feedback.id}`}><div className="flex items-start justify-between gap-3"><b>货品{item.feedback.feedback_type === 'new' ? '新增' : item.feedback.feedback_type === 'incorrect' ? '修订' : '删除'}申请</b><StatusBadge tone="warning">待处理</StatusBadge></div><p className="mt-2 text-sm text-slate-700">{item.storeName} · {item.creatorName}</p><p className="mt-1 text-xs text-slate-500">{new Date(item.feedback.created_at).toLocaleString('zh-CN')} · 点击处理</p></Link>)}</section> : null}
+    {productCorrections.length + productDeletions.length > 0 ? <section className="space-y-2">
+      <h2 className="text-sm font-bold text-slate-700">货品修改与删除审核</h2>
+      <article className="ui-card p-4">
+        <div className="flex items-start justify-between gap-3"><div><b>待处理申请</b><p className="mt-1 text-xs text-slate-500">修改 {productCorrections.length} 条 · 删除 {productDeletions.length} 条</p></div><StatusBadge tone="warning">{productCorrections.length + productDeletions.length} 条</StatusBadge></div>
+        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+          {[...productCorrections, ...productDeletions].map((item) => <Link className="block rounded-lg bg-slate-50 px-3 py-2 text-sm" key={item.feedback.id} to={`/app/history?view=feedback&feedback=${item.feedback.id}`}>
+            <span className="flex items-center justify-between gap-2"><b className="min-w-0 truncate">{item.feedback.feedback_type === 'incorrect' ? '修改' : '删除'} · {feedbackProductText(item.feedback)}</b><span className="shrink-0 text-xs text-brand-700">查看</span></span>
+            <span className="mt-0.5 block text-xs text-slate-500">{item.storeName} · {item.creatorName}</span>
+          </Link>)}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button className="ui-button-secondary px-2 text-sm" disabled={feedbackBatchBusy || productCorrections.length === 0} onClick={() => setFeedbackBatchAction('acknowledge')} type="button">一键已读修改</button>
+          <button className="ui-button-primary px-2 text-sm" disabled={feedbackBatchBusy || productDeletions.length === 0} onClick={() => setFeedbackBatchAction('confirm_delete')} type="button">一键同意删除</button>
+        </div>
+      </article>
+    </section> : null}
+    {newProductRequests.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">货品新增申请</h2>{newProductRequests.map((item) => <Link className="ui-card ui-interactive block p-4" key={item.feedback.id} to={`/app/history?view=feedback&feedback=${item.feedback.id}`}><div className="flex items-start justify-between gap-3"><b>货品新增申请</b><StatusBadge tone="warning">待处理</StatusBadge></div><p className="mt-2 text-sm text-slate-700">{item.storeName} · {item.creatorName}</p><p className="mt-1 text-xs text-slate-500">{new Date(item.feedback.created_at).toLocaleString('zh-CN')} · 点击处理</p></Link>)}</section> : null}
     {overtime.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工时审批</h2>{overtime.map((item) => <Link className="ui-card ui-interactive block p-4" key={item.id} to={isAdmin ? '/app/admin/payroll?tab=overtime' : '/app/overtime?tab=submit'}><div className="flex items-start justify-between gap-3"><b>{overtimeNames[item.profile_id] ?? '员工'} · {overtimeTerms[item.profile_id] ?? '加班'} · {item.overtime_date} · {item.hours} 小时</b><StatusBadge tone="warning">待审批</StatusBadge></div>{item.reason ? <p className="mt-2 text-sm text-slate-500">{item.reason}</p> : null}</Link>)}</section> : null}
     {corrections.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">补卡提醒</h2>{corrections.map((item) => <article className="ui-card p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{item.attendance_date} · {item.missing_punch === 'on' ? '缺上班卡' : item.missing_punch === 'off' ? '缺下班卡' : '上下班均缺卡'}</b><p className="mt-1 text-xs text-slate-500">截止：{new Date(item.due_at).toLocaleString('zh-CN')} · 请在钉钉提交补卡</p>{item.missing_punch === 'on' || item.missing_punch === 'both' ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">请按实际到岗时间补上班卡，切勿虚假填报！</p> : null}</div><StatusBadge tone="danger">待补卡</StatusBadge></div><label className="mt-3 flex min-h-11 cursor-pointer items-center rounded-lg bg-emerald-50 px-3 text-sm font-bold text-emerald-900"><input className="mr-2 h-4 w-4" onChange={() => void completeCorrection(item.id)} type="checkbox" />我已提交补卡，完成提醒</label></article>)}</section> : null}
     {payslips.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工资单确认</h2>{payslips.map((item) => <Link className="ui-card ui-interactive block border-brand-200 p-4" key={item.id} to={`/app/payroll?tab=payslips&payslip=${item.id}`}><div className="flex items-start justify-between gap-3"><div><b>{item.payroll_month.slice(0, 4)}年{Number(item.payroll_month.slice(5, 7))}月工资单</b><p className="mt-1 text-sm text-slate-500">请核对工资明细并确认工资单内容。</p></div><StatusBadge tone="warning">待确认</StatusBadge></div></Link>)}</section> : null}
     {tasks.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">任务待办</h2>{tasks.map((task) => { const reviewTask = isAdmin || (isManager && ['submitted', 'resubmitted'].includes(task.status)); return <Link className="ui-card ui-interactive block p-4" key={task.id} to={reviewTask ? `/app/admin/tasks/${task.id}` : `/app/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b className="min-w-0 line-clamp-2">{task.name}</b><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">截止：{new Date(task.due_at).toLocaleString('zh-CN')}</p>{reviewTask && isManager ? <p className="mt-1 text-xs font-semibold text-brand-700">员工提交 · 等待店长或管理员审核</p> : null}{task.status === 'rejected' ? <FeedbackBanner className="mt-2" title="需要整改" tone="danger">{task.review_note || '请打开任务查看整改项目。'}</FeedbackBanner> : null}</Link>; })}</section> : null}
     {tasks.length === 0 && feedbackCount === 0 && notices.length === 0 && overtime.length === 0 && corrections.length === 0 && payslips.length === 0 ? <EmptyState description="新的任务审核、货品申请、补卡提醒、工资单确认、工时审批或需确认公告会显示在这里。" icon={CheckCircle2} title="当前没有待办" /> : null}
+    <ConfirmDialog confirmLabel={feedbackBatchAction === 'confirm_delete' ? '一键同意删除' : '一键标记已读'} danger={feedbackBatchAction === 'confirm_delete'} onCancel={() => setFeedbackBatchAction(null)} onConfirm={() => void runFeedbackBatch()} open={Boolean(feedbackBatchAction)} title={feedbackBatchAction === 'confirm_delete' ? '确认批量删除货品' : '确认批量已读'}>
+      <p>{feedbackBatchAction === 'confirm_delete'
+        ? `将同意当前 ${productDeletions.length} 条删除申请，并删除对应货品。此操作无法撤销。`
+        : `将当前 ${productCorrections.length} 条已生效的货品修改申请全部标记为已读。`}</p>
+    </ConfirmDialog>
     <ActionFeedbackDialog message={completionMessage} onClose={() => setCompletionMessage('')} open={Boolean(completionMessage)} title="待办已完成" tone="success" />
   </PageShell>;
 }

@@ -92,6 +92,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
   const [recipientProfiles, setRecipientProfiles] = useState<ContentRecipient[]>([]);
   const [noticeDraft, setNoticeDraft] = useState<NoticeDraft | null>(null);
   const [sopDraft, setSopDraft] = useState<SopDraft | null>(null);
+  const [sopEditorAssets, setSopEditorAssets] = useState<SopAsset[]>([]);
   const [showSopBatchOperations, setShowSopBatchOperations] = useState(false);
   const [showSopBatchImport, setShowSopBatchImport] = useState(false);
   const [showSopCategoryManager, setShowSopCategoryManager] = useState(false);
@@ -262,6 +263,9 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         await deleteSopAsset(supabase, asset);
       }
       await refresh();
+      const savedDetail = await loadSopDetail(supabase, saved.id, { cacheMetadata: false });
+      if (!savedDetail) throw new Error('SOP 已保存，但重新加载完整步骤失败。');
+      setSopEditorAssets(savedDetail.assetUrls);
       setSuccess(`SOP 草稿已保存${changes.pendingAssets.length ? `，已上传 ${changes.pendingAssets.length} 个步骤或附件。` : '。'}`);
       return true;
     }
@@ -272,6 +276,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     const succeeded = await saveSopDraft(changes);
     const sopId = sopDraftRef.current?.id;
     if (succeeded && sopId) {
+      setSopEditorAssets([]);
       updateSopDraft(null);
       navigate(`/app/sops/${sopId}`);
     }
@@ -647,7 +652,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     </section> : null}
     {section === 'sops' ? <section className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
-        <button className="ui-button-primary px-1 text-sm" onClick={() => { setMessage(null); setNoticeDraft(null); setSopDraft(createEmptySopDraft(defaultStores)); }} type="button"><Plus className="h-4 w-4" />新建 SOP</button>
+        <button className="ui-button-primary px-1 text-sm" onClick={() => { setMessage(null); setNoticeDraft(null); setSopEditorAssets([]); updateSopDraft(createEmptySopDraft(defaultStores)); }} type="button"><Plus className="h-4 w-4" />新建 SOP</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopBatchOperations(true); }} type="button"><ListChecks className="h-4 w-4" />批量操作</button>
         <button className="ui-button-secondary px-1 text-sm" onClick={() => { setMessage(null); setShowSopCategoryManager(true); }} type="button"><FolderPlus className="h-4 w-4" />分类管理</button>
         <button className="ui-button-secondary px-1 text-sm" disabled={loadingMoreArchivedSops} onClick={() => void openArchivedSops()} type="button"><Archive className="h-4 w-4" />{loadingMoreArchivedSops ? '加载归档' : `已归档（${archivedSopTotal}）`}</button>
@@ -690,7 +695,8 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
             const detail = await loadSopDetail(supabase, sop.id);
             if (!detail) throw new Error('找不到该 SOP。');
             updateSops(sopsRef.current.map((entry) => entry.id === detail.id ? detail : entry));
-            setSopDraft({ body: detail.body, category: detail.category, effectiveAt: detail.effective_at?.slice(0, 16) ?? '', id: detail.id, roles: detail.roles, storeIds: detail.storeIds, taskTemplateId: detail.taskTemplateId, title: detail.title });
+            setSopEditorAssets(detail.assetUrls);
+            updateSopDraft({ body: detail.body, category: detail.category, effectiveAt: detail.effective_at?.slice(0, 16) ?? '', id: detail.id, roles: detail.roles, storeIds: detail.storeIds, taskTemplateId: detail.taskTemplateId, title: detail.title });
           } catch (error) { setMessage(error instanceof Error ? error.message : 'SOP 详情加载失败。'); }
           finally { setBusy(false); }
         };
@@ -718,7 +724,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       {sopHasMore ? <button aria-busy={loadingMoreSops} className="ui-button-secondary w-full" disabled={loadingMoreSops} onClick={() => { setSopAutoLoadPaused(false); void loadMoreSops(); }} type="button">{sopAutoLoadPaused ? `继续加载（已显示 ${sops.length}/${sopTotal}）` : `正在加载更多 SOP（已显示 ${sops.length}/${sopTotal}）`}</button> : null}
     </section> : null}
     {noticeDraft ? <NoticeEditor busy={busy} draft={noticeDraft} onCancel={() => setNoticeDraft(null)} onChange={setNoticeDraft} onPublish={() => void saveNoticeDraft(true)} onSave={() => void saveNoticeDraft()} onUpload={uploadNotice} recipients={recipientProfiles} stores={auth.availableStores} /> : null}
-    {sopDraft ? <SopEditor busy={busy} categories={sopCategories.map((entry) => entry.name)} draft={sopDraft} errorMessage={message} existingAssets={sops.find((sop) => sop.id === sopDraft.id)?.assetUrls ?? []} onCancel={() => updateSopDraft(null)} onChange={updateSopDraft} onDeleteAsset={removeSopAsset} onPublish={saveAndPreviewSop} onReorderImages={reorderSopImages} onReplaceImage={replaceSopImage} onSave={saveSopDraft} onUploadCover={uploadSopCover} onUploadImage={uploadSopImage} status={sops.find((sop) => sop.id === sopDraft.id)?.status ?? 'new'} /> : null}
+    {sopDraft ? <SopEditor busy={busy} categories={sopCategories.map((entry) => entry.name)} draft={sopDraft} errorMessage={message} existingAssets={sopEditorAssets} onCancel={() => { setSopEditorAssets([]); updateSopDraft(null); }} onChange={updateSopDraft} onDeleteAsset={removeSopAsset} onPublish={saveAndPreviewSop} onReorderImages={reorderSopImages} onReplaceImage={replaceSopImage} onSave={saveSopDraft} onUploadCover={uploadSopCover} onUploadImage={uploadSopImage} status={sops.find((sop) => sop.id === sopDraft.id)?.status ?? 'new'} /> : null}
     {showSopBatchOperations ? <SopBatchOperationsMenu onAction={startSopBatchAction} onClose={() => setShowSopBatchOperations(false)} onImport={() => { setShowSopBatchOperations(false); setShowSopBatchImport(true); }} /> : null}
     {showSopBatchImport ? <SopBatchImporter busy={busy} errorMessage={message} onCancel={() => setShowSopBatchImport(false)} onImport={runSopBatchImport} /> : null}
     {showSopCategoryManager ? <SopCategoryManager busy={busy} categories={sopCategories} errorMessage={message} newCategoryName={newCategoryName} onChangeName={setNewCategoryName} onClose={() => { setMessage(null); setShowSopCategoryManager(false); }} onCreate={addSopCategory} onDelete={removeSopCategory} onRename={renameCategory} sops={sops} /> : null}

@@ -1170,8 +1170,9 @@ export type Database = {
       publish_v2_sop_with_options: { Args: { p_silent: boolean; p_sop_id: string }; Returns: Json };
       publish_v2_tasks: { Args: { p_due_at: string | null; p_profile_ids: string[]; p_store_ids: string[]; p_target_audiences: ('staff' | 'manager' | 'part_time')[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       publish_v2_tasks_v2: { Args: { p_due_at: string; p_manager_review_enabled?: boolean; p_profile_ids?: string[]; p_publish_at?: string; p_store_ids: string[]; p_target_audiences?: ('staff' | 'manager' | 'part_time')[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
-      update_v2_task_content: { Args: { p_due_at: string | null; p_name: string; p_snapshot: Json; p_task_id: string }; Returns: Json };
-      update_v2_task_schedule_all: { Args: { p_fields: Json; p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
+        update_v2_task_content: { Args: { p_due_at: string | null; p_name: string; p_snapshot: Json; p_task_id: string }; Returns: Json };
+        update_v2_task_content_v2: { Args: { p_due_at: string | null; p_manager_review_enabled: boolean; p_name: string; p_snapshot: Json; p_task_id: string }; Returns: Json };
+        update_v2_task_schedule_all: { Args: { p_fields: Json; p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
       update_v2_task_schedule_content: { Args: { p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
       withdraw_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       admin_bind_dingtalk_employee: { Args: { p_directory_user_id: string; p_match_source?: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };

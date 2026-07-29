@@ -165,8 +165,14 @@ export const loadV2TaskScheduleContent = async (client: Client, scheduleId: stri
   if (!value || typeof value.name !== 'string' || value.snapshot === undefined) throw new Error('周期任务内容加载失败。');
   return { name: value.name, snapshot: value.snapshot as Json };
 };
-export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string) => {
-  const { data, error } = await client.rpc('update_v2_task_content', { p_due_at: dueAt, p_name: name, p_snapshot: snapshot, p_task_id: taskId });
+export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string, managerReviewEnabled = false) => {
+  const { data, error } = await client.rpc('update_v2_task_content_v2', {
+    p_due_at: dueAt,
+    p_manager_review_enabled: managerReviewEnabled,
+    p_name: name,
+    p_snapshot: snapshot,
+    p_task_id: taskId,
+  });
   fail(error);
   return data;
 };

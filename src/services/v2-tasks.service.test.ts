@@ -31,8 +31,8 @@ describe('V2 task workflow service', () => {
   });
   it('updates a single published task through the guarded RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {}, error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
-    await updateV2TaskContent(client, 'task-1', '更新后任务', { groups: [] }, '2026-07-20T12:00:00Z');
-    expect(rpc).toHaveBeenCalledWith('update_v2_task_content', { p_due_at: '2026-07-20T12:00:00Z', p_name: '更新后任务', p_snapshot: { groups: [] }, p_task_id: 'task-1' });
+    await updateV2TaskContent(client, 'task-1', '更新后任务', { groups: [] }, '2026-07-20T12:00:00Z', true);
+    expect(rpc).toHaveBeenCalledWith('update_v2_task_content_v2', { p_due_at: '2026-07-20T12:00:00Z', p_manager_review_enabled: true, p_name: '更新后任务', p_snapshot: { groups: [] }, p_task_id: 'task-1' });
   });
   it('updates recurring rules and task content atomically', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {}, error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;

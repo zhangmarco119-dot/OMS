@@ -8,9 +8,11 @@ import { FeedbackBanner, LoadingState } from '../components/ui/Feedback';
 import { TaskImagePreview } from '../features/v2-tasks/TaskImagePreview';
 import { TaskReferenceImagePreview } from '../features/v2-tasks/TaskReferenceImagePreview';
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
+import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
   asTaskItemSnapshot,
+  canReviewV2Task,
   getV2TaskAnswerPositions,
   loadV2TaskDetail,
   loadV2TaskImageUrls,
@@ -24,6 +26,7 @@ import {
 type ReviewDecision = V2TaskItemDecision['decision'];
 
 export function AdminV2TaskReviewPage() {
+  const auth = useAuth();
   const { taskId = '' } = useParams();
   const [detail, setDetail] = useState<V2TaskDetail | null>(null);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
@@ -34,12 +37,14 @@ export function AdminV2TaskReviewPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [reviewAllowed, setReviewAllowed] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
-      const next = await loadV2TaskDetail(supabase, taskId);
+      const [next, allowed] = await Promise.all([loadV2TaskDetail(supabase, taskId), canReviewV2Task(supabase, taskId)]);
       setDetail(next);
+      setReviewAllowed(allowed);
       const [nextImageUrls, nextReferenceImageUrls] = await Promise.all([
         loadV2TaskImageUrls(supabase, next.images),
         loadV2TaskReferenceImageUrls(supabase, next.answers),
@@ -57,7 +62,7 @@ export function AdminV2TaskReviewPage() {
   useEffect(() => { void load(); }, [load]);
 
   const answerPositions = useMemo(() => getV2TaskAnswerPositions(detail?.task.snapshot ?? null), [detail?.task.snapshot]);
-  const isReviewable = detail ? ['submitted', 'resubmitted'].includes(detail.task.status) : false;
+  const isReviewable = detail ? reviewAllowed && ['submitted', 'resubmitted'].includes(detail.task.status) : false;
   const reviewableStatus = detail?.task.status === 'resubmitted' ? 'resubmitted' : 'pending';
   const reviewableAnswers = useMemo(
     () => detail?.answers.filter((answer) => isReviewable && answer.review_status === reviewableStatus) ?? [],
@@ -118,13 +123,16 @@ export function AdminV2TaskReviewPage() {
     }
   };
 
-  return <PageShell eyebrow="门店运营系统 · 管理员审核" title={detail?.task.name ?? '任务'} backTo="/app/admin/tasks" contentGapClassName="gap-3">
+  const isAdmin = auth.profile?.role === 'admin';
+  return <PageShell eyebrow={`门店运营系统 · ${isAdmin ? '管理员' : '店长'}审核`} title={detail?.task.name ?? '任务'} backTo={isAdmin ? '/app/admin/tasks' : '/app/todos'} contentGapClassName="gap-3">
     {detail ? <>
       <section className="ui-card p-4">
         <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-700">{detail.task.task_no}</p><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[detail.task.status]}`}>{v2TaskStatusLabel[detail.task.status]}</span></div>
         <p className="mt-2 text-sm text-slate-500">截止 {new Date(detail.task.due_at).toLocaleString('zh-CN')}</p>
         {detail.task.status === 'resubmitted' ? <FeedbackBanner className="mt-3" title="整改内容已重新提交" tone="info">本轮只需复审标有“重新提交”的项目，其他项目保留原审核结果。</FeedbackBanner> : null}
-        {!['approved', 'cancelled'].includes(detail.task.status) ? <button className="ui-button-secondary mt-3 border-red-200 text-red-700 hover:bg-red-50" onClick={() => setShowWithdrawConfirm(true)} type="button">撤回任务</button> : null}
+        {detail.task.manager_review_enabled ? <p className="mt-2 rounded-lg bg-brand-50 px-3 py-2 text-xs leading-5 text-brand-800">员工提交可由本门店店长或管理员审核；店长提交仍只允许管理员审核。</p> : null}
+        {!isReviewable && ['submitted', 'resubmitted'].includes(detail.task.status) ? <FeedbackBanner className="mt-3" title="等待管理员审核" tone="info">该任务由店长提交，或发布时未开放店长审核，当前账号只能查看。</FeedbackBanner> : null}
+        {isAdmin && !['approved', 'cancelled'].includes(detail.task.status) ? <button className="ui-button-secondary mt-3 border-red-200 text-red-700 hover:bg-red-50" onClick={() => setShowWithdrawConfirm(true)} type="button">撤回任务</button> : null}
       </section>
 
       <div className="space-y-3">{detail.answers.map((answer, index) => {

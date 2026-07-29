@@ -19,7 +19,9 @@ import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
 
 const notificationLink = (notification: UserNotification) => {
   if (notification.entity_type === 'v2_notice') return `/app/notices/${notification.entity_id}`;
-  if (notification.entity_type === 'v2_task') return `/app/tasks/${notification.entity_id}`;
+  if (notification.entity_type === 'v2_task') return notification.type === 'v2_task_submitted'
+    ? `/app/admin/tasks/${notification.entity_id}`
+    : `/app/tasks/${notification.entity_id}`;
   if (notification.entity_type === 'v2_sop') return `/app/sops/${notification.entity_id}`;
   if (notification.entity_type === 'payroll_penalty') return '/app/payroll';
   if (notification.entity_type === 'payroll_overtime') return notification.type === 'payroll_overtime_approved' || notification.type === 'payroll_overtime_rejected' ? '/app/overtime?tab=records' : '/app/overtime?tab=submit';
@@ -147,7 +149,7 @@ function StaffDashboard() {
 
         {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
 
-        {auth.profile?.employment_type === 'part_time' ? <section className="grid grid-cols-2 gap-2.5"><MetricCard label="本月兼职工时" note="仅统计已审批工时" tone="brand" to="/app/overtime?tab=records" value={partTimePayroll ? `${partTimePayroll.partTimeHours} 小时` : '—'} /><MetricCard label="本月累计薪资" note="兼职薪资实时汇总" tone="brand" to="/app/payroll" value={partTimePayroll ? formatMoney(partTimePayroll.accruedPartTimeWage) : '—'} /></section> : null}
+        {auth.profile?.employment_type === 'part_time' ? <section className="grid grid-cols-2 gap-2.5"><MetricCard label="本月兼职工时" note="仅统计已审批工时" tone="brand" to="/app/overtime?tab=records" value={partTimePayroll ? `${partTimePayroll.partTimeHours} 小时` : '—'} /><MetricCard label="本月累计薪资" note="已扣预计个税" tone="brand" to="/app/payroll" value={partTimePayroll ? formatMoney(partTimePayroll.estimatedNetPayable ?? partTimePayroll.knownEstimatedNetPayable ?? partTimePayroll.accruedPartTimeWage) : '—'} /></section> : null}
 
         <section className="grid grid-cols-2 gap-2.5">
           <MetricCard label="今日待办" note="任务及需确认公告" to="/app/todos" value={summary?.count ?? '—'} />

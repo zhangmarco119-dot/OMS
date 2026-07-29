@@ -15,7 +15,9 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
   if (estimate.employmentType === 'part_time') {
     return <PartTimePayrollEstimateView estimate={estimate} mode={mode} />;
   }
-  const payable = estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable;
+  const payable = mode === 'payslip'
+    ? estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable
+    : estimate.dataComplete ? estimate.estimatedNetPayable ?? estimate.estimatedPayable : estimate.knownEstimatedNetPayable ?? estimate.knownEstimatedPayable;
   const performanceNote = estimate.performanceReady
     ? `当前 ${estimate.performanceGrade ?? '-'} 级，${estimate.performanceScore ?? '-'} 分`
     : '任务数据或满绩效金额待完善';
@@ -45,6 +47,7 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
       <AmountRow label="累计提成" note={estimate.commissionEnabled ? `本月累计提成基数 ${formatMoney(estimate.revenueTotal)} × ${((estimate.commissionRate ?? 0) * 100).toFixed(2)}%${regularizationNote}` : '该员工未启用营业收入提成'} value={estimate.accruedCommission} />
       <AmountRow label="已审批加班" note={`${estimate.overtimeHours} 小时 · 当前参考时薪 ${formatMoney(estimate.overtimeHourlyRate)}/小时`} value={estimate.accruedOvertime} />
       <PayrollDeductionRow estimate={estimate} label="罚款合计" total={estimate.fineTotal} />
+      {mode === 'estimate' ? <AmountRow label="预计个税扣除" note={`${estimate.individualIncomeTaxEstimateMode === 'override' ? '管理员已按本月手动调整' : estimate.individualIncomeTaxEstimateBasis === 'year_to_date' ? '按本年度已有工资单累计预扣法估算' : '暂无历史工资单，暂按本月已知收入估算'}；未计入专项附加扣除，最终以工资单人工确认`} value={estimate.estimatedIndividualIncomeTax ?? 0} /> : null}
     </div></SectionCard>
 
     <SectionCard><SectionHeader icon={ClipboardCheck} title="绩效评分" description={estimate.performanceReady ? `${estimate.performanceScore} 分 · ${estimate.performanceGrade} 级` : '当前待评分'} /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="任务完成" value={`${estimate.taskCompletedCount}/${estimate.taskDueCount}`} /><Metric label="考勤得分" value={`${estimate.attendanceScore}`} /><Metric label="纪律得分" value={`${estimate.disciplineScore}`} /></div><p className="mt-3 text-xs text-slate-500">迟到共 {estimate.lateMinutes} 分钟，迟到罚款 {formatMoney(estimate.lateFine)}；其他罚款 {formatMoney(estimate.otherFine)}。</p></SectionCard>
@@ -54,13 +57,14 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
 }
 
 function PartTimePayrollEstimateView({ estimate, mode }: { estimate: PayrollEstimate; mode: 'estimate' | 'payslip' }) {
+  const payable = mode === 'estimate' ? estimate.estimatedNetPayable ?? estimate.knownEstimatedNetPayable ?? estimate.accruedPartTimeWage : estimate.accruedPartTimeWage;
   return <>
     <SectionCard className="border-brand-100 bg-gradient-to-br from-brand-700 to-emerald-800 text-white">
-      <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-white">{estimate.displayName} · 兼职</p><p className="mt-1 text-xs font-semibold text-emerald-100">{mode === 'payslip' ? `截至 ${estimate.asOf} 的工资单金额` : `截至 ${estimate.asOf} 的实时薪资`}</p><p className="mt-2 text-3xl font-bold tabular-nums">{formatMoney(estimate.accruedPartTimeWage)}</p></div><StatusBadge tone="success">数据完整</StatusBadge></div>
+      <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-white">{estimate.displayName} · 兼职</p><p className="mt-1 text-xs font-semibold text-emerald-100">{mode === 'payslip' ? `截至 ${estimate.asOf} 的工资单金额` : `截至 ${estimate.asOf} 的实时薪资`}</p><p className="mt-2 text-3xl font-bold tabular-nums">{formatMoney(payable)}</p></div><StatusBadge tone="success">数据完整</StatusBadge></div>
       <p className="mt-3 text-xs leading-5 text-emerald-100">{mode === 'payslip' ? '这是管理员发放时保存的兼职薪资快照。' : '只统计本月已经审批通过的兼职工时，未审批申请不会计入。'}</p>
     </SectionCard>
     <SectionCard><SectionHeader icon={Clock3} title="本月兼职汇总" /><div className="mt-3 grid grid-cols-2 gap-2 text-center"><Metric label="累计兼职工时" value={`${estimate.partTimeHours} 小时`} /><Metric label="兼职薪资" value={formatMoney(estimate.accruedPartTimeWage)} /></div></SectionCard>
-    <SectionCard><SectionHeader icon={CircleDollarSign} title="薪资明细" description="兼职账号仅计算审批通过的兼职工时。" /><div className="mt-2"><AmountRow label="兼职薪资" note={`${estimate.partTimeHours} 小时${estimate.partTimeHourlyRate == null ? '' : ` · 参考时薪 ${formatMoney(estimate.partTimeHourlyRate)}/小时`}`} value={estimate.accruedPartTimeWage} /></div></SectionCard>
+    <SectionCard><SectionHeader icon={CircleDollarSign} title="薪资明细" description="兼职账号仅计算审批通过的兼职工时。" /><div className="mt-2"><AmountRow label="兼职薪资" note={`${estimate.partTimeHours} 小时${estimate.partTimeHourlyRate == null ? '' : ` · 参考时薪 ${formatMoney(estimate.partTimeHourlyRate)}/小时`}`} value={estimate.accruedPartTimeWage} />{mode === 'estimate' ? <AmountRow label="预计个税扣除" note="按当前已知兼职收入估算，最终以工资单人工确认" value={estimate.estimatedIndividualIncomeTax ?? 0} /> : null}</div></SectionCard>
     <SectionCard><SectionHeader icon={Database} title="数据更新时间" /><p className="mt-3 text-xs text-slate-600"><Clock3 className="mr-1 inline h-3.5 w-3.5" />兼职工时：{updated(estimate.overtimeUpdatedAt)}</p></SectionCard>
   </>;
 }

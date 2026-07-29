@@ -122,7 +122,7 @@ export const router = createBrowserRouter([
       },
       { path: 'admin/tasks', element: <ProtectedRoute requireAdmin><AdminV2TasksPage /></ProtectedRoute> },
       { path: 'admin/tasks/publish', element: <ProtectedRoute requireAdmin><AdminV2TaskPublishPage /></ProtectedRoute> },
-      { path: 'admin/tasks/:taskId', element: <ProtectedRoute requireAdmin><AdminV2TaskReviewPage /></ProtectedRoute> },
+      { path: 'admin/tasks/:taskId', element: <ProtectedRoute requireTaskReviewer><AdminV2TaskReviewPage /></ProtectedRoute> },
       { path: 'admin/content', element: <ProtectedRoute requireAdmin><Navigate to="/app/admin/announcements" replace /></ProtectedRoute> },
       { path: 'admin/announcements', element: <ProtectedRoute requireAdmin><AdminAnnouncementsPage /></ProtectedRoute> },
       { path: 'admin/sops', element: <ProtectedRoute requireAdmin><AdminSopsPage /></ProtectedRoute> },

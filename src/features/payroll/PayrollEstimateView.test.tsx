@@ -45,6 +45,13 @@ describe('PayrollEstimateView', () => {
     expect(screen.getByText('¥2,900.00')).toBeInTheDocument();
   });
 
+  it('deducts the estimated individual income tax from the real-time payable amount only', () => {
+    render(<PayrollEstimateView estimate={{ ...estimate, estimatedIndividualIncomeTax: 120, individualIncomeTaxEstimateMode: 'automatic', individualIncomeTaxEstimateBasis: 'current_month', knownEstimatedNetPayable: 3037.78 }} />);
+    expect(screen.getByText('预计个税扣除')).toBeInTheDocument();
+    expect(screen.getByText('¥3,037.78')).toBeInTheDocument();
+    expect(screen.getByText(/最终以工资单人工确认/)).toBeInTheDocument();
+  });
+
   it('shows the automatic extra-attendance award and administrator reward separately', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, attendanceDays: 29, extraAttendanceDays: 2, accruedExtraAttendanceBonus: 600, extraRewardAmount: 80, accruedExtraReward: 80 }} />);
     expect(screen.getByText('超勤奖')).toBeInTheDocument();

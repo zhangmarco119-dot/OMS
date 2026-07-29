@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  canReviewV2Task,
   loadV2TaskDetail,
   loadV2TaskImageUrls,
   loadV2TaskReferenceImageUrls,
@@ -14,10 +15,12 @@ import {
 import { AdminV2TaskReviewPage } from './AdminV2TaskReviewPage';
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
+vi.mock('../features/auth/AuthContext', () => ({ useAuth: () => ({ profile: { role: 'admin' } }) }));
 vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
   return {
     ...original,
+    canReviewV2Task: vi.fn(),
     loadV2TaskDetail: vi.fn(),
     loadV2TaskImageUrls: vi.fn(),
     loadV2TaskReferenceImageUrls: vi.fn(),
@@ -57,6 +60,9 @@ const task = {
 } as unknown as V2TaskRow;
 
 describe('AdminV2TaskReviewPage focused re-review', () => {
+  beforeEach(() => {
+    vi.mocked(canReviewV2Task).mockResolvedValue(true);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [approvedAnswer, resubmittedAnswer], images: [], reviews: [], task } as V2TaskDetail);

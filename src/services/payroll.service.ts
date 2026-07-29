@@ -90,14 +90,21 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     accruedCommission: nullableNumberAt(item.accruedCommission), lateCount: numberAt(item.lateCount), lateMinutes: numberAt(item.lateMinutes),
     overtimeHours: numberAt(item.overtimeHours), overtimeHourlyRate: nullableNumberAt(item.overtimeHourlyRate), accruedOvertime: numberAt(item.accruedOvertime),
     lateFine: numberAt(item.lateFine), otherFine: numberAt(item.otherFine), fineTotal: numberAt(item.fineTotal),
-    individualIncomeTax: numberAt(item.individualIncomeTax), deductionTotal: numberAt(item.deductionTotal) || numberAt(item.fineTotal) + numberAt(item.individualIncomeTax),
+    individualIncomeTax: numberAt(item.individualIncomeTax),
+    estimatedIndividualIncomeTax: numberAt(item.estimatedIndividualIncomeTax),
+    individualIncomeTaxEstimateMode: item.individualIncomeTaxEstimateMode === 'override' ? 'override' : 'automatic',
+    individualIncomeTaxEstimateBasis: item.individualIncomeTaxEstimateBasis === 'year_to_date' ? 'year_to_date' : 'current_month',
+    deductionTotal: numberAt(item.deductionTotal) || numberAt(item.fineTotal) + numberAt(item.individualIncomeTax),
     deductionItems: Array.isArray(item.deductionItems) ? item.deductionItems.map(parseDeductionItem) : [],
     taskDueCount: numberAt(item.taskDueCount), taskCompletedCount: numberAt(item.taskCompletedCount), taskScore: nullableNumberAt(item.taskScore),
     attendanceScore: numberAt(item.attendanceScore), disciplineScore: numberAt(item.disciplineScore), performanceScore: nullableNumberAt(item.performanceScore),
     performanceGrade: nullableTextAt(item.performanceGrade), revenueTotal: numberAt(item.revenueTotal),
     revenueEffectiveDate: nullableTextAt(item.revenueEffectiveDate), revenueCarriedForward: boolAt(item.revenueCarriedForward), performanceReady: boolAt(item.performanceReady),
     commissionReady: boolAt(item.commissionReady), dataComplete: boolAt(item.dataComplete), incomeSubtotalKnown: numberAt(item.incomeSubtotalKnown),
-    knownEstimatedPayable: numberAt(item.knownEstimatedPayable), estimatedPayable: nullableNumberAt(item.estimatedPayable),
+    knownEstimatedPayable: numberAt(item.knownEstimatedPayable),
+    knownEstimatedNetPayable: item.knownEstimatedNetPayable == null ? numberAt(item.knownEstimatedPayable) : numberAt(item.knownEstimatedNetPayable),
+    estimatedPayable: nullableNumberAt(item.estimatedPayable),
+    estimatedNetPayable: item.estimatedNetPayable == null ? nullableNumberAt(item.estimatedPayable) : nullableNumberAt(item.estimatedNetPayable),
     attendanceUpdatedAt: nullableTextAt(item.attendanceUpdatedAt), tasksUpdatedAt: nullableTextAt(item.tasksUpdatedAt),
     revenueUpdatedAt: nullableTextAt(item.revenueUpdatedAt), penaltiesUpdatedAt: nullableTextAt(item.penaltiesUpdatedAt),
     overtimeUpdatedAt: nullableTextAt(item.overtimeUpdatedAt),
@@ -280,11 +287,32 @@ export async function loadAdminPayrollEstimates(client: Client, options: { asOf:
   const { data, error } = await client.rpc('admin_payroll_estimates', { p_as_of: options.asOf, p_store_id: options.storeId || null, p_search: options.search?.trim() ?? '' });
   if (error) throw new Error(error.message || '暂时无法加载实时工资列表。');
   const root = objectAt(data);
+  const items = Array.isArray(root.items) ? root.items.map((item) => parsePayrollEstimate(item)) : [];
   return {
-    items: Array.isArray(root.items) ? root.items.map((item) => parsePayrollEstimate(item)) : [],
+    items,
     employeeCount: numberAt(root.employeeCount), completeCount: numberAt(root.completeCount), incompleteCount: numberAt(root.incompleteCount),
-    knownEstimatedTotal: numberAt(root.knownEstimatedTotal), completeEstimatedTotal: numberAt(root.completeEstimatedTotal),
+    knownEstimatedTotal: items.reduce((sum, item) => sum + (item.knownEstimatedNetPayable ?? item.knownEstimatedPayable), 0),
+    completeEstimatedTotal: items.reduce((sum, item) => sum + (item.estimatedNetPayable ?? 0), 0),
   };
+}
+
+export async function loadPayrollIndividualTaxOverride(client: Client, profileId: string, payrollMonth: string) {
+  const { data, error } = await client.rpc('admin_get_payroll_individual_tax_override', {
+    p_payroll_month: `${payrollMonth.slice(0, 7)}-01`,
+    p_profile_id: profileId,
+  });
+  if (error) throw new Error(error.message || '预计个税设置加载失败。');
+  return data == null ? null : Number(data);
+}
+
+export async function savePayrollIndividualTaxOverride(client: Client, profileId: string, payrollMonth: string, amount: number | null) {
+  const { data, error } = await client.rpc('admin_save_payroll_individual_tax_override', {
+    p_amount: amount,
+    p_payroll_month: `${payrollMonth.slice(0, 7)}-01`,
+    p_profile_id: profileId,
+  });
+  if (error) throw new Error(error.message || '预计个税设置保存失败。');
+  return data;
 }
 
 export async function loadPayrollAdminSetup(client: Client, monthStart: string) {

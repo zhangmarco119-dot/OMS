@@ -27,19 +27,21 @@ export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean;
     const taskCount = tasks.count ?? 0; const feedbackCount = feedback.count ?? 0; const overtimeCount = overtime.data ?? 0;
     return { count: taskCount + feedbackCount + overtimeCount, noticeAcknowledgements: 0, productFeedback: feedbackCount, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: 0, payrollPayslips: 0 };
   }
-  const [tasks, acknowledgements, overtime, corrections, payslips] = await Promise.all([
+  const [tasks, managerReviews, acknowledgements, overtime, corrections, payslips] = await Promise.all([
     input.storeId ? client.from('v2_tasks').select('id', { count: 'exact', head: true }).eq('store_id', input.storeId).in('status', ['pending', 'in_progress', 'rejected', 'overdue']) : Promise.resolve({ count: 0, error: null }),
+    input.isManager && input.storeId ? client.from('v2_tasks').select('id', { count: 'exact', head: true }).eq('store_id', input.storeId).in('status', ['submitted', 'resubmitted']).eq('manager_review_enabled', true).eq('submitted_by_role', 'staff') : Promise.resolve({ count: 0, error: null }),
     client.from('v2_notice_recipients').select('notice_id, v2_notices!inner(requires_acknowledgment,status,expires_at)', { count: 'exact' }).eq('profile_id', input.profileId).is('acknowledged_at', null).eq('v2_notices.requires_acknowledgment', true).eq('v2_notices.status', 'published'),
     input.isManager ? client.rpc('payroll_overtime_todo_count') : Promise.resolve({ data: 0, error: null }),
     client.from('attendance_missing_punch_todos').select('id', { count: 'exact', head: true }).eq('profile_id', input.profileId).eq('status', 'pending'),
     client.from('payroll_payslips').select('id', { count: 'exact', head: true }).eq('profile_id', input.profileId).eq('status', 'issued'),
   ]);
   if (tasks.error) throw new Error(tasks.error.message);
+  if (managerReviews.error) throw new Error(managerReviews.error.message);
   if (acknowledgements.error) throw new Error(acknowledgements.error.message);
   if (overtime.error) throw new Error(overtime.error.message);
   if (corrections.error) throw new Error(corrections.error.message);
   if (payslips.error) throw new Error(payslips.error.message);
-  const taskCount = tasks.count ?? 0;
+  const taskCount = (tasks.count ?? 0) + (managerReviews.count ?? 0);
   const acknowledgementCount = (acknowledgements.data ?? []).filter((row) => {
     const notice = row.v2_notices as unknown as { expires_at: string | null } | null;
     return !notice?.expires_at || new Date(notice.expires_at).getTime() > Date.now();

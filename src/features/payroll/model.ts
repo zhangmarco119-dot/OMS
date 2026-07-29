@@ -65,6 +65,9 @@ export interface PayrollEstimate {
   otherFine: number;
   fineTotal: number;
   individualIncomeTax: number;
+  estimatedIndividualIncomeTax?: number;
+  individualIncomeTaxEstimateMode?: 'automatic' | 'override';
+  individualIncomeTaxEstimateBasis?: 'current_month' | 'year_to_date';
   deductionTotal: number;
   deductionItems: PayrollDeductionItem[];
   taskDueCount: number;
@@ -82,7 +85,9 @@ export interface PayrollEstimate {
   dataComplete: boolean;
   incomeSubtotalKnown: number;
   knownEstimatedPayable: number;
+  knownEstimatedNetPayable?: number;
   estimatedPayable: number | null;
+  estimatedNetPayable?: number | null;
   attendanceUpdatedAt: string | null;
   tasksUpdatedAt: string | null;
   revenueUpdatedAt: string | null;

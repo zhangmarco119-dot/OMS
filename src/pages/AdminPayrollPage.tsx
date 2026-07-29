@@ -18,9 +18,9 @@ import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
-  generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollPerformanceOverride, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, sendPayrollPayslips, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips,
+  generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollIndividualTaxOverride, loadPayrollPayslipScheduleSettings, loadPayrollPerformanceOverride, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, sendPayrollPayslips, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips,
   savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
-  savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollVisibilitySettings,
+  savePayrollIndividualTaxOverride, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
 import { recordSystemActivity } from '../services/operation-logs.service';
@@ -261,7 +261,7 @@ function PayrollOverview() {
     <SectionCard className="p-3"><div className="grid grid-cols-2 gap-2"><MonthPicker label="查看月份" maxMonth={todayInChina().slice(0, 7)} onChange={(month) => update('date', payrollMonthEndDate(month, todayInChina()))} value={selectedMonth} /><label className="text-sm font-semibold text-slate-700">门店范围<select className="ui-input mt-1" onChange={(event) => update('store', event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><p className="mt-2 text-xs leading-5 text-slate-500">管理员可查看任意历史月份和本月；历史月份按该月最后一天汇总，本月按今天汇总。</p><label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => update('q', event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label></SectionCard>
     {result ? <section className="grid grid-cols-2 gap-2"><SummaryMetric label="预估合计（已知项）" value={formatMoney(result.knownEstimatedTotal)} /><SummaryMetric label="数据完整员工" value={`${result.completeCount}/${result.employeeCount}`} /></section> : null}
     {status === 'loading' ? <LoadingState label="正在计算实时预估工资" /> : null}{status === 'error' ? <ErrorState message="暂时无法加载实时工资。" onRetry={() => void load()} /> : null}{status === 'ready' && !result?.items.length ? <EmptyState title="暂无符合条件的员工" /> : null}
-    {status === 'ready' ? <section className="space-y-2">{result?.items.map((item) => <button className="ui-interactive ui-card w-full p-3.5 text-left" key={item.profileId} onClick={() => update('employee', item.profileId, false)} type="button"><div className="flex items-start justify-between gap-3"><div><b>{item.displayName}{item.employmentType === 'part_time' ? ' · 兼职' : ''}</b><p className="mt-0.5 text-xs text-slate-500">{item.employmentType === 'part_time' ? `本月已审批 ${item.partTimeHours} 小时` : `出勤 ${item.attendanceDays} 天 · 加班 ${item.overtimeHours} 小时 · 迟到 ${item.lateCount} 次`}</p></div><StatusBadge tone={item.dataComplete ? 'success' : 'warning'}>{item.dataComplete ? '数据完整' : '待完善'}</StatusBadge></div>{item.employmentType === 'part_time' ? <div className="mt-3 grid grid-cols-2 gap-2 text-center"><Mini label="兼职工时" value={`${item.partTimeHours} 小时`} /><Mini label="兼职薪资" value={formatMoney(item.accruedPartTimeWage)} /></div> : <div className="mt-3 grid grid-cols-3 gap-2 text-center"><Mini label="基本工资" value={formatMoney(item.accruedBaseSalary)} /><Mini label="加班" value={formatMoney(item.accruedOvertime)} /><Mini label="预估可发" value={formatMoney(item.dataComplete ? item.estimatedPayable : item.knownEstimatedPayable)} /></div>}</button>)}</section> : null}
+    {status === 'ready' ? <section className="space-y-2">{result?.items.map((item) => <button className="ui-interactive ui-card w-full p-3.5 text-left" key={item.profileId} onClick={() => update('employee', item.profileId, false)} type="button"><div className="flex items-start justify-between gap-3"><div><b>{item.displayName}{item.employmentType === 'part_time' ? ' · 兼职' : ''}</b><p className="mt-0.5 text-xs text-slate-500">{item.employmentType === 'part_time' ? `本月已审批 ${item.partTimeHours} 小时` : `出勤 ${item.attendanceDays} 天 · 加班 ${item.overtimeHours} 小时 · 迟到 ${item.lateCount} 次`}</p></div><StatusBadge tone={item.dataComplete ? 'success' : 'warning'}>{item.dataComplete ? '数据完整' : '待完善'}</StatusBadge></div>{item.employmentType === 'part_time' ? <div className="mt-3 grid grid-cols-2 gap-2 text-center"><Mini label="兼职工时" value={`${item.partTimeHours} 小时`} /><Mini label="预估可发" value={formatMoney(item.estimatedNetPayable ?? item.knownEstimatedNetPayable)} /></div> : <div className="mt-3 grid grid-cols-3 gap-2 text-center"><Mini label="基本工资" value={formatMoney(item.accruedBaseSalary)} /><Mini label="预计个税" value={formatMoney(item.estimatedIndividualIncomeTax)} /><Mini label="预估可发" value={formatMoney(item.dataComplete ? item.estimatedNetPayable : item.knownEstimatedNetPayable)} /></div>}</button>)}</section> : null}
   </>;
 }
 
@@ -273,6 +273,10 @@ function EmployeeRules() {
   const [performanceMode, setPerformanceMode] = useState<'automatic' | 'override'>('automatic');
   const [performanceScore, setPerformanceScore] = useState('');
   const [performanceBusy, setPerformanceBusy] = useState(false);
+  const [taxMonth, setTaxMonth] = useRememberedPageState('employee-tax-month', todayInChina().slice(0, 7));
+  const [taxMode, setTaxMode] = useState<'automatic' | 'override'>('automatic');
+  const [taxAmount, setTaxAmount] = useState('');
+  const [taxBusy, setTaxBusy] = useState(false);
   const load = useCallback(async () => { if (!supabase) return; const data = await loadPayrollAdminSetup(supabase, monthStart()); setSetup(data); setProfileId((value) => value || data.profiles.find((profile) => profile.id === requestedProfileId)?.id || data.profiles[0]?.id || ''); }, [requestedProfileId, setProfileId]);
   useEffect(() => { void load().catch((error) => setFeedback({ title: '加载失败', message: error instanceof Error ? error.message : '暂时无法加载。', tone: 'danger' })); }, [load]);
   useEffect(() => { if (!setup || !profileId) return; const rule = setup.rules.find((item) => item.profile_id === profileId); setForm(ruleToForm(rule, setup.commissionStores.filter((item) => item.rule_id === rule?.id).map((item) => item.store_id))); }, [profileId, setup]);
@@ -284,6 +288,14 @@ function EmployeeRules() {
       .catch((error) => { if (active) setFeedback({ title: '绩效设置加载失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); });
     return () => { active = false; };
   }, [performanceMonth, profileId]);
+  useEffect(() => {
+    let active = true;
+    if (!supabase || !profileId) return undefined;
+    void loadPayrollIndividualTaxOverride(supabase, profileId, taxMonth)
+      .then((amount) => { if (!active) return; setTaxMode(amount == null ? 'automatic' : 'override'); setTaxAmount(amount == null ? '' : String(amount)); })
+      .catch((error) => { if (active) setFeedback({ title: '预计个税设置加载失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); });
+    return () => { active = false; };
+  }, [profileId, taxMonth]);
   const save = async () => {
     if (!supabase || !profileId) return;
     if (!form.base) { setFeedback({ title: '请完善工资参数', message: '月基本工资不能为空。', tone: 'warning' }); return; }
@@ -329,9 +341,25 @@ function EmployeeRules() {
       setFeedback({ title: '绩效设置保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
     } finally { setPerformanceBusy(false); }
   };
+  const saveMonthlyTax = async () => {
+    if (!supabase || !profileId) return;
+    const amount = Number(taxAmount);
+    if (taxMode === 'override' && (!Number.isFinite(amount) || amount < 0)) {
+      setFeedback({ title: '请检查预计个税', message: '手动设置金额必须是大于或等于 0 的数字。', tone: 'warning' });
+      return;
+    }
+    setTaxBusy(true);
+    try {
+      await savePayrollIndividualTaxOverride(supabase, profileId, taxMonth, taxMode === 'override' ? amount : null);
+      setFeedback({ title: '预计个税设置已保存', message: taxMode === 'override' ? `${taxMonth.slice(0, 4)}年${Number(taxMonth.slice(5, 7))}月预计个税已手动设置为 ${formatMoney(amount)}。` : '该月已恢复按个人所得税累计预扣规则自动估算。', tone: 'success' });
+    } catch (error) {
+      setFeedback({ title: '预计个税设置保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setTaxBusy(false); }
+  };
   if (!setup) return <LoadingState label="正在加载员工工资参数" />;
   const selectedProfile = setup.profiles.find((profile) => profile.id === profileId);
-  if (selectedProfile?.employment_type === 'part_time') return <SectionCard><SectionHeader icon={Settings2} title="兼职员工工资参数" description="兼职账号只按审批通过的兼职工时计薪。" /><label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{setup.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollProfileLabel(profile)}</option>)}</select></label><p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">兼职薪资 = 审批通过的兼职工时 × 审批时锁定的兼职时薪。请在“工时与计薪”菜单设置时薪，店长审批通过后自动计入。</p></SectionCard>;
+  const monthlyTaxSettings = <SectionCard><SectionHeader icon={Banknote} title="按月设置预计个税" description="实时薪资默认按累计预扣规则估算；工资单中的“个税扣除”仍由管理员人工填写确认。" /><div className="mt-3 grid grid-cols-2 gap-2"><MonthPicker label="个税月份" onChange={setTaxMonth} value={taxMonth} /><label className="text-sm font-semibold">估算方式<select className="ui-input mt-1" onChange={(event) => setTaxMode(event.target.value as 'automatic' | 'override')} value={taxMode}><option value="automatic">自动估算</option><option value="override">手动设置本月预计个税</option></select></label></div>{taxMode === 'override' ? <div className="mt-3"><Field label="本月预计个税" value={taxAmount} onChange={setTaxAmount} /></div> : <p className="mt-3 rounded-lg bg-blue-50 p-3 text-xs leading-5 text-blue-900">自动估算按每月 5000 元基本减除费用和综合所得累计预扣税率计算；专项附加扣除等个人信息未纳入，结果仅供预估。</p>}<button className="ui-button-primary mt-3 w-full" disabled={taxBusy} onClick={() => void saveMonthlyTax()} type="button">{taxBusy ? '正在保存' : '保存预计个税设置'}</button></SectionCard>;
+  if (selectedProfile?.employment_type === 'part_time') return <><SectionCard><SectionHeader icon={Settings2} title="兼职员工工资参数" description="兼职账号只按审批通过的兼职工时计薪。" /><label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{setup.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollProfileLabel(profile)}</option>)}</select></label><p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">兼职薪资 = 审批通过的兼职工时 × 审批时锁定的兼职时薪。请在“工时与计薪”菜单设置时薪，店长审批通过后自动计入。</p></SectionCard>{monthlyTaxSettings}<FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
   return <><SectionCard>
     <SectionHeader icon={Settings2} title="员工工资参数" description="调整后按生效日期切换，修改原因可不填写。" />
     <label className="mt-3 block text-sm font-semibold">选择员工<select className="ui-input mt-1" onChange={(event) => setProfileId(event.target.value)} value={profileId}>{setup.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {payrollProfileLabel(profile)}</option>)}</select></label>
@@ -347,7 +375,7 @@ function EmployeeRules() {
     <label className="mt-3 block text-sm font-semibold">修改原因（选填）<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, reason: event.target.value }))} placeholder="例如：转正调薪" value={form.reason} /></label>
     <label className="mt-3 flex items-center rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={form.confirmed} className="mr-2" onChange={(event) => setForm((value) => ({ ...value, confirmed: event.target.checked }))} type="checkbox" />我已核对并确认本员工工资参数</label>
     <button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">{busy ? '正在保存' : '保存员工工资参数'}</button>
-  </SectionCard>{form.performanceEnabled ? <SectionCard><SectionHeader icon={ShieldCheck} title="按月设置绩效分" description="只调整所选月份的最终绩效分，其他月份仍按任务、考勤和纪律自动计算。" /><div className="mt-3 grid grid-cols-2 gap-2"><MonthPicker label="绩效月份" onChange={setPerformanceMonth} value={performanceMonth} /><label className="text-sm font-semibold">计算方式<select className="ui-input mt-1" onChange={(event) => setPerformanceMode(event.target.value as 'automatic' | 'override')} value={performanceMode}><option value="automatic">自动计算</option><option value="override">手动设置本月绩效分</option></select></label></div>{performanceMode === 'override' ? <div className="mt-3"><Field label="本月绩效分（0–100）" value={performanceScore} onChange={setPerformanceScore} /></div> : <p className="mt-3 rounded-lg bg-violet-50 p-3 text-xs leading-5 text-violet-800">该月将按任务、考勤和纪律规则自动计算绩效分及等级。</p>}<button className="ui-button-primary mt-3 w-full" disabled={performanceBusy} onClick={() => void saveMonthlyPerformance()} type="button">{performanceBusy ? '正在保存' : '保存本月绩效设置'}</button></SectionCard> : null}<FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+  </SectionCard>{form.performanceEnabled ? <SectionCard><SectionHeader icon={ShieldCheck} title="按月设置绩效分" description="只调整所选月份的最终绩效分，其他月份仍按任务、考勤和纪律自动计算。" /><div className="mt-3 grid grid-cols-2 gap-2"><MonthPicker label="绩效月份" onChange={setPerformanceMonth} value={performanceMonth} /><label className="text-sm font-semibold">计算方式<select className="ui-input mt-1" onChange={(event) => setPerformanceMode(event.target.value as 'automatic' | 'override')} value={performanceMode}><option value="automatic">自动计算</option><option value="override">手动设置本月绩效分</option></select></label></div>{performanceMode === 'override' ? <div className="mt-3"><Field label="本月绩效分（0–100）" value={performanceScore} onChange={setPerformanceScore} /></div> : <p className="mt-3 rounded-lg bg-violet-50 p-3 text-xs leading-5 text-violet-800">该月将按任务、考勤和纪律规则自动计算绩效分及等级。</p>}<button className="ui-button-primary mt-3 w-full" disabled={performanceBusy} onClick={() => void saveMonthlyPerformance()} type="button">{performanceBusy ? '正在保存' : '保存本月绩效设置'}</button></SectionCard> : null}{monthlyTaxSettings}<FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
 }
 
 function PerformanceRules() {

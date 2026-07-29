@@ -51,6 +51,16 @@ const defaultSingleDue = () => {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T20:00`;
 };
+const defaultSinglePublishAt = () => {
+  const date = new Date(Date.now() + 60 * 60 * 1000);
+  date.setSeconds(0, 0);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+const defaultRecurringPublishAt = () => {
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  date.setHours(9, 0, 0, 0);
+  return date.toISOString();
+};
 const defaultFields = (): V2TaskScheduleFields => ({
   acceptanceIntervalDays: 0,
   acceptanceMonthDay: null,
@@ -58,7 +68,9 @@ const defaultFields = (): V2TaskScheduleFields => ({
   acceptanceType: 'daily',
   acceptanceWeekday: null,
   intervalDays: 7,
+  managerReviewEnabled: false,
   monthDay: null,
+  nextPublishAt: defaultRecurringPublishAt(),
   publishTime: '09:00',
   scheduleType: 'interval_days',
   weekdays: [],
@@ -70,7 +82,9 @@ const scheduleFieldsFromRow = (row: V2TaskScheduleRow): V2TaskScheduleFields => 
   acceptanceType: row.acceptance_type,
   acceptanceWeekday: row.acceptance_weekday,
   intervalDays: row.interval_days,
+  managerReviewEnabled: row.manager_review_enabled,
   monthDay: row.month_day,
+  nextPublishAt: row.next_due_at,
   publishTime: row.publish_time.slice(0, 5),
   scheduleType: row.schedule_type,
   weekdays: row.weekdays,
@@ -121,17 +135,19 @@ const validateSchedule = (fields: V2TaskScheduleFields) => {
   if (fields.acceptanceType === 'daily' && (!Number.isInteger(fields.acceptanceIntervalDays) || (fields.acceptanceIntervalDays ?? -1) < 0 || (fields.acceptanceIntervalDays ?? 0) > 31)) return '按天验收请输入 0 到 31 天，0 表示当日验收。';
   if (fields.acceptanceType === 'weekly' && !fields.acceptanceWeekday) return '请选择每周验收日。';
   if (fields.acceptanceType === 'monthly' && (!Number.isInteger(fields.acceptanceMonthDay) || (fields.acceptanceMonthDay ?? 0) < 1 || (fields.acceptanceMonthDay ?? 0) > 31)) return '每月验收日请输入 1 到 31。';
-  const now = new Date();
-  const due = acceptanceDueAt(now, fields);
-  const nextRelease = nextReleaseAt(now, fields);
-  if (due <= now) return '验收时间必须晚于本次发布时间。';
+  const release = new Date(fields.nextPublishAt);
+  if (!fields.nextPublishAt || Number.isNaN(release.getTime())) return '请设置首次或下次发布时间。';
+  if (release <= new Date()) return '首次或下次发布时间必须晚于当前时间。';
+  const due = acceptanceDueAt(release, fields);
+  const nextRelease = nextReleaseAt(release, fields);
+  if (due <= release) return '验收时间必须晚于本次发布时间。';
   if (due >= nextRelease) return '验收时间必须早于下一次发布时间，请调整发布周期或验收周期。';
   return null;
 };
 const scheduleText = (row: V2TaskScheduleRow) => {
   const release = row.schedule_type === 'interval_days' ? `每 ${row.interval_days} 天` : row.schedule_type === 'weekly' ? `每周 ${row.weekdays.map((value) => weeklyDeadlineOptions.find((item) => item.value === value)?.label).join('、')}` : `每月 ${row.month_day} 日`;
   const acceptance = row.acceptance_type === 'daily' ? row.acceptance_interval_days === 0 ? '发布当日' : `发布后 ${row.acceptance_interval_days} 天` : row.acceptance_type === 'weekly' ? `每周 ${weeklyDeadlineOptions.find((item) => item.value === row.acceptance_weekday)?.label}` : `每月 ${row.acceptance_month_day} 日`;
-  return `${release} ${row.publish_time.slice(0, 5)} 发布 · ${acceptance} ${row.due_time.slice(0, 5)} 验收`;
+  return `${release} ${row.publish_time.slice(0, 5)} 发布 · ${acceptance} ${row.due_time.slice(0, 5)} 验收${row.manager_review_enabled ? ' · 员工提交可由店长审核' : ''}`;
 };
 
 export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: boolean }) {
@@ -144,6 +160,9 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [templateId, setTemplateId] = useState('');
   const [storeIds, setStoreIds] = useState<string[]>([]);
   const [due, setDue] = useState(defaultSingleDue);
+  const [singlePublishMode, setSinglePublishMode] = useState<'immediate' | 'scheduled'>('immediate');
+  const [singlePublishAt, setSinglePublishAt] = useState(defaultSinglePublishAt);
+  const [publishImmediately, setPublishImmediately] = useState(false);
   const [creationMode, setCreationMode] = useState<'single' | 'recurring'>('single');
   const [recipientMode, setRecipientMode] = useState<'stores' | 'employee'>('stores');
   const [targetAudiences, setTargetAudiences] = useState<TaskAudience[]>(['staff', 'manager']);
@@ -227,14 +246,24 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     if (!storeIds.length) return setMessage('请至少选择一个门店。');
     if (recipientMode === 'stores' && !targetAudiences.length) return setMessage('请至少勾选一个接收范围。');
     if (recipientMode === 'employee' && !selectedProfileId) return setMessage('请选择单独接收任务的员工、店长或兼职。');
-    if (creationMode === 'single' && (!due || new Date(due) <= new Date())) return setMessage('单次任务的验收时间必须晚于当前时间。');
-    if (creationMode === 'recurring') { const issue = validateSchedule(fields); if (issue) return setMessage(issue); }
+    const effectivePublishAt = singlePublishMode === 'scheduled' ? new Date(singlePublishAt) : new Date();
+    if (creationMode === 'single' && (Number.isNaN(effectivePublishAt.getTime()) || !due || new Date(due) <= effectivePublishAt)) return setMessage('单次任务的验收时间必须晚于发布时间。');
+    if (creationMode === 'recurring') {
+      const issue = validateSchedule(fields); if (issue) return setMessage(issue);
+      if (publishImmediately) {
+        const immediateDue = acceptanceDueAt(new Date(), fields);
+        if (immediateDue <= new Date()) return setMessage('立即发布任务的验收时间必须晚于当前时间。');
+        if (immediateDue >= new Date(fields.nextPublishAt)) return setMessage('立即发布任务的验收截止时间必须早于首次定时发布时间。');
+      }
+    }
     setBusy(true);
     try {
       const audiences = recipientMode === 'employee' && selectedRecipientAudience ? [selectedRecipientAudience] : targetAudiences;
-      if (creationMode === 'single') await publishV2Tasks(supabase, templateId, storeIds, new Date(due).toISOString(), recipientMode === 'employee' ? [selectedProfileId] : [], audiences);
-      else await createV2TaskSchedule(supabase, { ...fields, profileIds: recipientMode === 'employee' ? [selectedProfileId] : [], storeIds, targetAudiences: audiences, templateId });
-      setMessage(creationMode === 'single' ? '单次任务已发布。' : '周期任务已创建，将在首次设定的发布时间自动发布。');
+      if (creationMode === 'single') await publishV2Tasks(supabase, templateId, storeIds, new Date(due).toISOString(), effectivePublishAt.toISOString(), recipientMode === 'employee' ? [selectedProfileId] : [], audiences, fields.managerReviewEnabled);
+      else await createV2TaskSchedule(supabase, { ...fields, profileIds: recipientMode === 'employee' ? [selectedProfileId] : [], publishImmediately, storeIds, targetAudiences: audiences, templateId });
+      setMessage(creationMode === 'single'
+        ? singlePublishMode === 'scheduled' ? `单次任务已设为 ${effectivePublishAt.toLocaleString('zh-CN')} 发布。` : '单次任务已发布。'
+        : publishImmediately ? '周期任务已创建，并已立即发布首条任务。' : '周期任务已创建，将在首次设定的发布时间自动发布。');
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务发布失败'); }
     finally { setBusy(false); }
@@ -275,6 +304,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       const nextDraft = taskContentFromSnapshot(task.name, task.snapshot, referenceUrls);
       setEditingTask(task);
       setEditingDue(toDatetimeLocalValue(task.due_at));
+      setFields((current) => ({ ...current, managerReviewEnabled: task.manager_review_enabled }));
       setContentDraft(nextDraft);
       setOriginalReferencePaths(taskContentReferencePaths(nextDraft));
       setPendingReferencePaths([]);
@@ -343,7 +373,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     if (!editingDue || new Date(editingDue) <= new Date()) return setMessage('验收截止时间必须晚于当前时间。');
     setBusy(true);
     try {
-      await updateV2TaskContent(supabase, editingTask.id, contentDraft.name, taskContentToSnapshot(contentDraft), new Date(editingDue).toISOString());
+      await updateV2TaskContent(supabase, editingTask.id, contentDraft.name, taskContentToSnapshot(contentDraft), new Date(editingDue).toISOString(), fields.managerReviewEnabled);
       await cleanupSavedAssets(contentDraft);
       setEditingTask(null); setContentDraft(null); setMessage('任务内容已更新，员工页面会立即同步。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务内容保存失败'); }
@@ -362,7 +392,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       </div>
       {recipientMode === 'stores' ? <fieldset className="mt-3"><legend className="text-sm font-semibold">接收范围（可多选）</legend><div className="mt-2 grid grid-cols-3 gap-2">{([['staff','员工'],['manager','店长'],['part_time','兼职']] as const).map(([value,label]) => <label className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold" key={value}><input checked={targetAudiences.includes(value)} onChange={(event) => setTargetAudiences((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} type="checkbox" />{label}</label>)}</div><p className="mt-2 text-xs text-slate-500">兼职默认不勾选；只有主动勾选后，兼职账号才会收到门店任务。</p></fieldset> : null}
       <fieldset className="mt-3"><legend className="text-sm font-semibold">适用门店</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{auth.availableStores.map((store) => <label className="flex min-h-11 items-center rounded-lg border px-3 text-sm" key={store.id}><input checked={storeIds.includes(store.id)} className="mr-2" disabled={recipientMode === 'employee'} onChange={() => setStoreIds((current) => current.includes(store.id) ? current.filter((id) => id !== store.id) : [...current, store.id])} type="checkbox" />{store.name}</label>)}</div>{recipientMode === 'employee' && selectedRecipient ? <p className="mt-2 text-xs text-slate-500">已按 {selectedRecipient.display_name} 的所属门店锁定。</p> : null}</fieldset>
-      {creationMode === 'single' ? <label className="mt-3 block text-sm font-semibold">验收截止时间<input className="ui-input mt-1" onChange={(event) => setDue(event.target.value)} type="datetime-local" value={due} /></label> : <ScheduleRuleEditor fields={fields} onChange={setFields} />}
+      <label className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm"><input checked={fields.managerReviewEnabled} className="mt-1" onChange={(event) => setFields((current) => ({ ...current, managerReviewEnabled: event.target.checked }))} type="checkbox" /><span><b className="block text-brand-900">允许店长审核员工提交</b><span className="mt-1 block text-xs leading-5 text-brand-800">管理员始终可以审核；店长只能审核本门店员工提交的任务，店长本人提交的任务必须由管理员审核。</span></span></label>
+      {creationMode === 'single' ? <section className="mt-3 rounded-lg bg-slate-50 p-3"><p className="font-semibold">发布时间</p><div className="mt-2 grid grid-cols-2 gap-2"><label className="rounded-lg border bg-white p-2 text-sm"><input checked={singlePublishMode === 'immediate'} onChange={() => setSinglePublishMode('immediate')} type="radio" /> 立即发布</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={singlePublishMode === 'scheduled'} onChange={() => setSinglePublishMode('scheduled')} type="radio" /> 定时发布</label></div>{singlePublishMode === 'scheduled' ? <label className="mt-2 block text-sm font-semibold">定时发布时间<input className="ui-input mt-1" min={toDatetimeLocalValue(new Date().toISOString())} onChange={(event) => setSinglePublishAt(event.target.value)} type="datetime-local" value={singlePublishAt} /></label> : null}<label className="mt-3 block text-sm font-semibold">验收截止时间<input className="ui-input mt-1" onChange={(event) => setDue(event.target.value)} type="datetime-local" value={due} /></label></section> : <><ScheduleRuleEditor fields={fields} onChange={setFields} /><label className="mt-3 flex items-center rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={publishImmediately} className="mr-2" onChange={(event) => setPublishImmediately(event.target.checked)} type="checkbox" />创建周期任务时立即发布一次</label><p className="mt-1 text-xs leading-5 text-slate-500">勾选后会立即生成一条任务，后续仍从“首次定时发布时间”开始按周期发布。</p></>}
       <button className="ui-button-primary mt-4 w-full" disabled={busy} onClick={() => void publish()} type="button"><Rocket className="h-4 w-4" />{busy ? '正在发布' : '确认发布'}</button>
     </section> : null}
 
@@ -401,8 +432,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       </section>
     </> : null}
 
-    {editingSchedule ? <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3"><div className="mx-auto max-w-xl pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><div className="ui-card p-4"><h2 className="text-lg font-bold">编辑周期任务</h2><ScheduleRuleEditor fields={fields} onChange={setFields} /><button className="ui-button-secondary mt-3 w-full" onClick={() => setScheduleContentEditorOpen(true)} type="button"><Pencil className="h-4 w-4" />编辑完整任务内容</button><p className="mt-2 text-xs leading-5 text-slate-500">保存后会同步当前未完成任务，并用于以后自动发布的任务。</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { cleanupCancelledAssets(); setEditingSchedule(null); setContentDraft(null); }} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void saveSchedule()} type="button">保存全部修改</button></div></div></div></div> : null}
-    {editingTask && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} dueAt={editingDue} onCancel={() => { cleanupCancelledAssets(); setEditingTask(null); setContentDraft(null); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onRemoveReferenceImage={removeReferenceImage} onSave={() => void saveTaskContent()} onUploadReferenceImage={uploadReferenceImage} /> : null}
+    {editingSchedule ? <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3"><div className="mx-auto max-w-xl pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><div className="ui-card p-4"><h2 className="text-lg font-bold">编辑周期任务</h2><ScheduleRuleEditor fields={fields} onChange={setFields} /><label className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm"><input checked={fields.managerReviewEnabled} className="mt-1" onChange={(event) => setFields((current) => ({ ...current, managerReviewEnabled: event.target.checked }))} type="checkbox" /><span><b className="block text-brand-900">允许店长审核员工提交</b><span className="mt-1 block text-xs leading-5 text-brand-800">保存后会同步到当前未完成任务和以后自动发布的任务；店长本人提交仍由管理员审核。</span></span></label><button className="ui-button-secondary mt-3 w-full" onClick={() => setScheduleContentEditorOpen(true)} type="button"><Pencil className="h-4 w-4" />编辑完整任务内容</button><p className="mt-2 text-xs leading-5 text-slate-500">保存后会同步当前未完成任务，并用于以后自动发布的任务。</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { cleanupCancelledAssets(); setEditingSchedule(null); setContentDraft(null); }} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void saveSchedule()} type="button">保存全部修改</button></div></div></div></div> : null}
+    {editingTask && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} dueAt={editingDue} managerReviewEnabled={fields.managerReviewEnabled} onCancel={() => { cleanupCancelledAssets(); setEditingTask(null); setContentDraft(null); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onManagerReviewEnabledChange={(enabled) => setFields((current) => ({ ...current, managerReviewEnabled: enabled }))} onRemoveReferenceImage={removeReferenceImage} onSave={() => void saveTaskContent()} onUploadReferenceImage={uploadReferenceImage} /> : null}
     {editingSchedule && scheduleContentEditorOpen && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} onCancel={() => setScheduleContentEditorOpen(false)} onChange={setContentDraft} onRemoveReferenceImage={removeReferenceImage} onSave={() => { const issue = validateTaskContent(contentDraft); if (issue) setMessage(issue); else setScheduleContentEditorOpen(false); }} onUploadReferenceImage={uploadReferenceImage} title="编辑周期任务完整内容" /> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title="操作提示" tone={message?.includes('失败') || message?.includes('必须') || message?.includes('请选择') ? 'warning' : 'success'} />
   </PageShell>;
@@ -414,7 +445,7 @@ export function AdminV2TaskPublishPage() {
 
 function ScheduleRuleEditor({ fields, onChange }: { fields: V2TaskScheduleFields; onChange: (value: V2TaskScheduleFields) => void }) {
   const numeric = (value: string) => value === '' ? null : Number(value);
-  return <section className="mt-3 rounded-lg bg-slate-50 p-3"><p className="font-semibold">发布周期</p><div className="mt-2 grid gap-2 sm:grid-cols-3"><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.scheduleType === 'interval_days'} onChange={() => onChange({ ...fields, scheduleType: 'interval_days' })} type="radio" /> 每 <input className="mx-1 h-9 w-16 rounded border px-2" min="1" onChange={(event) => onChange({ ...fields, intervalDays: numeric(event.target.value) })} type="number" value={fields.intervalDays ?? ''} /> 天发布</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.scheduleType === 'weekly'} onChange={() => onChange({ ...fields, scheduleType: 'weekly' })} type="radio" /> 每周发布</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.scheduleType === 'monthly'} onChange={() => onChange({ ...fields, scheduleType: 'monthly' })} type="radio" /> 每月 <input className="mx-1 h-9 w-14 rounded border px-2" max="31" min="1" onChange={(event) => onChange({ ...fields, monthDay: numeric(event.target.value) })} type="number" value={fields.monthDay ?? ''} /> 日</label></div>{fields.scheduleType === 'weekly' ? <div className="mt-2 flex flex-wrap gap-2">{weeklyDeadlineOptions.map((item) => <button className={`rounded-lg border px-3 py-2 text-sm ${fields.weekdays.includes(item.value) ? 'border-brand-700 bg-brand-50 text-brand-800' : 'bg-white'}`} key={item.value} onClick={() => onChange({ ...fields, weekdays: fields.weekdays.includes(item.value) ? fields.weekdays.filter((value) => value !== item.value) : [...fields.weekdays, item.value].sort() })} type="button">{item.label}</button>)}</div> : null}<label className="mt-2 block text-sm font-semibold">发布时间<input className="ui-input mt-1" onChange={(event) => onChange({ ...fields, publishTime: event.target.value })} type="time" value={fields.publishTime} /></label>
+  return <section className="mt-3 rounded-lg bg-slate-50 p-3"><p className="font-semibold">发布周期</p><div className="mt-2 grid gap-2 sm:grid-cols-3"><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.scheduleType === 'interval_days'} onChange={() => onChange({ ...fields, scheduleType: 'interval_days' })} type="radio" /> 每 <input className="mx-1 h-9 w-16 rounded border px-2" min="1" onChange={(event) => onChange({ ...fields, intervalDays: numeric(event.target.value) })} type="number" value={fields.intervalDays ?? ''} /> 天发布</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.scheduleType === 'weekly'} onChange={() => onChange({ ...fields, scheduleType: 'weekly' })} type="radio" /> 每周发布</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.scheduleType === 'monthly'} onChange={() => onChange({ ...fields, scheduleType: 'monthly' })} type="radio" /> 每月 <input className="mx-1 h-9 w-14 rounded border px-2" max="31" min="1" onChange={(event) => onChange({ ...fields, monthDay: numeric(event.target.value) })} type="number" value={fields.monthDay ?? ''} /> 日</label></div>{fields.scheduleType === 'weekly' ? <div className="mt-2 flex flex-wrap gap-2">{weeklyDeadlineOptions.map((item) => <button className={`rounded-lg border px-3 py-2 text-sm ${fields.weekdays.includes(item.value) ? 'border-brand-700 bg-brand-50 text-brand-800' : 'bg-white'}`} key={item.value} onClick={() => onChange({ ...fields, weekdays: fields.weekdays.includes(item.value) ? fields.weekdays.filter((value) => value !== item.value) : [...fields.weekdays, item.value].sort() })} type="button">{item.label}</button>)}</div> : null}<label className="mt-2 block text-sm font-semibold">周期发布时间<input className="ui-input mt-1" onChange={(event) => onChange({ ...fields, publishTime: event.target.value })} type="time" value={fields.publishTime} /></label><label className="mt-2 block text-sm font-semibold">首次 / 下次发布时间<input className="ui-input mt-1" min={toDatetimeLocalValue(new Date().toISOString())} onChange={(event) => onChange({ ...fields, nextPublishAt: new Date(event.target.value).toISOString() })} type="datetime-local" value={toDatetimeLocalValue(fields.nextPublishAt)} /></label>
     <p className="mt-4 font-semibold">验收周期</p><div className="mt-2 grid gap-2 sm:grid-cols-3"><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.acceptanceType === 'daily'} onChange={() => onChange({ ...fields, acceptanceType: 'daily' })} type="radio" /> 发布后 <input className="mx-1 h-9 w-14 rounded border px-2" max="31" min="0" onChange={(event) => onChange({ ...fields, acceptanceIntervalDays: numeric(event.target.value) })} type="number" value={fields.acceptanceIntervalDays ?? ''} /> 天</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.acceptanceType === 'weekly'} onChange={() => onChange({ ...fields, acceptanceType: 'weekly' })} type="radio" /> 每周验收</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={fields.acceptanceType === 'monthly'} onChange={() => onChange({ ...fields, acceptanceType: 'monthly' })} type="radio" /> 每月 <input className="mx-1 h-9 w-14 rounded border px-2" max="31" min="1" onChange={(event) => onChange({ ...fields, acceptanceMonthDay: numeric(event.target.value) })} type="number" value={fields.acceptanceMonthDay ?? ''} /> 日</label></div>{fields.acceptanceType === 'daily' ? <p className="mt-2 text-xs text-slate-500">填写 0 表示发布当日验收；当日验收时间必须晚于发布时间。</p> : null}{fields.acceptanceType === 'weekly' ? <label className="mt-2 block text-sm font-semibold">每周验收日<select className="ui-input mt-1" onChange={(event) => onChange({ ...fields, acceptanceWeekday: Number(event.target.value) })} value={fields.acceptanceWeekday ?? ''}><option value="">请选择</option>{weeklyDeadlineOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label> : null}<label className="mt-2 block text-sm font-semibold">验收时间<input className="ui-input mt-1" onChange={(event) => onChange({ ...fields, acceptanceTime: event.target.value })} type="time" value={fields.acceptanceTime} /></label><p className="mt-2 text-xs leading-5 text-slate-500">周期任务会在首次设定的发布时间生成；验收时间必须晚于本次发布、早于下一次发布。</p>
   </section>;
 }

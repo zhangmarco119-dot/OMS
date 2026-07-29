@@ -46,6 +46,16 @@ describe('AdminV2TasksPage navigation', () => {
     expect(screen.getByRole('checkbox', { name: '员工' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: '店长' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: '兼职' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /允许店长审核员工提交/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: '立即发布' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '定时发布' })).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('radio', { name: '定时发布' }));
+    expect(screen.getByLabelText('定时发布时间')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('发布方式'), { target: { value: 'recurring' } });
+    expect(screen.getByLabelText('首次 / 下次发布时间')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: '创建周期任务时立即发布一次' })).not.toBeChecked();
   });
 
   it('separates completed tasks and provides time, store, category, and search filters', async () => {

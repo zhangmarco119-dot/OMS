@@ -473,6 +473,35 @@ export const handleProductFeedbackAction = async (
   return data;
 };
 
+export interface ProductFeedbackBatchResult {
+  failed: Array<{ id: string; reason: string }>;
+  succeeded: number;
+  total: number;
+}
+
+export const handleProductFeedbackBatch = async (
+  feedbackIds: string[],
+  action: Extract<AdminFeedbackAction, 'acknowledge' | 'confirm_delete'>,
+): Promise<ProductFeedbackBatchResult> => {
+  const ids = [...new Set(feedbackIds.filter(Boolean))];
+  const failed: ProductFeedbackBatchResult['failed'] = [];
+  let succeeded = 0;
+
+  for (const id of ids) {
+    try {
+      await handleProductFeedbackAction(id, action);
+      succeeded += 1;
+    } catch (error) {
+      failed.push({
+        id,
+        reason: error instanceof Error ? error.message : '处理失败',
+      });
+    }
+  }
+
+  return { failed, succeeded, total: ids.length };
+};
+
 export const isAppliedProductCorrection = (feedback: ProductFeedbackRow) => {
   const changes = feedback.suggested_changes;
   return feedback.feedback_type === 'incorrect'

@@ -21,6 +21,8 @@ export function TaskContentEditor({
   onRemoveReferenceImage,
   onSave,
   onUploadReferenceImage,
+  managerReviewEnabled,
+  onManagerReviewEnabledChange,
   title = '编辑已发布任务',
 }: {
   busy: boolean;
@@ -33,6 +35,8 @@ export function TaskContentEditor({
   onRemoveReferenceImage: (itemId: string, path: string) => void;
   onSave: () => void;
   onUploadReferenceImage: (itemId: string, file: File, onProgress: (progress: number) => void) => Promise<void>;
+  managerReviewEnabled?: boolean;
+  onManagerReviewEnabledChange?: (enabled: boolean) => void;
   title?: string;
 }) {
   const updateGroup = (groupIndex: number, fields: Partial<TaskContentDraft['groups'][number]>) => onChange({
@@ -55,6 +59,7 @@ export function TaskContentEditor({
         {dueAt !== undefined && onDueAtChange ? <label className="text-sm font-semibold sm:col-span-2">验收截止时间<input className="ui-input mt-1" onChange={(event) => onDueAtChange(event.target.value)} type="datetime-local" value={dueAt} /></label> : null}
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={draft.requiresReview} onChange={(event) => onChange({ ...draft, requiresReview: event.target.checked })} type="checkbox" />需要管理员审核</label>
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={draft.allowOverdue} onChange={(event) => onChange({ ...draft, allowOverdue: event.target.checked })} type="checkbox" />允许逾期补交</label>
+        {managerReviewEnabled !== undefined && onManagerReviewEnabledChange ? <label className="flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm sm:col-span-2"><input checked={managerReviewEnabled} className="mt-1" onChange={(event) => onManagerReviewEnabledChange(event.target.checked)} type="checkbox" /><span><b className="block text-brand-900">允许店长审核员工提交</b><span className="mt-1 block text-xs leading-5 text-brand-800">管理员始终可以审核；店长只能审核本门店员工提交的任务，店长本人提交仍必须由管理员审核。</span></span></label> : null}
       </section>
       {draft.groups.map((group, groupIndex) => <section className="ui-card p-4" key={group.id}>
         <div className="mb-3 flex items-center justify-between gap-2"><span className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-bold text-white">分组 {groupIndex + 1}</span><button aria-label={`删除分组 ${groupIndex + 1}`} className="ui-icon-button border-red-100 text-red-600" onClick={() => onChange({ ...draft, groups: draft.groups.filter((_, index) => index !== groupIndex) })} type="button"><Trash2 className="h-4 w-4" /></button></div>

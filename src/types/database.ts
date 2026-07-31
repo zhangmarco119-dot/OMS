@@ -1174,7 +1174,9 @@ export type Database = {
       create_v2_task_schedule_v3: { Args: { p_fields: Json; p_profile_ids: string[]; p_related_notice_id?: string | null; p_related_sop_id?: string | null; p_store_ids: string[]; p_template_id: string }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
         update_v2_task_content: { Args: { p_due_at: string | null; p_name: string; p_snapshot: Json; p_task_id: string }; Returns: Json };
         update_v2_task_content_v2: { Args: { p_due_at: string | null; p_manager_review_enabled: boolean; p_name: string; p_snapshot: Json; p_task_id: string }; Returns: Json };
+        update_v2_task_content_v3: { Args: { p_due_at: string | null; p_manager_review_enabled: boolean; p_name: string; p_related_notice_id?: string | null; p_related_sop_id?: string | null; p_snapshot: Json; p_task_id: string }; Returns: Json };
         update_v2_task_schedule_all: { Args: { p_fields: Json; p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
+        update_v2_task_schedule_all_v2: { Args: { p_fields: Json; p_name: string; p_related_notice_id?: string | null; p_related_sop_id?: string | null; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
       update_v2_task_schedule_content: { Args: { p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
       withdraw_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       admin_bind_dingtalk_employee: { Args: { p_directory_user_id: string; p_match_source?: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };

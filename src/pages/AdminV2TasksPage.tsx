@@ -1,4 +1,4 @@
-import { PauseCircle, Pencil, Rocket, Undo2 } from 'lucide-react';
+import { PauseCircle, Pencil, Rocket, Search, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -154,6 +154,24 @@ const scheduleText = (row: V2TaskScheduleRow) => {
   return `${release} ${row.publish_time.slice(0, 5)} 发布 · ${acceptance} ${row.due_time.slice(0, 5)} 验收${row.manager_review_enabled ? ' · 员工提交可由店长审核' : ''}`;
 };
 
+const relatedContentTypeFromIds = (sopId: string | null, noticeId: string | null): 'none' | V2TaskRelatedContentType => (
+  sopId ? 'sop' : noticeId ? 'notice' : 'none'
+);
+
+const compatibleRelatedContent = (
+  options: V2TaskRelatedContentOption[],
+  type: 'none' | V2TaskRelatedContentType,
+  selectedStoreIds: string[],
+  audiences: TaskAudience[],
+) => {
+  const requiredRoles = [...new Set(audiences.map((audience) => audience === 'part_time' ? 'staff' : audience))];
+  return options
+    .filter((option) => option.type === type
+      && selectedStoreIds.every((storeId) => option.storeIds.includes(storeId))
+      && (option.type !== 'sop' || requiredRoles.every((role) => option.roles.includes(role))))
+    .sort((left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime());
+};
+
 export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: boolean }) {
   const auth = useAuth();
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
@@ -174,6 +192,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [relatedContentType, setRelatedContentType] = useState<'none' | V2TaskRelatedContentType>('none');
   const [relatedContentId, setRelatedContentId] = useState('');
+  const [editingRelatedContentType, setEditingRelatedContentType] = useState<'none' | V2TaskRelatedContentType>('none');
+  const [editingRelatedContentId, setEditingRelatedContentId] = useState('');
   const [fields, setFields] = useState<V2TaskScheduleFields>(defaultFields);
   const [editingSchedule, setEditingSchedule] = useState<V2TaskScheduleRow | null>(null);
   const [editingTask, setEditingTask] = useState<V2TaskRow | null>(null);
@@ -214,11 +234,18 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     [recipientMode, selectedRecipientAudience, targetAudiences],
   );
   const compatibleRelatedContentOptions = useMemo(() => {
-    const requiredRoles = [...new Set(effectiveAudiences.map((audience) => audience === 'part_time' ? 'staff' : audience))];
-    return relatedContentOptions.filter((option) => option.type === relatedContentType
-      && storeIds.every((storeId) => option.storeIds.includes(storeId))
-      && (option.type !== 'sop' || requiredRoles.every((role) => option.roles.includes(role))));
+    return compatibleRelatedContent(relatedContentOptions, relatedContentType, storeIds, effectiveAudiences);
   }, [effectiveAudiences, relatedContentOptions, relatedContentType, storeIds]);
+  const editingRelatedContentOptions = useMemo(() => {
+    const source = editingTask ?? editingSchedule;
+    if (!source) return [];
+    return compatibleRelatedContent(
+      relatedContentOptions,
+      editingRelatedContentType,
+      [source.store_id],
+      (source.target_audiences ?? ['staff', 'manager']) as TaskAudience[],
+    );
+  }, [editingRelatedContentType, editingSchedule, editingTask, relatedContentOptions]);
   const activeTasks = useMemo(
     () => tasks.filter((task) => !['approved', 'cancelled'].includes(task.status)),
     [tasks],
@@ -312,6 +339,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       setContentDraft(nextDraft);
       setOriginalReferencePaths(taskContentReferencePaths(nextDraft));
       setPendingReferencePaths([]);
+      setEditingRelatedContentType(relatedContentTypeFromIds(row.related_sop_id, row.related_notice_id));
+      setEditingRelatedContentId(row.related_sop_id ?? row.related_notice_id ?? '');
       setEditingSchedule(row);
     } catch (error) { setMessage(error instanceof Error ? error.message : '周期任务内容加载失败'); }
     finally { setBusy(false); }
@@ -328,6 +357,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       setContentDraft(nextDraft);
       setOriginalReferencePaths(taskContentReferencePaths(nextDraft));
       setPendingReferencePaths([]);
+      setEditingRelatedContentType(relatedContentTypeFromIds(task.related_sop_id, task.related_notice_id));
+      setEditingRelatedContentId(task.related_sop_id ?? task.related_notice_id ?? '');
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务内容加载失败'); }
     finally { setBusy(false); }
   };
@@ -385,17 +416,21 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     if (!supabase || !editingSchedule || !contentDraft) return;
     const issue = validateSchedule(fields); if (issue) return setMessage(issue);
     const contentIssue = validateTaskContent(contentDraft); if (contentIssue) return setMessage(contentIssue);
-    setBusy(true); try { await updateV2TaskScheduleAll(supabase, editingSchedule.id, fields, contentDraft.name, taskContentToSnapshot(contentDraft)); await cleanupSavedAssets(contentDraft); setEditingSchedule(null); setContentDraft(null); setMessage('周期规则和完整任务内容已同步更新。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : '周期任务保存失败'); } finally { setBusy(false); }
+    const relatedContent = editingRelatedContentType === 'none' ? null : editingRelatedContentOptions.find((item) => item.id === editingRelatedContentId) ?? null;
+    if (editingRelatedContentType !== 'none' && !relatedContent) return setMessage('请选择与当前周期任务门店和接收角色匹配的已发布关联资料。');
+    setBusy(true); try { await updateV2TaskScheduleAll(supabase, editingSchedule.id, fields, contentDraft.name, taskContentToSnapshot(contentDraft), relatedContent); await cleanupSavedAssets(contentDraft); setEditingSchedule(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); setMessage('周期规则、任务内容和关联资料已同步更新。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : '周期任务保存失败'); } finally { setBusy(false); }
   };
   const saveTaskContent = async () => {
     if (!supabase || !editingTask || !contentDraft) return;
     const issue = validateTaskContent(contentDraft); if (issue) return setMessage(issue);
     if (!editingDue || new Date(editingDue) <= new Date()) return setMessage('验收截止时间必须晚于当前时间。');
+    const relatedContent = editingRelatedContentType === 'none' ? null : editingRelatedContentOptions.find((item) => item.id === editingRelatedContentId) ?? null;
+    if (editingRelatedContentType !== 'none' && !relatedContent) return setMessage('请选择与当前任务门店和接收角色匹配的已发布关联资料。');
     setBusy(true);
     try {
-      await updateV2TaskContent(supabase, editingTask.id, contentDraft.name, taskContentToSnapshot(contentDraft), new Date(editingDue).toISOString(), fields.managerReviewEnabled);
+      await updateV2TaskContent(supabase, editingTask.id, contentDraft.name, taskContentToSnapshot(contentDraft), new Date(editingDue).toISOString(), fields.managerReviewEnabled, relatedContent);
       await cleanupSavedAssets(contentDraft);
-      setEditingTask(null); setContentDraft(null); setMessage('任务内容已更新，员工页面会立即同步。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load();
+      setEditingTask(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); setMessage('任务内容和关联资料已更新，员工页面会立即同步。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务内容保存失败'); }
     finally { setBusy(false); }
   };
@@ -416,19 +451,13 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50">
         <summary className="cursor-pointer list-none px-3 py-3 text-sm font-bold text-slate-800">高级选项 · 关联 SOP 或公告</summary>
         <div className="border-t border-slate-200 p-3">
-          <label className="block text-sm font-semibold">关联资料类型
-            <select className="ui-input mt-1" onChange={(event) => { setRelatedContentType(event.target.value as 'none' | V2TaskRelatedContentType); setRelatedContentId(''); }} value={relatedContentType}>
-              <option value="none">不关联资料</option>
-              <option value="sop">关联一个 SOP</option>
-              <option value="notice">关联一条公告</option>
-            </select>
-          </label>
-          {relatedContentType !== 'none' ? <label className="mt-3 block text-sm font-semibold">选择{relatedContentType === 'sop' ? '已发布 SOP' : '已发布公告'}
-            <select aria-label="关联资料" className="ui-input mt-1" onChange={(event) => setRelatedContentId(event.target.value)} value={relatedContentId}>
-              <option value="">请选择关联资料</option>
-              {compatibleRelatedContentOptions.map((item) => <option key={`${item.type}-${item.id}`} value={item.id}>{item.title} · {item.subtitle}</option>)}
-            </select>
-          </label> : null}
+          <RelatedContentSettings
+            contentId={relatedContentId}
+            contentType={relatedContentType}
+            onContentIdChange={setRelatedContentId}
+            onContentTypeChange={(type) => { setRelatedContentType(type); setRelatedContentId(''); }}
+            options={compatibleRelatedContentOptions}
+          />
           {relatedContentType !== 'none' && compatibleRelatedContentOptions.length === 0 ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">暂无同时匹配所选门店和接收角色的已发布资料，请先检查 SOP/公告的发布范围。</p> : <p className="mt-2 text-xs leading-5 text-slate-500">员工执行任务时会看到资料入口，可直接打开对应 SOP 或公告。</p>}
         </div>
       </details>
@@ -474,8 +503,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       </section>
     </> : null}
 
-    {editingSchedule ? <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3"><div className="mx-auto max-w-xl pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><div className="ui-card p-4"><h2 className="text-lg font-bold">编辑周期任务</h2><ScheduleRuleEditor fields={fields} onChange={setFields} /><label className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm"><input checked={fields.managerReviewEnabled} className="mt-1" onChange={(event) => setFields((current) => ({ ...current, managerReviewEnabled: event.target.checked }))} type="checkbox" /><span><b className="block text-brand-900">允许店长审核员工提交</b><span className="mt-1 block text-xs leading-5 text-brand-800">保存后会同步到当前未完成任务和以后自动发布的任务；店长本人提交仍由管理员审核。</span></span></label><button className="ui-button-secondary mt-3 w-full" onClick={() => setScheduleContentEditorOpen(true)} type="button"><Pencil className="h-4 w-4" />编辑完整任务内容</button><p className="mt-2 text-xs leading-5 text-slate-500">保存后会同步当前未完成任务，并用于以后自动发布的任务。</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { cleanupCancelledAssets(); setEditingSchedule(null); setContentDraft(null); }} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void saveSchedule()} type="button">保存全部修改</button></div></div></div></div> : null}
-    {editingTask && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} dueAt={editingDue} managerReviewEnabled={fields.managerReviewEnabled} onCancel={() => { cleanupCancelledAssets(); setEditingTask(null); setContentDraft(null); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onManagerReviewEnabledChange={(enabled) => setFields((current) => ({ ...current, managerReviewEnabled: enabled }))} onRemoveReferenceImage={removeReferenceImage} onSave={() => void saveTaskContent()} onUploadReferenceImage={uploadReferenceImage} /> : null}
+    {editingSchedule ? <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3"><div className="mx-auto max-w-xl pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><div className="ui-card p-4"><h2 className="text-lg font-bold">编辑周期任务</h2><ScheduleRuleEditor fields={fields} onChange={setFields} /><label className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm"><input checked={fields.managerReviewEnabled} className="mt-1" onChange={(event) => setFields((current) => ({ ...current, managerReviewEnabled: event.target.checked }))} type="checkbox" /><span><b className="block text-brand-900">允许店长审核员工提交</b><span className="mt-1 block text-xs leading-5 text-brand-800">保存后会同步到当前未完成任务和以后自动发布的任务；店长本人提交仍由管理员审核。</span></span></label><div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="mb-2 text-sm font-bold">高级选项 · 关联资料</p><RelatedContentSettings contentId={editingRelatedContentId} contentType={editingRelatedContentType} onContentIdChange={setEditingRelatedContentId} onContentTypeChange={(type) => { setEditingRelatedContentType(type); setEditingRelatedContentId(''); }} options={editingRelatedContentOptions} /></div><button className="ui-button-secondary mt-3 w-full" onClick={() => setScheduleContentEditorOpen(true)} type="button"><Pencil className="h-4 w-4" />编辑完整任务内容</button><p className="mt-2 text-xs leading-5 text-slate-500">保存后会同步当前未完成任务，并用于以后自动发布的任务。</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { cleanupCancelledAssets(); setEditingSchedule(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); }} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void saveSchedule()} type="button">保存全部修改</button></div></div></div></div> : null}
+    {editingTask && contentDraft ? <TaskContentEditor advancedOptions={<div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="mb-2 text-sm font-bold">高级选项 · 关联资料</p><RelatedContentSettings contentId={editingRelatedContentId} contentType={editingRelatedContentType} onContentIdChange={setEditingRelatedContentId} onContentTypeChange={(type) => { setEditingRelatedContentType(type); setEditingRelatedContentId(''); }} options={editingRelatedContentOptions} /></div>} busy={busy} categories={categories} draft={contentDraft} dueAt={editingDue} managerReviewEnabled={fields.managerReviewEnabled} onCancel={() => { cleanupCancelledAssets(); setEditingTask(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onManagerReviewEnabledChange={(enabled) => setFields((current) => ({ ...current, managerReviewEnabled: enabled }))} onRemoveReferenceImage={removeReferenceImage} onSave={() => void saveTaskContent()} onUploadReferenceImage={uploadReferenceImage} /> : null}
     {editingSchedule && scheduleContentEditorOpen && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} onCancel={() => setScheduleContentEditorOpen(false)} onChange={setContentDraft} onRemoveReferenceImage={removeReferenceImage} onSave={() => { const issue = validateTaskContent(contentDraft); if (issue) setMessage(issue); else setScheduleContentEditorOpen(false); }} onUploadReferenceImage={uploadReferenceImage} title="编辑周期任务完整内容" /> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title="操作提示" tone={message?.includes('失败') || message?.includes('必须') || message?.includes('请选择') ? 'warning' : 'success'} />
   </PageShell>;
@@ -483,6 +512,64 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
 export function AdminV2TaskPublishPage() {
   return <AdminV2TasksPage publisherOnly />;
+}
+
+function RelatedContentSettings({
+  contentId,
+  contentType,
+  onContentIdChange,
+  onContentTypeChange,
+  options,
+}: {
+  contentId: string;
+  contentType: 'none' | V2TaskRelatedContentType;
+  onContentIdChange: (value: string) => void;
+  onContentTypeChange: (value: 'none' | V2TaskRelatedContentType) => void;
+  options: V2TaskRelatedContentOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const selected = options.find((item) => item.id === contentId) ?? null;
+  const keyword = search.trim().toLocaleLowerCase('zh-CN');
+  const filteredOptions = options.filter((item) => !keyword
+    || `${item.title} ${item.subtitle}`.toLocaleLowerCase('zh-CN').includes(keyword));
+  const typeLabel = contentType === 'sop' ? 'SOP' : '公告';
+  const close = () => { setOpen(false); setSearch(''); };
+
+  return <>
+    <label className="block text-sm font-semibold">关联资料类型
+      <select className="ui-input mt-1" onChange={(event) => onContentTypeChange(event.target.value as 'none' | V2TaskRelatedContentType)} value={contentType}>
+        <option value="none">不关联资料</option>
+        <option value="sop">关联一个 SOP</option>
+        <option value="notice">关联一条公告</option>
+      </select>
+    </label>
+    {contentType !== 'none' ? <div className="mt-3">
+      <p className="text-sm font-semibold">选择已发布{typeLabel}</p>
+      <button className="ui-input mt-1 flex w-full items-center justify-between gap-3 text-left" disabled={options.length === 0} onClick={() => setOpen(true)} type="button">
+        <span className={selected ? 'min-w-0 truncate text-slate-900' : 'text-slate-500'}>{selected?.title ?? `请选择关联${typeLabel}`}</span>
+        <Search className="h-4 w-4 shrink-0 text-brand-700" />
+      </button>
+      {selected ? <div className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-brand-100 bg-white px-3 py-2">
+        <div className="min-w-0"><b className="block truncate text-sm">{selected.title}</b><span className="text-xs text-slate-500">{selected.subtitle} · 发布于 {new Date(selected.publishedAt).toLocaleString('zh-CN')}</span></div>
+        <button className="shrink-0 text-xs font-bold text-red-600" onClick={() => onContentIdChange('')} type="button">取消关联</button>
+      </div> : null}
+    </div> : null}
+
+    {open ? <div aria-label={`选择关联${typeLabel}`} aria-modal="true" className="fixed inset-0 z-[100] h-[100dvh] overflow-y-auto bg-black/45 p-3" role="dialog">
+      <div className="mx-auto mt-[max(1rem,env(safe-area-inset-top))] max-w-xl rounded-2xl bg-white p-4 shadow-xl">
+        <header className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">按发布时间从新到旧排列</p><h2 className="text-lg font-bold">选择关联{typeLabel}</h2></div><button aria-label="关闭关联资料选择" className="ui-icon-button" onClick={close} type="button"><X className="h-5 w-5" /></button></header>
+        <label className="relative mt-3 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input autoFocus className="ui-input pl-10" onChange={(event) => setSearch(event.target.value)} placeholder={`搜索${typeLabel}名称或分类`} type="search" value={search} /></label>
+        <div className="mt-3 max-h-[65dvh] space-y-2 overflow-y-auto overscroll-contain">
+          {filteredOptions.map((item) => <button className={`w-full rounded-xl border p-3 text-left ${item.id === contentId ? 'border-brand-600 bg-brand-50' : 'border-slate-200 bg-white'}`} key={`${item.type}-${item.id}`} onClick={() => { onContentIdChange(item.id); close(); }} type="button">
+            <b className="block text-sm">{item.title}</b>
+            <span className="mt-1 block text-xs text-slate-500">{item.subtitle} · 发布于 {new Date(item.publishedAt).toLocaleString('zh-CN')}</span>
+          </button>)}
+          {filteredOptions.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">没有找到匹配的已发布{typeLabel}。</p> : null}
+        </div>
+      </div>
+    </div> : null}
+  </>;
 }
 
 function ScheduleRuleEditor({ fields, onChange }: { fields: V2TaskScheduleFields; onChange: (value: V2TaskScheduleFields) => void }) {

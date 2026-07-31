@@ -7,6 +7,7 @@ import { AdminV2TaskPublishPage, AdminV2TasksPage } from './AdminV2TasksPage';
 const mocks = vi.hoisted(() => ({
   loadCategories: vi.fn(),
   loadRecipients: vi.fn(),
+  loadRelatedContent: vi.fn(),
   loadSchedules: vi.fn(),
   loadTasks: vi.fn(),
   loadTemplates: vi.fn(),
@@ -19,7 +20,7 @@ vi.mock('../features/auth/AuthContext', () => ({
 vi.mock('../services/task-templates.service', () => ({ loadTaskCategories: mocks.loadCategories, loadTaskTemplates: mocks.loadTemplates }));
 vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
-  return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskSchedules: mocks.loadSchedules, loadV2Tasks: mocks.loadTasks };
+  return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskRelatedContentOptions: mocks.loadRelatedContent, loadV2TaskSchedules: mocks.loadSchedules, loadV2Tasks: mocks.loadTasks };
 });
 
 describe('AdminV2TasksPage navigation', () => {
@@ -30,6 +31,7 @@ describe('AdminV2TasksPage navigation', () => {
     mocks.loadTasks.mockResolvedValue([]);
     mocks.loadSchedules.mockResolvedValue([]);
     mocks.loadRecipients.mockResolvedValue([]);
+    mocks.loadRelatedContent.mockResolvedValue([]);
   });
 
   it('keeps template management and task publishing as independent entry buttons', async () => {
@@ -49,6 +51,7 @@ describe('AdminV2TasksPage navigation', () => {
     expect(screen.getByRole('checkbox', { name: /允许店长审核员工提交/ })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: '立即发布' })).toBeChecked();
     expect(screen.getByRole('radio', { name: '定时发布' })).not.toBeChecked();
+    expect(screen.getByText('高级选项 · 关联 SOP 或公告')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: '定时发布' }));
     expect(screen.getByLabelText('定时发布时间')).toBeInTheDocument();

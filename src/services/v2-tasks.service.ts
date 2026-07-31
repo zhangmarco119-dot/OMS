@@ -35,6 +35,17 @@ export interface V2TaskScheduleFields {
 }
 export interface V2TaskScheduleContent { name: string; snapshot: Json }
 export type TaskAudience = 'staff' | 'manager' | 'part_time';
+export type V2TaskRelatedContentType = 'sop' | 'notice';
+export interface V2TaskRelatedContentSelection {
+  id: string;
+  type: V2TaskRelatedContentType;
+}
+export interface V2TaskRelatedContentOption extends V2TaskRelatedContentSelection {
+  roles: ('staff' | 'manager')[];
+  storeIds: string[];
+  subtitle: string;
+  title: string;
+}
 export type V2TaskRecipient = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'employment_type' | 'id' | 'role' | 'store_id' | 'username'>;
 export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; minimum_image_count?: number | null; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
@@ -109,12 +120,14 @@ export const canReviewV2Task = async (client: Client, taskId: string) => {
   fail(error);
   return Boolean(data);
 };
-export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string, publishAt: string, profileIds: string[] = [], targetAudiences: TaskAudience[] = ['staff', 'manager'], managerReviewEnabled = false) => {
-  const { data, error } = await client.rpc('publish_v2_tasks_v2', {
+export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string, publishAt: string, profileIds: string[] = [], targetAudiences: TaskAudience[] = ['staff', 'manager'], managerReviewEnabled = false, relatedContent: V2TaskRelatedContentSelection | null = null) => {
+  const { data, error } = await client.rpc('publish_v2_tasks_v3', {
     p_due_at: dueAt,
     p_manager_review_enabled: managerReviewEnabled,
     p_profile_ids: profileIds,
     p_publish_at: publishAt,
+    p_related_notice_id: relatedContent?.type === 'notice' ? relatedContent.id : null,
+    p_related_sop_id: relatedContent?.type === 'sop' ? relatedContent.id : null,
     p_store_ids: storeIds,
     p_target_audiences: targetAudiences,
     p_template_id: templateId,
@@ -125,11 +138,46 @@ export const loadV2TaskRecipients = async (client: Client): Promise<V2TaskRecipi
   fail(error);
   return data ?? [];
 };
+export const loadV2TaskRelatedContentOptions = async (client: Client): Promise<V2TaskRelatedContentOption[]> => {
+  const now = new Date().toISOString();
+  const [sops, sopStores, sopRoles, notices, noticeStores] = await Promise.all([
+    client.from('v2_sops').select('id,title,category,effective_at').eq('status', 'published').lte('effective_at', now).order('title'),
+    client.from('v2_sop_stores').select('sop_id,store_id'),
+    client.from('v2_sop_roles').select('sop_id,role'),
+    client.from('v2_notices').select('id,title,expires_at').eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${now}`).order('title'),
+    client.from('v2_notice_stores').select('notice_id,store_id'),
+  ]);
+  [sops.error, sopStores.error, sopRoles.error, notices.error, noticeStores.error].forEach(fail);
+  const sopStoreMap = new Map<string, string[]>();
+  const sopRoleMap = new Map<string, ('staff' | 'manager')[]>();
+  const noticeStoreMap = new Map<string, string[]>();
+  (sopStores.data ?? []).forEach((row) => sopStoreMap.set(row.sop_id, [...(sopStoreMap.get(row.sop_id) ?? []), row.store_id]));
+  (sopRoles.data ?? []).forEach((row) => sopRoleMap.set(row.sop_id, [...(sopRoleMap.get(row.sop_id) ?? []), row.role]));
+  (noticeStores.data ?? []).forEach((row) => noticeStoreMap.set(row.notice_id, [...(noticeStoreMap.get(row.notice_id) ?? []), row.store_id]));
+  return [
+    ...(sops.data ?? []).map((row) => ({
+      id: row.id,
+      roles: sopRoleMap.get(row.id) ?? [],
+      storeIds: sopStoreMap.get(row.id) ?? [],
+      subtitle: row.category || '标准作业流程',
+      title: row.title,
+      type: 'sop' as const,
+    })),
+    ...(notices.data ?? []).map((row) => ({
+      id: row.id,
+      roles: ['staff', 'manager'] as ('staff' | 'manager')[],
+      storeIds: noticeStoreMap.get(row.id) ?? [],
+      subtitle: '公告',
+      title: row.title,
+      type: 'notice' as const,
+    })),
+  ];
+};
 export const loadV2TaskSchedules = async (client: Client) => {
   const { data, error } = await client.from('v2_task_schedules').select('*').is('withdrawn_at', null).order('next_due_at'); fail(error); return data ?? [];
 };
-export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { profileIds?: string[]; publishImmediately?: boolean; storeIds: string[]; targetAudiences?: TaskAudience[]; templateId: string }) => {
-  const { data, error } = await client.rpc('create_v2_task_schedule_v2', {
+export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { profileIds?: string[]; publishImmediately?: boolean; relatedContent?: V2TaskRelatedContentSelection | null; storeIds: string[]; targetAudiences?: TaskAudience[]; templateId: string }) => {
+  const { data, error } = await client.rpc('create_v2_task_schedule_v3', {
     p_fields: {
       acceptanceIntervalDays: input.acceptanceIntervalDays,
       acceptanceMonthDay: input.acceptanceMonthDay,
@@ -147,6 +195,8 @@ export const createV2TaskSchedule = async (client: Client, input: V2TaskSchedule
       weekdays: input.weekdays,
     },
     p_profile_ids: input.profileIds ?? [],
+    p_related_notice_id: input.relatedContent?.type === 'notice' ? input.relatedContent.id : null,
+    p_related_sop_id: input.relatedContent?.type === 'sop' ? input.relatedContent.id : null,
     p_store_ids: input.storeIds,
     p_template_id: input.templateId,
   });

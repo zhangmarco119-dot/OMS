@@ -60,6 +60,7 @@ export function logicalParentPath(pathname: string, role?: UserRole) {
   if (/^\/app\/notices\/[^/]+$/.test(path)) return '/app/notices';
   if (/^\/app\/sops\/[^/]+$/.test(path)) return role === 'admin' ? '/app/admin/sops' : '/app/sops';
   if (/^\/app\/operation-reports\/[^/]+$/.test(path)) return '/app/operation-reports';
+  if (/^\/app\/history\/[^/]+$/.test(path)) return '/app/history';
   if (/^\/app\/arrivals\/[^/]+\/success$/.test(path) || path === '/app/arrivals/history') return '/app/arrivals';
   if (/^\/app\/arrivals\/[^/]+$/.test(path)) return '/app/arrivals/history';
 

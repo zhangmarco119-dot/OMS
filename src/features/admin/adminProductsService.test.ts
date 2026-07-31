@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 
 import type { Database } from '../../types/database';
-import { feedbackProductSnapshots, handleProductFeedbackBatch, importProducts, isAppliedProductCorrection, parseProductImportFile } from './adminProductsService';
+import { feedbackProductSnapshots, handleProductFeedbackBatch, handleProductFeedbackBatchActions, importProducts, isAppliedProductCorrection, parseProductImportFile } from './adminProductsService';
 
 const database = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 vi.mock('../../lib/supabase', () => ({ supabase: database }));
@@ -111,5 +111,25 @@ describe('adminProductsService', () => {
       total: 3,
     });
     expect(database.rpc).toHaveBeenCalledTimes(3);
+  });
+
+  it('handles mixed new-product and correction requests in one read-all action', async () => {
+    database.rpc.mockResolvedValue({ data: {}, error: null });
+
+    await expect(handleProductFeedbackBatchActions([
+      { action: 'resolve', id: 'new-product-feedback' },
+      { action: 'acknowledge', id: 'correction-feedback' },
+    ])).resolves.toEqual({ failed: [], succeeded: 2, total: 2 });
+
+    expect(database.rpc).toHaveBeenNthCalledWith(1, 'admin_handle_product_feedback', {
+      p_action: 'resolve',
+      p_feedback_id: 'new-product-feedback',
+      p_resolution_note: null,
+    });
+    expect(database.rpc).toHaveBeenNthCalledWith(2, 'admin_handle_product_feedback', {
+      p_action: 'acknowledge',
+      p_feedback_id: 'correction-feedback',
+      p_resolution_note: null,
+    });
   });
 });

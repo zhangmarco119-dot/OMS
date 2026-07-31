@@ -479,27 +479,42 @@ export interface ProductFeedbackBatchResult {
   total: number;
 }
 
-export const handleProductFeedbackBatch = async (
-  feedbackIds: string[],
-  action: Extract<AdminFeedbackAction, 'acknowledge' | 'confirm_delete'>,
+export type ProductFeedbackBatchAction = Extract<AdminFeedbackAction, 'acknowledge' | 'confirm_delete' | 'resolve'>;
+
+export interface ProductFeedbackBatchRequest {
+  action: ProductFeedbackBatchAction;
+  id: string;
+}
+
+export const handleProductFeedbackBatchActions = async (
+  requests: ProductFeedbackBatchRequest[],
 ): Promise<ProductFeedbackBatchResult> => {
-  const ids = [...new Set(feedbackIds.filter(Boolean))];
+  const uniqueRequests = [...new Map(
+    requests.filter((request) => request.id).map((request) => [request.id, request]),
+  ).values()];
   const failed: ProductFeedbackBatchResult['failed'] = [];
   let succeeded = 0;
 
-  for (const id of ids) {
+  for (const request of uniqueRequests) {
     try {
-      await handleProductFeedbackAction(id, action);
+      await handleProductFeedbackAction(request.id, request.action);
       succeeded += 1;
     } catch (error) {
       failed.push({
-        id,
+        id: request.id,
         reason: error instanceof Error ? error.message : '处理失败',
       });
     }
   }
 
-  return { failed, succeeded, total: ids.length };
+  return { failed, succeeded, total: uniqueRequests.length };
+};
+
+export const handleProductFeedbackBatch = async (
+  feedbackIds: string[],
+  action: ProductFeedbackBatchAction,
+): Promise<ProductFeedbackBatchResult> => {
+  return handleProductFeedbackBatchActions(feedbackIds.map((id) => ({ action, id })));
 };
 
 export const isAppliedProductCorrection = (feedback: ProductFeedbackRow) => {

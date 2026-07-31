@@ -268,26 +268,33 @@ export const submitTask = async (
   exportMeta: Record<string, Json> = {},
 ) => {
   const submittedAt = new Date().toISOString();
-  const { data, error } = await client
+  const nextExportMeta = {
+    ...(typeof task.export_meta === 'object' && task.export_meta && !Array.isArray(task.export_meta) ? task.export_meta : {}),
+    ...exportMeta,
+    last_exported_at: submittedAt,
+  };
+  const { error } = await client
     .from('tasks')
     .update({
       status: 'submitted',
       submitted_at: submittedAt,
-      export_meta: {
-        ...(typeof task.export_meta === 'object' && task.export_meta && !Array.isArray(task.export_meta) ? task.export_meta : {}),
-        ...exportMeta,
-        last_exported_at: submittedAt,
-      },
+      export_meta: nextExportMeta,
     })
-    .eq('id', task.id)
-    .select('*')
-    .single();
+    .eq('id', task.id);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return data;
+  // Do not require UPDATE ... RETURNING to expose one readable row. Under RLS,
+  // the update can succeed while PostgREST returns no row for `.single()`.
+  return {
+    ...task,
+    export_meta: nextExportMeta,
+    status: 'submitted' as const,
+    submitted_at: submittedAt,
+    updated_at: submittedAt,
+  };
 };
 
 export const updateTaskItemQuantity = async (

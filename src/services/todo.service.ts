@@ -29,7 +29,7 @@ export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean;
   }
   const [tasks, managerReviews, acknowledgements, overtime, corrections, payslips] = await Promise.all([
     input.storeId ? client.from('v2_tasks').select('id', { count: 'exact', head: true }).eq('store_id', input.storeId).in('status', ['pending', 'in_progress', 'rejected', 'overdue']) : Promise.resolve({ count: 0, error: null }),
-    input.isManager && input.storeId ? client.from('v2_tasks').select('id', { count: 'exact', head: true }).eq('store_id', input.storeId).in('status', ['submitted', 'resubmitted']).eq('manager_review_enabled', true).eq('submitted_by_role', 'staff') : Promise.resolve({ count: 0, error: null }),
+    input.isManager ? client.from('v2_tasks').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'resubmitted']).eq('manager_review_enabled', true).eq('submitted_by_role', 'staff') : Promise.resolve({ count: 0, error: null }),
     client.from('v2_notice_recipients').select('notice_id, v2_notices!inner(requires_acknowledgment,status,expires_at)', { count: 'exact' }).eq('profile_id', input.profileId).is('acknowledged_at', null).eq('v2_notices.requires_acknowledgment', true).eq('v2_notices.status', 'published'),
     input.isManager ? client.rpc('payroll_overtime_todo_count') : Promise.resolve({ data: 0, error: null }),
     client.from('attendance_missing_punch_todos').select('id', { count: 'exact', head: true }).eq('profile_id', input.profileId).eq('status', 'pending'),

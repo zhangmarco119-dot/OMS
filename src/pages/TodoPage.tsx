@@ -34,7 +34,7 @@ export function TodoPage() {
     if (!supabase) return;
     try {
       const [nextTasks, summary, nextNotices, nextFeedback, nextOvertime, nextCorrections, nextPayslips] = await Promise.all([
-        loadV2Tasks(supabase, isAdmin ? undefined : auth.store?.id),
+        loadV2Tasks(supabase, isAdmin || isManager ? undefined : auth.store?.id),
         loadTodoSummary(supabase, { isAdmin, isManager, profileId: auth.profile?.id ?? '', storeId: auth.store?.id, storeIds: auth.availableStores.map((store) => store.id) }),
         isAdmin ? Promise.resolve([] as NoticeListItem[]) : loadNotices(supabase),
         isAdmin ? loadProductFeedbackRecords() : Promise.resolve([] as ProductFeedbackRecord[]),

@@ -105,4 +105,26 @@ describe('V2TaskExecutionPage required submission state', () => {
     expect(await screen.findByText('图片要求：至少上传 8 张')).toBeInTheDocument();
     expect(screen.getByText('已完成 0/8')).toBeInTheDocument();
   });
+
+  it('shows a direct link to the SOP associated with the task', async () => {
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({
+      answers: [requiredConfirmation],
+      images: [],
+      reviews: [],
+      task: {
+        ...task,
+        related_content_title: '新品酸奶碗制作',
+        related_notice_id: null,
+        related_sop_id: 'sop-1',
+      },
+    } as V2TaskDetail);
+
+    render(
+      <MemoryRouter initialEntries={['/app/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<V2TaskExecutionPage />} path="/app/tasks/:taskId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('link', { name: /新品酸奶碗制作/ })).toHaveAttribute('href', '/app/sops/sop-1');
+  });
 });

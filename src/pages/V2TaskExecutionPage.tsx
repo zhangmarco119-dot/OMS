@@ -1,6 +1,6 @@
-import { Camera, Save, Send } from 'lucide-react';
+import { BookOpenCheck, Camera, ChevronRight, Megaphone, Save, Send } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { SuccessToast } from '../components/feedback/SuccessToast';
@@ -34,7 +34,7 @@ export function V2TaskExecutionPage() {
   const uploadedImages = useRef(new Map<string, string>());
   const contentSignature = useRef('');
 
-  const taskContentSignature = (task: Pick<V2TaskDetail['task'], 'due_at' | 'name' | 'snapshot'>) => JSON.stringify([task.name, task.due_at, task.snapshot]);
+  const taskContentSignature = (task: Pick<V2TaskDetail['task'], 'due_at' | 'name' | 'related_content_title' | 'related_notice_id' | 'related_sop_id' | 'snapshot'>) => JSON.stringify([task.name, task.due_at, task.related_sop_id, task.related_notice_id, task.related_content_title, task.snapshot]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -60,7 +60,7 @@ export function V2TaskExecutionPage() {
     const refresh = (payload: { new?: Record<string, unknown> }) => {
       const next = payload.new;
       if (!next || typeof next.name !== 'string' || typeof next.due_at !== 'string' || !('snapshot' in next)) return;
-      const signature = JSON.stringify([next.name, next.due_at, next.snapshot]);
+      const signature = JSON.stringify([next.name, next.due_at, next.related_sop_id, next.related_notice_id, next.related_content_title, next.snapshot]);
       if (signature === contentSignature.current) return;
       contentSignature.current = signature;
       window.clearTimeout(timer);
@@ -193,6 +193,11 @@ export function V2TaskExecutionPage() {
 
   return <PageShell eyebrow="门店运营系统 · 任务执行" title={detail?.task.name ?? '任务'} backTo="/app/tasks" contentGapClassName="gap-3">
     {detail ? <><section className="ui-card p-4"><div className="flex items-center justify-between gap-3 text-sm"><span className="text-slate-600">截止：{new Date(detail.task.due_at).toLocaleString('zh-CN')}</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[detail.task.status]}`}>{v2TaskStatusLabel[detail.task.status]}</span></div><div className="mt-3 flex justify-between text-sm"><span className="text-slate-600">填写进度</span><b className="tabular-nums">{progress}%</b></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-2 rounded-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} /></div>{detail.task.status === 'rejected' ? <FeedbackBanner className="mt-3" title="任务已退回整改" tone="danger"><p>整改原因：{detail.task.review_note?.trim() || '管理员未填写原因，请联系管理员确认。'}</p><p>请优先修改标有“需整改”的项目后重新提交。</p></FeedbackBanner> : null}</section>
+    {detail.task.related_sop_id || detail.task.related_notice_id ? <Link className="ui-card flex items-center gap-3 border-brand-100 bg-brand-50 p-3 transition active:scale-[0.99]" state={{ taskBackTo: `/app/tasks/${detail.task.id}` }} to={detail.task.related_sop_id ? `/app/sops/${detail.task.related_sop_id}` : `/app/notices/${detail.task.related_notice_id}`}>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700">{detail.task.related_sop_id ? <BookOpenCheck className="h-5 w-5" /> : <Megaphone className="h-5 w-5" />}</span>
+      <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-brand-700">{detail.task.related_sop_id ? '任务关联 SOP' : '任务关联公告'}</span><b className="mt-0.5 block truncate text-slate-900">{detail.task.related_content_title ?? (detail.task.related_sop_id ? '查看操作标准' : '查看公告内容')}</b></span>
+      <span className="inline-flex shrink-0 items-center text-sm font-bold text-brand-700">查看<ChevronRight className="h-4 w-4" /></span>
+    </Link> : null}
     {message ? <FeedbackBanner tone="warning">{message}</FeedbackBanner> : null}
     <div className="space-y-3">{answers.map((answer, index) => {
       const position = answerPositions[answer.item_id] ?? { groupNumber: 1, groupTitle: '任务项目', itemNumber: index + 1, number: `${index + 1}` };

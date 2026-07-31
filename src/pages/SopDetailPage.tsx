@@ -1,6 +1,6 @@
 import { BookOpenCheck, ExternalLink, Rocket, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -45,6 +45,7 @@ function SopAttachmentLink({ asset }: { asset: SopAssetRow & { signedUrl: string
 
 export function SopDetailPage() {
   const auth = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const { sopId } = useParams();
   const [sop, setSop] = useState<SopListItem | null>(null);
@@ -142,7 +143,8 @@ export function SopDetailPage() {
     } finally { setBusy(false); }
   };
 
-  return <PageShell eyebrow={sop?.category ?? 'SOP 手册'} title={sop?.title ?? 'SOP 详情'} backTo={auth.profile?.role === 'admin' ? '/app/admin/sops' : '/app/sops'} contentGapClassName="gap-3">
+  const taskBackTo = (location.state as { taskBackTo?: unknown } | null)?.taskBackTo;
+  return <PageShell eyebrow={sop?.category ?? 'SOP 手册'} title={sop?.title ?? 'SOP 详情'} backTo={typeof taskBackTo === 'string' ? undefined : auth.profile?.role === 'admin' ? '/app/admin/sops' : '/app/sops'} onBack={typeof taskBackTo === 'string' ? () => navigate(taskBackTo, { replace: true }) : undefined} contentGapClassName="gap-3">
     {status === 'error' && message ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'loading' ? <LoadingState label="正在加载完整 SOP" /> : null}
     {status === 'ready' && !sop ? <EmptyState description="该 SOP 可能尚未发布、已归档，或不适用于当前门店。" icon={BookOpenCheck} title="无法查看 SOP" /> : null}

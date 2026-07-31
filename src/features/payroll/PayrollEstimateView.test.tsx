@@ -86,6 +86,7 @@ describe('PayrollEstimateView', () => {
     expect(screen.getAllByText(/五道口店.*B 级/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/85 分/)).not.toBeInTheDocument();
     expect(screen.queryByText(/强制覆盖/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/工资详情不展示分数和发放比例/)).not.toBeInTheDocument();
   });
 
   it('links administrator data issues to their update location', () => {

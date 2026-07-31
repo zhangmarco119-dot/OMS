@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MyPayrollPage } from './MyPayrollPage';
 
@@ -20,6 +20,11 @@ vi.mock('../services/payroll.service', () => ({
 }));
 
 describe('MyPayrollPage month picker', () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date(2026, 6, 18, 12, 0, 0));
+    vi.clearAllMocks();
+  });
+
   it('keeps the previous month selected while the estimate reloads', async () => {
     mocks.loadSettings.mockResolvedValue({ historyAvailableUntilDay: 31, historyMonths: 1, historyOpenNow: true });
     mocks.loadEstimate.mockResolvedValue({});

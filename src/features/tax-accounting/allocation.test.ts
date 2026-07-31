@@ -11,6 +11,7 @@ const estimate = (overrides: Partial<PayrollEstimate> = {}): PayrollEstimate => 
   monthlyBaseSalary: 0, monthlyHousingAllowance: 0, fullPerformanceAmount: 0, commissionRate: 0,
   housingEnabled: false, performanceEnabled: false, performanceOverrideEnabled: false,
   performanceOverrideAmount: 0, performanceOverrideScore: null, performanceCalculationMode: 'automatic',
+  performanceStores: [], hasMultiplePerformanceStores: false, performanceAmountOverrideEnabled: false, performanceAmountOverride: null,
   commissionEnabled: false, fullAttendanceBonusEnabled: false, fullAttendanceBonusAmount: 0,
   fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0, extraAttendanceDays: 0,
   extraAttendanceBonusRate: 300, accruedExtraAttendanceBonus: 0, serviceAwardEnabled: false,

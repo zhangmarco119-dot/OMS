@@ -9,6 +9,17 @@ export interface PayrollDeductionItem {
   performanceDeduction: number;
 }
 
+export interface PayrollStorePerformance {
+  allocationRatio: number;
+  amount: number;
+  calculationMode: 'automatic' | 'score' | 'grade';
+  coefficient: number | null;
+  grade: 'A' | 'B' | 'C' | 'D';
+  score: number | null;
+  storeId: string;
+  storeName: string;
+}
+
 export interface PayrollEstimate {
   employmentType: 'full_time' | 'part_time';
   profileId: string;
@@ -34,7 +45,11 @@ export interface PayrollEstimate {
   performanceOverrideEnabled: boolean;
   performanceOverrideAmount: number;
   performanceOverrideScore: number | null;
-  performanceCalculationMode: 'automatic' | 'override';
+  performanceCalculationMode: 'automatic' | 'override' | 'store' | 'amount_override';
+  performanceStores: PayrollStorePerformance[];
+  hasMultiplePerformanceStores: boolean;
+  performanceAmountOverrideEnabled: boolean;
+  performanceAmountOverride: number | null;
   commissionEnabled: boolean;
   fullAttendanceBonusEnabled: boolean;
   fullAttendanceBonusAmount: number;

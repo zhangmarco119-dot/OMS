@@ -20,4 +20,14 @@ describe('PayrollStatementView', () => {
     expect(screen.getByText('盘点差异处罚')).toBeInTheDocument();
     expect(screen.getByText('本月工资单个人所得税扣除')).toBeInTheDocument();
   });
+
+  it('shows store grades without scores on multi-store payslips', () => {
+    render(<PayrollStatementView estimate={{ ...estimate, hasMultiplePerformanceStores: true, performanceStores: [
+      { allocationRatio: .5, amount: 150, calculationMode: 'grade', coefficient: 1, grade: 'A', score: null, storeId: 's1', storeName: '西直门店' },
+      { allocationRatio: .5, amount: 150, calculationMode: 'score', coefficient: .8, grade: 'B', score: 82, storeId: 's2', storeName: '五道口店' },
+    ] } as PayrollEstimate} payrollMonth="2026-07-01" />);
+    expect(screen.getByText('西直门店 · A 级')).toBeInTheDocument();
+    expect(screen.getByText('五道口店 · B 级')).toBeInTheDocument();
+    expect(screen.queryByText(/82 分/)).not.toBeInTheDocument();
+  });
 });

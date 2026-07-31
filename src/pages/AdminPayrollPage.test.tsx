@@ -22,7 +22,7 @@ vi.mock('../services/payroll.service', async (original) => {
 });
 
 const setup = {
-  profiles: [], rules: [], commissionStores: [], performanceRules: [], revenues: [], revenueInputs: [], penalties: [], penaltyAssets: [], overtimeRates: [], overtimeRequests: [],
+  profiles: [], rules: [], commissionStores: [], performanceStores: [], profileStoreAccess: [], performanceRules: [], revenues: [], revenueInputs: [], penalties: [], penaltyAssets: [], overtimeRates: [], overtimeRequests: [],
 };
 
 const estimate = {
@@ -48,6 +48,7 @@ function LocationProbe() {
 
 describe('AdminPayrollPage update guidance', () => {
   beforeEach(() => {
+    vi.setSystemTime(new Date(2026, 6, 18, 12, 0, 0));
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({
       availableStores: [{ id: 'store-1', name: '测试门店', short_name: '测试门店' }],

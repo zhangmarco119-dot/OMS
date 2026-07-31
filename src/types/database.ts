@@ -619,6 +619,24 @@ export type Database = {
         Update: { created_at?: string; created_by?: string; id?: string; payroll_month?: string; performance_score?: number; profile_id?: string; updated_at?: string };
         Relationships: [];
       };
+      payroll_employee_performance_stores: {
+        Row: { allocation_ratio: number; created_at: string; rule_id: string; store_id: string };
+        Insert: { allocation_ratio: number; created_at?: string; rule_id: string; store_id: string };
+        Update: { allocation_ratio?: number; created_at?: string; rule_id?: string; store_id?: string };
+        Relationships: [];
+      };
+      payroll_store_performance_overrides: {
+        Row: { created_at: string; override_mode: 'score' | 'grade'; payroll_month: string; performance_grade: 'A' | 'B' | 'C' | 'D' | null; performance_score: number | null; profile_id: string; store_id: string; updated_at: string; updated_by: string };
+        Insert: { created_at?: string; override_mode: 'score' | 'grade'; payroll_month: string; performance_grade?: 'A' | 'B' | 'C' | 'D' | null; performance_score?: number | null; profile_id: string; store_id: string; updated_at?: string; updated_by: string };
+        Update: { override_mode?: 'score' | 'grade'; performance_grade?: 'A' | 'B' | 'C' | 'D' | null; performance_score?: number | null; updated_at?: string; updated_by?: string };
+        Relationships: [];
+      };
+      payroll_performance_amount_overrides: {
+        Row: { amount: number; created_at: string; payroll_month: string; profile_id: string; updated_at: string; updated_by: string };
+        Insert: { amount: number; created_at?: string; payroll_month: string; profile_id: string; updated_at?: string; updated_by: string };
+        Update: { amount?: number; updated_at?: string; updated_by?: string };
+        Relationships: [];
+      };
       payroll_individual_tax_overrides: {
         Row: { amount: number; created_at: string; payroll_month: string; profile_id: string; updated_at: string; updated_by: string };
         Insert: { amount: number; created_at?: string; payroll_month: string; profile_id: string; updated_at?: string; updated_by: string };
@@ -1111,6 +1129,8 @@ export type Database = {
       admin_payroll_estimates: { Args: { p_as_of?: string; p_search?: string; p_store_id?: string | null }; Returns: Json };
       admin_create_payroll_penalty: { Args: { p_fields: Json }; Returns: Json };
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };
+      admin_save_payroll_employee_rule_v2: { Args: { p_commission_store_ids?: string[]; p_fields: Json; p_performance_stores?: Json; p_profile_id: string }; Returns: string };
+      admin_save_payroll_monthly_performance: { Args: { p_final_amount?: number | null; p_payroll_month: string; p_profile_id: string; p_store_settings?: Json }; Returns: Json };
       admin_save_payroll_visibility_settings: { Args: { p_history_available_until_day: number; p_history_months: number }; Returns: Json };
       admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };
       admin_record_payroll_overtime: { Args: { p_hours: number; p_overtime_date: string; p_profile_id: string; p_reason?: string; p_store_id: string }; Returns: Json };

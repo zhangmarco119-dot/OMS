@@ -9,6 +9,7 @@ const estimate = {
   employmentType: 'full_time', partTimeHours: 0, partTimeHourlyRate: null, accruedPartTimeWage: 0,
   fullAttendanceDays: 27, attendanceDays: 13, ruleId: 'r1', ruleConfirmed: false, monthlyBaseSalary: 5500, monthlyHousingAllowance: 1100,
   fullPerformanceAmount: 3000, commissionRate: .006, housingEnabled: true, performanceEnabled: true, performanceOverrideEnabled: false, performanceOverrideAmount: 0, performanceOverrideScore: null, performanceCalculationMode: 'automatic', commissionEnabled: true,
+  performanceStores: [], hasMultiplePerformanceStores: false, performanceAmountOverrideEnabled: false, performanceAmountOverride: null,
   fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0,
   extraAttendanceDays: 0, extraAttendanceBonusRate: 300, accruedExtraAttendanceBonus: 0,
   serviceAwardEnabled: true, serviceAwardAmount: 100, accruedServiceAward: 48.15, regularizationDate: null, eligibleAttendanceDays: 13, regularizationFactor: 1, isProbation: false,
@@ -73,6 +74,17 @@ describe('PayrollEstimateView', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, performanceCalculationMode: 'override', performanceOverrideEnabled: true, performanceOverrideScore: 88, performanceScore: 88, performanceGrade: 'B', accruedPerformance: 800, performanceReady: true }} />);
     expect(screen.getByText('当前 B 级，88 分')).toBeInTheDocument();
     expect(screen.getByText('88 分 · B 级')).toBeInTheDocument();
+    expect(screen.queryByText(/强制覆盖/)).not.toBeInTheDocument();
+  });
+
+  it('shows only store grades for a multi-store employee', () => {
+    render(<PayrollEstimateView estimate={{ ...estimate, accruedPerformance: 1234, hasMultiplePerformanceStores: true, performanceAmountOverride: 1234, performanceAmountOverrideEnabled: true, performanceCalculationMode: 'amount_override', performanceStores: [
+      { allocationRatio: .6, amount: 900, calculationMode: 'grade', coefficient: 1, grade: 'A', score: null, storeId: 's1', storeName: '西直门店' },
+      { allocationRatio: .4, amount: 334, calculationMode: 'score', coefficient: .8, grade: 'B', score: 85, storeId: 's2', storeName: '五道口店' },
+    ] }} />);
+    expect(screen.getAllByText(/西直门店.*A 级/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/五道口店.*B 级/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/85 分/)).not.toBeInTheDocument();
     expect(screen.queryByText(/强制覆盖/)).not.toBeInTheDocument();
   });
 

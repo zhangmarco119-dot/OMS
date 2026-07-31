@@ -187,6 +187,8 @@ erDiagram
 
 `0084_payroll_tax_performance_override_and_deductions.sql` 为员工工资规则增加绩效自动计算/强制覆盖配置，为工资单增加个税扣除，并提供按权限读取员工罚款明细的 RPC。实时薪资和工资单快照同步保存扣款合计、个税与逐笔扣款数据，员工只能查看本人明细，管理员只能查看授权门店人员。
 
+`0117_multi_store_payroll_performance.sql` 新增工资规则版本化的门店绩效占比、按员工/月份/门店保存的绩效分或等级设置，以及最终绩效奖金额设置。店长和其他多门店员工按门店独立评分、定级并按占比分配绩效；工资单快照仅向员工展示各门店等级，不暴露分数、比例或人工调整来源。
+
 `0072_payroll_revenue_carry_forward.sql` 调整提成数据完整性口径：所选截止日期没有当天收入时，按门店沿用同一自然月内最近一次手动累计基数，或累计到最近一次收银同步日期的每日营业额。返回值同时标明基数有效日期，且不会跨月沿用。
 
 收银平台 App ID、App Key 不进入数据库业务表、前端环境变量或 Git，只存放在对应 Supabase 环境的 Edge Function Secret。开发与正式环境必须分别设置各自 Secret，并依照 `docs/POS_SALES_SYNC.md` 的顺序先验证 Migration、再部署函数和前端。

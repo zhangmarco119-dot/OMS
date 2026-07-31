@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { AdminPayrollSummary, PayrollDeductionItem, PayrollEstimate } from '../features/payroll/model';
+import type { AdminPayrollSummary, PayrollDeductionItem, PayrollEstimate, PayrollStorePerformance } from '../features/payroll/model';
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
 
@@ -28,6 +28,18 @@ const parseDeductionItem = (value: Json): PayrollDeductionItem => {
     id: textAt(item.id), date: textAt(item.date), createdAt: nullableTextAt(item.createdAt),
     type: type === 'late' || type === 'tax' ? type : 'penalty', title: textAt(item.title, '扣款'),
     reason: textAt(item.reason), amount: numberAt(item.amount), performanceDeduction: numberAt(item.performanceDeduction),
+  };
+};
+
+const parseStorePerformance = (value: Json): PayrollStorePerformance => {
+  const item = objectAt(value);
+  const mode = textAt(item.calculationMode);
+  const grade = textAt(item.grade);
+  return {
+    allocationRatio: numberAt(item.allocationRatio), amount: numberAt(item.amount),
+    calculationMode: mode === 'score' || mode === 'grade' ? mode : 'automatic',
+    coefficient: nullableNumberAt(item.coefficient), grade: grade === 'A' || grade === 'B' || grade === 'C' ? grade : 'D',
+    score: nullableNumberAt(item.score), storeId: textAt(item.storeId), storeName: textAt(item.storeName, '未命名门店'),
   };
 };
 
@@ -77,7 +89,11 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     commissionRate: nullableNumberAt(item.commissionRate), housingEnabled: boolAt(item.housingEnabled), performanceEnabled: boolAt(item.performanceEnabled),
     performanceOverrideEnabled: boolAt(item.performanceOverrideEnabled), performanceOverrideAmount: numberAt(item.performanceOverrideAmount),
     performanceOverrideScore: nullableNumberAt(item.performanceOverrideScore),
-    performanceCalculationMode: item.performanceCalculationMode === 'override' ? 'override' : 'automatic',
+    performanceCalculationMode: item.performanceCalculationMode === 'amount_override' ? 'amount_override' : item.performanceCalculationMode === 'store' ? 'store' : item.performanceCalculationMode === 'override' ? 'override' : 'automatic',
+    performanceStores: Array.isArray(item.performanceStores) ? item.performanceStores.map(parseStorePerformance) : [],
+    hasMultiplePerformanceStores: boolAt(item.hasMultiplePerformanceStores),
+    performanceAmountOverrideEnabled: boolAt(item.performanceAmountOverrideEnabled),
+    performanceAmountOverride: nullableNumberAt(item.performanceAmountOverride),
     commissionEnabled: boolAt(item.commissionEnabled), fullAttendanceBonusEnabled: boolAt(item.fullAttendanceBonusEnabled),
     fullAttendanceBonusAmount: numberAt(item.fullAttendanceBonusAmount), fullAttendanceBonusAwarded: boolAt(item.fullAttendanceBonusAwarded),
     accruedFullAttendanceBonus: numberAt(item.accruedFullAttendanceBonus), extraAttendanceDays: numberAt(item.extraAttendanceDays),
@@ -174,6 +190,40 @@ export async function savePayrollPerformanceOverride(client: Client, profileId: 
     p_performance_score: score,
   });
   if (error) throw new Error(error.message || '本月绩效分设置保存失败。');
+  return data;
+}
+
+export interface PayrollMonthlyStoreSetting {
+  grade: 'A' | 'B' | 'C' | 'D' | null;
+  mode: 'automatic' | 'score' | 'grade';
+  score: number | null;
+  storeId: string;
+}
+
+export async function loadPayrollMonthlyPerformance(client: Client, profileId: string, month: string) {
+  const payrollMonth = `${month.slice(0, 7)}-01`;
+  const [settings, amount] = await Promise.all([
+    client.from('payroll_store_performance_overrides').select('*').eq('profile_id', profileId).eq('payroll_month', payrollMonth),
+    client.from('payroll_performance_amount_overrides').select('amount').eq('profile_id', profileId).eq('payroll_month', payrollMonth).maybeSingle(),
+  ]);
+  const error = settings.error ?? amount.error;
+  if (error) throw new Error(error.message || '暂时无法加载该月分门店绩效设置。');
+  return {
+    finalAmount: amount.data?.amount ?? null,
+    settings: (settings.data ?? []).map((row): PayrollMonthlyStoreSetting => ({
+      grade: row.performance_grade, mode: row.override_mode, score: row.performance_score, storeId: row.store_id,
+    })),
+  };
+}
+
+export async function savePayrollMonthlyPerformance(client: Client, profileId: string, month: string, settings: PayrollMonthlyStoreSetting[], finalAmount: number | null) {
+  const { data, error } = await client.rpc('admin_save_payroll_monthly_performance', {
+    p_final_amount: finalAmount,
+    p_payroll_month: `${month.slice(0, 7)}-01`,
+    p_profile_id: profileId,
+    p_store_settings: settings as unknown as Json,
+  });
+  if (error) throw new Error(error.message || '本月分门店绩效设置保存失败。');
   return data;
 }
 
@@ -316,10 +366,12 @@ export async function savePayrollIndividualTaxOverride(client: Client, profileId
 }
 
 export async function loadPayrollAdminSetup(client: Client, monthStart: string) {
-  const [profiles, rules, commissionStores, performanceRules, revenues, revenueInputs, penalties, penaltyAssets, overtimeRates, overtimeRequests] = await Promise.all([
+  const [profiles, rules, commissionStores, performanceStores, profileStoreAccess, performanceRules, revenues, revenueInputs, penalties, penaltyAssets, overtimeRates, overtimeRequests] = await Promise.all([
     client.from('profiles').select('*').in('role', ['staff', 'manager']).is('deleted_at', null).order('display_name'),
     client.from('payroll_employee_rules').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_employee_commission_stores').select('*'),
+    client.from('payroll_employee_performance_stores').select('*'),
+    client.from('profile_store_access').select('*'),
     client.from('payroll_performance_rules').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_store_revenues').select('*').gte('revenue_date', monthStart).order('revenue_date', { ascending: false }),
     client.from('payroll_store_revenue_inputs').select('*').gte('as_of_date', monthStart).order('as_of_date', { ascending: false }),
@@ -328,13 +380,13 @@ export async function loadPayrollAdminSetup(client: Client, monthStart: string) 
     client.from('payroll_overtime_rates').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', monthStart).order('created_at', { ascending: false }),
   ]);
-  const error = profiles.error ?? rules.error ?? commissionStores.error ?? performanceRules.error ?? revenues.error ?? revenueInputs.error ?? penalties.error ?? penaltyAssets.error ?? overtimeRates.error ?? overtimeRequests.error;
+  const error = profiles.error ?? rules.error ?? commissionStores.error ?? performanceStores.error ?? profileStoreAccess.error ?? performanceRules.error ?? revenues.error ?? revenueInputs.error ?? penalties.error ?? penaltyAssets.error ?? overtimeRates.error ?? overtimeRequests.error;
   if (error) throw new Error(error.message || '暂时无法加载工资设置。');
-  return { profiles: profiles.data ?? [], rules: rules.data ?? [], commissionStores: commissionStores.data ?? [], performanceRules: performanceRules.data ?? [], revenues: revenues.data ?? [], revenueInputs: revenueInputs.data ?? [], penalties: penalties.data ?? [], penaltyAssets: penaltyAssets.data ?? [], overtimeRates: overtimeRates.data ?? [], overtimeRequests: overtimeRequests.data ?? [] };
+  return { profiles: profiles.data ?? [], rules: rules.data ?? [], commissionStores: commissionStores.data ?? [], performanceStores: performanceStores.data ?? [], profileStoreAccess: profileStoreAccess.data ?? [], performanceRules: performanceRules.data ?? [], revenues: revenues.data ?? [], revenueInputs: revenueInputs.data ?? [], penalties: penalties.data ?? [], penaltyAssets: penaltyAssets.data ?? [], overtimeRates: overtimeRates.data ?? [], overtimeRequests: overtimeRequests.data ?? [] };
 }
 
-export async function savePayrollEmployeeRule(client: Client, profileId: string, fields: Record<string, Json | undefined>, storeIds: string[]) {
-  const { data, error } = await client.rpc('admin_save_payroll_employee_rule', { p_profile_id: profileId, p_fields: fields as Json, p_store_ids: storeIds });
+export async function savePayrollEmployeeRule(client: Client, profileId: string, fields: Record<string, Json | undefined>, storeIds: string[], performanceStores: { allocationRatio: number; storeId: string }[]) {
+  const { data, error } = await client.rpc('admin_save_payroll_employee_rule_v2', { p_profile_id: profileId, p_fields: fields as Json, p_commission_store_ids: storeIds, p_performance_stores: performanceStores as unknown as Json });
   if (error) throw new Error(error.message || '工资参数保存失败。');
   return data;
 }

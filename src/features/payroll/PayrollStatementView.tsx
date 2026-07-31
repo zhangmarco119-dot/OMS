@@ -34,6 +34,7 @@ export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }:
     </header>
     <div className="px-4 py-2">
       {earnings.filter(([, amount]) => amount !== 0).map(([label, amount]) => <div className="flex items-center justify-between border-b border-slate-100 py-2.5 text-sm" key={label}><span className="text-slate-600">{label}</span><b className="tabular-nums text-slate-900">{formatMoney(amount)}</b></div>)}
+      {estimate.hasMultiplePerformanceStores ? <div className="border-b border-slate-100 py-2.5"><p className="text-xs text-slate-500">门店绩效等级</p><div className="mt-1.5 flex flex-wrap gap-1.5">{(estimate.performanceStores ?? []).map((item) => <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-900" key={item.storeId}>{item.storeName} · {item.grade} 级</span>)}</div></div> : null}
       <div className="flex items-center justify-between border-b border-slate-100 py-2.5 text-sm"><span className="text-slate-600">个税扣除</span><b className="tabular-nums text-rose-700">{estimate.individualIncomeTax ? `-${formatMoney(estimate.individualIncomeTax)}` : formatMoney(0)}</b></div>
       <PayrollDeductionRow estimate={estimate} label="扣款合计" total={deductions} />
       <div className="flex items-end justify-between py-4"><div><p className="text-xs text-slate-500">实发合计</p><p className="mt-0.5 text-xs text-slate-400">收入 {formatMoney(income)} · 扣款 {formatMoney(deductions)}</p></div><strong className="text-2xl tabular-nums text-brand-800">{formatMoney(payable)}</strong></div>

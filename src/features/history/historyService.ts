@@ -167,4 +167,27 @@ export const loadSubmittedTaskDetail = async (client: Client, taskId: string) =>
   };
 };
 
+export const loadSubmittedTaskDetailView = async (client: Client, taskId: string) => {
+  const detail = await loadSubmittedTaskDetail(client, taskId);
+  const [storeResult, profileResult] = await Promise.all([
+    client.from('stores').select('*').eq('id', detail.task.store_id).single(),
+    client.from('profiles').select('*').eq('id', detail.task.created_by).single(),
+  ]);
+
+  if (storeResult.error) throw new Error(storeResult.error.message);
+  if (profileResult.error) throw new Error(profileResult.error.message);
+
+  return {
+    detail,
+    summary: {
+      itemCount: detail.items.length,
+      storeName: storeResult.data?.name ?? '未知门店',
+      storeShortName: storeResult.data?.short_name ?? '门店',
+      submitterName: profileResult.data?.display_name ?? '未知提交人',
+      submitterUsername: profileResult.data?.username ?? '',
+      task: detail.task,
+    } satisfies HistoryTask,
+  };
+};
+
 export const loadSubmittedTaskForExport = loadSubmittedTaskDetail;

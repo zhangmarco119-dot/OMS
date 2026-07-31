@@ -17,6 +17,7 @@ describe('navigation hierarchy', () => {
 
   it('maps feature pages to their stable parent menu', () => {
     expect(logicalParentPath('/app/admin/attendance/person-1', 'admin')).toBe('/app/admin/attendance');
+    expect(logicalParentPath('/app/history/task-1', 'staff')).toBe('/app/history');
     expect(logicalParentPath('/app/overtime', 'manager')).toBe('/app/workbench');
     expect(logicalParentPath('/app/account/about', 'admin')).toBe('/app/account');
   });

@@ -28,6 +28,7 @@ import { AnnouncementDetailPage } from './pages/AnnouncementDetailPage';
 import { AppMenuPage } from './pages/AppMenuPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
+import { HistoryTaskDetailPage } from './pages/HistoryTaskDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { MyAttendancePage } from './pages/MyAttendancePage';
 import { MyPayrollPage } from './pages/MyPayrollPage';
@@ -82,6 +83,7 @@ export const router = createBrowserRouter([
       { path: 'sops', element: <SopLibraryPage /> },
       { path: 'sops/:sopId', element: <SopDetailPage /> },
       { path: 'history', element: <HistoryPage /> },
+      { path: 'history/:taskId', element: <HistoryTaskDetailPage /> },
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'attendance', element: <MyAttendancePage /> },
       { path: 'payroll', element: <MyPayrollPage /> },

@@ -61,6 +61,51 @@ describe('AdminV2TasksPage navigation', () => {
     expect(screen.getByRole('checkbox', { name: '创建周期任务时立即发布一次' })).not.toBeChecked();
   });
 
+  it('searches related SOPs in a popup and orders them by latest publication time', async () => {
+    mocks.loadTemplates.mockResolvedValue([{
+      id: 'template-1',
+      name: '新品练习',
+      status: 'published',
+      storeIds: ['store-1'],
+    }]);
+    mocks.loadRelatedContent.mockResolvedValue([
+      {
+        id: 'sop-old',
+        publishedAt: '2026-07-01T09:00:00.000Z',
+        roles: ['staff', 'manager'],
+        storeIds: ['store-1'],
+        subtitle: '酸奶碗',
+        title: '旧版蓝莓碗',
+        type: 'sop',
+      },
+      {
+        id: 'sop-new',
+        publishedAt: '2026-07-30T09:00:00.000Z',
+        roles: ['staff', 'manager'],
+        storeIds: ['store-1'],
+        subtitle: '酸奶碗',
+        title: '新版芒果碗',
+        type: 'sop',
+      },
+    ]);
+
+    render(<MemoryRouter><AdminV2TaskPublishPage /></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText('任务模板'), { target: { value: 'template-1' } });
+    fireEvent.click(screen.getByText('高级选项 · 关联 SOP 或公告'));
+    fireEvent.change(screen.getByLabelText('关联资料类型'), { target: { value: 'sop' } });
+    fireEvent.click(screen.getByRole('button', { name: '请选择关联SOP' }));
+
+    const choices = screen.getAllByRole('button', { name: /版.*碗/ });
+    expect(choices.map((choice) => choice.textContent)).toEqual([
+      expect.stringContaining('新版芒果碗'),
+      expect.stringContaining('旧版蓝莓碗'),
+    ]);
+
+    fireEvent.change(screen.getByPlaceholderText('搜索SOP名称或分类'), { target: { value: '蓝莓' } });
+    expect(screen.getByRole('button', { name: /旧版蓝莓碗/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /新版芒果碗/ })).not.toBeInTheDocument();
+  });
+
   it('separates completed tasks and provides time, store, category, and search filters', async () => {
     const finishedAt = new Date();
     finishedAt.setHours(10, 0, 0, 0);

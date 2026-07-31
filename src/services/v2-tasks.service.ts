@@ -41,6 +41,7 @@ export interface V2TaskRelatedContentSelection {
   type: V2TaskRelatedContentType;
 }
 export interface V2TaskRelatedContentOption extends V2TaskRelatedContentSelection {
+  publishedAt: string;
   roles: ('staff' | 'manager')[];
   storeIds: string[];
   subtitle: string;
@@ -141,10 +142,10 @@ export const loadV2TaskRecipients = async (client: Client): Promise<V2TaskRecipi
 export const loadV2TaskRelatedContentOptions = async (client: Client): Promise<V2TaskRelatedContentOption[]> => {
   const now = new Date().toISOString();
   const [sops, sopStores, sopRoles, notices, noticeStores] = await Promise.all([
-    client.from('v2_sops').select('id,title,category,effective_at').eq('status', 'published').lte('effective_at', now).order('title'),
+    client.from('v2_sops').select('id,title,category,effective_at,published_at').eq('status', 'published').lte('effective_at', now).order('published_at', { ascending: false }),
     client.from('v2_sop_stores').select('sop_id,store_id'),
     client.from('v2_sop_roles').select('sop_id,role'),
-    client.from('v2_notices').select('id,title,expires_at').eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${now}`).order('title'),
+    client.from('v2_notices').select('id,title,expires_at,published_at').eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${now}`).order('published_at', { ascending: false }),
     client.from('v2_notice_stores').select('notice_id,store_id'),
   ]);
   [sops.error, sopStores.error, sopRoles.error, notices.error, noticeStores.error].forEach(fail);
@@ -157,6 +158,7 @@ export const loadV2TaskRelatedContentOptions = async (client: Client): Promise<V
   return [
     ...(sops.data ?? []).map((row) => ({
       id: row.id,
+      publishedAt: row.published_at ?? row.effective_at ?? '',
       roles: sopRoleMap.get(row.id) ?? [],
       storeIds: sopStoreMap.get(row.id) ?? [],
       subtitle: row.category || '标准作业流程',
@@ -165,6 +167,7 @@ export const loadV2TaskRelatedContentOptions = async (client: Client): Promise<V
     })),
     ...(notices.data ?? []).map((row) => ({
       id: row.id,
+      publishedAt: row.published_at ?? '',
       roles: ['staff', 'manager'] as ('staff' | 'manager')[],
       storeIds: noticeStoreMap.get(row.id) ?? [],
       subtitle: '公告',
@@ -215,19 +218,28 @@ export const loadV2TaskScheduleContent = async (client: Client, scheduleId: stri
   if (!value || typeof value.name !== 'string' || value.snapshot === undefined) throw new Error('周期任务内容加载失败。');
   return { name: value.name, snapshot: value.snapshot as Json };
 };
-export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string, managerReviewEnabled = false) => {
-  const { data, error } = await client.rpc('update_v2_task_content_v2', {
+export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string, managerReviewEnabled = false, relatedContent: V2TaskRelatedContentSelection | null = null) => {
+  const { data, error } = await client.rpc('update_v2_task_content_v3', {
     p_due_at: dueAt,
     p_manager_review_enabled: managerReviewEnabled,
     p_name: name,
+    p_related_notice_id: relatedContent?.type === 'notice' ? relatedContent.id : null,
+    p_related_sop_id: relatedContent?.type === 'sop' ? relatedContent.id : null,
     p_snapshot: snapshot,
     p_task_id: taskId,
   });
   fail(error);
   return data;
 };
-export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json) => {
-  const { data, error } = await client.rpc('update_v2_task_schedule_all', { p_fields: fields as unknown as Json, p_name: name, p_schedule_id: scheduleId, p_snapshot: snapshot });
+export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json, relatedContent: V2TaskRelatedContentSelection | null = null) => {
+  const { data, error } = await client.rpc('update_v2_task_schedule_all_v2', {
+    p_fields: fields as unknown as Json,
+    p_name: name,
+    p_related_notice_id: relatedContent?.type === 'notice' ? relatedContent.id : null,
+    p_related_sop_id: relatedContent?.type === 'sop' ? relatedContent.id : null,
+    p_schedule_id: scheduleId,
+    p_snapshot: snapshot,
+  });
   fail(error);
   return data;
 };

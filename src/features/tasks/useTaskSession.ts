@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import {
   findNextPendingIndex,
   getCompletionStats,
+  isItemProcessed,
   normalizeQuantityInput,
   quantityToInputValue,
   type TaskItemRow,
@@ -50,9 +51,11 @@ export const useTaskSession = (taskType: TaskType) => {
 
   const items = sessionData?.items ?? emptyItems;
   const currentItem = items[currentIndex] ?? null;
+  const currentItemRef = useRef(currentItem);
+  currentItemRef.current = currentItem;
   const stats = useMemo(() => getCompletionStats(items), [items]);
-  const processedItems = useMemo(() => items.filter((item) => item.status !== 'pending' || item.quantity !== null), [items]);
-  const pendingItems = useMemo(() => items.filter((item) => item.status === 'pending' && item.quantity === null), [items]);
+  const processedItems = useMemo(() => items.filter(isItemProcessed), [items]);
+  const pendingItems = useMemo(() => items.filter((item) => !isItemProcessed(item)), [items]);
 
   const replaceItem = useCallback((updated: TaskItemRow) => {
     setSessionData((current) => {
@@ -66,6 +69,27 @@ export const useTaskSession = (taskType: TaskType) => {
       };
     });
   }, []);
+
+  const updateQuantityInput = useCallback((value: string) => {
+    setQuantityInput(value);
+
+    if (!sessionData?.task || !currentItem) {
+      return;
+    }
+
+    window.localStorage.setItem(localDraftKey(sessionData.task.id, currentItem.id), value);
+
+    try {
+      const quantity = normalizeQuantityInput(value);
+      replaceItem({
+        ...currentItem,
+        quantity,
+        status: quantity === null ? 'pending' : 'completed',
+      });
+    } catch {
+      // Keep the typed value visible while validation feedback is handled by the save effect.
+    }
+  }, [currentItem, replaceItem, sessionData?.task]);
 
   const loadOrCreate = useCallback(async (forceCreate = false) => {
     const client = supabase;
@@ -117,21 +141,22 @@ export const useTaskSession = (taskType: TaskType) => {
 
   useEffect(() => {
     const client = supabase;
-    if (!client || !sessionData?.task || !currentItem) {
+    const item = currentItemRef.current;
+    if (!client || !sessionData?.task || !item) {
       return undefined;
     }
 
     const timeout = window.setTimeout(() => {
       if (
-        (currentItem.product_action_status === 'deletion_requested'
-          || currentItem.product_action_status === 'deletion_approved')
+        (item.product_action_status === 'deletion_requested'
+          || item.product_action_status === 'deletion_approved')
         && quantityInput.trim() === ''
       ) {
         setSaveStatus('saved');
         return;
       }
 
-      if (currentItem.status === 'no_order_needed' && quantityInput.trim() === '') {
+      if (item.status === 'no_order_needed' && quantityInput.trim() === '') {
         setSaveStatus('saved');
         return;
       }
@@ -145,15 +170,15 @@ export const useTaskSession = (taskType: TaskType) => {
         return;
       }
 
-      const localKey = localDraftKey(sessionData.task.id, currentItem.id);
-      const saveGeneration = (saveGenerationRef.current.get(currentItem.id) ?? 0) + 1;
-      saveGenerationRef.current.set(currentItem.id, saveGeneration);
+      const localKey = localDraftKey(sessionData.task.id, item.id);
+      const saveGeneration = (saveGenerationRef.current.get(item.id) ?? 0) + 1;
+      saveGenerationRef.current.set(item.id, saveGeneration);
       window.localStorage.setItem(localKey, quantityInput);
       setSaveStatus(navigator.onLine ? 'saving' : 'offline');
 
-      updateTaskItemQuantity(client, currentItem, quantity)
+      updateTaskItemQuantity(client, item, quantity)
         .then((updated) => {
-          if (saveGenerationRef.current.get(currentItem.id) !== saveGeneration) {
+          if (saveGenerationRef.current.get(item.id) !== saveGeneration) {
             return;
           }
           window.localStorage.removeItem(localKey);
@@ -168,22 +193,14 @@ export const useTaskSession = (taskType: TaskType) => {
     }, 500);
 
     return () => window.clearTimeout(timeout);
-  }, [currentItem, quantityInput, replaceItem, sessionData?.task]);
-
-  const goToIndex = useCallback((index: number) => {
-    if (index >= 0 && index < items.length) {
-      setCurrentIndex(index);
-    }
-  }, [items.length]);
-
-  const goNextPending = useCallback(() => {
-    const next = findNextPendingIndex(items, currentIndex);
-    if (next === -1) {
-      setMessage('所有货品均已处理。');
-      return;
-    }
-    setCurrentIndex(next);
-  }, [currentIndex, items]);
+  }, [
+    currentItem?.id,
+    currentItem?.product_action_status,
+    currentItem?.status,
+    quantityInput,
+    replaceItem,
+    sessionData?.task,
+  ]);
 
   const addExtraItem = useCallback(async (input: ExtraTaskItemInput) => {
     const client = supabase;
@@ -316,6 +333,27 @@ export const useTaskSession = (taskType: TaskType) => {
     return updated;
   }, [currentItem, quantityInput, replaceItem]);
 
+  const goToIndex = useCallback((index: number) => {
+    if (index < 0 || index >= items.length || index === currentIndex) {
+      return;
+    }
+
+    void saveCurrentQuantityNow().catch((error: unknown) => {
+      setSaveStatus(navigator.onLine ? 'error' : 'offline');
+      setMessage(error instanceof Error ? error.message : '自动保存失败，已保留本地草稿。');
+    });
+    setCurrentIndex(index);
+  }, [currentIndex, items.length, saveCurrentQuantityNow]);
+
+  const goNextPending = useCallback(() => {
+    const next = findNextPendingIndex(items, currentIndex);
+    if (next === -1) {
+      setMessage('所有货品均已处理。');
+      return;
+    }
+    goToIndex(next);
+  }, [currentIndex, goToIndex, items]);
+
   const submitCurrentTask = useCallback(async (exportMeta?: Record<string, Json>) => {
     const client = supabase;
     if (!client || !sessionData?.task) {
@@ -345,8 +383,8 @@ export const useTaskSession = (taskType: TaskType) => {
     quantityInput,
     saveStatus,
     saveCurrentQuantityNow,
-    setCurrentIndex,
-    setQuantityInput,
+    setCurrentIndex: goToIndex,
+    setQuantityInput: updateQuantityInput,
     sessionData,
     stats,
     status,

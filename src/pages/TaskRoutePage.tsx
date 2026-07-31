@@ -459,7 +459,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   <button
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 font-semibold text-slate-700 disabled:text-slate-300"
                     disabled={!canGoPrevious}
-                    onClick={() => task.setCurrentIndex((current) => Math.max(0, current - 1))}
+                    onClick={() => task.setCurrentIndex(Math.max(0, task.currentIndex - 1))}
                     type="button"
                   >
                     <ArrowLeft className="h-5 w-5" aria-hidden="true" />
@@ -468,7 +468,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   <button
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 font-semibold text-slate-700 disabled:text-slate-300"
                     disabled={!canGoNext}
-                    onClick={() => task.setCurrentIndex((current) => Math.min(task.items.length - 1, current + 1))}
+                    onClick={() => task.setCurrentIndex(Math.min(task.items.length - 1, task.currentIndex + 1))}
                     type="button"
                   >
                     下一个

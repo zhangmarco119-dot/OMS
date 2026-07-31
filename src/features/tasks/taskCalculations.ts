@@ -39,10 +39,15 @@ export const asProductSnapshot = (value: Json): ProductSnapshot => {
   };
 };
 
-export const isItemProcessed = (item: Pick<TaskItemRow, 'status' | 'quantity'>) =>
-  item.status !== 'pending' || item.quantity !== null;
+type TaskItemCompletionState = Pick<TaskItemRow, 'status' | 'quantity' | 'product_action_status'>;
 
-export const getCompletionStats = (items: Pick<TaskItemRow, 'status' | 'quantity'>[]): CompletionStats => {
+export const isItemProcessed = (item: TaskItemCompletionState) =>
+  item.product_action_status === 'deletion_requested'
+  || item.product_action_status === 'deletion_approved'
+  || item.status !== 'pending'
+  || item.quantity !== null;
+
+export const getCompletionStats = (items: TaskItemCompletionState[]): CompletionStats => {
   const total = items.length;
   const processed = items.filter(isItemProcessed).length;
   const pending = total - processed;
@@ -52,7 +57,7 @@ export const getCompletionStats = (items: Pick<TaskItemRow, 'status' | 'quantity
 };
 
 export const findNextPendingIndex = (
-  items: Pick<TaskItemRow, 'status' | 'quantity'>[],
+  items: TaskItemCompletionState[],
   currentIndex: number,
 ) => {
   if (items.length === 0) {

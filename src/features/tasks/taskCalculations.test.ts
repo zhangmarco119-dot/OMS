@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { findNextPendingIndex, getCompletionStats, normalizeQuantityInput } from './taskCalculations';
 
-const item = (quantity: number | null, status: 'pending' | 'completed' | 'no_order_needed' = 'pending') => ({
+const item = (
+  quantity: number | null,
+  status: 'pending' | 'completed' | 'no_order_needed' = 'pending',
+  productActionStatus: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | null = null,
+) => ({
+  product_action_status: productActionStatus,
   quantity,
   status,
 });
@@ -18,12 +23,29 @@ describe('task calculations', () => {
     expect(() => normalizeQuantityInput('1.234')).toThrow('两位小数');
   });
 
-  it('counts a deletion-request item as completed even without a quantity', () => {
-    expect(getCompletionStats([item(null), item(0), item(2), item(null, 'no_order_needed'), item(null, 'completed')])).toEqual({
-      total: 5,
-      processed: 4,
+  it('counts explicit zero, completed items, and deletion operations as processed', () => {
+    expect(getCompletionStats([
+      item(null),
+      item(0),
+      item(2),
+      item(null, 'no_order_needed'),
+      item(null, 'completed'),
+      item(null, 'pending', 'deletion_requested'),
+      item(null, 'pending', 'deletion_approved'),
+    ])).toEqual({
+      total: 7,
+      processed: 6,
       pending: 1,
-      percent: 80,
+      percent: 86,
+    });
+  });
+
+  it('keeps a rejected deletion request pending until a quantity is entered', () => {
+    expect(getCompletionStats([item(null, 'pending', 'deletion_ignored')])).toEqual({
+      total: 1,
+      processed: 0,
+      pending: 1,
+      percent: 0,
     });
   });
 

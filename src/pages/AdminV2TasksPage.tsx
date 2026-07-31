@@ -43,6 +43,7 @@ const localDateValue = (value: Date | string = new Date()) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 const completedAt = (task: V2TaskRow) => task.reviewed_at ?? task.submitted_at ?? task.updated_at;
+const isWaitingForScheduledPublication = (task: V2TaskRow) => task.publish_notified_at === null;
 const toDatetimeLocalValue = (iso: string) => {
   const date = new Date(iso);
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -427,7 +428,10 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
       <section className="space-y-3">
         <h2 className="font-bold">{taskView === 'active' ? '任务清单' : '已完成任务'}</h2>
-        {(taskView === 'active' ? activeTasks : filteredCompletedTasks).map((task) => <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex justify-between gap-3"><b>{task.name}</b><span className={`rounded-full px-3 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · {task.status === 'approved' ? `完成 ${new Date(completedAt(task)).toLocaleString('zh-CN')}` : `截止 ${new Date(task.due_at).toLocaleString('zh-CN')}`}{task.schedule_id ? ' · 周期任务' : ''}</p></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>)}
+        {(taskView === 'active' ? activeTasks : filteredCompletedTasks).map((task) => {
+          const waitingForPublication = isWaitingForScheduledPublication(task);
+          return <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex justify-between gap-3"><b>{task.name}</b><span className={`rounded-full px-3 py-1 text-xs font-bold ${waitingForPublication ? 'bg-amber-100 text-amber-800' : v2TaskStatusClass[task.status]}`}>{waitingForPublication ? '待定时发布' : task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · {task.status === 'approved' ? `完成 ${new Date(completedAt(task)).toLocaleString('zh-CN')}` : waitingForPublication ? `定时发布 ${new Date(task.publish_at).toLocaleString('zh-CN')} · 截止 ${new Date(task.due_at).toLocaleString('zh-CN')}` : `截止 ${new Date(task.due_at).toLocaleString('zh-CN')}`}{task.schedule_id ? ' · 周期任务' : ''}</p></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>;
+        })}
         {(taskView === 'active' ? activeTasks : filteredCompletedTasks).length === 0 ? <p className="ui-card p-4 text-sm text-slate-500">{taskView === 'active' ? '当前没有进行中的任务。' : '当前筛选条件下没有已完成任务。'}</p> : null}
       </section>
     </> : null}

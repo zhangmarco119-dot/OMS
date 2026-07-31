@@ -110,6 +110,30 @@ describe('AdminV2TasksPage navigation', () => {
     expect(screen.getByLabelText('搜索任务')).toBeInTheDocument();
   });
 
+  it('shows the exact planned time for a single task waiting for scheduled publication', async () => {
+    mocks.loadTasks.mockResolvedValue([{
+      assigned_profile_id: null,
+      category: 'closing',
+      due_at: '2026-08-01T14:00:00.000Z',
+      id: 'scheduled-task',
+      name: '定时打烊检查',
+      publish_at: '2026-08-01T10:30:00.000Z',
+      publish_notified_at: null,
+      reviewed_at: null,
+      schedule_id: null,
+      status: 'pending',
+      store_id: 'store-1',
+      submitted_at: null,
+      task_no: 'TASK-SCHEDULED',
+      updated_at: '2026-07-31T10:00:00.000Z',
+    }]);
+
+    render(<MemoryRouter><AdminV2TasksPage /></MemoryRouter>);
+
+    expect(await screen.findByText('待定时发布')).toBeInTheDocument();
+    expect(screen.getByText(/定时发布 2026\/8\/1 18:30:00/)).toBeInTheDocument();
+  });
+
   it('keeps the completed-task view and filters when the task list is opened again', async () => {
     const finishedAt = new Date();
     mocks.loadTasks.mockResolvedValue([{

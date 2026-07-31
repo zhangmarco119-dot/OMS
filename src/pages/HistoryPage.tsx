@@ -57,6 +57,9 @@ export function HistoryPage() {
   const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
   const detailRequestRef = useRef(0);
   const isAdmin = auth.profile?.role === 'admin';
+  const selectedDeletedItemCount = selected?.task.task_type === 'inventory'
+    ? selected.items.filter((item) => item.product_action_status === 'deletion_approved').length
+    : 0;
 
   useEffect(() => { if (searchParams.get('view') === 'feedback') setAdminView('feedback'); }, [searchParams, setAdminView]);
 
@@ -196,6 +199,9 @@ export function HistoryPage() {
                 </div>
                 {selected.items.map((item, index) => {
                   const snapshot = asProductSnapshot(item.product_snapshot);
+                  const isConfirmedDeletion = item.product_action_status === 'deletion_approved';
+                  const startsDeletedSection = isConfirmedDeletion
+                    && (index === 0 || selected.items[index - 1]?.product_action_status !== 'deletion_approved');
                   const actionStatus = item.product_action_status === 'deletion_requested'
                     ? '申请删除'
                     : item.product_action_status === 'deletion_approved'
@@ -207,11 +213,24 @@ export function HistoryPage() {
                     ? '-'
                     : item.quantity ?? '-';
                   return (
-                    <div className="grid grid-cols-[minmax(9rem,1.7fr)_4.5rem_5.5rem_minmax(5rem,1fr)] items-center gap-1 border-t border-slate-100 px-2 py-2" key={item.id}>
-                      <span className="truncate font-semibold text-slate-900" title={`${index + 1}. ${snapshot.name} · ${snapshot.spec}`}>{index + 1}. {snapshot.name} · <span className="font-normal text-slate-500">{snapshot.spec || '无规格'}</span></span>
-                      <span className="font-semibold text-slate-800">{quantity}{item.quantity === null ? '' : ` ${snapshot.count_unit}`}</span>
-                      <span className="truncate text-slate-600" title={`${itemStatusLabel(item.status, selected.task.task_type)} ${actionStatus}`}>{actionStatus || itemStatusLabel(item.status, selected.task.task_type)}</span>
-                      <span className="truncate text-slate-500" title={item.staff_note ?? ''}>{item.staff_note || (item.is_extra_item ? '本次新增货品' : '-')}</span>
+                    <div key={item.id}>
+                      {startsDeletedSection ? (
+                        <div className="border-t border-slate-200 bg-slate-200/70 px-3 py-2 text-xs font-bold text-slate-700">
+                          以下为本次盘点中已确认删除的货品（{selectedDeletedItemCount}）
+                        </div>
+                      ) : null}
+                      <div className={`grid grid-cols-[minmax(9rem,1.7fr)_4.5rem_5.5rem_minmax(5rem,1fr)] items-center gap-1 border-t border-slate-100 px-2 py-2 ${isConfirmedDeletion ? 'bg-slate-50' : 'bg-white'}`}>
+                        <span className="min-w-0">
+                          <span className="flex min-w-0 items-center gap-1">
+                            <span className="truncate font-semibold text-slate-900" title={`${index + 1}. ${snapshot.name}`}>{index + 1}. {snapshot.name}</span>
+                            {item.is_extra_item ? <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">本次新增</span> : null}
+                          </span>
+                          <span className="mt-0.5 block truncate font-normal text-slate-500" title={snapshot.spec}>{snapshot.spec || '无规格'}</span>
+                        </span>
+                        <span className="font-semibold text-slate-800">{quantity}{item.quantity === null ? '' : ` ${snapshot.count_unit}`}</span>
+                        <span className="truncate text-slate-600" title={`${itemStatusLabel(item.status, selected.task.task_type)} ${actionStatus}`}>{actionStatus || itemStatusLabel(item.status, selected.task.task_type)}</span>
+                        <span className="truncate text-slate-500" title={item.staff_note ?? ''}>{item.staff_note || (item.is_extra_item ? '本次新增货品' : '-')}</span>
+                      </div>
                     </div>
                   );
                 })}

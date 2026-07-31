@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/database';
 import type { TaskType } from '../../types/domain';
 import { getV1HistoryScope } from '../access/roleCapabilities';
-import { loadTaskWithItems } from '../tasks/taskService';
+import { loadTaskWithItems, type TaskWithItems } from '../tasks/taskService';
 
 type Client = SupabaseClient<Database>;
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
@@ -149,12 +149,22 @@ export const markSubmittedTasksRead = async (
   }
 };
 
+export const orderSubmittedInventoryItems = (items: TaskWithItems['items']) => [
+  ...items.filter((item) => item.product_action_status !== 'deletion_approved'),
+  ...items.filter((item) => item.product_action_status === 'deletion_approved'),
+];
+
 export const loadSubmittedTaskDetail = async (client: Client, taskId: string) => {
   const result = await loadTaskWithItems(client, taskId);
   if (result.task.status !== 'submitted') {
     throw new Error('只能查看已提交单据。');
   }
-  return result;
+  return {
+    ...result,
+    items: result.task.task_type === 'inventory'
+      ? orderSubmittedInventoryItems(result.items)
+      : result.items,
+  };
 };
 
 export const loadSubmittedTaskForExport = loadSubmittedTaskDetail;

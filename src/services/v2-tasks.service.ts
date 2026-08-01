@@ -35,6 +35,7 @@ export interface V2TaskScheduleFields {
 }
 export interface V2TaskScheduleContent { name: string; snapshot: Json }
 export type TaskAudience = 'staff' | 'manager' | 'part_time';
+export type V2TaskCompletionMode = 'shared' | 'single' | 'individual';
 export type V2TaskRelatedContentType = 'sop' | 'notice';
 export interface V2TaskRelatedContentSelection {
   id: string;
@@ -49,7 +50,7 @@ export interface V2TaskRelatedContentOption extends V2TaskRelatedContentSelectio
 }
 export type V2TaskRecipient = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'employment_type' | 'id' | 'role' | 'store_id' | 'username'>;
 export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; minimum_image_count?: number | null; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
-export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; task: V2TaskRow }
+export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; submitterName?: string | null; task: V2TaskRow }
 export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
 export interface V2TaskAnswerPosition { groupNumber: number; groupTitle: string; itemNumber: number; number: string }
 export type V2TaskItemDecision = { decision: 'approved' | 'rejected'; itemId: string };
@@ -114,7 +115,14 @@ export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<
     client.from('v2_task_reviews').select('*').eq('task_id', taskId).order('created_at'),
   ]); fail(task.error); fail(answers.error); fail(images.error); fail(reviews.error);
   if (!task.data) throw new Error('任务不存在或无权查看。');
-  return { answers: orderV2TaskAnswers(task.data.snapshot, answers.data ?? []), images: images.data ?? [], reviews: reviews.data ?? [], task: task.data };
+  let submitterName: string | null = null;
+  const submitterId = task.data.submitted_by ?? task.data.started_by;
+  if (submitterId) {
+    const submitter = await client.from('profiles').select('display_name').eq('id', submitterId).maybeSingle();
+    fail(submitter.error);
+    submitterName = submitter.data?.display_name ?? null;
+  }
+  return { answers: orderV2TaskAnswers(task.data.snapshot, answers.data ?? []), images: images.data ?? [], reviews: reviews.data ?? [], submitterName, task: task.data };
 };
 export const canReviewV2Task = async (client: Client, taskId: string) => {
   const { data, error } = await client.rpc('can_review_v2_task', { p_task_id: taskId });
@@ -230,6 +238,16 @@ export const updateV2TaskContent = async (client: Client, taskId: string, name: 
   });
   fail(error);
   return data;
+};
+export const updateV2TaskRecipients = async (client: Client, taskId: string, mode: V2TaskCompletionMode, profileIds: string[], targetAudiences: TaskAudience[]) => {
+  const { data, error } = await client.rpc('update_v2_task_recipients', {
+    p_mode: mode,
+    p_profile_ids: profileIds,
+    p_target_audiences: targetAudiences,
+    p_task_id: taskId,
+  });
+  fail(error);
+  return data ?? [];
 };
 export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json, relatedContent: V2TaskRelatedContentSelection | null = null) => {
   const { data, error } = await client.rpc('update_v2_task_schedule_all_v2', {

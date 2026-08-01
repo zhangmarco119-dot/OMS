@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../types/database';
-import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, updateV2TaskContent, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow } from './v2-tasks.service';
+import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow } from './v2-tasks.service';
 
 describe('V2 task workflow service', () => {
   it('publishes immutable template tasks through RPC', async () => {
@@ -23,6 +23,16 @@ describe('V2 task workflow service', () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client, 'template-1', ['store-1'], '2026-07-20T12:00:00Z', '2026-07-20T09:00:00Z', ['profile-1']);
     expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v3', expect.objectContaining({ p_profile_ids: ['profile-1'] }));
+  });
+  it('updates an unstarted published task to independent per-person completion', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
+    await updateV2TaskRecipients(client, 'task-1', 'individual', ['profile-1', 'profile-2'], ['staff', 'manager']);
+    expect(rpc).toHaveBeenCalledWith('update_v2_task_recipients', {
+      p_mode: 'individual',
+      p_profile_ids: ['profile-1', 'profile-2'],
+      p_target_audiences: ['staff', 'manager'],
+      p_task_id: 'task-1',
+    });
   });
   it('lets administrators opt part-time employees into a store-wide task', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;

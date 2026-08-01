@@ -128,7 +128,7 @@ export function AdminV2TaskReviewPage() {
     {detail ? <>
       <section className="ui-card p-4">
         <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-700">{detail.task.task_no}</p><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[detail.task.status]}`}>{v2TaskStatusLabel[detail.task.status]}</span></div>
-        <p className="mt-2 text-sm text-slate-500">截止 {new Date(detail.task.due_at).toLocaleString('zh-CN')}</p>
+        <p className="mt-2 text-sm text-slate-500">截止 {new Date(detail.task.due_at).toLocaleString('zh-CN')}{detail.submitterName ? ` · 提交人：${detail.submitterName}` : ''}</p>
         {detail.task.status === 'resubmitted' ? <FeedbackBanner className="mt-3" title="整改内容已重新提交" tone="info">本轮只需复审标有“重新提交”的项目，其他项目保留原审核结果。</FeedbackBanner> : null}
         {detail.task.manager_review_enabled ? <p className="mt-2 rounded-lg bg-brand-50 px-3 py-2 text-xs leading-5 text-brand-800">员工提交可由本门店店长或管理员审核；店长提交仍只允许管理员审核。</p> : null}
         {!isReviewable && ['submitted', 'resubmitted'].includes(detail.task.status) ? <FeedbackBanner className="mt-3" title="等待管理员审核" tone="info">该任务由店长提交，或发布时未开放店长审核，当前账号只能查看。</FeedbackBanner> : null}

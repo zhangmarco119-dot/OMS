@@ -65,7 +65,7 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [approvedAnswer, resubmittedAnswer], images: [], reviews: [], task } as V2TaskDetail);
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [approvedAnswer, resubmittedAnswer], images: [], reviews: [], submitterName: '刘成跃', task } as V2TaskDetail);
     vi.mocked(loadV2TaskImageUrls).mockResolvedValue({});
     vi.mocked(loadV2TaskReferenceImageUrls).mockResolvedValue({});
     vi.mocked(reviewV2TaskItems).mockResolvedValue({});
@@ -75,6 +75,7 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
     render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
 
     expect(await screen.findByText('重新提交 · 待复审')).toBeInTheDocument();
+    expect(screen.getByText(/提交人：刘成跃/)).toBeInTheDocument();
     expect(screen.getByText('已通过 · 无需复审')).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /门头清洁/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '所选通过' })).not.toBeInTheDocument();

@@ -38,6 +38,7 @@ export interface AdminArrivalListFilters {
 }
 
 export type AdminArrivalListItem = AdminArrivalReport & {
+  allProductsMatched: boolean;
   itemSummary: string;
   productTypeCount: number;
   thumbnailUrl: string | null;
@@ -203,7 +204,7 @@ export const loadAdminArrivalList = async (client: Client, filters: AdminArrival
   if (!reports.length) return { count: count ?? 0, reports: [] as AdminArrivalListItem[] };
   const reportIds = reports.map((report) => report.id);
   const [itemsResult, imagesResult] = await Promise.all([
-    client.from('arrival_report_items').select('report_id,product_name_snapshot,quantity,unit').in('report_id', reportIds).order('sort_order'),
+    client.from('arrival_report_items').select('report_id,product_id,is_unmatched_product,product_name_snapshot,quantity,unit').in('report_id', reportIds).order('sort_order'),
     client.from('arrival_report_images').select('*').in('report_id', reportIds).order('created_at'),
   ]);
   throwIfError(itemsResult.error);
@@ -221,6 +222,7 @@ export const loadAdminArrivalList = async (client: Client, filters: AdminArrival
     const image = firstImageByReport.get(report.id);
     return {
       ...report,
+      allProductsMatched: items.length > 0 && items.every((item) => Boolean(item.product_id) && !item.is_unmatched_product),
       itemSummary: itemSummary.text,
       productTypeCount: itemSummary.count,
       thumbnailUrl: image ? await createSignedUrl(client, image.object_path) : null,

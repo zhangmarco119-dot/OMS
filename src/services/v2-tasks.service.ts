@@ -36,7 +36,7 @@ export interface V2TaskScheduleFields {
 }
 export interface V2TaskScheduleContent { name: string; snapshot: Json }
 export type TaskAudience = 'staff' | 'manager' | 'part_time';
-export type V2TaskCompletionMode = 'shared' | 'single' | 'individual';
+export type V2TaskCompletionMode = 'shared' | 'single' | 'selected' | 'individual';
 export type V2TaskRelatedContentType = 'sop' | 'notice';
 export interface V2TaskRelatedContentSelection {
   id: string;
@@ -254,7 +254,10 @@ export const updateV2TaskRecipients = async (client: Client, taskId: string, mod
   const source = await client.from('v2_tasks').select('requires_inventory,inventory_category_codes').eq('id', taskId).single();
   fail(source.error);
   const { data, error } = await client.rpc('update_v2_task_recipients', {
-    p_mode: mode,
+    // The database represents both all-in-scope and explicitly selected
+    // per-person releases as independent assignee rows. `selected` is the UI
+    // distinction; the guarded RPC intentionally reuses that stable model.
+    p_mode: mode === 'selected' ? 'individual' : mode,
     p_profile_ids: profileIds,
     p_target_audiences: targetAudiences,
     p_task_id: taskId,

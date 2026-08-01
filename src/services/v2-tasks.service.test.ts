@@ -38,6 +38,20 @@ describe('V2 task workflow service', () => {
       p_task_id: 'task-1',
     });
   });
+  it('updates an unstarted published task for multiple explicitly selected people', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    const single = vi.fn().mockResolvedValue({ data: { inventory_category_codes: [], requires_inventory: false }, error: null });
+    const eq = vi.fn(() => ({ single }));
+    const select = vi.fn(() => ({ eq }));
+    const client = { from: vi.fn(() => ({ select })), rpc } as unknown as SupabaseClient<Database>;
+    await updateV2TaskRecipients(client, 'task-1', 'selected', ['profile-1', 'profile-2'], ['staff', 'manager']);
+    expect(rpc).toHaveBeenCalledWith('update_v2_task_recipients', {
+      p_mode: 'individual',
+      p_profile_ids: ['profile-1', 'profile-2'],
+      p_target_audiences: ['staff', 'manager'],
+      p_task_id: 'task-1',
+    });
+  });
   it('lets administrators opt part-time employees into a store-wide task', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client, 'template-1', ['store-1'], '2026-07-20T12:00:00Z', '2026-07-20T09:00:00Z', [], ['staff', 'part_time']);

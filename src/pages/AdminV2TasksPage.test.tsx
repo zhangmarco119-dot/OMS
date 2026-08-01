@@ -61,6 +61,21 @@ describe('AdminV2TasksPage navigation', () => {
     expect(screen.getByRole('checkbox', { name: '创建周期任务时立即发布一次' })).not.toBeChecked();
   });
 
+  it('lets administrators explicitly select multiple people for independent completion', async () => {
+    mocks.loadRecipients.mockResolvedValue([
+      { display_name: '员工甲', employment_type: 'full_time', id: 'profile-1', role: 'staff', store_id: 'store-1', username: 'staff-a' },
+      { display_name: '店长乙', employment_type: 'full_time', id: 'profile-2', role: 'manager', store_id: 'store-2', username: 'manager-b' },
+    ]);
+
+    render(<MemoryRouter><AdminV2TaskPublishPage /></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText('完成方式'), { target: { value: 'selected' } });
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择员工甲' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择店长乙' }));
+
+    expect(screen.getByText('已选择 2 人；系统会为每个人分别创建独立任务。')).toBeInTheDocument();
+  });
+
   it('searches related SOPs in a popup and orders them by latest publication time', async () => {
     mocks.loadTemplates.mockResolvedValue([{
       id: 'template-1',
@@ -180,6 +195,31 @@ describe('AdminV2TasksPage navigation', () => {
 
     expect(await screen.findByText('待定时发布')).toBeInTheDocument();
     expect(screen.getByText(/定时发布 2026\/8\/1 18:30:00/)).toBeInTheDocument();
+  });
+
+  it('shows the submitter in small text on a pending-review task card', async () => {
+    mocks.loadRecipients.mockResolvedValue([{ display_name: '员工甲', employment_type: 'full_time', id: 'profile-1', role: 'staff', store_id: 'store-1', username: 'staff-a' }]);
+    mocks.loadTasks.mockResolvedValue([{
+      assigned_profile_id: 'profile-1',
+      category: 'closing',
+      due_at: '2026-08-03T14:00:00.000Z',
+      id: 'submitted-task',
+      name: '闭店检查',
+      publish_at: '2026-08-02T10:00:00.000Z',
+      publish_notified_at: '2026-08-02T10:00:00.000Z',
+      reviewed_at: null,
+      schedule_id: null,
+      status: 'submitted',
+      store_id: 'store-1',
+      submitted_at: '2026-08-02T12:00:00.000Z',
+      submitted_by: 'profile-1',
+      task_no: 'TASK-REVIEW',
+      updated_at: '2026-08-02T12:00:00.000Z',
+    }]);
+
+    render(<MemoryRouter><AdminV2TasksPage /></MemoryRouter>);
+
+    expect(await screen.findByText('提交人：员工甲')).toHaveClass('text-xs');
   });
 
   it('keeps the completed-task view and filters when the task list is opened again', async () => {

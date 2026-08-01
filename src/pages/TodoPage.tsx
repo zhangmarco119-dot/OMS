@@ -10,7 +10,7 @@ import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
-import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
+import { loadV2TaskRecipients, loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { completeAttendanceCorrectionTodo, loadMyAttendanceCorrectionTodos, loadMyPayrollPayslipTodos, loadTodoSummary } from '../services/todo.service';
 import { loadAllOvertimeRequests, loadManagerOvertimeRequests, loadOvertimeProfiles } from '../services/payroll.service';
@@ -34,11 +34,12 @@ export function TodoPage() {
   const [feedbackBatchAction, setFeedbackBatchAction] = useState<'acknowledge' | 'confirm_delete' | null>(null);
   const [feedbackBatchBusy, setFeedbackBatchBusy] = useState(false);
   const [productCreationRequests, setProductCreationRequests] = useState<ProductCreationRequestRecord[]>([]);
+  const [taskSubmitterNames, setTaskSubmitterNames] = useState<Record<string, string>>({});
   const [creationReview, setCreationReview] = useState<{ approve: boolean; id: string } | null>(null);
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
-      const [nextTasks, summary, nextNotices, nextFeedback, nextOvertime, nextCorrections, nextPayslips, nextCreationRequests] = await Promise.all([
+      const [nextTasks, summary, nextNotices, nextFeedback, nextOvertime, nextCorrections, nextPayslips, nextCreationRequests, nextTaskRecipients] = await Promise.all([
         loadV2Tasks(supabase, isAdmin || isManager ? undefined : auth.store?.id),
         loadTodoSummary(supabase, { isAdmin, isManager, profileId: auth.profile?.id ?? '', storeId: auth.store?.id, storeIds: auth.availableStores.map((store) => store.id) }),
         isAdmin ? Promise.resolve([] as NoticeListItem[]) : loadNotices(supabase),
@@ -47,6 +48,7 @@ export function TodoPage() {
         !isAdmin && auth.profile?.id ? loadMyAttendanceCorrectionTodos(supabase, auth.profile.id) : Promise.resolve([]),
         !isAdmin && auth.profile?.id ? loadMyPayrollPayslipTodos(supabase, auth.profile.id) : Promise.resolve([]),
         isAdmin || isManager ? loadProductCreationRequests(isManager ? auth.availableStores.map((store) => store.id) : undefined) : Promise.resolve([]),
+        isAdmin || isManager ? loadV2TaskRecipients(supabase) : Promise.resolve([]),
       ]);
       const overtimeProfiles = await loadOvertimeProfiles(supabase, nextOvertime.map((item) => item.profile_id));
       const profileMap = Object.fromEntries(overtimeProfiles.map((profile) => [profile.id, profile]));
@@ -60,6 +62,7 @@ export function TodoPage() {
       }));
       setFeedbackCount(summary.productFeedback); setFeedback(nextFeedback.filter((item) => item.feedback.status === 'open')); setNotices(nextNotices.filter((notice) => notice.requires_acknowledgment && notice.recipients.some((recipient) => recipient.profileId === auth.profile?.id && !recipient.acknowledgedAt))); setOvertime(approvableOvertime); setOvertimeNames(Object.fromEntries(overtimeProfiles.map((profile) => [profile.id, profile.display_name]))); setOvertimeTerms(Object.fromEntries(overtimeProfiles.map((profile) => [profile.id, profile.employment_type === 'part_time' ? '兼职工时' : '加班']))); setCorrections(nextCorrections); setPayslips(nextPayslips); setMessage(null);
       setProductCreationRequests(nextCreationRequests);
+      setTaskSubmitterNames(Object.fromEntries(nextTaskRecipients.map((profile) => [profile.id, profile.display_name])));
     } catch (error) { setMessage(error instanceof Error ? error.message : '加载待办失败。'); }
   }, [auth.availableStores, auth.profile?.id, auth.store?.id, isAdmin, isManager]);
   useEffect(() => { void load(); }, [load]);
@@ -147,7 +150,7 @@ export function TodoPage() {
     {overtime.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工时审批</h2>{overtime.map((item) => <Link className="ui-card ui-interactive block p-4" key={item.id} to={isAdmin ? '/app/admin/payroll?tab=overtime' : '/app/overtime?tab=submit'}><div className="flex items-start justify-between gap-3"><b>{overtimeNames[item.profile_id] ?? '员工'} · {overtimeTerms[item.profile_id] ?? '加班'} · {item.overtime_date} · {item.hours} 小时</b><StatusBadge tone="warning">待审批</StatusBadge></div>{item.reason ? <p className="mt-2 text-sm text-slate-500">{item.reason}</p> : null}</Link>)}</section> : null}
     {corrections.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">补卡提醒</h2>{corrections.map((item) => <article className="ui-card p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{item.attendance_date} · {item.missing_punch === 'on' ? '缺上班卡' : item.missing_punch === 'off' ? '缺下班卡' : '上下班均缺卡'}</b><p className="mt-1 text-xs text-slate-500">截止：{new Date(item.due_at).toLocaleString('zh-CN')} · 请在钉钉提交补卡</p>{item.missing_punch === 'on' || item.missing_punch === 'both' ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">请按实际到岗时间补上班卡，切勿虚假填报！</p> : null}</div><StatusBadge tone="danger">待补卡</StatusBadge></div><label className="mt-3 flex min-h-11 cursor-pointer items-center rounded-lg bg-emerald-50 px-3 text-sm font-bold text-emerald-900"><input className="mr-2 h-4 w-4" onChange={() => void completeCorrection(item.id)} type="checkbox" />我已提交补卡，完成提醒</label></article>)}</section> : null}
     {payslips.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工资单确认</h2>{payslips.map((item) => <Link className="ui-card ui-interactive block border-brand-200 p-4" key={item.id} to={`/app/payroll?tab=payslips&payslip=${item.id}`}><div className="flex items-start justify-between gap-3"><div><b>{item.payroll_month.slice(0, 4)}年{Number(item.payroll_month.slice(5, 7))}月工资单</b><p className="mt-1 text-sm text-slate-500">请核对工资明细并确认工资单内容。</p></div><StatusBadge tone="warning">待确认</StatusBadge></div></Link>)}</section> : null}
-    {tasks.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">任务待办</h2>{tasks.map((task) => { const reviewTask = isAdmin || (isManager && ['submitted', 'resubmitted'].includes(task.status)); return <Link className="ui-card ui-interactive block p-4" key={task.id} to={reviewTask ? `/app/admin/tasks/${task.id}` : `/app/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b className="min-w-0 line-clamp-2">{task.name}</b><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">截止：{new Date(task.due_at).toLocaleString('zh-CN')}</p>{reviewTask && isManager ? <p className="mt-1 text-xs font-semibold text-brand-700">员工提交 · 等待店长或管理员审核</p> : null}{task.status === 'rejected' ? <FeedbackBanner className="mt-2" title="需要整改" tone="danger">{task.review_note || '请打开任务查看整改项目。'}</FeedbackBanner> : null}</Link>; })}</section> : null}
+    {tasks.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">任务待办</h2>{tasks.map((task) => { const reviewTask = isAdmin || (isManager && ['submitted', 'resubmitted'].includes(task.status)); const submitterName = task.submitted_by ? taskSubmitterNames[task.submitted_by] ?? '已提交账号' : ''; return <Link className="ui-card ui-interactive block p-4" key={task.id} to={reviewTask ? `/app/admin/tasks/${task.id}` : `/app/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b className="min-w-0 line-clamp-2">{task.name}</b><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">截止：{new Date(task.due_at).toLocaleString('zh-CN')}</p>{reviewTask && submitterName ? <p className="mt-1 text-xs text-slate-500">提交人：{submitterName}</p> : null}{reviewTask && isManager ? <p className="mt-1 text-xs font-semibold text-brand-700">员工提交 · 等待店长或管理员审核</p> : null}{task.status === 'rejected' ? <FeedbackBanner className="mt-2" title="需要整改" tone="danger">{task.review_note || '请打开任务查看整改项目。'}</FeedbackBanner> : null}</Link>; })}</section> : null}
     {tasks.length === 0 && feedbackCount === 0 && productCreationRequests.length === 0 && notices.length === 0 && overtime.length === 0 && corrections.length === 0 && payslips.length === 0 ? <EmptyState description="新的任务审核、货品申请、补卡提醒、工资单确认、工时审批或需确认公告会显示在这里。" icon={CheckCircle2} title="当前没有待办" /> : null}
     <ConfirmDialog confirmLabel={feedbackBatchAction === 'confirm_delete' ? '一键同意删除' : '一键标记已读'} danger={feedbackBatchAction === 'confirm_delete'} onCancel={() => setFeedbackBatchAction(null)} onConfirm={() => void runFeedbackBatch()} open={Boolean(feedbackBatchAction)} title={feedbackBatchAction === 'confirm_delete' ? '确认批量删除货品' : '确认批量已读'}>
       <p>{feedbackBatchAction === 'confirm_delete'

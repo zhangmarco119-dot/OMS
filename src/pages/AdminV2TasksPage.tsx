@@ -197,6 +197,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [recipientMode, setRecipientMode] = useState<V2TaskCompletionMode>('shared');
   const [targetAudiences, setTargetAudiences] = useState<TaskAudience[]>(['staff', 'manager']);
   const [selectedProfileId, setSelectedProfileId] = useState('');
+  const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
   const [relatedContentType, setRelatedContentType] = useState<'none' | V2TaskRelatedContentType>('none');
   const [relatedContentId, setRelatedContentId] = useState('');
   const [inventoryLinkEnabled, setInventoryLinkEnabled] = useState(false);
@@ -215,6 +216,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [editingCompletionMode, setEditingCompletionMode] = useState<V2TaskCompletionMode>('shared');
   const [editingTargetAudiences, setEditingTargetAudiences] = useState<TaskAudience[]>(['staff', 'manager']);
   const [editingProfileId, setEditingProfileId] = useState('');
+  const [editingProfileIds, setEditingProfileIds] = useState<string[]>([]);
   const [scheduleContentEditorOpen, setScheduleContentEditorOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -244,9 +246,21 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const selectedTemplate = useMemo(() => templates.find((item) => item.id === templateId) ?? null, [templateId, templates]);
   const selectedRecipient = recipients.find((item) => item.id === selectedProfileId);
   const selectedRecipientAudience: TaskAudience | null = selectedRecipient ? recipientAudience(selectedRecipient) : null;
+  const selectedRecipients = useMemo(
+    () => recipients.filter((recipient) => selectedProfileIds.includes(recipient.id)),
+    [recipients, selectedProfileIds],
+  );
+  const selectedRecipientAudiences = useMemo(
+    () => [...new Set(selectedRecipients.map(recipientAudience))],
+    [selectedRecipients],
+  );
   const effectiveAudiences = useMemo(
-    () => recipientMode === 'single' && selectedRecipientAudience ? [selectedRecipientAudience] : targetAudiences,
-    [recipientMode, selectedRecipientAudience, targetAudiences],
+    () => recipientMode === 'single' && selectedRecipientAudience
+      ? [selectedRecipientAudience]
+      : recipientMode === 'selected'
+        ? selectedRecipientAudiences
+        : targetAudiences,
+    [recipientMode, selectedRecipientAudience, selectedRecipientAudiences, targetAudiences],
   );
   const matchingRecipientIds = useMemo(() => recipients
     .filter((recipient) => storeIds.includes(recipient.store_id ?? '') && effectiveAudiences.includes(recipientAudience(recipient)))
@@ -307,8 +321,9 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     if (!supabase) return;
     if (!selectedTemplate) return setMessage('请先选择已发布的任务模板。');
     if (!storeIds.length) return setMessage('请至少选择一个门店。');
-    if (recipientMode !== 'single' && !targetAudiences.length) return setMessage('请至少勾选一个接收范围。');
+    if (!['single', 'selected'].includes(recipientMode) && !targetAudiences.length) return setMessage('请至少勾选一个接收范围。');
     if (recipientMode === 'single' && !selectedProfileId) return setMessage('请选择单独接收任务的员工、店长或兼职。');
+    if (recipientMode === 'selected' && selectedProfileIds.length < 2) return setMessage('请至少选择两位需要分别完成任务的人员。');
     if (recipientMode === 'individual' && !matchingRecipientIds.length) return setMessage('当前门店和接收范围内没有可接收任务的人员。');
     const relatedContent = relatedContentType === 'none' ? null : compatibleRelatedContentOptions.find((item) => item.id === relatedContentId) ?? null;
     if (relatedContentType !== 'none' && !relatedContent) return setMessage('请选择与当前任务门店和接收角色匹配的已发布关联资料。');
@@ -326,7 +341,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     setBusy(true);
     try {
       const audiences = effectiveAudiences;
-      const profileIds = recipientMode === 'single' ? [selectedProfileId] : recipientMode === 'individual' ? matchingRecipientIds : [];
+      const profileIds = recipientMode === 'single' ? [selectedProfileId] : recipientMode === 'selected' ? selectedProfileIds : recipientMode === 'individual' ? matchingRecipientIds : [];
       const inventoryLink = { categoryCodes: inventoryCategoryCodes, enabled: inventoryLinkEnabled };
       if (creationMode === 'single') await publishV2Tasks(supabase, templateId, storeIds, new Date(due).toISOString(), effectivePublishAt.toISOString(), profileIds, audiences, fields.managerReviewEnabled, relatedContent, inventoryLink);
       else await createV2TaskSchedule(supabase, { ...fields, inventoryLink, profileIds, publishImmediately, relatedContent, storeIds, targetAudiences: audiences, templateId });
@@ -388,6 +403,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       setEditingCompletionMode(task.assigned_profile_id ? 'single' : 'shared');
       setEditingTargetAudiences((task.target_audiences ?? ['staff', 'manager']) as TaskAudience[]);
       setEditingProfileId(task.assigned_profile_id ?? '');
+      setEditingProfileIds(task.assigned_profile_id ? [task.assigned_profile_id] : []);
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务内容加载失败'); }
     finally { setBusy(false); }
   };
@@ -459,19 +475,25 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     if (editingInventoryLinkEnabled && !editingInventoryCategoryCodes.length) return setMessage('关联点货时请至少选择一个货品分类。');
     const editProfileIds = editingCompletionMode === 'single'
       ? [editingProfileId]
+      : editingCompletionMode === 'selected'
+        ? editingProfileIds
       : editingCompletionMode === 'individual'
         ? recipients.filter((recipient) => recipient.store_id === editingTask.store_id && editingTargetAudiences.includes(recipientAudience(recipient))).map((recipient) => recipient.id)
         : [];
     if (editingCompletionMode === 'single' && !editingProfileId) return setMessage('请选择一位任务接收人。');
-    if (editingCompletionMode !== 'single' && !editingTargetAudiences.length) return setMessage('请至少勾选一个接收范围。');
+    if (editingCompletionMode === 'selected' && editingProfileIds.length < 2) return setMessage('请至少选择两位需要分别完成任务的人员。');
+    if (!['single', 'selected'].includes(editingCompletionMode) && !editingTargetAudiences.length) return setMessage('请至少勾选一个接收范围。');
     if (editingCompletionMode === 'individual' && !editProfileIds.length) return setMessage('当前门店和接收范围内没有可接收任务的人员。');
     const singleRecipient = recipients.find((recipient) => recipient.id === editingProfileId);
+    const editSelectedAudiences = [...new Set(recipients.filter((recipient) => editingProfileIds.includes(recipient.id)).map(recipientAudience))];
     setBusy(true);
     try {
       await updateV2TaskContent(supabase, editingTask.id, contentDraft.name, taskContentToSnapshot(contentDraft), new Date(editingDue).toISOString(), fields.managerReviewEnabled, relatedContent, { categoryCodes: editingInventoryCategoryCodes, enabled: editingInventoryLinkEnabled });
       if (canEditTaskRecipients) await updateV2TaskRecipients(supabase, editingTask.id, editingCompletionMode, editProfileIds, editingCompletionMode === 'single' && singleRecipient
           ? [recipientAudience(singleRecipient)]
-          : editingTargetAudiences);
+          : editingCompletionMode === 'selected'
+            ? editSelectedAudiences
+            : editingTargetAudiences);
       await cleanupSavedAssets(contentDraft);
       setEditingTask(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); setMessage('任务内容和关联资料已更新，员工页面会立即同步。'); window.dispatchEvent(new Event('storehub:todos-changed')); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务内容保存失败'); }
@@ -485,11 +507,12 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-semibold">任务模板<select className="ui-input mt-1" onChange={(event) => { const id = event.target.value; setTemplateId(id); setStoreIds(templates.find((item) => item.id === id)?.storeIds ?? []); }} value={templateId}><option value="">请选择模板</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label className="text-sm font-semibold">发布方式<select className="ui-input mt-1" onChange={(event) => setCreationMode(event.target.value as 'single' | 'recurring')} value={creationMode}><option value="single">单次任务</option><option value="recurring">周期任务</option></select></label>
-        <label className="text-sm font-semibold">完成方式<select className="ui-input mt-1" onChange={(event) => setRecipientMode(event.target.value as V2TaskCompletionMode)} value={recipientMode}><option value="shared">所选范围共同完成一次</option><option value="individual">所选范围每人分别完成一次</option><option value="single">单独指定一人完成</option></select></label>
+        <label className="text-sm font-semibold">完成方式<select className="ui-input mt-1" onChange={(event) => setRecipientMode(event.target.value as V2TaskCompletionMode)} value={recipientMode}><option value="shared">所选范围共同完成一次</option><option value="individual">所选范围每人分别完成一次</option><option value="single">单独指定一人完成</option><option value="selected">指定多人分别完成一次</option></select></label>
         {recipientMode === 'single' ? <label className="text-sm font-semibold">接收人<select className="ui-input mt-1" onChange={(event) => { const id = event.target.value; setSelectedProfileId(id); const recipient = recipients.find((item) => item.id === id); if (recipient?.store_id) setStoreIds([recipient.store_id]); }} value={selectedProfileId}><option value="">请选择人员</option>{recipients.map((item) => <option key={item.id} value={item.id}>{item.display_name} · {item.employment_type === 'part_time' ? '兼职' : item.role === 'manager' ? '店长' : '员工'}</option>)}</select></label> : null}
       </div>
-      {recipientMode !== 'single' ? <fieldset className="mt-3"><legend className="text-sm font-semibold">接收范围（可多选）</legend><div className="mt-2 grid grid-cols-3 gap-2">{([['staff','员工'],['manager','店长'],['part_time','兼职']] as const).map(([value,label]) => <label className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold" key={value}><input checked={targetAudiences.includes(value)} onChange={(event) => setTargetAudiences((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} type="checkbox" />{label}</label>)}</div><p className="mt-2 text-xs text-slate-500">{recipientMode === 'individual' ? `当前将为 ${matchingRecipientIds.length} 人分别创建独立任务。` : '范围内任意一人完成后，该门店任务即完成。'}兼职默认不勾选。</p></fieldset> : null}
-      <fieldset className="mt-3"><legend className="text-sm font-semibold">适用门店</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{auth.availableStores.map((store) => <label className="flex min-h-11 items-center rounded-lg border px-3 text-sm" key={store.id}><input checked={storeIds.includes(store.id)} className="mr-2" disabled={recipientMode === 'single'} onChange={() => setStoreIds((current) => current.includes(store.id) ? current.filter((id) => id !== store.id) : [...current, store.id])} type="checkbox" />{store.name}</label>)}</div>{recipientMode === 'single' && selectedRecipient ? <p className="mt-2 text-xs text-slate-500">已按 {selectedRecipient.display_name} 的所属门店锁定。</p> : null}</fieldset>
+      {recipientMode === 'selected' ? <PersonChecklist onChange={(ids) => { setSelectedProfileIds(ids); setStoreIds([...new Set(recipients.filter((recipient) => ids.includes(recipient.id)).map((recipient) => recipient.store_id).filter((id): id is string => Boolean(id)))]); }} recipients={recipients} selectedIds={selectedProfileIds} title="指定人员（可多选）" /> : null}
+      {!['single', 'selected'].includes(recipientMode) ? <fieldset className="mt-3"><legend className="text-sm font-semibold">接收范围（可多选）</legend><div className="mt-2 grid grid-cols-3 gap-2">{([['staff','员工'],['manager','店长'],['part_time','兼职']] as const).map(([value,label]) => <label className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold" key={value}><input checked={targetAudiences.includes(value)} onChange={(event) => setTargetAudiences((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} type="checkbox" />{label}</label>)}</div><p className="mt-2 text-xs text-slate-500">{recipientMode === 'individual' ? `当前将为 ${matchingRecipientIds.length} 人分别创建独立任务。` : '范围内任意一人完成后，该门店任务即完成。'}兼职默认不勾选。</p></fieldset> : null}
+      <fieldset className="mt-3"><legend className="text-sm font-semibold">适用门店</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{auth.availableStores.map((store) => <label className="flex min-h-11 items-center rounded-lg border px-3 text-sm" key={store.id}><input checked={storeIds.includes(store.id)} className="mr-2" disabled={recipientMode === 'single' || recipientMode === 'selected'} onChange={() => setStoreIds((current) => current.includes(store.id) ? current.filter((id) => id !== store.id) : [...current, store.id])} type="checkbox" />{store.name}</label>)}</div>{recipientMode === 'single' && selectedRecipient ? <p className="mt-2 text-xs text-slate-500">已按 {selectedRecipient.display_name} 的所属门店锁定。</p> : recipientMode === 'selected' ? <p className="mt-2 text-xs text-slate-500">已按所选人员的所属门店自动确定。</p> : null}</fieldset>
       <label className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm"><input checked={fields.managerReviewEnabled} className="mt-1" onChange={(event) => setFields((current) => ({ ...current, managerReviewEnabled: event.target.checked }))} type="checkbox" /><span><b className="block text-brand-900">允许店长审核员工提交</b><span className="mt-1 block text-xs leading-5 text-brand-800">管理员始终可以审核；店长只能审核本门店员工提交的任务，店长本人提交的任务必须由管理员审核。</span></span></label>
       <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50">
         <summary className="cursor-pointer list-none px-3 py-3 text-sm font-bold text-slate-800">高级选项 · 关联资料或点货</summary>
@@ -542,14 +565,27 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
         {(taskView === 'active' ? activeTasks : filteredCompletedTasks).map((task) => {
           const waitingForPublication = isWaitingForScheduledPublication(task);
           const submitterName = task.submitted_by ? recipients.find((recipient) => recipient.id === task.submitted_by)?.display_name ?? '已提交账号' : '';
-          return <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex justify-between gap-3"><b>{task.name}</b><span className={`rounded-full px-3 py-1 text-xs font-bold ${waitingForPublication ? 'bg-amber-100 text-amber-800' : v2TaskStatusClass[task.status]}`}>{waitingForPublication ? '待定时发布' : task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'}{submitterName ? ` · 提交人 ${submitterName}` : ''} · {task.status === 'approved' ? `完成 ${new Date(completedAt(task)).toLocaleString('zh-CN')}` : waitingForPublication ? `定时发布 ${new Date(task.publish_at).toLocaleString('zh-CN')} · 截止 ${new Date(task.due_at).toLocaleString('zh-CN')}` : `截止 ${new Date(task.due_at).toLocaleString('zh-CN')}`}{task.schedule_id ? ' · 周期任务' : ''}</p></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>;
+          return <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex justify-between gap-3"><b>{task.name}</b><span className={`rounded-full px-3 py-1 text-xs font-bold ${waitingForPublication ? 'bg-amber-100 text-amber-800' : v2TaskStatusClass[task.status]}`}>{waitingForPublication ? '待定时发布' : task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · {task.status === 'approved' ? `完成 ${new Date(completedAt(task)).toLocaleString('zh-CN')}` : waitingForPublication ? `定时发布 ${new Date(task.publish_at).toLocaleString('zh-CN')} · 截止 ${new Date(task.due_at).toLocaleString('zh-CN')}` : `截止 ${new Date(task.due_at).toLocaleString('zh-CN')}`}{task.schedule_id ? ' · 周期任务' : ''}</p>{submitterName && ['submitted', 'resubmitted'].includes(task.status) ? <p className="mt-1 text-xs text-slate-500">提交人：{submitterName}</p> : null}</Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>;
         })}
         {(taskView === 'active' ? activeTasks : filteredCompletedTasks).length === 0 ? <p className="ui-card p-4 text-sm text-slate-500">{taskView === 'active' ? '当前没有进行中的任务。' : '当前筛选条件下没有已完成任务。'}</p> : null}
       </section>
     </> : null}
 
     {editingSchedule ? <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3"><div className="mx-auto max-w-xl pb-[calc(7.5rem+env(safe-area-inset-bottom))]"><div className="ui-card p-4"><h2 className="text-lg font-bold">编辑周期任务</h2><ScheduleRuleEditor fields={fields} onChange={setFields} /><label className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm"><input checked={fields.managerReviewEnabled} className="mt-1" onChange={(event) => setFields((current) => ({ ...current, managerReviewEnabled: event.target.checked }))} type="checkbox" /><span><b className="block text-brand-900">允许店长审核员工提交</b><span className="mt-1 block text-xs leading-5 text-brand-800">保存后会同步到当前未完成任务和以后自动发布的任务；店长本人提交仍由管理员审核。</span></span></label><div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="mb-2 text-sm font-bold">高级选项</p><RelatedContentSettings contentId={editingRelatedContentId} contentType={editingRelatedContentType} onContentIdChange={setEditingRelatedContentId} onContentTypeChange={(type) => { setEditingRelatedContentType(type); setEditingRelatedContentId(''); }} options={editingRelatedContentOptions} /><InventoryLinkSettings categoryCodes={editingInventoryCategoryCodes} enabled={editingInventoryLinkEnabled} onCategoryCodesChange={setEditingInventoryCategoryCodes} onEnabledChange={setEditingInventoryLinkEnabled} /></div><button className="ui-button-secondary mt-3 w-full" onClick={() => setScheduleContentEditorOpen(true)} type="button"><Pencil className="h-4 w-4" />编辑完整任务内容</button><p className="mt-2 text-xs leading-5 text-slate-500">保存后会同步当前未完成任务，并用于以后自动发布的任务。</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { cleanupCancelledAssets(); setEditingSchedule(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); }} type="button">取消</button><button className="ui-button-primary" disabled={busy} onClick={() => void saveSchedule()} type="button">保存全部修改</button></div></div></div></div> : null}
-    {editingTask && contentDraft ? <TaskContentEditor advancedOptions={<div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><div><p className="mb-2 text-sm font-bold">完成方式</p><select className="ui-input" onChange={(event) => setEditingCompletionMode(event.target.value as V2TaskCompletionMode)} value={editingCompletionMode}><option value="shared">本门店所选范围共同完成一次</option><option value="individual">本门店所选范围每人分别完成一次</option><option value="single">单独指定一人完成</option></select>{editingCompletionMode === 'single' ? <select className="ui-input mt-2" onChange={(event) => setEditingProfileId(event.target.value)} value={editingProfileId}><option value="">请选择人员</option>{recipients.filter((recipient) => recipient.store_id === editingTask.store_id).map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.display_name} · {recipientAudience(recipient) === 'part_time' ? '兼职' : recipient.role === 'manager' ? '店长' : '员工'}</option>)}</select> : <div className="mt-2 grid grid-cols-3 gap-2">{([['staff','员工'],['manager','店长'],['part_time','兼职']] as const).map(([value,label]) => <label className="flex items-center justify-center gap-1 rounded-lg border bg-white px-2 py-2 text-xs font-semibold" key={value}><input checked={editingTargetAudiences.includes(value)} onChange={(event) => setEditingTargetAudiences((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} type="checkbox" />{label}</label>)}</div>}</div><div><p className="mb-2 text-sm font-bold">高级选项</p><RelatedContentSettings contentId={editingRelatedContentId} contentType={editingRelatedContentType} onContentIdChange={setEditingRelatedContentId} onContentTypeChange={(type) => { setEditingRelatedContentType(type); setEditingRelatedContentId(''); }} options={editingRelatedContentOptions} /><InventoryLinkSettings categoryCodes={editingInventoryCategoryCodes} enabled={editingInventoryLinkEnabled} onCategoryCodesChange={setEditingInventoryCategoryCodes} onEnabledChange={setEditingInventoryLinkEnabled} /></div></div>} busy={busy} categories={categories} draft={contentDraft} dueAt={editingDue} managerReviewEnabled={fields.managerReviewEnabled} onCancel={() => { cleanupCancelledAssets(); setEditingTask(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onManagerReviewEnabledChange={(enabled) => setFields((current) => ({ ...current, managerReviewEnabled: enabled }))} onRemoveReferenceImage={removeReferenceImage} onSave={() => void saveTaskContent()} onUploadReferenceImage={uploadReferenceImage} /> : null}
+    {editingTask && contentDraft ? <TaskContentEditor advancedOptions={<div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div>
+        <p className="mb-2 text-sm font-bold">完成方式</p>
+        <select className="ui-input" disabled={!canEditTaskRecipients} onChange={(event) => setEditingCompletionMode(event.target.value as V2TaskCompletionMode)} value={editingCompletionMode}>
+          <option value="shared">本门店所选范围共同完成一次</option>
+          <option value="individual">本门店所选范围每人分别完成一次</option>
+          <option value="single">单独指定一人完成</option>
+          <option value="selected">指定多人分别完成一次</option>
+        </select>
+        {editingCompletionMode === 'single' ? <select className="ui-input mt-2" disabled={!canEditTaskRecipients} onChange={(event) => setEditingProfileId(event.target.value)} value={editingProfileId}><option value="">请选择人员</option>{recipients.filter((recipient) => recipient.store_id === editingTask.store_id).map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.display_name} · {recipientAudience(recipient) === 'part_time' ? '兼职' : recipient.role === 'manager' ? '店长' : '员工'}</option>)}</select> : editingCompletionMode === 'selected' ? <PersonChecklist disabled={!canEditTaskRecipients} onChange={setEditingProfileIds} recipients={recipients.filter((recipient) => recipient.store_id === editingTask.store_id)} selectedIds={editingProfileIds} title="指定人员（可多选）" /> : <div className="mt-2 grid grid-cols-3 gap-2">{([['staff','员工'],['manager','店长'],['part_time','兼职']] as const).map(([value,label]) => <label className="flex items-center justify-center gap-1 rounded-lg border bg-white px-2 py-2 text-xs font-semibold" key={value}><input checked={editingTargetAudiences.includes(value)} disabled={!canEditTaskRecipients} onChange={(event) => setEditingTargetAudiences((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} type="checkbox" />{label}</label>)}</div>}
+        {!canEditTaskRecipients ? <p className="mt-2 text-xs text-amber-700">任务已有执行进度，完成方式已锁定；未开始的已发布任务可以直接修改。</p> : null}
+      </div>
+      <div><p className="mb-2 text-sm font-bold">高级选项</p><RelatedContentSettings contentId={editingRelatedContentId} contentType={editingRelatedContentType} onContentIdChange={setEditingRelatedContentId} onContentTypeChange={(type) => { setEditingRelatedContentType(type); setEditingRelatedContentId(''); }} options={editingRelatedContentOptions} /><InventoryLinkSettings categoryCodes={editingInventoryCategoryCodes} enabled={editingInventoryLinkEnabled} onCategoryCodesChange={setEditingInventoryCategoryCodes} onEnabledChange={setEditingInventoryLinkEnabled} /></div>
+    </div>} busy={busy} categories={categories} draft={contentDraft} dueAt={editingDue} managerReviewEnabled={fields.managerReviewEnabled} onCancel={() => { cleanupCancelledAssets(); setEditingTask(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onManagerReviewEnabledChange={(enabled) => setFields((current) => ({ ...current, managerReviewEnabled: enabled }))} onRemoveReferenceImage={removeReferenceImage} onSave={() => void saveTaskContent()} onUploadReferenceImage={uploadReferenceImage} /> : null}
     {editingSchedule && scheduleContentEditorOpen && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} onCancel={() => setScheduleContentEditorOpen(false)} onChange={setContentDraft} onRemoveReferenceImage={removeReferenceImage} onSave={() => { const issue = validateTaskContent(contentDraft); if (issue) setMessage(issue); else setScheduleContentEditorOpen(false); }} onUploadReferenceImage={uploadReferenceImage} title="编辑周期任务完整内容" /> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title="操作提示" tone={message?.includes('失败') || message?.includes('必须') || message?.includes('请选择') ? 'warning' : 'success'} />
   </PageShell>;
@@ -557,6 +593,29 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
 export function AdminV2TaskPublishPage() {
   return <AdminV2TasksPage publisherOnly />;
+}
+
+function PersonChecklist({ disabled = false, onChange, recipients, selectedIds, title }: {
+  disabled?: boolean;
+  onChange: (ids: string[]) => void;
+  recipients: V2TaskRecipient[];
+  selectedIds: string[];
+  title: string;
+}) {
+  return <fieldset className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+    <legend className="px-1 text-sm font-semibold">{title}</legend>
+    <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2">
+      {recipients.map((recipient) => {
+        const checked = selectedIds.includes(recipient.id);
+        const role = recipientAudience(recipient) === 'part_time' ? '兼职' : recipient.role === 'manager' ? '店长' : '员工';
+        return <label className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${checked ? 'border-brand-400 bg-brand-50 text-brand-900' : 'border-slate-200 bg-white text-slate-700'}`} key={recipient.id}>
+          <input aria-label={`选择${recipient.display_name}`} checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked ? [...selectedIds, recipient.id] : selectedIds.filter((id) => id !== recipient.id))} type="checkbox" />
+          <span className="min-w-0"><b className="block truncate">{recipient.display_name}</b><span className="text-xs text-slate-500">{role}</span></span>
+        </label>;
+      })}
+    </div>
+    <p className="mt-2 text-xs text-slate-500">已选择 {selectedIds.length} 人；系统会为每个人分别创建独立任务。</p>
+  </fieldset>;
 }
 
 function RelatedContentSettings({

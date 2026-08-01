@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   loadCategories: vi.fn(),
   loadRecipients: vi.fn(),
   loadRelatedContent: vi.fn(),
+  loadScheduleContent: vi.fn(),
   loadSchedules: vi.fn(),
   loadTasks: vi.fn(),
   loadTemplates: vi.fn(),
@@ -20,7 +21,7 @@ vi.mock('../features/auth/AuthContext', () => ({
 vi.mock('../services/task-templates.service', () => ({ loadTaskCategories: mocks.loadCategories, loadTaskTemplates: mocks.loadTemplates }));
 vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
-  return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskRelatedContentOptions: mocks.loadRelatedContent, loadV2TaskSchedules: mocks.loadSchedules, loadV2Tasks: mocks.loadTasks };
+  return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskRelatedContentOptions: mocks.loadRelatedContent, loadV2TaskScheduleContent: mocks.loadScheduleContent, loadV2TaskSchedules: mocks.loadSchedules, loadV2Tasks: mocks.loadTasks };
 });
 
 describe('AdminV2TasksPage navigation', () => {
@@ -32,6 +33,7 @@ describe('AdminV2TasksPage navigation', () => {
     mocks.loadSchedules.mockResolvedValue([]);
     mocks.loadRecipients.mockResolvedValue([]);
     mocks.loadRelatedContent.mockResolvedValue([]);
+    mocks.loadScheduleContent.mockResolvedValue({ name: '周期检查', snapshot: { groups: [], template: { category: 'closing', description: '说明' } } });
   });
 
   it('keeps template management and task publishing as independent entry buttons', async () => {
@@ -195,6 +197,52 @@ describe('AdminV2TasksPage navigation', () => {
 
     expect(await screen.findByText('待定时发布')).toBeInTheDocument();
     expect(screen.getByText(/定时发布 2026\/8\/1 18:30:00/)).toBeInTheDocument();
+  });
+
+  it('allows the completion method to be changed while editing a recurring task', async () => {
+    mocks.loadRecipients.mockResolvedValue([
+      { display_name: '员工甲', employment_type: 'full_time', id: 'profile-1', role: 'staff', store_id: 'store-1', username: 'staff-a' },
+      { display_name: '员工乙', employment_type: 'full_time', id: 'profile-2', role: 'staff', store_id: 'store-1', username: 'staff-b' },
+    ]);
+    mocks.loadSchedules.mockResolvedValue([{
+      acceptance_interval_days: 1,
+      acceptance_month_day: null,
+      acceptance_time: '20:00:00',
+      acceptance_type: 'daily',
+      acceptance_weekday: null,
+      assigned_profile_id: null,
+      completion_mode: 'shared',
+      content_name: '周期检查',
+      content_snapshot: null,
+      due_time: '20:00:00',
+      id: 'schedule-1',
+      interval_days: 3,
+      inventory_category_codes: [],
+      is_active: true,
+      manager_review_enabled: false,
+      month_day: null,
+      next_due_at: '2026-08-04T01:00:00.000Z',
+      publish_time: '09:00:00',
+      recipient_group_id: 'group-1',
+      related_notice_id: null,
+      related_sop_id: null,
+      requires_inventory: false,
+      schedule_type: 'interval_days',
+      store_id: 'store-1',
+      target_audiences: ['staff', 'manager'],
+      template_id: 'template-1',
+      weekdays: [],
+      withdrawn_at: null,
+    }]);
+
+    render(<MemoryRouter><AdminV2TasksPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+
+    const completionMethod = await screen.findByLabelText('周期任务完成方式');
+    expect(completionMethod).toHaveValue('shared');
+    fireEvent.change(completionMethod, { target: { value: 'selected' } });
+    expect(screen.getByText('指定人员（可多选）')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: '选择员工甲' })).toBeInTheDocument();
   });
 
   it('shows the submitter in small text on a pending-review task card', async () => {

@@ -194,8 +194,9 @@ export const loadV2TaskRelatedContentOptions = async (client: Client): Promise<V
 export const loadV2TaskSchedules = async (client: Client) => {
   const { data, error } = await client.from('v2_task_schedules').select('*').is('withdrawn_at', null).order('next_due_at'); fail(error); return data ?? [];
 };
-export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { inventoryLink?: V2TaskInventoryLinkSettings; profileIds?: string[]; publishImmediately?: boolean; relatedContent?: V2TaskRelatedContentSelection | null; storeIds: string[]; targetAudiences?: TaskAudience[]; templateId: string }) => {
-  const { data, error } = await client.rpc('create_v2_task_schedule_v4', {
+export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { completionMode?: V2TaskCompletionMode; inventoryLink?: V2TaskInventoryLinkSettings; profileIds?: string[]; publishImmediately?: boolean; relatedContent?: V2TaskRelatedContentSelection | null; storeIds: string[]; targetAudiences?: TaskAudience[]; templateId: string }) => {
+  const { data, error } = await client.rpc('create_v2_task_schedule_v5', {
+    p_completion_mode: input.completionMode ?? 'shared',
     p_fields: {
       acceptanceIntervalDays: input.acceptanceIntervalDays,
       acceptanceMonthDay: input.acceptanceMonthDay,
@@ -273,8 +274,9 @@ export const updateV2TaskRecipients = async (client: Client, taskId: string, mod
   }
   return data ?? [];
 };
-export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json, relatedContent: V2TaskRelatedContentSelection | null = null, inventoryLink: V2TaskInventoryLinkSettings = { categoryCodes: [], enabled: false }) => {
-  const { data, error } = await client.rpc('update_v2_task_schedule_all_v3', {
+export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json, relatedContent: V2TaskRelatedContentSelection | null = null, inventoryLink: V2TaskInventoryLinkSettings = { categoryCodes: [], enabled: false }, completionMode: V2TaskCompletionMode = 'shared', profileIds: string[] = [], targetAudiences: TaskAudience[] = ['staff', 'manager']) => {
+  const { data, error } = await client.rpc('update_v2_task_schedule_all_v4', {
+    p_completion_mode: completionMode,
     p_fields: fields as unknown as Json,
     p_inventory_category_codes: inventoryLink.categoryCodes,
     p_name: name,
@@ -283,6 +285,8 @@ export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string
     p_requires_inventory: inventoryLink.enabled,
     p_schedule_id: scheduleId,
     p_snapshot: snapshot,
+    p_profile_ids: profileIds,
+    p_target_audiences: targetAudiences,
   });
   fail(error);
   return data;

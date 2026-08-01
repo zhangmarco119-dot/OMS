@@ -7,25 +7,29 @@ describe('V2 task workflow service', () => {
   it('publishes immutable template tasks through RPC', async () => {
     const rpc=vi.fn().mockResolvedValue({data:[],error:null});const client={rpc} as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client,'template-1',['store-1'],'2026-07-20T12:00:00Z','2026-07-20T09:00:00Z');
-    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v3',{p_due_at:'2026-07-20T12:00:00Z',p_manager_review_enabled:false,p_profile_ids:[],p_publish_at:'2026-07-20T09:00:00Z',p_related_notice_id:null,p_related_sop_id:null,p_store_ids:['store-1'],p_target_audiences:['staff','manager'],p_template_id:'template-1'});
+    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v4',{p_due_at:'2026-07-20T12:00:00Z',p_inventory_category_codes:[],p_manager_review_enabled:false,p_profile_ids:[],p_publish_at:'2026-07-20T09:00:00Z',p_related_notice_id:null,p_related_sop_id:null,p_requires_inventory:false,p_store_ids:['store-1'],p_target_audiences:['staff','manager'],p_template_id:'template-1'});
   });
   it('supports scheduled one-off publication', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client, 'template-1', ['store-1'], '2026-07-21T12:00:00Z', '2026-07-20T12:00:00Z');
-    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v3', expect.objectContaining({ p_publish_at: '2026-07-20T12:00:00Z' }));
+    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v4', expect.objectContaining({ p_publish_at: '2026-07-20T12:00:00Z' }));
   });
   it('creates a recurring task schedule through the guarded RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await createV2TaskSchedule(client, { acceptanceIntervalDays: null, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'weekly', acceptanceWeekday: 5, intervalDays: null, managerReviewEnabled: true, monthDay: null, nextPublishAt: '2026-07-20T09:00:00Z', publishTime: '09:00', scheduleType: 'weekly', storeIds: ['store-1'], templateId: 'template-1', weekdays: [1, 5] });
-    expect(rpc).toHaveBeenCalledWith('create_v2_task_schedule_v3', { p_fields: { acceptanceIntervalDays: null, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'weekly', acceptanceWeekday: 5, intervalDays: null, managerReviewEnabled: true, monthDay: null, nextPublishAt: '2026-07-20T09:00:00Z', publishImmediately: false, publishTime: '09:00', scheduleType: 'weekly', targetAudiences: ['staff', 'manager'], weekdays: [1, 5] }, p_profile_ids: [], p_related_notice_id: null, p_related_sop_id: null, p_store_ids: ['store-1'], p_template_id: 'template-1' });
+    expect(rpc).toHaveBeenCalledWith('create_v2_task_schedule_v4', { p_fields: { acceptanceIntervalDays: null, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'weekly', acceptanceWeekday: 5, intervalDays: null, managerReviewEnabled: true, monthDay: null, nextPublishAt: '2026-07-20T09:00:00Z', publishImmediately: false, publishTime: '09:00', scheduleType: 'weekly', targetAudiences: ['staff', 'manager'], weekdays: [1, 5] }, p_inventory_category_codes: [], p_profile_ids: [], p_related_notice_id: null, p_related_sop_id: null, p_requires_inventory: false, p_store_ids: ['store-1'], p_template_id: 'template-1' });
   });
   it('publishes a task only to the selected employee', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client, 'template-1', ['store-1'], '2026-07-20T12:00:00Z', '2026-07-20T09:00:00Z', ['profile-1']);
-    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v3', expect.objectContaining({ p_profile_ids: ['profile-1'] }));
+    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v4', expect.objectContaining({ p_profile_ids: ['profile-1'] }));
   });
   it('updates an unstarted published task to independent per-person completion', async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    const single = vi.fn().mockResolvedValue({ data: { inventory_category_codes: [], requires_inventory: false }, error: null });
+    const eq = vi.fn(() => ({ single }));
+    const select = vi.fn(() => ({ eq }));
+    const client = { from: vi.fn(() => ({ select })), rpc } as unknown as SupabaseClient<Database>;
     await updateV2TaskRecipients(client, 'task-1', 'individual', ['profile-1', 'profile-2'], ['staff', 'manager']);
     expect(rpc).toHaveBeenCalledWith('update_v2_task_recipients', {
       p_mode: 'individual',
@@ -37,23 +41,23 @@ describe('V2 task workflow service', () => {
   it('lets administrators opt part-time employees into a store-wide task', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client, 'template-1', ['store-1'], '2026-07-20T12:00:00Z', '2026-07-20T09:00:00Z', [], ['staff', 'part_time']);
-    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v3', expect.objectContaining({ p_target_audiences: ['staff', 'part_time'] }));
+    expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v4', expect.objectContaining({ p_target_audiences: ['staff', 'part_time'] }));
   });
   it('updates a single published task through the guarded RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {}, error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await updateV2TaskContent(client, 'task-1', '更新后任务', { groups: [] }, '2026-07-20T12:00:00Z', true);
-    expect(rpc).toHaveBeenCalledWith('update_v2_task_content_v3', { p_due_at: '2026-07-20T12:00:00Z', p_manager_review_enabled: true, p_name: '更新后任务', p_related_notice_id: null, p_related_sop_id: null, p_snapshot: { groups: [] }, p_task_id: 'task-1' });
+    expect(rpc).toHaveBeenCalledWith('update_v2_task_content_v4', { p_due_at: '2026-07-20T12:00:00Z', p_inventory_category_codes: [], p_manager_review_enabled: true, p_name: '更新后任务', p_related_notice_id: null, p_related_sop_id: null, p_requires_inventory: false, p_snapshot: { groups: [] }, p_task_id: 'task-1' });
   });
   it('updates linked content while editing a published task', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {}, error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await updateV2TaskContent(client, 'task-1', '新品练习', { groups: [] }, '2026-07-20T12:00:00Z', false, { id: 'sop-1', type: 'sop' });
-    expect(rpc).toHaveBeenCalledWith('update_v2_task_content_v3', expect.objectContaining({ p_related_notice_id: null, p_related_sop_id: 'sop-1' }));
+    expect(rpc).toHaveBeenCalledWith('update_v2_task_content_v4', expect.objectContaining({ p_related_notice_id: null, p_related_sop_id: 'sop-1' }));
   });
   it('updates recurring rules and task content atomically', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {}, error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     const fields = { acceptanceIntervalDays: 0, acceptanceMonthDay: null, acceptanceTime: '20:00', acceptanceType: 'daily' as const, acceptanceWeekday: null, intervalDays: 7, managerReviewEnabled: false, monthDay: null, nextPublishAt: '2026-07-20T09:00:00Z', publishTime: '09:00', scheduleType: 'interval_days' as const, weekdays: [] };
     await updateV2TaskScheduleAll(client, 'schedule-1', fields, '更新后周期任务', { groups: [] });
-    expect(rpc).toHaveBeenCalledWith('update_v2_task_schedule_all_v2', { p_fields: fields, p_name: '更新后周期任务', p_related_notice_id: null, p_related_sop_id: null, p_schedule_id: 'schedule-1', p_snapshot: { groups: [] } });
+    expect(rpc).toHaveBeenCalledWith('update_v2_task_schedule_all_v3', { p_fields: fields, p_inventory_category_codes: [], p_name: '更新后周期任务', p_related_notice_id: null, p_related_sop_id: null, p_requires_inventory: false, p_schedule_id: 'schedule-1', p_snapshot: { groups: [] } });
   });
   it('requires review action through RPC',async()=>{const rpc=vi.fn().mockResolvedValue({data:{},error:null});const client={rpc} as unknown as SupabaseClient<Database>;await reviewV2Task(client,'task-1','rejected','重新拍照',['item-1']);expect(rpc).toHaveBeenCalledWith('review_v2_task',{p_action:'rejected',p_correction_item_ids:['item-1'],p_note:'重新拍照',p_task_id:'task-1'});});
   it('submits per-item review decisions through the guarded RPC', async () => {

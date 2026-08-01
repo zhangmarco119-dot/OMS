@@ -10,6 +10,7 @@ import {
 } from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
+import type { ProductCategoryCode } from '../features/products/productCategories';
 
 type Client = SupabaseClient<Database>;
 export type V2TaskRow = Database['public']['Tables']['v2_tasks']['Row'];
@@ -40,6 +41,10 @@ export type V2TaskRelatedContentType = 'sop' | 'notice';
 export interface V2TaskRelatedContentSelection {
   id: string;
   type: V2TaskRelatedContentType;
+}
+export interface V2TaskInventoryLinkSettings {
+  categoryCodes: ProductCategoryCode[];
+  enabled: boolean;
 }
 export interface V2TaskRelatedContentOption extends V2TaskRelatedContentSelection {
   publishedAt: string;
@@ -129,14 +134,16 @@ export const canReviewV2Task = async (client: Client, taskId: string) => {
   fail(error);
   return Boolean(data);
 };
-export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string, publishAt: string, profileIds: string[] = [], targetAudiences: TaskAudience[] = ['staff', 'manager'], managerReviewEnabled = false, relatedContent: V2TaskRelatedContentSelection | null = null) => {
-  const { data, error } = await client.rpc('publish_v2_tasks_v3', {
+export const publishV2Tasks = async (client: Client, templateId: string, storeIds: string[], dueAt: string, publishAt: string, profileIds: string[] = [], targetAudiences: TaskAudience[] = ['staff', 'manager'], managerReviewEnabled = false, relatedContent: V2TaskRelatedContentSelection | null = null, inventoryLink: V2TaskInventoryLinkSettings = { categoryCodes: [], enabled: false }) => {
+  const { data, error } = await client.rpc('publish_v2_tasks_v4', {
+    p_inventory_category_codes: inventoryLink.categoryCodes,
     p_due_at: dueAt,
     p_manager_review_enabled: managerReviewEnabled,
     p_profile_ids: profileIds,
     p_publish_at: publishAt,
     p_related_notice_id: relatedContent?.type === 'notice' ? relatedContent.id : null,
     p_related_sop_id: relatedContent?.type === 'sop' ? relatedContent.id : null,
+    p_requires_inventory: inventoryLink.enabled,
     p_store_ids: storeIds,
     p_target_audiences: targetAudiences,
     p_template_id: templateId,
@@ -187,8 +194,8 @@ export const loadV2TaskRelatedContentOptions = async (client: Client): Promise<V
 export const loadV2TaskSchedules = async (client: Client) => {
   const { data, error } = await client.from('v2_task_schedules').select('*').is('withdrawn_at', null).order('next_due_at'); fail(error); return data ?? [];
 };
-export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { profileIds?: string[]; publishImmediately?: boolean; relatedContent?: V2TaskRelatedContentSelection | null; storeIds: string[]; targetAudiences?: TaskAudience[]; templateId: string }) => {
-  const { data, error } = await client.rpc('create_v2_task_schedule_v3', {
+export const createV2TaskSchedule = async (client: Client, input: V2TaskScheduleFields & { inventoryLink?: V2TaskInventoryLinkSettings; profileIds?: string[]; publishImmediately?: boolean; relatedContent?: V2TaskRelatedContentSelection | null; storeIds: string[]; targetAudiences?: TaskAudience[]; templateId: string }) => {
+  const { data, error } = await client.rpc('create_v2_task_schedule_v4', {
     p_fields: {
       acceptanceIntervalDays: input.acceptanceIntervalDays,
       acceptanceMonthDay: input.acceptanceMonthDay,
@@ -205,9 +212,11 @@ export const createV2TaskSchedule = async (client: Client, input: V2TaskSchedule
       targetAudiences: input.targetAudiences ?? ['staff', 'manager'],
       weekdays: input.weekdays,
     },
+    p_inventory_category_codes: input.inventoryLink?.categoryCodes ?? [],
     p_profile_ids: input.profileIds ?? [],
     p_related_notice_id: input.relatedContent?.type === 'notice' ? input.relatedContent.id : null,
     p_related_sop_id: input.relatedContent?.type === 'sop' ? input.relatedContent.id : null,
+    p_requires_inventory: input.inventoryLink?.enabled ?? false,
     p_store_ids: input.storeIds,
     p_template_id: input.templateId,
   });
@@ -226,13 +235,15 @@ export const loadV2TaskScheduleContent = async (client: Client, scheduleId: stri
   if (!value || typeof value.name !== 'string' || value.snapshot === undefined) throw new Error('周期任务内容加载失败。');
   return { name: value.name, snapshot: value.snapshot as Json };
 };
-export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string, managerReviewEnabled = false, relatedContent: V2TaskRelatedContentSelection | null = null) => {
-  const { data, error } = await client.rpc('update_v2_task_content_v3', {
+export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string, managerReviewEnabled = false, relatedContent: V2TaskRelatedContentSelection | null = null, inventoryLink: V2TaskInventoryLinkSettings = { categoryCodes: [], enabled: false }) => {
+  const { data, error } = await client.rpc('update_v2_task_content_v4', {
     p_due_at: dueAt,
+    p_inventory_category_codes: inventoryLink.categoryCodes,
     p_manager_review_enabled: managerReviewEnabled,
     p_name: name,
     p_related_notice_id: relatedContent?.type === 'notice' ? relatedContent.id : null,
     p_related_sop_id: relatedContent?.type === 'sop' ? relatedContent.id : null,
+    p_requires_inventory: inventoryLink.enabled,
     p_snapshot: snapshot,
     p_task_id: taskId,
   });
@@ -240,6 +251,8 @@ export const updateV2TaskContent = async (client: Client, taskId: string, name: 
   return data;
 };
 export const updateV2TaskRecipients = async (client: Client, taskId: string, mode: V2TaskCompletionMode, profileIds: string[], targetAudiences: TaskAudience[]) => {
+  const source = await client.from('v2_tasks').select('requires_inventory,inventory_category_codes').eq('id', taskId).single();
+  fail(source.error);
   const { data, error } = await client.rpc('update_v2_task_recipients', {
     p_mode: mode,
     p_profile_ids: profileIds,
@@ -247,14 +260,24 @@ export const updateV2TaskRecipients = async (client: Client, taskId: string, mod
     p_task_id: taskId,
   });
   fail(error);
+  if (source.data?.requires_inventory && data?.length) {
+    const configured = await client.rpc('configure_v2_tasks_inventory', {
+      p_category_codes: source.data.inventory_category_codes,
+      p_enabled: true,
+      p_task_ids: data.map((task) => task.id),
+    });
+    fail(configured.error);
+  }
   return data ?? [];
 };
-export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json, relatedContent: V2TaskRelatedContentSelection | null = null) => {
-  const { data, error } = await client.rpc('update_v2_task_schedule_all_v2', {
+export const updateV2TaskScheduleAll = async (client: Client, scheduleId: string, fields: V2TaskScheduleFields, name: string, snapshot: Json, relatedContent: V2TaskRelatedContentSelection | null = null, inventoryLink: V2TaskInventoryLinkSettings = { categoryCodes: [], enabled: false }) => {
+  const { data, error } = await client.rpc('update_v2_task_schedule_all_v3', {
     p_fields: fields as unknown as Json,
+    p_inventory_category_codes: inventoryLink.categoryCodes,
     p_name: name,
     p_related_notice_id: relatedContent?.type === 'notice' ? relatedContent.id : null,
     p_related_sop_id: relatedContent?.type === 'sop' ? relatedContent.id : null,
+    p_requires_inventory: inventoryLink.enabled,
     p_schedule_id: scheduleId,
     p_snapshot: snapshot,
   });

@@ -3,10 +3,12 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import type { Database, Json } from '../../types/database';
 import { asProductSnapshot } from '../tasks/taskCalculations';
+import { DEFAULT_PRODUCT_CATEGORY, productCategoryLabel, type ProductCategoryCode } from '../products/productCategories';
 
 export type StoreRow = Database['public']['Tables']['stores']['Row'];
 export type ProductRow = Database['public']['Tables']['products']['Row'];
 export type ProductFeedbackRow = Database['public']['Tables']['product_feedback']['Row'];
+export type ProductCreationRequestRow = Database['public']['Tables']['product_creation_requests']['Row'];
 
 export interface ProductFeedbackRecord {
   creatorName: string;
@@ -14,7 +16,51 @@ export interface ProductFeedbackRecord {
   storeName: string;
 }
 
+export interface ProductCreationRequestRecord {
+  creatorName: string;
+  request: ProductCreationRequestRow;
+  storeName: string;
+}
+
+export const loadProductCreationRequests = async (storeIds?: string[]): Promise<ProductCreationRequestRecord[]> => {
+  const client = requireClient();
+  let requestQuery = client
+    .from('product_creation_requests')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (storeIds?.length) requestQuery = requestQuery.in('store_id', storeIds);
+  const { data: requests, error } = await requestQuery;
+  if (error) throw new Error(error.message);
+  const rows = requests ?? [];
+  const [profileResult, storeResult] = await Promise.all([
+    rows.length ? client.from('profiles').select('id, display_name').in('id', [...new Set(rows.map((item) => item.requested_by))]) : Promise.resolve({ data: [], error: null }),
+    rows.length ? client.from('stores').select('id, name').in('id', [...new Set(rows.map((item) => item.store_id))]) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (profileResult.error) throw new Error(profileResult.error.message);
+  if (storeResult.error) throw new Error(storeResult.error.message);
+  const names = new Map((profileResult.data ?? []).map((item) => [item.id, item.display_name]));
+  const stores = new Map((storeResult.data ?? []).map((item) => [item.id, item.name]));
+  return rows.map((request) => ({
+    creatorName: names.get(request.requested_by) ?? '门店员工',
+    request,
+    storeName: stores.get(request.store_id) ?? '门店',
+  }));
+};
+
+export const reviewProductCreationRequest = async (requestId: string, approve: boolean, note = '') => {
+  const client = requireClient();
+  const { data, error } = await client.rpc('review_product_creation_request', {
+    p_action: approve ? 'approve' : 'reject',
+    p_note: note.trim(),
+    p_request_id: requestId,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+};
+
 export interface ProductDraft {
+  category_code: ProductCategoryCode;
   count_unit: string;
   name: string;
   product_code: string;
@@ -24,6 +70,7 @@ export interface ProductDraft {
 }
 
 export interface ProductImportRow {
+  category_code: ProductCategoryCode;
   count_unit: string;
   name: string;
   product_code: string | null;
@@ -148,6 +195,7 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
   const rows = products.map((product) => ({
     门店: storeNames.get(product.store_id) ?? product.store_id,
     货品名称: product.name,
+    分类: productCategoryLabel(product.category_code),
     规格: product.spec,
     单位: product.count_unit,
     排序: product.sort_order,
@@ -157,10 +205,10 @@ export const createAllProductsExportFile = async (): Promise<ProductExportFile> 
   }));
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.json_to_sheet(rows, {
-    header: ['门店', '货品名称', '规格', '单位', '排序', '归档状态', '创建时间', '更新时间'],
+    header: ['门店', '货品名称', '分类', '规格', '单位', '排序', '归档状态', '创建时间', '更新时间'],
   });
   sheet['!cols'] = [
-    { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 10 },
+    { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 22 }, { wch: 10 },
     { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 22 },
   ];
   XLSX.utils.book_append_sheet(workbook, sheet, '全部货品');
@@ -223,6 +271,7 @@ export const loadProductFeedbackRecords = async (): Promise<ProductFeedbackRecor
 export const createProduct = async (draft: ProductDraft) => {
   const client = requireClient();
   const { error } = await client.from('products').insert({
+    category_code: draft.category_code,
     count_unit: draft.count_unit,
     is_active: true,
     name: draft.name,
@@ -242,6 +291,7 @@ export const updateProduct = async (productId: string, draft: ProductDraft) => {
   const { error } = await client
     .from('products')
     .update({
+      category_code: draft.category_code,
       count_unit: draft.count_unit,
       is_active: true,
       name: draft.name,
@@ -320,8 +370,14 @@ export const parseProductImportFile = async (file: File): Promise<ProductImportR
     const spec = pick(row, ['规格', 'spec']);
     const countUnit = pick(row, ['单位', '计数单位', 'count_unit', 'unit']);
     const productCode = pick(row, ['货品编码', '商品编码', '编码', 'product_code', 'code']);
+    const categoryText = pick(row, ['分类', '货品分类', 'category']);
+    const category = ([
+      ['水果', 'fruit'], ['冷冻食材', 'frozen'], ['其他食材', 'other_food'], ['其他', 'other_food'],
+      ['包材', 'packaging'], ['耗材', 'consumable'], ['非消耗性物品', 'non_consumable'],
+    ] as const).find(([label, code]) => categoryText === label || categoryText === code)?.[1] ?? DEFAULT_PRODUCT_CATEGORY;
     const sortOrder = Number(pick(row, ['排序', 'sort_order', 'order']));
     return {
+      category_code: category,
       count_unit: countUnit,
       name,
       product_code: productCode || null,
@@ -384,6 +440,7 @@ export const importProducts = async (
       }
 
       const payload = {
+        category_code: row.category_code,
         count_unit: row.count_unit,
         is_active: true,
         name: row.name,

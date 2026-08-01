@@ -33,6 +33,7 @@ describe('adminProductsService', () => {
 
     await expect(parseProductImportFile(file)).resolves.toEqual([
       {
+        category_code: 'other_food',
         count_unit: '杯',
         name: '原味奶酪',
         product_code: null,
@@ -57,10 +58,10 @@ describe('adminProductsService', () => {
       update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
     }));
     const rows = [
-      { count_unit: '杯', name: '成功货品', product_code: null, row_number: 2, sort_order: 1, spec: '100g' },
-      { count_unit: '', name: '缺少单位', product_code: null, row_number: 3, sort_order: 2, spec: '120g' },
-      { count_unit: '袋', name: '写入失败货品', product_code: null, row_number: 4, sort_order: 3, spec: '500g' },
-      { count_unit: '瓶', name: '后续成功货品', product_code: null, row_number: 5, sort_order: 4, spec: '250ml' },
+      { category_code: 'other_food' as const, count_unit: '杯', name: '成功货品', product_code: null, row_number: 2, sort_order: 1, spec: '100g' },
+      { category_code: 'other_food' as const, count_unit: '', name: '缺少单位', product_code: null, row_number: 3, sort_order: 2, spec: '120g' },
+      { category_code: 'other_food' as const, count_unit: '袋', name: '写入失败货品', product_code: null, row_number: 4, sort_order: 3, spec: '500g' },
+      { category_code: 'other_food' as const, count_unit: '瓶', name: '后续成功货品', product_code: null, row_number: 5, sort_order: 4, spec: '250ml' },
     ];
 
     const result = await importProducts('store-1', rows);

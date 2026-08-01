@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { Json } from '../../types/database';
 import type { TaskType } from '../../types/domain';
 import { useAuth } from '../auth/AuthContext';
+import { updateProductCategory, type ProductCategoryCode } from '../products/productCategories';
 import {
   findNextPendingIndex,
   getCompletionStats,
@@ -25,6 +26,7 @@ import {
   reportProductFeedback,
   submitTask as submitTaskSession,
   updateTaskItemQuantity,
+  updateInventoryTaskCategories,
   type ExtraTaskItemInput,
   type ManagerProductCorrectionInput,
   type ManagerAddProductInput,
@@ -38,7 +40,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'offline';
 const emptyItems: TaskItemRow[] = [];
 const localDraftKey = (taskId: string, itemId: string) => `task-draft:${taskId}:${itemId}`;
 
-export const useTaskSession = (taskType: TaskType) => {
+export const useTaskSession = (taskType: TaskType, options: { linkedV2TaskId?: string | null } = {}) => {
   const auth = useAuth();
   const [sessionData, setSessionData] = useState<TaskSessionData | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -103,8 +105,8 @@ export const useTaskSession = (taskType: TaskType) => {
     setMessage(null);
 
     try {
-      const existing = forceCreate ? null : await loadDraftTask(client, auth.profile, taskType);
-      const loaded = existing ?? await createDraftTask(client, auth.profile, taskType);
+      const existing = forceCreate ? null : await loadDraftTask(client, auth.profile, taskType, options.linkedV2TaskId);
+      const loaded = existing ?? await createDraftTask(client, auth.profile, taskType, options.linkedV2TaskId);
       setSessionData(loaded);
       setCurrentIndex(0);
       setStatus('ready');
@@ -112,7 +114,17 @@ export const useTaskSession = (taskType: TaskType) => {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : '加载任务失败');
     }
-  }, [auth.profile, taskType]);
+  }, [auth.profile, options.linkedV2TaskId, taskType]);
+
+  const setInventoryCategories = useCallback(async (categoryCodes: string[]) => {
+    const client = supabase;
+    if (!client || !sessionData?.task || taskType !== 'inventory') throw new Error('当前没有可调整范围的点货草稿');
+    const next = await updateInventoryTaskCategories(client, sessionData.task.id, categoryCodes);
+    setSessionData(next);
+    setCurrentIndex(0);
+    setQuantityInput('');
+    setMessage('本次点货范围已更新。');
+  }, [sessionData?.task, taskType]);
 
   useEffect(() => {
     void loadOrCreate(false);
@@ -252,6 +264,17 @@ export const useTaskSession = (taskType: TaskType) => {
     return productSnapshot;
   }, [currentItem, replaceItem]);
 
+  const changeCurrentProductCategory = useCallback(async (categoryCode: ProductCategoryCode) => {
+    const client = supabase;
+    if (!client || !currentItem?.product_id) throw new Error('当前货品无法修改分类');
+    await updateProductCategory(client, currentItem.product_id, categoryCode);
+    const snapshot = currentItem.product_snapshot && typeof currentItem.product_snapshot === 'object' && !Array.isArray(currentItem.product_snapshot)
+      ? { ...currentItem.product_snapshot, category_code: categoryCode }
+      : currentItem.product_snapshot;
+    replaceItem({ ...currentItem, product_snapshot: snapshot, updated_at: new Date().toISOString() });
+    setMessage('货品分类已更新。');
+  }, [currentItem, replaceItem]);
+
   const requestCurrentProductDeletion = useCallback(async (note?: string) => {
     const client = supabase;
     if (!client || !currentItem) {
@@ -371,6 +394,7 @@ export const useTaskSession = (taskType: TaskType) => {
     addExtraItem,
     addManagerProduct,
     correctCurrentProduct,
+    changeCurrentProductCategory,
     goNextPending,
     goToIndex,
     getInventoryTemplates,
@@ -390,6 +414,7 @@ export const useTaskSession = (taskType: TaskType) => {
     status,
     reportFeedback,
     requestCurrentProductDeletion,
+    setInventoryCategories,
     importFromInventoryTask,
     submitCurrentTask,
   };

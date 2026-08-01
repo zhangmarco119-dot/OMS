@@ -24,6 +24,7 @@ export interface TaskWithItems {
 }
 
 const productToSnapshot = (product: ProductRow): ProductSnapshot => ({
+  category_code: product.category_code,
   product_id: product.id,
   name: product.name,
   spec: product.spec,
@@ -107,14 +108,19 @@ export const loadDraftTask = async (
   client: Client,
   profile: ProfileRow,
   taskType: TaskType,
+  linkedV2TaskId?: string | null,
 ): Promise<TaskSessionData | null> => {
-  const { data: task, error } = await client
+  let query = client
     .from('tasks')
     .select('*')
     .eq('store_id', profile.store_id)
     .eq('created_by', profile.id)
     .eq('task_type', taskType)
-    .eq('status', 'draft')
+    .eq('status', 'draft');
+  query = linkedV2TaskId
+    ? query.eq('linked_v2_task_id', linkedV2TaskId)
+    : query.is('linked_v2_task_id', null);
+  const { data: task, error } = await query
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -139,11 +145,13 @@ const syncDraftTaskProducts = async (
   task: TaskRow,
   items: TaskItemRow[],
 ) => {
-  const { data: products, error: productsError } = await client
+  let productQuery = client
     .from('products')
     .select('*')
     .eq('store_id', task.store_id)
-    .eq('is_active', true)
+    .eq('is_active', true);
+  if (task.task_type === 'inventory') productQuery = productQuery.in('category_code', task.inventory_category_codes);
+  const { data: products, error: productsError } = await productQuery
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
@@ -204,7 +212,13 @@ export const createDraftTask = async (
   client: Client,
   profile: ProfileRow,
   taskType: TaskType,
+  linkedV2TaskId?: string | null,
 ): Promise<TaskSessionData> => {
+  if (taskType === 'inventory' && linkedV2TaskId) {
+    const { data: linkedTask, error: linkedError } = await client.rpc('create_linked_inventory_task', { p_v2_task_id: linkedV2TaskId });
+    if (linkedError) throw new Error(linkedError.message);
+    return { task: linkedTask, items: await loadTaskItems(client, linkedTask.id) };
+  }
   const { data: products, error: productError } = await client
     .from('products')
     .select('*')
@@ -260,6 +274,19 @@ export const createDraftTask = async (
     task,
     items: items ?? [],
   };
+};
+
+export const updateInventoryTaskCategories = async (
+  client: Client,
+  taskId: string,
+  categoryCodes: string[],
+): Promise<TaskSessionData> => {
+  const { data: task, error } = await client.rpc('set_inventory_task_categories', {
+    p_category_codes: categoryCodes,
+    p_task_id: taskId,
+  });
+  if (error) throw new Error(error.message);
+  return { task, items: await loadTaskItems(client, task.id) };
 };
 
 export const submitTask = async (

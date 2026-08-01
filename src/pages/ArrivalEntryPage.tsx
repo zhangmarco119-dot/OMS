@@ -11,6 +11,9 @@ import { ArrivalItemCard } from '../features/arrivals/ArrivalItemCard';
 import { generateArrivalSummary, getArrivalValidationIssues } from '../features/arrivals/arrivalForm';
 import { useArrivalDraft } from '../features/arrivals/useArrivalDraft';
 import { useAuth } from '../features/auth/AuthContext';
+import { PRODUCT_CATEGORIES, DEFAULT_PRODUCT_CATEGORY, type ProductCategoryCode } from '../features/products/productCategories';
+import { supabase } from '../lib/supabase';
+import { requestArrivalProductCreation, type ArrivalProductCreationRequestInput } from '../services/arrivals.service';
 
 const saveStatusLabel = {
   error: '保存失败',
@@ -28,6 +31,8 @@ export function ArrivalEntryPage() {
   const draft = useArrivalDraft(canOperate ? auth.profile?.id : undefined, canOperate ? auth.store?.id : undefined, reportId);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
+  const [showUnmatchedDialog, setShowUnmatchedDialog] = useState(false);
+  const [productRequests, setProductRequests] = useState<ArrivalProductCreationRequestInput[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -96,6 +101,9 @@ export function ArrivalEntryPage() {
     setActionMessage(null);
     try {
       const reportId = await draft.submit();
+      if (productRequests.length > 0 && supabase) {
+        await requestArrivalProductCreation(supabase, reportId, productRequests);
+      }
       setShowConfirm(false);
       navigate(`/app/arrivals/${reportId}/success`, { replace: true });
     } catch (error) {
@@ -111,6 +119,33 @@ export function ArrivalEntryPage() {
       setShowValidationDialog(true);
       return;
     }
+    const unmatchedItems = draft.form?.items.filter((item) => item.isUnmatchedProduct || !item.productId) ?? [];
+    if (unmatchedItems.length > 0) {
+      setProductRequests(unmatchedItems.map((item) => ({
+        arrivalItemId: item.id,
+        categoryCode: DEFAULT_PRODUCT_CATEGORY,
+        countUnit: item.unit,
+        name: item.productName,
+        specification: item.spec,
+      })));
+      setShowUnmatchedDialog(true);
+      return;
+    }
+    setProductRequests([]);
+    setShowConfirm(true);
+  };
+
+  const updateProductRequest = (arrivalItemId: string, updates: Partial<ArrivalProductCreationRequestInput>) => {
+    setProductRequests((current) => current.map((item) => item.arrivalItemId === arrivalItemId ? { ...item, ...updates } : item));
+  };
+
+  const continueWithProductRequests = () => {
+    if (productRequests.some((item) => !item.name.trim() || !item.specification.trim() || !item.countUnit.trim())) {
+      setActionMessage('申请新增货品时，请完整填写名称、规格、单位和分类。');
+      return;
+    }
+    setActionMessage(null);
+    setShowUnmatchedDialog(false);
     setShowConfirm(true);
   };
 
@@ -220,6 +255,29 @@ export function ArrivalEntryPage() {
           </div>
         </div>
       ) : null}
+
+      {showUnmatchedDialog ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="arrival-unmatched-title">
+        <div className="ui-dialog-panel max-h-[85dvh] max-w-lg overflow-y-auto p-5">
+          <div className="flex items-center gap-2 text-amber-800"><AlertCircle className="h-6 w-6 shrink-0" /><h2 className="text-xl font-bold text-slate-900" id="arrival-unmatched-title">发现未匹配货品</h2></div>
+          <p className="mt-3 text-sm leading-6 text-slate-600">仍可提交到货上报。是否同时申请把这些货品新增到货品库？申请将交由店长或管理员审核。</p>
+          <div className="mt-3 space-y-3">
+            {productRequests.map((request, index) => <section className="rounded-xl border border-slate-200 bg-slate-50 p-3" key={request.arrivalItemId}>
+              <b className="text-sm">未匹配货品 {index + 1}</b>
+              <label className="mt-2 block text-xs font-semibold text-slate-600">货品名称<input className="ui-input mt-1" onChange={(event) => updateProductRequest(request.arrivalItemId, { name: event.target.value })} value={request.name} /></label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="text-xs font-semibold text-slate-600">规格<input className="ui-input mt-1" onChange={(event) => updateProductRequest(request.arrivalItemId, { specification: event.target.value })} placeholder="例如 1kg/袋" value={request.specification} /></label>
+                <label className="text-xs font-semibold text-slate-600">最小单位<input className="ui-input mt-1" onChange={(event) => updateProductRequest(request.arrivalItemId, { countUnit: event.target.value })} placeholder="例如 袋" value={request.countUnit} /></label>
+              </div>
+              <label className="mt-2 block text-xs font-semibold text-slate-600">货品分类<select className="ui-input mt-1" onChange={(event) => updateProductRequest(request.arrivalItemId, { categoryCode: event.target.value as ProductCategoryCode })} value={request.categoryCode}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label>
+            </section>)}
+          </div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+            <button className="ui-button-secondary" onClick={() => { setShowUnmatchedDialog(false); setProductRequests([]); }} type="button">返回修改</button>
+            <button className="ui-button-secondary" onClick={() => { setShowUnmatchedDialog(false); setProductRequests([]); setShowConfirm(true); }} type="button">仅提交上报</button>
+            <button className="ui-button-primary" onClick={continueWithProductRequests} type="button">提交并申请新增</button>
+          </div>
+        </div>
+      </div> : null}
     </PageShell>
   );
 }

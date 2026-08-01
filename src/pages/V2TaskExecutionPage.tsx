@@ -1,4 +1,4 @@
-import { BookOpenCheck, Camera, ChevronRight, Megaphone, Save, Send } from 'lucide-react';
+import { BookOpenCheck, Camera, ChevronRight, ClipboardList, Megaphone, Save, Send } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -7,6 +7,7 @@ import { SuccessToast } from '../components/feedback/SuccessToast';
 import { MobileActionBar } from '../components/ui/Actions';
 import { FeedbackBanner, LoadingState } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
+import { productCategoryLabel } from '../features/products/productCategories';
 import { TaskImagePreview } from '../features/v2-tasks/TaskImagePreview';
 import { TaskReferenceImagePreview } from '../features/v2-tasks/TaskReferenceImagePreview';
 import { getTaskSubmissionIssues, type TaskSubmissionIssue } from '../features/v2-tasks/taskCompletion';
@@ -29,12 +30,26 @@ export function V2TaskExecutionPage() {
   const [busy, setBusy] = useState(false);
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [deletingImageIds, setDeletingImageIds] = useState<string[]>([]);
+  const [inventorySubmitted, setInventorySubmitted] = useState(false);
   const dirty = useRef(false);
   const activeUploads = useRef(new Set<Promise<void>>());
   const uploadedImages = useRef(new Map<string, string>());
   const contentSignature = useRef('');
 
-  const taskContentSignature = (task: Pick<V2TaskDetail['task'], 'due_at' | 'name' | 'related_content_title' | 'related_notice_id' | 'related_sop_id' | 'snapshot'>) => JSON.stringify([task.name, task.due_at, task.related_sop_id, task.related_notice_id, task.related_content_title, task.snapshot]);
+  const taskContentSignature = (task: Pick<V2TaskDetail['task'], 'due_at' | 'inventory_category_codes' | 'name' | 'related_content_title' | 'related_notice_id' | 'related_sop_id' | 'requires_inventory' | 'snapshot'>) => JSON.stringify([task.name, task.due_at, task.related_sop_id, task.related_notice_id, task.related_content_title, task.requires_inventory, task.inventory_category_codes, task.snapshot]);
+
+  const loadInventoryStatus = useCallback(async () => {
+    if (!supabase || !taskId || !auth.profile) return;
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('id')
+      .eq('linked_v2_task_id', taskId)
+      .eq('created_by', auth.profile.id)
+      .eq('status', 'submitted')
+      .limit(1)
+      .maybeSingle();
+    if (!error) setInventorySubmitted(Boolean(data));
+  }, [auth.profile, taskId]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -46,12 +61,22 @@ export function V2TaskExecutionPage() {
       setAnswers(next.answers);
       setImageUrls(await loadV2TaskImageUrls(supabase, next.images));
       setReferenceImageUrls(await loadV2TaskReferenceImageUrls(supabase, next.answers));
+      if (next.task.requires_inventory) await loadInventoryStatus();
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '加载任务失败');
     }
-  }, [taskId]);
+  }, [loadInventoryStatus, taskId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') void loadInventoryStatus(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadInventoryStatus]);
   useEffect(() => {
     if (!supabase || !taskId) return;
     const client = supabase;
@@ -60,7 +85,7 @@ export function V2TaskExecutionPage() {
     const refresh = (payload: { new?: Record<string, unknown> }) => {
       const next = payload.new;
       if (!next || typeof next.name !== 'string' || typeof next.due_at !== 'string' || !('snapshot' in next)) return;
-      const signature = JSON.stringify([next.name, next.due_at, next.related_sop_id, next.related_notice_id, next.related_content_title, next.snapshot]);
+      const signature = JSON.stringify([next.name, next.due_at, next.related_sop_id, next.related_notice_id, next.related_content_title, next.requires_inventory, next.inventory_category_codes, next.snapshot]);
       if (signature === contentSignature.current) return;
       contentSignature.current = signature;
       window.clearTimeout(timer);
@@ -101,6 +126,22 @@ export function V2TaskExecutionPage() {
   useEffect(() => { if (!editable || !dirty.current) return; const timer = setTimeout(() => void save(), 800); return () => clearTimeout(timer); }, [answers, editable]);
   const submit = async () => {
     if (!supabase || !detail) return;
+    if (detail.task.requires_inventory) {
+      await loadInventoryStatus();
+      const { data } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('linked_v2_task_id', detail.task.id)
+        .eq('created_by', auth.profile?.id ?? '')
+        .eq('status', 'submitted')
+        .limit(1)
+        .maybeSingle();
+      if (!data) {
+        setMessage('本任务已关联点货，请先进入点货页面并提交点货单，再提交检查。');
+        return;
+      }
+      setInventorySubmitted(true);
+    }
     setBusy(true);
     if (activeUploads.current.size > 0) {
       setMessage('正在完成图片上传，请稍候…');
@@ -198,6 +239,11 @@ export function V2TaskExecutionPage() {
       <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-brand-700">{detail.task.related_sop_id ? '任务关联 SOP' : '任务关联公告'}</span><b className="mt-0.5 block truncate text-slate-900">{detail.task.related_content_title ?? (detail.task.related_sop_id ? '查看操作标准' : '查看公告内容')}</b></span>
       <span className="inline-flex shrink-0 items-center text-sm font-bold text-brand-700">查看<ChevronRight className="h-4 w-4" /></span>
     </Link> : null}
+    {detail.task.requires_inventory ? <Link className="ui-card flex items-center gap-3 border-brand-100 bg-brand-50 p-3 transition active:scale-[0.99]" to={`/app/inventory?linkedTaskId=${detail.task.id}`}>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700"><ClipboardList className="h-5 w-5" /></span>
+      <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-brand-700">任务关联点货 · {inventorySubmitted ? '点货单已提交' : '提交后任务才可完成'}</span><b className="mt-0.5 block truncate text-slate-900">{detail.task.inventory_category_codes.map(productCategoryLabel).join('、')}</b></span>
+      <span className="inline-flex shrink-0 items-center text-sm font-bold text-brand-700">{inventorySubmitted ? '查看' : '去点货'}<ChevronRight className="h-4 w-4" /></span>
+    </Link> : null}
     {message ? <FeedbackBanner tone="warning">{message}</FeedbackBanner> : null}
     <div className="space-y-3">{answers.map((answer, index) => {
       const position = answerPositions[answer.item_id] ?? { groupNumber: 1, groupTitle: '任务项目', itemNumber: index + 1, number: `${index + 1}` };
@@ -207,7 +253,7 @@ export function V2TaskExecutionPage() {
       const itemEditable = editable && (detail.task.status !== 'rejected' || needsCorrection);
       return <div key={answer.id}>{showGroup ? <div className="mb-2 flex items-center gap-2 px-1"><span className="rounded-md bg-brand-600 px-2 py-1 text-xs font-bold text-white">分组 {position.groupNumber}</span><h2 className="font-bold text-slate-800">{position.groupTitle}</h2></div> : null}<AnswerCard answer={answer} deletingImageIds={deletingImageIds} editable={itemEditable} imageUrls={imageUrls} images={detail.images.filter((image) => image.item_id === answer.item_id)} needsCorrection={needsCorrection} number={position.number} onChange={(value) => update(answer.item_id, value)} onDeleteImage={deleteImage} onUpload={(file) => queueUpload(answer.item_id, file)} referenceImageUrls={referenceImageUrls[answer.item_id] ?? []} uploaderId={auth.profile?.id ?? ''} /></div>;
     })}</div>
-    {editable ? <MobileActionBar className="grid grid-cols-2 gap-2.5"><button className="ui-button-secondary" disabled={busy || activeUploadCount > 0} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg font-bold disabled:opacity-60 ${currentSubmissionIssues.length > 0 ? 'bg-slate-300 text-slate-600' : 'bg-brand-600 text-white'}`} disabled={busy || activeUploadCount > 0} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />{activeUploadCount > 0 ? '图片上传中…' : '提交检查'}</button></MobileActionBar> : null}</> : <LoadingState label="正在加载任务" />}
+    {editable ? <MobileActionBar className="grid grid-cols-2 gap-2.5"><button className="ui-button-secondary" disabled={busy || activeUploadCount > 0} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg font-bold disabled:opacity-60 ${currentSubmissionIssues.length > 0 || (detail.task.requires_inventory && !inventorySubmitted) ? 'bg-slate-300 text-slate-600' : 'bg-brand-600 text-white'}`} disabled={busy || activeUploadCount > 0} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />{activeUploadCount > 0 ? '图片上传中…' : '提交检查'}</button></MobileActionBar> : null}</> : <LoadingState label="正在加载任务" />}
     {submissionIssues.length > 0 ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-label="必填项目未完成"><section className="ui-dialog-panel max-w-sm p-5"><h2 className="text-lg font-bold text-slate-900">请先完成必填项目</h2><p className="mt-2 text-sm leading-6 text-slate-600">以下内容尚未完成，完成后才能提交检查：</p><ul className="mt-3 space-y-2">{submissionIssues.map((issue) => <li className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm" key={issue.itemId}><b className="block text-slate-900">项目：{issue.label}</b><span className="mt-1 block text-amber-800">{issue.reason}</span></li>)}</ul><button className="ui-button-primary mt-5 w-full" onClick={() => setSubmissionIssues([])} type="button">我知道了</button></section></div> : null}
     <SuccessToast message={successMessage} onClose={() => { const returnToTasks = successMessage === '任务已提交，等待管理员审核'; setSuccessMessage(null); if (returnToTasks) navigate('/app/tasks'); }} />
   </PageShell>;

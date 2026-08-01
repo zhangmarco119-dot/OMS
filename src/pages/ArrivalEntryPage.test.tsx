@@ -107,6 +107,9 @@ describe('ArrivalEntryPage role boundary', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '提交上报' }));
 
+    expect(screen.getByRole('dialog', { name: '发现未匹配货品' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '仅提交上报' }));
+
     const dialog = screen.getByRole('dialog', { name: '确认提交到货上报' });
     expect(dialog).toHaveClass('ui-dialog-overlay');
     expect(dialog.firstElementChild).toHaveClass('ui-dialog-panel');

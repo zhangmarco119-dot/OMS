@@ -3,6 +3,7 @@ import type { Database, Json } from '../../types/database';
 export type TaskItemRow = Database['public']['Tables']['task_items']['Row'];
 
 export interface ProductSnapshot {
+  category_code?: string;
   product_id: string | null;
   name: string;
   spec: string;
@@ -31,6 +32,7 @@ export const asProductSnapshot = (value: Json): ProductSnapshot => {
   const record = value as Record<string, Json | undefined>;
 
   return {
+    category_code: typeof record.category_code === 'string' ? record.category_code : undefined,
     product_id: typeof record.product_id === 'string' ? record.product_id : null,
     name: typeof record.name === 'string' ? record.name : '未知货品',
     spec: typeof record.spec === 'string' ? record.spec : '',

@@ -10,6 +10,8 @@ const draftTask: TaskRow = {
   created_by: 'profile-1',
   export_meta: { existing: 'kept' },
   id: 'task-1',
+  inventory_category_codes: ['fruit', 'frozen', 'other_food', 'packaging', 'consumable', 'non_consumable'],
+  linked_v2_task_id: null,
   started_at: '2026-07-31T05:00:00.000Z',
   status: 'draft',
   store_id: 'store-1',

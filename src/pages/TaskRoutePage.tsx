@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, FileDown, ListChecks, PackagePlus, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { canManageV1ProductsFromTask } from '../features/access/roleCapabilities';
@@ -10,6 +10,7 @@ import { asProductSnapshot, type TaskItemRow } from '../features/tasks/taskCalcu
 import { useTaskSession } from '../features/tasks/useTaskSession';
 import type { InventoryTemplate } from '../features/tasks/taskService';
 import type { TaskType } from '../types/domain';
+import { PRODUCT_CATEGORIES, productCategoryLabel, type ProductCategoryCode } from '../features/products/productCategories';
 
 interface TaskRoutePageProps {
   mode: TaskType;
@@ -89,12 +90,14 @@ export function TaskRoutePage({ mode }: TaskRoutePageProps) {
 function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const linkedV2TaskId = mode === 'inventory' ? searchParams.get('linkedTaskId') : null;
   const text = copy[mode];
   // Both inventory and ordering are high-frequency mobile workflows. Keep the
   // same dense one-screen layout so switching modules does not reintroduce
   // unnecessary whitespace.
   const compact = true;
-  const task = useTaskSession(mode);
+  const task = useTaskSession(mode, { linkedV2TaskId });
   const [showSummary, setShowSummary] = useState(false);
   const [showExtraForm, setShowExtraForm] = useState(false);
   const [showProcessedDrawer, setShowProcessedDrawer] = useState(false);
@@ -115,6 +118,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const [inventoryImportMessage, setInventoryImportMessage] = useState<string | null>(null);
   const [extraForm, setExtraForm] = useState({ name: '', spec: '', countUnit: '', quantity: '', note: '' });
   const [productPermissions, setProductPermissions] = useState({ discontinued: false, incorrect: false, new: false });
+  const [scopeBusy, setScopeBusy] = useState(false);
   const isManager = canManageV1ProductsFromTask(auth.profile?.role);
   const canCorrectProduct = productPermissions.incorrect;
   const canRequestProductDeletion = productPermissions.discontinued;
@@ -126,6 +130,18 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const deletionActionLocked = deletionRequested
     || task.currentItem?.product_action_status === 'deletion_approved'
     || (!task.currentItem?.product_id && Boolean(snapshot?.product_id));
+  const inventoryCategories = task.sessionData?.task.inventory_category_codes ?? PRODUCT_CATEGORIES.map((category) => category.code);
+  const changeInventoryScope = async (code: ProductCategoryCode) => {
+    if (linkedV2TaskId || scopeBusy) return;
+    const next = inventoryCategories.includes(code)
+      ? inventoryCategories.filter((item) => item !== code)
+      : [...inventoryCategories, code];
+    if (!next.length) { setSubmitMessage('本次点货至少需要选择一个货品分类。'); return; }
+    setScopeBusy(true);
+    try { await task.setInventoryCategories(next); }
+    catch (error) { setSubmitMessage(error instanceof Error ? error.message : '点货范围更新失败。'); }
+    finally { setScopeBusy(false); }
+  };
 
   useEffect(() => {
     setFeedbackNote('');
@@ -309,7 +325,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       <div className={`mx-auto flex max-w-5xl flex-col ${compact ? 'gap-2.5' : 'gap-4'}`}>
         <header className={`rounded-2xl bg-white shadow-sm ${compact ? 'p-2.5' : 'p-4'}`}>
           <div className="flex items-start justify-between gap-4">
-            <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={() => navigate('/app/workbench', { replace: true })} type="button"><ArrowLeft className="h-5 w-5" /></button>
+            <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={() => navigate(linkedV2TaskId ? `/app/tasks/${linkedV2TaskId}` : '/app/workbench', { replace: true })} type="button"><ArrowLeft className="h-5 w-5" /></button>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-slate-500">{auth.store?.name ?? '当前门店'}</p>
               <h1 className={`${compact ? 'text-lg' : 'mt-1 text-xl'} font-bold text-slate-900`}>{text.title}</h1>
@@ -330,6 +346,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
               </button>
             ) : null}
           </div>
+          {mode === 'inventory' ? <div className="mt-2 rounded-xl bg-slate-50 p-2"><div className="flex items-center justify-between gap-2"><b className="text-xs text-slate-700">本次点货范围</b>{linkedV2TaskId ? <span className="text-[11px] font-semibold text-brand-700">由任务锁定</span> : <span className="text-[11px] text-slate-500">点击分类可勾选</span>}</div><div className="mt-1.5 flex flex-wrap gap-1.5">{PRODUCT_CATEGORIES.map((category) => <button className={`rounded-full px-2.5 py-1 text-xs font-bold ${inventoryCategories.includes(category.code) ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`} disabled={Boolean(linkedV2TaskId) || scopeBusy} key={category.code} onClick={() => void changeInventoryScope(category.code)} type="button">{category.label}</button>)}</div></div> : null}
         </header>
 
         {task.status === 'loading' ? (
@@ -375,6 +392,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                 {isSubmitting ? '正在提交' : `提交本次${text.modeLabel}`}
               </button>
             </div>
+            {linkedV2TaskId ? <button className="mt-3 min-h-12 w-full rounded-xl bg-brand-600 px-4 font-bold text-white" onClick={() => navigate(`/app/tasks/${linkedV2TaskId}`)} type="button">返回任务并提交检查</button> : null}
             {submitMessage ? <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-700">{submitMessage}</p> : null}
           </div>
         ) : null}
@@ -489,6 +507,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
 
                 {task.currentItem?.product_id ? (
                   <div className={`${compact ? 'mt-3 p-3' : 'mt-5 p-4'} rounded-2xl bg-slate-50`}>
+                    {isManager && mode === 'inventory' ? <label className="mb-2 block text-xs font-bold text-slate-600">货品分类<select className="ui-input mt-1 min-h-10 bg-white text-sm" onChange={(event) => void task.changeCurrentProductCategory(event.target.value as ProductCategoryCode)} value={(snapshot?.category_code as ProductCategoryCode | undefined) ?? 'other_food'}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label> : snapshot?.category_code ? <p className="mb-2 text-xs font-semibold text-brand-700">{productCategoryLabel(snapshot.category_code)}</p> : null}
                     {feedbackActionMessage ? (
                       <p className="mt-3 rounded-xl bg-white p-3 text-sm leading-6 text-slate-700">{feedbackActionMessage}</p>
                     ) : null}

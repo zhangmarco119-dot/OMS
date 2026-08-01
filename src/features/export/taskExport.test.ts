@@ -12,6 +12,8 @@ const task: TaskRow = {
   created_by: 'user-1',
   export_meta: {},
   id: 'task-1',
+  inventory_category_codes: ['fruit', 'frozen', 'other_food', 'packaging', 'consumable', 'non_consumable'],
+  linked_v2_task_id: null,
   started_at: '2026-07-11T00:00:00.000Z',
   status: 'submitted',
   store_id: 'store-1',

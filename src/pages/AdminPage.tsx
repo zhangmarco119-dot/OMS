@@ -34,6 +34,7 @@ import {
 } from '../features/admin/adminUsersService';
 import { useAuth } from '../features/auth/AuthContext';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
+import { DEFAULT_PRODUCT_CATEGORY, PRODUCT_CATEGORIES, productCategoryLabel, type ProductCategoryCode } from '../features/products/productCategories';
 
 export type AdminSection = 'products' | 'users';
 type ProductTab = 'catalog' | 'batch' | 'archived';
@@ -48,6 +49,7 @@ const accountTypeFields = (accountType: AccountType) => ({
 });
 
 const emptyProductDraft = (storeId = ''): ProductDraft => ({
+  category_code: DEFAULT_PRODUCT_CATEGORY,
   count_unit: '',
   name: '',
   product_code: '',
@@ -57,6 +59,7 @@ const emptyProductDraft = (storeId = ''): ProductDraft => ({
 });
 
 const productToDraft = (product: ProductRow): ProductDraft => ({
+  category_code: product.category_code,
   count_unit: product.count_unit,
   name: product.name,
   product_code: product.product_code ?? '',
@@ -72,6 +75,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [productSearch, setProductSearch] = useRememberedPageState('product-search', '');
+  const [productCategory, setProductCategory] = useRememberedPageState<ProductCategoryCode | ''>('product-category', '');
   const [selectedArchivedProductIds, setSelectedArchivedProductIds] = useState<string[]>([]);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useRememberedPageState('selected-store', '');
@@ -375,6 +379,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const archivedProducts = products.filter((product) => !product.is_active);
   const normalizedProductSearch = productSearch.trim().toLocaleLowerCase();
   const matchesProductSearch = (product: ProductRow) => {
+    if (productCategory && product.category_code !== productCategory) return false;
     if (!normalizedProductSearch) {
       return true;
     }
@@ -404,6 +409,10 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 <input aria-label="检索货品" className="min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400" onChange={(event) => setProductSearch(event.target.value)} placeholder="输入名称、规格或单位，立即筛选" type="search" value={productSearch} />
                 {productSearch ? <button aria-label="清空货品检索" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600" onClick={() => setProductSearch('')} type="button"><X className="h-4 w-4" aria-hidden="true" /></button> : null}
               </label>
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                <button className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${productCategory === '' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`} onClick={() => setProductCategory('')} type="button">全部分类</button>
+                {PRODUCT_CATEGORIES.map((category) => <button className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${productCategory === category.code ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`} key={category.code} onClick={() => setProductCategory(category.code)} type="button">{category.label}</button>)}
+              </div>
               <div className="mt-2 flex items-center justify-between px-1 text-xs text-slate-500">
                 <span>{productSearch ? `正在检索“${productSearch.trim()}”` : '支持名称、规格和单位检索'}</span>
                 <span className="font-semibold text-brand-700">显示 {visibleProductCount} / {currentProductCount}</span>
@@ -482,7 +491,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 </a>
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                默认读取第一个 Sheet。支持列名：货品名称、规格、单位、排序。导入的货品会直接进入货品列表；已有的同名同规格货品会更新并取消归档。单行不合规范或写入失败时会继续处理其余货品，完成后统一报告失败原因。
+                默认读取第一个 Sheet。支持列名：货品名称、分类、规格、单位、排序；分类留空时归入“其他食材”。导入的货品会直接进入货品列表；已有的同名同规格货品会更新并取消归档。单行不合规范或写入失败时会继续处理其余货品，完成后统一报告失败原因。
               </p>
               <input
                 accept=".xlsx,.xls"
@@ -523,6 +532,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                     <span className="truncate text-slate-600">{product.spec}</span>
                     <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{product.count_unit}</span>
                   </div>
+                  <p className="mt-1 text-xs font-semibold text-brand-700">{productCategoryLabel(product.category_code)}</p>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-brand-200 px-3 text-sm font-bold text-brand-700" onClick={() => void restoreArchivedProduct(product)} type="button">
                       <RotateCcw className="h-4 w-4" aria-hidden="true" />
@@ -646,10 +656,11 @@ export function AdminUsersPage() {
 
 function ProductDraftForm({ draft, onChange }: { draft: ProductDraft; onChange: (draft: ProductDraft) => void }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(4.5rem,0.55fr)] gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(4.5rem,0.55fr)_minmax(7rem,0.8fr)]">
       <input aria-label="货品名称" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="名称" value={draft.name} />
       <input aria-label="货品规格" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, spec: event.target.value })} placeholder="规格" value={draft.spec} />
       <input aria-label="货品单位" className="min-h-9 min-w-0 rounded-lg border border-slate-200 px-2.5 text-sm" onChange={(event) => onChange({ ...draft, count_unit: event.target.value })} placeholder="单位" value={draft.count_unit} />
+      <select aria-label="货品分类" className="min-h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-sm" onChange={(event) => onChange({ ...draft, category_code: event.target.value as ProductCategoryCode })} value={draft.category_code}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select>
     </div>
   );
 }

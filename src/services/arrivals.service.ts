@@ -59,6 +59,14 @@ export interface SaveArrivalDraftInput {
   trackingNo: string;
 }
 
+export interface ArrivalProductCreationRequestInput {
+  arrivalItemId: string;
+  categoryCode: Database['public']['Tables']['products']['Row']['category_code'];
+  countUnit: string;
+  name: string;
+  specification: string;
+}
+
 export const localArrivalDate = (now = new Date()) => {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -229,6 +237,26 @@ export const submitArrivalReport = async (
     throw new Error(error.message);
   }
   return data;
+};
+
+export const requestArrivalProductCreation = async (
+  client: Client,
+  reportId: string,
+  requests: ArrivalProductCreationRequestInput[],
+) => {
+  if (requests.length === 0) return [];
+  const { data, error } = await client.rpc('request_arrival_product_creation', {
+    p_report_id: reportId,
+    p_requests: requests.map((request) => ({
+      arrival_item_id: request.arrivalItemId,
+      category_code: request.categoryCode,
+      count_unit: request.countUnit.trim(),
+      name: request.name.trim(),
+      specification: request.specification.trim(),
+    })),
+  });
+  if (error) throw new Error(error.message);
+  return data ?? [];
 };
 
 export const loadArrivalHistory = async (client: Client, storeId: string) => {

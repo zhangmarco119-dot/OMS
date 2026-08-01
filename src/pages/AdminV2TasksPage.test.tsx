@@ -51,7 +51,7 @@ describe('AdminV2TasksPage navigation', () => {
     expect(screen.getByRole('checkbox', { name: /允许店长审核员工提交/ })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: '立即发布' })).toBeChecked();
     expect(screen.getByRole('radio', { name: '定时发布' })).not.toBeChecked();
-    expect(screen.getByText('高级选项 · 关联 SOP 或公告')).toBeInTheDocument();
+    expect(screen.getByText('高级选项 · 关联资料或点货')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: '定时发布' }));
     expect(screen.getByLabelText('定时发布时间')).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe('AdminV2TasksPage navigation', () => {
 
     render(<MemoryRouter><AdminV2TaskPublishPage /></MemoryRouter>);
     fireEvent.change(await screen.findByLabelText('任务模板'), { target: { value: 'template-1' } });
-    fireEvent.click(screen.getByText('高级选项 · 关联 SOP 或公告'));
+    fireEvent.click(screen.getByText('高级选项 · 关联资料或点货'));
     fireEvent.change(screen.getByLabelText('关联资料类型'), { target: { value: 'sop' } });
     fireEvent.click(screen.getByRole('button', { name: '请选择关联SOP' }));
 

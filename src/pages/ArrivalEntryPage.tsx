@@ -125,6 +125,17 @@ export function ArrivalEntryPage() {
       return;
     }
     const unmatchedItems = draft.form?.items.filter((item) => item.isUnmatchedProduct || !item.productId) ?? [];
+    const normalizedName = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('zh-CN');
+    const duplicate = unmatchedItems
+      .map((item) => ({
+        existing: draft.products.find((product) => normalizedName(product.name) === normalizedName(item.productName)),
+        item,
+      }))
+      .find((entry) => entry.existing);
+    if (duplicate?.existing) {
+      setActionMessage(`货品列表中已有货品“${duplicate.existing.name}”，不可以重复新增。请在产品名称的搜索结果中选择已有货品。`);
+      return;
+    }
     if (unmatchedItems.length > 0) {
       setProductRequests(unmatchedItems.map((item) => ({
         arrivalItemId: item.id,

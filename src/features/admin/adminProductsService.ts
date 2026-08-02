@@ -100,11 +100,56 @@ export interface ProductExportFile {
   filename: string;
 }
 
+export interface ProductMatchingSettings {
+  historyMatchDays: number;
+  recommendationDays: number;
+  updatedAt: string | null;
+}
+
+export interface RecommendedProduct {
+  categoryCode: ProductCategoryCode;
+  countUnit: string;
+  firstArrivalDate: string;
+  key: string;
+  lastArrivalDate: string;
+  name: string;
+  reportCount: number;
+  reportItemCount: number;
+  requestCount: number;
+  spec: string;
+  totalQuantity: number;
+}
+
+export interface RecommendedProductDraft {
+  category_code: ProductCategoryCode;
+  count_unit: string;
+  name: string;
+  spec: string;
+}
+
+export interface RecommendedProductBatchResult {
+  createdCount: number;
+  matchedArrivalItems: number;
+  products: Array<{ id: string; matchedArrivalItems: number; name: string }>;
+}
+
 const requireClient = () => {
   if (!supabase) {
     throw new Error('Supabase 未配置');
   }
   return supabase;
+};
+
+const productWriteError = (error: { message: string }, productName: string) => {
+  if (error.message.includes('货品列表中已有货品')) {
+    return new Error(error.message);
+  }
+  if (
+    error.message.includes('products_store_normalized_name_uidx')
+  ) {
+    return new Error(`货品列表中已有货品“${productName.trim()}”，不可以重复新增。`);
+  }
+  return new Error(error.message);
 };
 
 const normalizeHeader = (value: unknown) => String(value ?? '').trim().toLowerCase();
@@ -272,17 +317,17 @@ export const createProduct = async (draft: ProductDraft) => {
   const client = requireClient();
   const { error } = await client.from('products').insert({
     category_code: draft.category_code,
-    count_unit: draft.count_unit,
+    count_unit: draft.count_unit.trim(),
     is_active: true,
-    name: draft.name,
-    product_code: draft.product_code || null,
+    name: draft.name.trim(),
+    product_code: draft.product_code.trim() || null,
     sort_order: draft.sort_order,
-    spec: draft.spec,
+    spec: draft.spec.trim(),
     store_id: draft.store_id,
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw productWriteError(error, draft.name);
   }
 };
 
@@ -292,19 +337,106 @@ export const updateProduct = async (productId: string, draft: ProductDraft) => {
     .from('products')
     .update({
       category_code: draft.category_code,
-      count_unit: draft.count_unit,
+      count_unit: draft.count_unit.trim(),
       is_active: true,
-      name: draft.name,
-      product_code: draft.product_code || null,
+      name: draft.name.trim(),
+      product_code: draft.product_code.trim() || null,
       sort_order: draft.sort_order,
-      spec: draft.spec,
+      spec: draft.spec.trim(),
       store_id: draft.store_id,
     })
     .eq('id', productId);
 
   if (error) {
-    throw new Error(error.message);
+    throw productWriteError(error, draft.name);
   }
+};
+
+export const loadProductMatchingSettings = async (): Promise<ProductMatchingSettings> => {
+  const client = requireClient();
+  const { data, error } = await client.rpc('get_product_matching_settings');
+  if (error) throw new Error(error.message);
+  const value = (data ?? {}) as Record<string, unknown>;
+  return {
+    historyMatchDays: Number(value.historyMatchDays ?? 30),
+    recommendationDays: Number(value.recommendationDays ?? 30),
+    updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : null,
+  };
+};
+
+export const saveProductMatchingSettings = async (
+  settings: Pick<ProductMatchingSettings, 'historyMatchDays' | 'recommendationDays'>,
+): Promise<ProductMatchingSettings> => {
+  const client = requireClient();
+  const { data, error } = await client.rpc('admin_save_product_matching_settings', {
+    p_history_match_days: settings.historyMatchDays,
+    p_recommendation_days: settings.recommendationDays,
+  });
+  if (error) throw new Error(error.message);
+  const value = (data ?? {}) as Record<string, unknown>;
+  return {
+    historyMatchDays: Number(value.historyMatchDays ?? settings.historyMatchDays),
+    recommendationDays: Number(value.recommendationDays ?? settings.recommendationDays),
+    updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : null,
+  };
+};
+
+export const loadRecommendedProductAdditions = async (storeId: string): Promise<RecommendedProduct[]> => {
+  const client = requireClient();
+  const { data, error } = await client.rpc('list_recommended_product_additions', { p_store_id: storeId });
+  if (error) throw new Error(error.message);
+  if (!Array.isArray(data)) return [];
+  return data.map((entry) => {
+    const value = entry as Record<string, unknown>;
+    return {
+      categoryCode: (value.categoryCode ?? DEFAULT_PRODUCT_CATEGORY) as ProductCategoryCode,
+      countUnit: String(value.countUnit ?? ''),
+      firstArrivalDate: String(value.firstArrivalDate ?? ''),
+      key: String(value.key ?? ''),
+      lastArrivalDate: String(value.lastArrivalDate ?? ''),
+      name: String(value.name ?? ''),
+      reportCount: Number(value.reportCount ?? 0),
+      reportItemCount: Number(value.reportItemCount ?? 0),
+      requestCount: Number(value.requestCount ?? 0),
+      spec: String(value.spec ?? ''),
+      totalQuantity: Number(value.totalQuantity ?? 0),
+    };
+  }).filter((entry) => entry.key && entry.name);
+};
+
+export const createRecommendedProducts = async (
+  storeId: string,
+  products: RecommendedProductDraft[],
+): Promise<RecommendedProductBatchResult> => {
+  const client = requireClient();
+  const { data, error } = await client.rpc('admin_create_recommended_products', {
+    p_products: products.map((product) => ({
+      category_code: product.category_code,
+      count_unit: product.count_unit.trim(),
+      name: product.name.trim(),
+      spec: product.spec.trim(),
+    })),
+    p_store_id: storeId,
+  });
+  if (error) {
+    const firstName = products[0]?.name ?? '所选货品';
+    throw productWriteError(error, firstName);
+  }
+  const value = (data ?? {}) as Record<string, unknown>;
+  return {
+    createdCount: Number(value.createdCount ?? 0),
+    matchedArrivalItems: Number(value.matchedArrivalItems ?? 0),
+    products: Array.isArray(value.products)
+      ? value.products.map((entry) => {
+          const item = entry as Record<string, unknown>;
+          return {
+            id: String(item.id ?? ''),
+            matchedArrivalItems: Number(item.matchedArrivalItems ?? 0),
+            name: String(item.name ?? ''),
+          };
+        })
+      : [],
+  };
 };
 
 export const archiveProduct = async (productId: string) => {
@@ -429,9 +561,7 @@ export const importProducts = async (
           .from('products')
           .select('*')
           .eq('store_id', storeId)
-          .eq('name', row.name)
-          .eq('spec', row.spec)
-          .eq('count_unit', row.count_unit)
+          .eq('name', row.name.trim())
           .maybeSingle();
         if (error) {
           throw new Error(error.message);
@@ -441,12 +571,12 @@ export const importProducts = async (
 
       const payload = {
         category_code: row.category_code,
-        count_unit: row.count_unit,
+        count_unit: row.count_unit.trim(),
         is_active: true,
-        name: row.name,
+        name: row.name.trim(),
         product_code: row.product_code,
         sort_order: row.sort_order,
-        spec: row.spec,
+        spec: row.spec.trim(),
         store_id: storeId,
       };
 
@@ -466,7 +596,11 @@ export const importProducts = async (
     } catch (error) {
       failures.push({
         item,
-        reason: error instanceof Error ? error.message : '该货品写入失败。',
+        reason: error instanceof Error
+          ? (error.message.includes('23505') || error.message.includes('products_store_normalized_name_uidx')
+              ? `货品列表中已有货品“${row.name.trim()}”，不可以重复新增。`
+              : error.message)
+          : '该货品写入失败。',
         rowNumber: row.row_number,
       });
     } finally {

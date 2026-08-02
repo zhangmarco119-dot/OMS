@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../../types/database';
-import { findMissingDraftProductIds, findStaleDraftItemIds, submitTask } from './taskService';
+import { addExtraTaskItem, findMissingDraftProductIds, findStaleDraftItemIds, submitTask } from './taskService';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 
@@ -62,6 +62,14 @@ describe('taskService draft product synchronization', () => {
 });
 
 describe('taskService inventory submission', () => {
+  it('blocks a temporary counting item whose normalized name already exists', async () => {
+    const productQuery = { eq: vi.fn().mockResolvedValue({ data: [{ name: '原味 酸奶' }], error: null }) };
+    const client = { from: vi.fn(() => ({ select: vi.fn(() => productQuery) })) } as unknown as Parameters<typeof addExtraTaskItem>[0];
+
+    await expect(addExtraTaskItem(client, draftTask, { countUnit: '杯', name: '  原味  酸奶 ', quantity: 1, spec: '120g' }))
+      .rejects.toThrow('货品列表中已有货品“原味 酸奶”');
+  });
+
   it('submits successfully without requiring the update to return a single readable row', async () => {
     const eq = vi.fn().mockResolvedValue({ error: null });
     const update = vi.fn(() => ({ eq }));

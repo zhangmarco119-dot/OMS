@@ -11,7 +11,7 @@ import {
   type AdminUserRow,
   type StoreRow,
 } from '../features/admin/adminUsersService';
-import { archiveProduct, createProduct, deleteProduct, importProducts, loadAdminProductsData, parseProductImportFile, restoreProduct, type ProductRow } from '../features/admin/adminProductsService';
+import { archiveProduct, createProduct, createRecommendedProducts, deleteProduct, importProducts, loadAdminProductsData, loadProductMatchingSettings, loadRecommendedProductAdditions, parseProductImportFile, restoreProduct, type ProductRow } from '../features/admin/adminProductsService';
 import { useAuth } from '../features/auth/AuthContext';
 import { AdminPage } from './AdminPage';
 
@@ -21,12 +21,16 @@ vi.mock('../features/admin/adminProductsService', () => ({
   archiveProducts: vi.fn(),
   createAllProductsExportFile: vi.fn(),
   createProduct: vi.fn(),
+  createRecommendedProducts: vi.fn(),
   deleteProduct: vi.fn(),
   downloadProductExportFile: vi.fn(),
   importProducts: vi.fn(),
   loadAdminProductsData: vi.fn(),
+  loadProductMatchingSettings: vi.fn(),
+  loadRecommendedProductAdditions: vi.fn(),
   parseProductImportFile: vi.fn(),
   restoreProduct: vi.fn(),
+  saveProductMatchingSettings: vi.fn(),
   updateProduct: vi.fn(),
 }));
 vi.mock('../features/admin/adminUsersService', async (importOriginal) => {
@@ -99,6 +103,8 @@ describe('AdminPage account management', () => {
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ profile: { id: initialAdmin.id, role: 'admin' } } as ReturnType<typeof useAuth>);
     vi.mocked(loadAdminProductsData).mockResolvedValue({ products: [], selectedStoreId: store.id, stores: [store] });
+    vi.mocked(loadProductMatchingSettings).mockResolvedValue({ historyMatchDays: 30, recommendationDays: 30, updatedAt: null });
+    vi.mocked(loadRecommendedProductAdditions).mockResolvedValue([]);
     vi.mocked(loadAdminUsers).mockResolvedValue({ stores: [store], users: [staff, initialAdmin] });
     vi.mocked(updateManagedUser).mockResolvedValue(undefined);
     vi.mocked(updateProfileAdminFields).mockResolvedValue(undefined);
@@ -156,6 +162,24 @@ describe('AdminPage account management', () => {
     expect(dialog).toHaveTextContent('上传成功1上传失败1');
     expect(dialog).toHaveTextContent('Excel 第 3 行 · 失败货品');
     expect(dialog).toHaveTextContent('缺少必填字段：单位');
+  });
+
+  it('edits, selects, and creates recommended unmatched products in one batch', async () => {
+    vi.mocked(loadRecommendedProductAdditions).mockResolvedValue([{
+      categoryCode: 'fruit', countUnit: '个', firstArrivalDate: '2026-07-30', key: '牛油果', lastArrivalDate: '2026-08-02', name: '牛油果', reportCount: 3, reportItemCount: 4, requestCount: 1, spec: '', totalQuantity: 12,
+    }]);
+    vi.mocked(createRecommendedProducts).mockResolvedValue({ createdCount: 1, matchedArrivalItems: 4, products: [{ id: 'product-new', matchedArrivalItems: 4, name: '牛油果' }] });
+    render(<MemoryRouter initialEntries={['/app/admin/products']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: '新增货品' });
+    fireEvent.click(screen.getByRole('button', { name: '批量处理' }));
+    await screen.findByRole('heading', { name: '推荐新增货品' });
+    fireEvent.change(screen.getByRole('textbox', { name: '推荐货品规格 牛油果' }), { target: { value: '单果' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择推荐货品 牛油果' }));
+    fireEvent.click(screen.getByRole('button', { name: '一键新增已勾选货品（1）' }));
+
+    await waitFor(() => expect(createRecommendedProducts).toHaveBeenCalledWith(store.id, [{ category_code: 'fruit', count_unit: '个', name: '牛油果', spec: '单果' }]));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('已一次新增 1 个货品');
   });
 
   it('uses a compact active list and separates archived products', async () => {

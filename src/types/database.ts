@@ -1409,6 +1409,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      submit_arrival_report_with_product_requests: {
+        Args: {
+          p_expected_version: number;
+          p_idempotency_key: string;
+          p_report_id: string;
+          p_requests?: Json;
+        };
+        Returns: Json;
+      };
       void_arrival_report: {
         Args: { p_reason: string; p_report_id: string };
         Returns: Json;

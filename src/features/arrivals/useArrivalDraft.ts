@@ -10,6 +10,7 @@ import {
   localArrivalTime,
   saveArrivalDraft,
   submitArrivalReport,
+  type ArrivalProductCreationRequestInput,
   type ArrivalReportRow,
   type ProductRow,
 } from '../../services/arrivals.service';
@@ -317,7 +318,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     setImages((current) => current.filter((entry) => entry.id !== image.id));
   }, []);
 
-  const submit = useCallback(async () => {
+  const submit = useCallback(async (productRequests: ArrivalProductCreationRequestInput[] = []) => {
     if (!supabase || !profileId || !storeId || !formRef.current || !reportRef.current) {
       throw new Error('到货草稿尚未加载。');
     }
@@ -335,7 +336,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     }
 
     const saved = await saveNow();
-    await submitArrivalReport(supabase, saved.id, saved.version, idempotencyKeyRef.current);
+    await submitArrivalReport(supabase, saved.id, saved.version, idempotencyKeyRef.current, productRequests);
     try {
       window.localStorage.removeItem(cacheKey(profileId, storeId));
     } catch {

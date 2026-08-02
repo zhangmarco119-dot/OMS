@@ -226,10 +226,18 @@ export const submitArrivalReport = async (
   reportId: string,
   expectedVersion: number,
   idempotencyKey: string,
+  requests: ArrivalProductCreationRequestInput[] = [],
 ) => {
-  const { data, error } = await client.rpc('submit_arrival_report', {
+  const { data, error } = await client.rpc('submit_arrival_report_with_product_requests', {
     p_expected_version: expectedVersion,
     p_idempotency_key: idempotencyKey,
+    p_requests: requests.map((request) => ({
+      arrival_item_id: request.arrivalItemId,
+      category_code: request.categoryCode,
+      count_unit: request.countUnit.trim(),
+      name: request.name.trim(),
+      spec: request.specification.trim(),
+    })),
     p_report_id: reportId,
   });
 
@@ -252,7 +260,7 @@ export const requestArrivalProductCreation = async (
       category_code: request.categoryCode,
       count_unit: request.countUnit.trim(),
       name: request.name.trim(),
-      specification: request.specification.trim(),
+      spec: request.specification.trim(),
     })),
   });
   if (error) throw new Error(error.message);

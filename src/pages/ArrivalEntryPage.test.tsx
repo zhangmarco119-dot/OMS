@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -114,6 +114,40 @@ describe('ArrivalEntryPage role boundary', () => {
     expect(dialog).toHaveClass('ui-dialog-overlay');
     expect(dialog.firstElementChild).toHaveClass('ui-dialog-panel');
     expect(screen.getByRole('button', { name: '确认提交' })).toBeVisible();
+  });
+
+  it('shows missing request fields inside the dialog and submits once after completion', async () => {
+    setRole('staff');
+    const submit = vi.fn().mockResolvedValue('00000000-0000-4000-8000-000000000301');
+    setReadyDraft({
+      form: {
+        arrivalDate: '2026-08-02',
+        arrivalTime: '12:42',
+        carrierName: '',
+        items: [{ id: '00000000-0000-4000-8000-000000000201', isUnmatchedProduct: true, note: '', productId: null, productName: '测试1', quantity: '1', sortOrder: 0, spec: '', unit: '个' }],
+        note: '',
+        trackingNo: '',
+      },
+      images: [
+        { arrival_item_id: null, bucket: 'arrival-report-images', created_at: '2026-08-02T04:42:00Z', file_name: 'waybill.jpg', height: 100, id: '00000000-0000-4000-8000-000000000401', image_type: 'waybill', mime_type: 'image/jpeg', object_path: 'waybill.jpg', report_id: '00000000-0000-4000-8000-000000000301', signedUrl: 'https://example.com/waybill.jpg', size_bytes: 100, store_id: '00000000-0000-4000-8000-000000000101', uploaded_by: '00000000-0000-4000-8000-000000000001', width: 100 },
+        { arrival_item_id: '00000000-0000-4000-8000-000000000201', bucket: 'arrival-report-images', created_at: '2026-08-02T04:42:00Z', file_name: 'goods.jpg', height: 100, id: '00000000-0000-4000-8000-000000000402', image_type: 'goods', mime_type: 'image/jpeg', object_path: 'goods.jpg', report_id: '00000000-0000-4000-8000-000000000301', signedUrl: 'https://example.com/goods.jpg', size_bytes: 100, store_id: '00000000-0000-4000-8000-000000000101', uploaded_by: '00000000-0000-4000-8000-000000000001', width: 100 },
+      ],
+      submit,
+    });
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><ArrivalEntryPage /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole('button', { name: '提交上报' }));
+    fireEvent.click(screen.getByRole('button', { name: '提交并申请新增' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('未匹配货品 1：请填写规格');
+    expect(submit).not.toHaveBeenCalled();
+
+    fireEvent.change(within(screen.getByRole('dialog', { name: '发现未匹配货品' })).getByLabelText('规格'), { target: { value: '1kg/袋' } });
+    fireEvent.click(screen.getByRole('button', { name: '提交并申请新增' }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+    expect(submit).toHaveBeenCalledWith([expect.objectContaining({ specification: '1kg/袋' })]);
+    expect(screen.queryByRole('dialog', { name: '确认提交到货上报' })).not.toBeInTheDocument();
   });
 
   it('keeps the administrator outside the store execution page', () => {

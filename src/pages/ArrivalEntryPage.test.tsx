@@ -150,6 +150,27 @@ describe('ArrivalEntryPage role boundary', () => {
     expect(screen.queryByRole('dialog', { name: '确认提交到货上报' })).not.toBeInTheDocument();
   });
 
+  it('blocks an unmatched add request when the same product name already exists', () => {
+    setRole('staff');
+    setReadyDraft({
+      form: {
+        arrivalDate: '2026-08-02', arrivalTime: '12:42', carrierName: '', note: '', trackingNo: '',
+        items: [{ id: '00000000-0000-4000-8000-000000000201', isUnmatchedProduct: true, note: '', productId: null, productName: '  原味 酸奶 ', quantity: '1', sortOrder: 0, spec: '', unit: '杯' }],
+      },
+      images: [
+        { arrival_item_id: null, bucket: 'arrival-report-images', created_at: '2026-08-02T04:42:00Z', file_name: 'waybill.jpg', height: 100, id: '00000000-0000-4000-8000-000000000401', image_type: 'waybill', mime_type: 'image/jpeg', object_path: 'waybill.jpg', report_id: '00000000-0000-4000-8000-000000000301', signedUrl: 'https://example.com/waybill.jpg', size_bytes: 100, store_id: '00000000-0000-4000-8000-000000000101', uploaded_by: '00000000-0000-4000-8000-000000000001', width: 100 },
+        { arrival_item_id: '00000000-0000-4000-8000-000000000201', bucket: 'arrival-report-images', created_at: '2026-08-02T04:42:00Z', file_name: 'goods.jpg', height: 100, id: '00000000-0000-4000-8000-000000000402', image_type: 'goods', mime_type: 'image/jpeg', object_path: 'goods.jpg', report_id: '00000000-0000-4000-8000-000000000301', signedUrl: 'https://example.com/goods.jpg', size_bytes: 100, store_id: '00000000-0000-4000-8000-000000000101', uploaded_by: '00000000-0000-4000-8000-000000000001', width: 100 },
+      ],
+      products: [{ category_code: 'other_food', count_unit: '杯', created_at: '', id: 'product-1', is_active: true, name: '原味 酸奶', product_code: null, sort_order: 1, spec: '120g', store_id: '00000000-0000-4000-8000-000000000101', updated_at: '' }],
+    });
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><ArrivalEntryPage /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole('button', { name: '提交上报' }));
+
+    expect(screen.queryByRole('dialog', { name: '发现未匹配货品' })).not.toBeInTheDocument();
+    expect(screen.getByText(/货品列表中已有货品“原味 酸奶”/)).toBeInTheDocument();
+  });
+
   it('keeps the administrator outside the store execution page', () => {
     setRole('admin');
     render(

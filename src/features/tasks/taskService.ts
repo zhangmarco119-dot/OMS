@@ -382,6 +382,17 @@ export const addExtraTaskItem = async (
   task: TaskRow,
   input: ExtraTaskItemInput,
 ) => {
+  const { data: products, error: productError } = await client
+    .from('products')
+    .select('name')
+    .eq('store_id', task.store_id);
+  if (productError) throw new Error(productError.message);
+  const normalizeName = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('zh-CN');
+  const existing = (products ?? []).find((product) => normalizeName(product.name) === normalizeName(input.name));
+  if (existing) {
+    throw new Error(`货品列表中已有货品“${existing.name}”，不可以重复新增。`);
+  }
+
   const { data, error } = await client
     .from('task_items')
     .insert({

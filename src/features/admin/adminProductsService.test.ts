@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 
 import type { Database } from '../../types/database';
-import { feedbackProductSnapshots, handleProductFeedbackBatch, handleProductFeedbackBatchActions, importProducts, isAppliedProductCorrection, parseProductImportFile } from './adminProductsService';
+import { createRecommendedProducts, feedbackProductSnapshots, handleProductFeedbackBatch, handleProductFeedbackBatchActions, importProducts, isAppliedProductCorrection, loadProductMatchingSettings, loadRecommendedProductAdditions, parseProductImportFile, saveProductMatchingSettings } from './adminProductsService';
 
 const database = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 vi.mock('../../lib/supabase', () => ({ supabase: database }));
@@ -73,6 +73,25 @@ describe('adminProductsService', () => {
     ]);
     expect(database.from).toHaveBeenCalledTimes(6);
     expect(filters.store_id).toBe('store-1');
+  });
+
+  it('loads and saves matching windows and creates edited recommendations through RPCs', async () => {
+    database.rpc
+      .mockResolvedValueOnce({ data: { historyMatchDays: 14, recommendationDays: 21, updatedAt: '2026-08-02T10:00:00Z' }, error: null })
+      .mockResolvedValueOnce({ data: { historyMatchDays: 10, recommendationDays: 45, updatedAt: '2026-08-02T10:01:00Z' }, error: null })
+      .mockResolvedValueOnce({ data: [{ categoryCode: 'fruit', countUnit: '个', firstArrivalDate: '2026-08-01', key: '牛油果', lastArrivalDate: '2026-08-02', name: '牛油果', reportCount: 2, reportItemCount: 3, requestCount: 1, spec: '', totalQuantity: 8 }], error: null })
+      .mockResolvedValueOnce({ data: { createdCount: 1, matchedArrivalItems: 3, products: [{ id: 'product-1', matchedArrivalItems: 3, name: '牛油果' }] }, error: null });
+
+    await expect(loadProductMatchingSettings()).resolves.toMatchObject({ historyMatchDays: 14, recommendationDays: 21 });
+    await expect(saveProductMatchingSettings({ historyMatchDays: 10, recommendationDays: 45 })).resolves.toMatchObject({ historyMatchDays: 10, recommendationDays: 45 });
+    await expect(loadRecommendedProductAdditions('store-1')).resolves.toEqual([expect.objectContaining({ key: '牛油果', reportItemCount: 3 })]);
+    await expect(createRecommendedProducts('store-1', [{ category_code: 'fruit', count_unit: '个', name: ' 牛油果 ', spec: ' 单果 ' }])).resolves.toMatchObject({ createdCount: 1, matchedArrivalItems: 3 });
+
+    expect(database.rpc).toHaveBeenNthCalledWith(2, 'admin_save_product_matching_settings', { p_history_match_days: 10, p_recommendation_days: 45 });
+    expect(database.rpc).toHaveBeenNthCalledWith(4, 'admin_create_recommended_products', {
+      p_products: [{ category_code: 'fruit', count_unit: '个', name: '牛油果', spec: '单果' }],
+      p_store_id: 'store-1',
+    });
   });
 
   it('recognizes a manager-applied product correction and exposes before/after snapshots', () => {

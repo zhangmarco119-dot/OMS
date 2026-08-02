@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RotateCcw, Save, Search, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, RotateCcw, Save, Search, Sparkles, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -7,18 +7,25 @@ import { BatchImportReportDialog } from '../components/feedback/BatchImportRepor
 import {
   archiveProduct,
   archiveProducts,
+  createRecommendedProducts,
   createProduct,
   createAllProductsExportFile,
   deleteProduct,
   downloadProductExportFile,
   importProducts,
   loadAdminProductsData,
+  loadProductMatchingSettings,
+  loadRecommendedProductAdditions,
   parseProductImportFile,
   restoreProduct,
+  saveProductMatchingSettings,
   updateProduct,
   type ProductDraft,
   type ProductImportResult,
+  type ProductMatchingSettings,
   type ProductRow,
+  type RecommendedProduct,
+  type RecommendedProductDraft,
 } from '../features/admin/adminProductsService';
 import {
   createAuthUserWithProfile,
@@ -88,6 +95,11 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const [importProgress, setImportProgress] = useState<{ completed: number; total: number } | null>(null);
   const [importing, setImporting] = useState(false);
   const [productImportReport, setProductImportReport] = useState<ProductImportResult | null>(null);
+  const [matchingSettings, setMatchingSettings] = useState<ProductMatchingSettings>({ historyMatchDays: 30, recommendationDays: 30, updatedAt: null });
+  const [recommendedProducts, setRecommendedProducts] = useState<RecommendedProduct[]>([]);
+  const [recommendedDrafts, setRecommendedDrafts] = useState<Record<string, RecommendedProductDraft>>({});
+  const [selectedRecommendationKeys, setSelectedRecommendationKeys] = useState<string[]>([]);
+  const [recommendationBusy, setRecommendationBusy] = useState(false);
   const [newUser, setNewUser] = useState<CreateUserInput>({
     password: '',
     username: '',
@@ -106,11 +118,24 @@ export function AdminPage({ section }: { section: AdminSection }) {
     try {
       if (section === 'products') {
         const catalogData = await loadAdminProductsData(storeId);
+        const [settings, recommendations] = await Promise.all([
+          loadProductMatchingSettings(),
+          catalogData.selectedStoreId ? loadRecommendedProductAdditions(catalogData.selectedStoreId) : Promise.resolve([]),
+        ]);
         setStores(catalogData.stores);
         setSelectedStoreId(catalogData.selectedStoreId);
         setProducts(catalogData.products);
         setProductDrafts(Object.fromEntries(catalogData.products.map((product) => [product.id, productToDraft(product)])));
         setNewProduct(emptyProductDraft(catalogData.selectedStoreId));
+        setMatchingSettings(settings);
+        setRecommendedProducts(recommendations);
+        setRecommendedDrafts(Object.fromEntries(recommendations.map((product) => [product.key, {
+          category_code: product.categoryCode,
+          count_unit: product.countUnit,
+          name: product.name,
+          spec: product.spec,
+        }])));
+        setSelectedRecommendationKeys([]);
       } else {
         const userData = await loadAdminUsers();
         setStores(userData.stores);
@@ -268,6 +293,66 @@ export function AdminPage({ section }: { section: AdminSection }) {
       setMessage(`已导出全部 ${file.count} 个货品。`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出货品失败');
+    }
+  };
+
+  const saveMatchingSettings = async () => {
+    setMessage(null);
+    if (
+      !Number.isInteger(matchingSettings.historyMatchDays)
+      || !Number.isInteger(matchingSettings.recommendationDays)
+      || matchingSettings.historyMatchDays < 1
+      || matchingSettings.historyMatchDays > 365
+      || matchingSettings.recommendationDays < 1
+      || matchingSettings.recommendationDays > 365
+    ) {
+      setMessage('动态匹配和推荐统计天数必须填写 1 至 365 的整数。');
+      return;
+    }
+    setRecommendationBusy(true);
+    try {
+      const saved = await saveProductMatchingSettings(matchingSettings);
+      setMatchingSettings(saved);
+      await refresh(selectedStoreId);
+      setMessage(`货品匹配设置已保存：新增货品回填最近 ${saved.historyMatchDays} 天，推荐统计最近 ${saved.recommendationDays} 天。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存货品匹配设置失败');
+    } finally {
+      setRecommendationBusy(false);
+    }
+  };
+
+  const refreshRecommendations = async () => {
+    setRecommendationBusy(true);
+    setMessage(null);
+    try {
+      await refresh(selectedStoreId);
+    } finally {
+      setRecommendationBusy(false);
+    }
+  };
+
+  const createSelectedRecommendations = async () => {
+    const drafts = selectedRecommendationKeys.map((key) => recommendedDrafts[key]).filter(Boolean);
+    if (!drafts.length) {
+      setMessage('请至少勾选一个推荐货品。');
+      return;
+    }
+    const incomplete = drafts.find((draft) => !draft.name.trim() || !draft.spec.trim() || !draft.count_unit.trim());
+    if (incomplete) {
+      setMessage(`推荐货品“${incomplete.name || '未命名货品'}”缺少名称、规格或单位，请补充后再新增。`);
+      return;
+    }
+    setRecommendationBusy(true);
+    setMessage(null);
+    try {
+      const result = await createRecommendedProducts(selectedStoreId, drafts);
+      await refresh(selectedStoreId);
+      setMessage(`已一次新增 ${result.createdCount} 个货品，并将最近 ${matchingSettings.historyMatchDays} 天内 ${result.matchedArrivalItems} 条到货记录更新为已匹配。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '批量新增推荐货品失败');
+    } finally {
+      setRecommendationBusy(false);
     }
   };
 
@@ -483,6 +568,47 @@ export function AdminPage({ section }: { section: AdminSection }) {
           {productTab === 'batch' ? (
             <div className="space-y-2">
             <div className="rounded-lg bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-brand-600" aria-hidden="true" /><h2 className="text-lg font-bold text-slate-900">推荐新增货品</h2></div>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">自动汇总当前门店最近 {matchingSettings.recommendationDays} 天仍未匹配的到货货品。可先修改名称、规格、单位和分类，再任意勾选并一次新增。</p>
+                </div>
+                <button aria-label="刷新推荐货品" className="ui-icon-button shrink-0" disabled={recommendationBusy} onClick={() => void refreshRecommendations()} type="button"><RefreshCw className={`h-4 w-4 ${recommendationBusy ? 'animate-spin' : ''}`} /></button>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-sm font-bold text-slate-800">动态匹配与推荐范围</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <label className="text-xs font-semibold text-slate-600">新增后回填最近 n 天<input aria-label="新增货品动态匹配天数" className="ui-input mt-1" max="365" min="1" onChange={(event) => setMatchingSettings((current) => ({ ...current, historyMatchDays: Number(event.target.value) }))} type="number" value={matchingSettings.historyMatchDays} /></label>
+                  <label className="text-xs font-semibold text-slate-600">推荐统计最近 m 天<input aria-label="推荐货品统计天数" className="ui-input mt-1" max="365" min="1" onChange={(event) => setMatchingSettings((current) => ({ ...current, recommendationDays: Number(event.target.value) }))} type="number" value={matchingSettings.recommendationDays} /></label>
+                </div>
+                <button className="ui-button-secondary mt-2 min-h-10 w-full text-sm" disabled={recommendationBusy} onClick={() => void saveMatchingSettings()} type="button">保存天数设置</button>
+              </div>
+
+              {recommendedProducts.length ? <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-50 p-3">
+                  <label className="text-sm font-bold text-brand-900"><input checked={selectedRecommendationKeys.length === recommendedProducts.length} className="mr-2" onChange={(event) => setSelectedRecommendationKeys(event.target.checked ? recommendedProducts.map((product) => product.key) : [])} type="checkbox" />全选推荐项</label>
+                  <span className="text-xs font-semibold text-brand-700">共 {recommendedProducts.length} 种未匹配货品</span>
+                </div>
+                {recommendedProducts.map((product) => {
+                  const draft = recommendedDrafts[product.key] ?? { category_code: product.categoryCode, count_unit: product.countUnit, name: product.name, spec: product.spec };
+                  const selected = selectedRecommendationKeys.includes(product.key);
+                  const updateDraft = (updates: Partial<RecommendedProductDraft>) => setRecommendedDrafts((current) => ({ ...current, [product.key]: { ...draft, ...updates } }));
+                  return <article className={`rounded-lg border p-3 ${selected ? 'border-brand-300 bg-brand-50/40' : 'border-slate-200 bg-white'}`} key={product.key}>
+                    <label className="flex min-h-9 items-center gap-2 text-sm font-bold text-slate-800"><input aria-label={`选择推荐货品 ${product.name}`} checked={selected} onChange={(event) => setSelectedRecommendationKeys((current) => event.target.checked ? [...current, product.key] : current.filter((key) => key !== product.key))} type="checkbox" />选择此推荐货品</label>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <input aria-label={`推荐货品名称 ${product.name}`} className="ui-input" onChange={(event) => updateDraft({ name: event.target.value })} placeholder="货品名称" value={draft.name} />
+                      <input aria-label={`推荐货品规格 ${product.name}`} className="ui-input" onChange={(event) => updateDraft({ spec: event.target.value })} placeholder="请补充规格" value={draft.spec} />
+                      <input aria-label={`推荐货品单位 ${product.name}`} className="ui-input" onChange={(event) => updateDraft({ count_unit: event.target.value })} placeholder="最小单位" value={draft.count_unit} />
+                      <select aria-label={`推荐货品分类 ${product.name}`} className="ui-input bg-white" onChange={(event) => updateDraft({ category_code: event.target.value as ProductCategoryCode })} value={draft.category_code}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">{product.firstArrivalDate} 至 {product.lastArrivalDate} · {product.reportCount} 份上报 / {product.reportItemCount} 条明细 · 累计数量 {product.totalQuantity}{product.requestCount ? ` · 已有 ${product.requestCount} 次新增申请信息` : ''}</p>
+                  </article>;
+                })}
+                <button className="ui-button-primary min-h-11 w-full" disabled={recommendationBusy || selectedRecommendationKeys.length === 0} onClick={() => void createSelectedRecommendations()} type="button"><PackagePlus className="h-4 w-4" />一键新增已勾选货品（{selectedRecommendationKeys.length}）</button>
+              </div> : <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-800">最近 {matchingSettings.recommendationDays} 天没有需要推荐新增的未匹配货品。</p>}
+            </div>
+            <div className="rounded-lg bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-bold text-slate-900">Excel 导入货品</h2>
                 <a className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700" download="货品导入模板.xlsx" href="/templates/货品导入模板.xlsx">
@@ -491,7 +617,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 </a>
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                默认读取第一个 Sheet。支持列名：货品名称、分类、规格、单位、排序；分类留空时归入“其他食材”。导入的货品会直接进入货品列表；已有的同名同规格货品会更新并取消归档。单行不合规范或写入失败时会继续处理其余货品，完成后统一报告失败原因。
+                默认读取第一个 Sheet。支持列名：货品名称、分类、规格、单位、排序；分类留空时归入“其他食材”。导入的货品会直接进入货品列表；已有同名货品会更新并取消归档，货品库不会产生重名记录。单行不合规范或写入失败时会继续处理其余货品，完成后统一报告失败原因。
               </p>
               <input
                 accept=".xlsx,.xls"

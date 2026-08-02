@@ -1118,6 +1118,11 @@ export type Database = {
       };
     };
     Functions: {
+      get_product_matching_settings: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_save_product_matching_settings: { Args: { p_history_match_days: number; p_recommendation_days: number }; Returns: Json };
+      list_recommended_product_additions: { Args: { p_store_id: string }; Returns: Json };
+      admin_create_recommended_products: { Args: { p_products: Json; p_store_id: string }; Returns: Json };
+      normalize_product_name: { Args: { p_name: string }; Returns: string };
       record_system_activity: { Args: { p_module: string; p_view: string; p_period?: string | null; p_store_id?: string | null; p_target_profile_id?: string | null; p_context?: Json }; Returns: string };
       list_system_operation_log_actors: { Args: Record<PropertyKey, never>; Returns: Json };
       get_system_release_policy: { Args: Record<PropertyKey, never>; Returns: Json };

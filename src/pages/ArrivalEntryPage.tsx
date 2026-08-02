@@ -12,8 +12,7 @@ import { generateArrivalSummary, getArrivalValidationIssues } from '../features/
 import { useArrivalDraft } from '../features/arrivals/useArrivalDraft';
 import { useAuth } from '../features/auth/AuthContext';
 import { PRODUCT_CATEGORIES, DEFAULT_PRODUCT_CATEGORY, type ProductCategoryCode } from '../features/products/productCategories';
-import { supabase } from '../lib/supabase';
-import { requestArrivalProductCreation, type ArrivalProductCreationRequestInput } from '../services/arrivals.service';
+import type { ArrivalProductCreationRequestInput } from '../services/arrivals.service';
 
 const saveStatusLabel = {
   error: '保存失败',
@@ -33,6 +32,8 @@ export function ArrivalEntryPage() {
   const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [showUnmatchedDialog, setShowUnmatchedDialog] = useState(false);
   const [productRequests, setProductRequests] = useState<ArrivalProductCreationRequestInput[]>([]);
+  const [productRequestIssues, setProductRequestIssues] = useState<string[]>([]);
+  const [productRequestMessage, setProductRequestMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -95,20 +96,24 @@ export function ArrivalEntryPage() {
     }
   };
 
-  const confirmSubmit = async () => {
+  const confirmSubmit = async (requests: ArrivalProductCreationRequestInput[] = []) => {
     if (submitting) return;
     setSubmitting(true);
     setActionMessage(null);
+    setProductRequestMessage(null);
     try {
-      const reportId = await draft.submit();
-      if (productRequests.length > 0 && supabase) {
-        await requestArrivalProductCreation(supabase, reportId, productRequests);
-      }
+      const reportId = await draft.submit(requests);
       setShowConfirm(false);
+      setShowUnmatchedDialog(false);
       navigate(`/app/arrivals/${reportId}/success`, { replace: true });
     } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : '提交到货上报失败，请重试。');
-      setShowConfirm(false);
+      const message = error instanceof Error ? error.message : '提交到货上报失败，请重试。';
+      if (requests.length > 0) {
+        setProductRequestMessage(message);
+      } else {
+        setActionMessage(message);
+        setShowConfirm(false);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -128,6 +133,8 @@ export function ArrivalEntryPage() {
         name: item.productName,
         specification: item.spec,
       })));
+      setProductRequestIssues([]);
+      setProductRequestMessage(null);
       setShowUnmatchedDialog(true);
       return;
     }
@@ -137,16 +144,26 @@ export function ArrivalEntryPage() {
 
   const updateProductRequest = (arrivalItemId: string, updates: Partial<ArrivalProductCreationRequestInput>) => {
     setProductRequests((current) => current.map((item) => item.arrivalItemId === arrivalItemId ? { ...item, ...updates } : item));
+    setProductRequestIssues([]);
+    setProductRequestMessage(null);
   };
 
   const continueWithProductRequests = () => {
-    if (productRequests.some((item) => !item.name.trim() || !item.specification.trim() || !item.countUnit.trim())) {
-      setActionMessage('申请新增货品时，请完整填写名称、规格、单位和分类。');
+    const issues = productRequests.flatMap((item, index) => {
+      const missing: string[] = [];
+      if (!item.name.trim()) missing.push('货品名称');
+      if (!item.specification.trim()) missing.push('规格');
+      if (!item.countUnit.trim()) missing.push('最小单位');
+      if (!item.categoryCode) missing.push('货品分类');
+      return missing.length > 0 ? [`未匹配货品 ${index + 1}：请填写${missing.join('、')}`] : [];
+    });
+    if (issues.length > 0) {
+      setProductRequestIssues(issues);
+      setProductRequestMessage(null);
       return;
     }
-    setActionMessage(null);
-    setShowUnmatchedDialog(false);
-    setShowConfirm(true);
+    setProductRequestIssues([]);
+    void confirmSubmit(productRequests);
   };
 
   return (
@@ -271,10 +288,12 @@ export function ArrivalEntryPage() {
               <label className="mt-2 block text-xs font-semibold text-slate-600">货品分类<select className="ui-input mt-1" onChange={(event) => updateProductRequest(request.arrivalItemId, { categoryCode: event.target.value as ProductCategoryCode })} value={request.categoryCode}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label>
             </section>)}
           </div>
+          {productRequestIssues.length > 0 ? <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-950" role="alert"><b>请补充以下信息：</b><ul className="mt-1 space-y-1">{productRequestIssues.map((issue) => <li key={issue}>• {issue}</li>)}</ul></div> : null}
+          {productRequestMessage ? <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700" role="alert"><b>提交失败：</b>{productRequestMessage}</div> : null}
           <div className="mt-5 grid gap-2 sm:grid-cols-3">
-            <button className="ui-button-secondary" onClick={() => { setShowUnmatchedDialog(false); setProductRequests([]); }} type="button">返回修改</button>
-            <button className="ui-button-secondary" onClick={() => { setShowUnmatchedDialog(false); setProductRequests([]); setShowConfirm(true); }} type="button">仅提交上报</button>
-            <button className="ui-button-primary" onClick={continueWithProductRequests} type="button">提交并申请新增</button>
+            <button className="ui-button-secondary" disabled={submitting} onClick={() => { setShowUnmatchedDialog(false); setProductRequests([]); setProductRequestIssues([]); setProductRequestMessage(null); }} type="button">返回修改</button>
+            <button className="ui-button-secondary" disabled={submitting} onClick={() => { setShowUnmatchedDialog(false); setProductRequests([]); setShowConfirm(true); }} type="button">仅提交上报</button>
+            <button className="ui-button-primary" disabled={submitting} onClick={continueWithProductRequests} type="button">{submitting ? '正在提交' : '提交并申请新增'}</button>
           </div>
         </div>
       </div> : null}

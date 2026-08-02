@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ArrivalDraftItem } from '../features/arrivals/arrivalForm';
 import type { Database } from '../types/database';
-import { applyArrivalOpenedAt, localArrivalDate, localArrivalTime, saveArrivalDraft } from './arrivals.service';
+import { applyArrivalOpenedAt, localArrivalDate, localArrivalTime, saveArrivalDraft, submitArrivalReport } from './arrivals.service';
 
 const report = {
   arrival_date: '2026-07-12',
@@ -101,5 +101,31 @@ describe('arrivals service', () => {
       reportId: report.id,
       trackingNo: '',
     })).rejects.toThrow('数据库返回的到货草稿格式无效');
+  });
+
+  it('submits the report and unmatched-product requests through one atomic RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { id: report.id }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+
+    await submitArrivalReport(client, report.id, 2, 'arrival-submit-key', [{
+      arrivalItemId: completeItem.id,
+      categoryCode: 'other_food',
+      countUnit: '袋',
+      name: '测试果酱',
+      specification: '1kg/袋',
+    }]);
+
+    expect(rpc).toHaveBeenCalledWith('submit_arrival_report_with_product_requests', {
+      p_expected_version: 2,
+      p_idempotency_key: 'arrival-submit-key',
+      p_report_id: report.id,
+      p_requests: [{
+        arrival_item_id: completeItem.id,
+        category_code: 'other_food',
+        count_unit: '袋',
+        name: '测试果酱',
+        spec: '1kg/袋',
+      }],
+    });
   });
 });

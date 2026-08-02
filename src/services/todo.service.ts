@@ -7,6 +7,7 @@ type Client = SupabaseClient<Database>;
 export interface TodoSummary {
   count: number;
   noticeAcknowledgements: number;
+  productCreationRequests: number;
   productFeedback: number;
   tasks: number;
   overtime: number;
@@ -16,21 +17,24 @@ export interface TodoSummary {
 
 export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean; isManager?: boolean; profileId: string; storeId?: string; storeIds?: string[] }): Promise<TodoSummary> => {
   if (input.isAdmin) {
-    const [tasks, feedback, overtime] = await Promise.all([
+    const [tasks, feedback, productCreationRequests, overtime] = await Promise.all([
       client.from('v2_tasks').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'resubmitted']),
       client.from('product_feedback').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+      client.from('product_creation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       client.rpc('payroll_overtime_todo_count'),
     ]);
     if (tasks.error) throw new Error(tasks.error.message);
     if (feedback.error) throw new Error(feedback.error.message);
+    if (productCreationRequests.error) throw new Error(productCreationRequests.error.message);
     if (overtime.error) throw new Error(overtime.error.message);
-    const taskCount = tasks.count ?? 0; const feedbackCount = feedback.count ?? 0; const overtimeCount = overtime.data ?? 0;
-    return { count: taskCount + feedbackCount + overtimeCount, noticeAcknowledgements: 0, productFeedback: feedbackCount, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: 0, payrollPayslips: 0 };
+    const taskCount = tasks.count ?? 0; const feedbackCount = feedback.count ?? 0; const creationRequestCount = productCreationRequests.count ?? 0; const overtimeCount = overtime.data ?? 0;
+    return { count: taskCount + feedbackCount + creationRequestCount + overtimeCount, noticeAcknowledgements: 0, productCreationRequests: creationRequestCount, productFeedback: feedbackCount, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: 0, payrollPayslips: 0 };
   }
-  const [tasks, managerReviews, acknowledgements, overtime, corrections, payslips] = await Promise.all([
+  const [tasks, managerReviews, acknowledgements, productCreationRequests, overtime, corrections, payslips] = await Promise.all([
     input.storeId ? client.from('v2_tasks').select('id', { count: 'exact', head: true }).eq('store_id', input.storeId).in('status', ['pending', 'in_progress', 'rejected', 'overdue']) : Promise.resolve({ count: 0, error: null }),
     input.isManager ? client.from('v2_tasks').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'resubmitted']).eq('manager_review_enabled', true).eq('submitted_by_role', 'staff') : Promise.resolve({ count: 0, error: null }),
     client.from('v2_notice_recipients').select('notice_id, v2_notices!inner(requires_acknowledgment,status,expires_at)', { count: 'exact' }).eq('profile_id', input.profileId).is('acknowledged_at', null).eq('v2_notices.requires_acknowledgment', true).eq('v2_notices.status', 'published'),
+    input.isManager ? client.from('product_creation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending') : Promise.resolve({ count: 0, error: null }),
     input.isManager ? client.rpc('payroll_overtime_todo_count') : Promise.resolve({ data: 0, error: null }),
     client.from('attendance_missing_punch_todos').select('id', { count: 'exact', head: true }).eq('profile_id', input.profileId).eq('status', 'pending'),
     client.from('payroll_payslips').select('id', { count: 'exact', head: true }).eq('profile_id', input.profileId).eq('status', 'issued'),
@@ -38,6 +42,7 @@ export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean;
   if (tasks.error) throw new Error(tasks.error.message);
   if (managerReviews.error) throw new Error(managerReviews.error.message);
   if (acknowledgements.error) throw new Error(acknowledgements.error.message);
+  if (productCreationRequests.error) throw new Error(productCreationRequests.error.message);
   if (overtime.error) throw new Error(overtime.error.message);
   if (corrections.error) throw new Error(corrections.error.message);
   if (payslips.error) throw new Error(payslips.error.message);
@@ -47,9 +52,10 @@ export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean;
     return !notice?.expires_at || new Date(notice.expires_at).getTime() > Date.now();
   }).length;
   const overtimeCount = overtime.data ?? 0;
+  const creationRequestCount = productCreationRequests.count ?? 0;
   const correctionCount = corrections.count ?? 0;
   const payslipCount = payslips.count ?? 0;
-  return { count: taskCount + acknowledgementCount + overtimeCount + correctionCount + payslipCount, noticeAcknowledgements: acknowledgementCount, productFeedback: 0, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: correctionCount, payrollPayslips: payslipCount };
+  return { count: taskCount + acknowledgementCount + creationRequestCount + overtimeCount + correctionCount + payslipCount, noticeAcknowledgements: acknowledgementCount, productCreationRequests: creationRequestCount, productFeedback: 0, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: correctionCount, payrollPayslips: payslipCount };
 };
 
 export const loadMyPayrollPayslipTodos = async (client: Client, profileId: string) => {

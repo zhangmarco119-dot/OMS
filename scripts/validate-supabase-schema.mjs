@@ -41,6 +41,8 @@ const unifiedProductPermissionsMigrationPath = join(root, 'supabase', 'migration
 const attendanceMigrationPath = join(root, 'supabase', 'migrations', '0050_dingtalk_attendance.sql');
 const attendanceTestPath = join(root, 'supabase', 'tests', '0050_dingtalk_attendance.sql');
 const attendanceRlsTestPath = join(root, 'supabase', 'tests', '0050_dingtalk_attendance_rls.sql');
+const sopPublishNotificationMigrationPath = join(root, 'supabase', 'migrations', '0128_fix_sop_publish_notification_body.sql');
+const sopPublishNotificationTestPath = join(root, 'supabase', 'tests', '0104_sop_publish_notification_body.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -85,6 +87,8 @@ const unifiedProductPermissionsMigration = readFileSync(unifiedProductPermission
 const attendanceMigration = readFileSync(attendanceMigrationPath, 'utf8');
 const attendanceTest = readFileSync(attendanceTestPath, 'utf8');
 const attendanceRlsTest = readFileSync(attendanceRlsTestPath, 'utf8');
+const sopPublishNotificationMigration = readFileSync(sopPublishNotificationMigrationPath, 'utf8');
+const sopPublishNotificationTest = readFileSync(sopPublishNotificationTestPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -535,6 +539,11 @@ if (!attendanceTest.includes('StoreHub DingTalk attendance schema checks passed'
   || !attendanceRlsTest.includes('manager can read store-wide attendance')
   || !attendanceRlsTest.includes('attendance daily upsert is not idempotent')) {
   failures.push('DingTalk attendance schema, RLS, and idempotency SQL tests are incomplete');
+}
+
+if (!sopPublishNotificationMigration.includes("coalesce(nullif(btrim(v_sop.body), ''), '请打开 SOP 查看完整内容。')")
+  || !sopPublishNotificationTest.includes('non-silent SOP publishing must create a non-blank fallback notification')) {
+  failures.push('non-silent SOP publishing must support an empty overall description');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

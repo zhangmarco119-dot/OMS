@@ -158,4 +158,32 @@ describe('V2TaskExecutionPage required submission state', () => {
     fireEvent.change(specInput, { target: { value: '15g/袋×20袋/包' } });
     await waitFor(() => expect(screen.getByRole('button', { name: '提交检查' })).toHaveClass('bg-brand-600'));
   });
+
+  it('does not ask for images when a product correction item omits image requirements', async () => {
+    const productAnswer = {
+      ...requiredConfirmation,
+      answer: { category_code: 'fruit', count_unit: '箱', name: '牛油果', spec: '12个/箱' },
+      item_id: 'product-correction-item',
+      item_snapshot: {
+        answer_schema: 'product_correction',
+        field_type: 'short_text',
+        id: 'product-correction-item',
+        is_required: true,
+        label: '牛油果',
+        product_action: 'create',
+      },
+    } as unknown as V2TaskAnswerRow;
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [productAnswer], images: [], reviews: [], task } as V2TaskDetail);
+
+    render(
+      <MemoryRouter initialEntries={['/app/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<V2TaskExecutionPage />} path="/app/tasks/:taskId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('textbox', { name: '牛油果正确名称' })).toBeInTheDocument();
+    expect(screen.queryByText(/图片要求/)).not.toBeInTheDocument();
+    expect(screen.queryByText('上传图片')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '提交检查' })).toHaveClass('bg-brand-600');
+  });
 });

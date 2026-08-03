@@ -273,9 +273,10 @@ function AnswerCard({ answer, deletingImageIds, editable, images, imageUrls, nee
     spec: typeof productValue.spec === 'string' ? productValue.spec : '',
     ...updates,
   });
-  const expectsImages = ['image', 'multi_image'].includes(item.field_type) || item.image_requirement !== 'none';
+  const imageRequirement = item.image_requirement ?? 'none';
+  const expectsImages = ['image', 'multi_image'].includes(item.field_type) || imageRequirement !== 'none';
   const canUpload = editable;
-  const requiredImageCount = item.image_requirement === 'multiple' && typeof item.minimum_image_count === 'number'
+  const requiredImageCount = imageRequirement === 'multiple' && typeof item.minimum_image_count === 'number'
     ? Math.max(2, Math.min(20, item.minimum_image_count))
     : 1;
   const uploadedImageCount = images.filter((image) => !image.id.startsWith('local-')).length;

@@ -54,11 +54,11 @@ export interface V2TaskRelatedContentOption extends V2TaskRelatedContentSelectio
   title: string;
 }
 export type V2TaskRecipient = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'employment_type' | 'id' | 'role' | 'store_id' | 'username'>;
-export interface TaskItemSnapshot { field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; minimum_image_count?: number | null; options?: Json; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
+export interface TaskItemSnapshot { answer_schema?: 'product_spec'; current_count_unit?: string; current_spec?: string; field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; minimum_image_count?: number | null; options?: Json; product_id?: string; product_name?: string; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; submitterName?: string | null; task: V2TaskRow }
 export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
 export interface V2TaskAnswerPosition { groupNumber: number; groupTitle: string; itemNumber: number; number: string }
-export type V2TaskItemDecision = { decision: 'approved' | 'rejected'; itemId: string };
+export type V2TaskItemDecision = { decision: 'approved' | 'rejected'; itemId: string; note?: string };
 
 const fail = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 export const asTaskItemSnapshot = (value: Json): TaskItemSnapshot => value as unknown as TaskItemSnapshot;
@@ -66,6 +66,8 @@ export const asTaskItemSnapshot = (value: Json): TaskItemSnapshot => value as un
 const asRecord = (value: Json): Record<string, Json | undefined> | null => value !== null && !Array.isArray(value) && typeof value === 'object'
   ? value as Record<string, Json | undefined>
   : null;
+
+export const isProductSpecCorrectionSnapshot = (snapshot: Json) => asRecord(snapshot)?.workflow_type === 'product_spec_correction';
 
 export const getV2TaskAnswerPositions = (snapshot: Json): Record<string, V2TaskAnswerPosition> => {
   const root = asRecord(snapshot);
@@ -414,7 +416,7 @@ export const reviewV2Task = async (client: Client, taskId: string, action: 'appr
 };
 export const reviewV2TaskItems = async (client: Client, taskId: string, decisions: V2TaskItemDecision[], note: string) => {
   const { data, error } = await client.rpc('review_v2_task_items', {
-    p_decisions: decisions.map((decision) => ({ decision: decision.decision, item_id: decision.itemId })),
+    p_decisions: decisions.map((decision) => ({ decision: decision.decision, item_id: decision.itemId, note: decision.note?.trim() ?? '' })),
     p_note: note,
     p_task_id: taskId,
   });

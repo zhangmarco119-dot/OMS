@@ -83,8 +83,8 @@ describe('V2 task workflow service', () => {
     ], '第二项需要整改');
     expect(rpc).toHaveBeenCalledWith('review_v2_task_items', {
       p_decisions: [
-        { decision: 'approved', item_id: 'item-1' },
-        { decision: 'rejected', item_id: 'item-2' },
+        { decision: 'approved', item_id: 'item-1', note: '' },
+        { decision: 'rejected', item_id: 'item-2', note: '' },
       ],
       p_note: '第二项需要整改',
       p_task_id: 'task-1',

@@ -128,4 +128,42 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
       { decision: 'rejected', itemId: pendingAnswers[1].item_id },
     ], '库存数据不一致，请重新核对。'));
   });
+
+  it('allows an optional reason for each rejected product specification', async () => {
+    const productAnswer = {
+      ...resubmittedAnswer,
+      answer: { count_unit: '袋', spec: '15g/袋×20袋/包' },
+      item_id: '00000000-0000-4000-8000-000000000021',
+      item_snapshot: {
+        answer_schema: 'product_spec',
+        field_type: 'short_text',
+        id: '00000000-0000-4000-8000-000000000021',
+        label: '银耳',
+        product_id: '00000000-0000-4000-8000-000000000031',
+      },
+      review_status: 'pending',
+    } as unknown as V2TaskAnswerRow;
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({
+      answers: [productAnswer],
+      images: [],
+      reviews: [],
+      task: {
+        ...task,
+        snapshot: { groups: [{ id: 'group-1', items: [{ id: productAnswer.item_id }], sort_order: 0, title: '待补全货品' }], workflow_type: 'product_spec_correction' },
+        status: 'submitted',
+      },
+    } as V2TaskDetail);
+
+    render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
+
+    expect(await screen.findByText(/规格：15g\/袋×20袋\/包/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/银耳/));
+    fireEvent.click(screen.getByRole('button', { name: '所选项驳回' }));
+    expect(screen.getByRole('textbox', { name: '驳回原因：银耳（选填）' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /提交审核结果/ }));
+
+    await waitFor(() => expect(reviewV2TaskItems).toHaveBeenCalledWith({}, 'task-1', [
+      { decision: 'rejected', itemId: productAnswer.item_id, note: undefined },
+    ], ''));
+  });
 });

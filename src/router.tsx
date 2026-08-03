@@ -11,6 +11,7 @@ import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminOperationLogsPage } from './pages/AdminOperationLogsPage';
 import { AdminLegacyRedirect } from './pages/AdminLegacyRedirect';
 import { AdminProductsPage, AdminUsersPage } from './pages/AdminPage';
+import { AdminProductCorrectionTaskPage } from './pages/AdminProductCorrectionTaskPage';
 import { AdminAnnouncementsPage, AdminSopsPage } from './pages/AdminContentPage';
 import { AdminArrivalDetailPage } from './pages/AdminArrivalDetailPage';
 import { AdminArrivalsPage } from './pages/AdminArrivalsPage';
@@ -105,6 +106,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'admin/products', element: <ProtectedRoute requireAdmin><AdminProductsPage /></ProtectedRoute> },
+      { path: 'admin/products/correction-task', element: <ProtectedRoute requireAdmin><AdminProductCorrectionTaskPage /></ProtectedRoute> },
       { path: 'admin/users', element: <ProtectedRoute requireAdmin><AdminUsersPage /></ProtectedRoute> },
       {
         path: 'admin/arrivals',

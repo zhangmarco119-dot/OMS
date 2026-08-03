@@ -15,6 +15,11 @@ const answerIsMissing = (answer: V2TaskAnswerRow) => {
     return typeof value.spec !== 'string' || value.spec.trim() === ''
       || typeof value.count_unit !== 'string' || value.count_unit.trim() === '';
   }
+  if (item.answer_schema === 'product_correction') {
+    if (!answer.answer || Array.isArray(answer.answer) || typeof answer.answer !== 'object') return true;
+    const value = answer.answer as Record<string, unknown>;
+    return ['name', 'spec', 'count_unit', 'category_code'].some((field) => typeof value[field] !== 'string' || String(value[field]).trim() === '');
+  }
   if (['instruction', 'image', 'multi_image'].includes(item.field_type)) return false;
   if (item.field_type === 'confirmation') return answer.answer !== true;
   if (item.field_type === 'multi_choice') return !Array.isArray(answer.answer) || answer.answer.length === 0;

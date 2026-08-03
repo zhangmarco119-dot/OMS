@@ -54,7 +54,7 @@ export interface V2TaskRelatedContentOption extends V2TaskRelatedContentSelectio
   title: string;
 }
 export type V2TaskRecipient = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'employment_type' | 'id' | 'role' | 'store_id' | 'username'>;
-export interface TaskItemSnapshot { answer_schema?: 'product_spec'; current_count_unit?: string; current_spec?: string; field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; minimum_image_count?: number | null; options?: Json; product_id?: string; product_name?: string; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number }
+export interface TaskItemSnapshot { answer_schema?: 'product_correction' | 'product_spec'; current_category_code?: string; current_count_unit?: string; current_name?: string; current_spec?: string; field_type: string; guidance?: string; id: string; image_requirement?: string; is_required?: boolean; label: string; minimum_image_count?: number | null; options?: Json; product_action?: 'create' | 'update'; product_id?: string; product_name?: string; reference_image_path?: string | null; reference_image_paths?: string[]; sort_order?: number; source_key?: string }
 export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageRow[]; reviews: V2TaskReviewRow[]; submitterName?: string | null; task: V2TaskRow }
 export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
 export interface V2TaskAnswerPosition { groupNumber: number; groupTitle: string; itemNumber: number; number: string }
@@ -67,7 +67,7 @@ const asRecord = (value: Json): Record<string, Json | undefined> | null => value
   ? value as Record<string, Json | undefined>
   : null;
 
-export const isProductSpecCorrectionSnapshot = (snapshot: Json) => asRecord(snapshot)?.workflow_type === 'product_spec_correction';
+export const isProductSpecCorrectionSnapshot = (snapshot: Json) => ['product_spec_correction', 'product_correction'].includes(String(asRecord(snapshot)?.workflow_type ?? ''));
 
 export const getV2TaskAnswerPositions = (snapshot: Json): Record<string, V2TaskAnswerPosition> => {
   const root = asRecord(snapshot);

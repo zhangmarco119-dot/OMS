@@ -3,11 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type { V2TaskAnswerRow } from '../../services/v2-tasks.service';
 import { getTaskSubmissionIssues } from './taskCompletion';
 
-const answer = (input: { answer: V2TaskAnswerRow['answer']; fieldType: string; imageRequirement?: string; isRequired?: boolean; itemId: string; label: string; minimumImageCount?: number }) => ({
+const answer = (input: { answer: V2TaskAnswerRow['answer']; answerSchema?: 'product_correction' | 'product_spec'; fieldType: string; imageRequirement?: string; isRequired?: boolean; itemId: string; label: string; minimumImageCount?: number }) => ({
   answer: input.answer,
   item_id: input.itemId,
   item_snapshot: {
     field_type: input.fieldType,
+    answer_schema: input.answerSchema,
     id: input.itemId,
     image_requirement: input.imageRequirement ?? 'none',
     is_required: input.isRequired ?? true,
@@ -56,5 +57,12 @@ describe('getTaskSubmissionIssues', () => {
       { itemId: 'freezer', label: '大冰箱', reason: '请至少上传 8 张图片（当前 3 张）' },
     ]);
     expect(getTaskSubmissionIssues(input, Array(8).fill('freezer'))).toEqual([]);
+  });
+
+  it('requires all four editable product correction fields', () => {
+    const incomplete = answer({ answer: { category_code: 'fruit', count_unit: '箱', name: '牛油果', spec: '' }, answerSchema: 'product_correction', fieldType: 'short_text', itemId: 'product', label: '牛油果' });
+    const complete = answer({ answer: { category_code: 'fruit', count_unit: '箱', name: '牛油果', spec: '12个/箱' }, answerSchema: 'product_correction', fieldType: 'short_text', itemId: 'product', label: '牛油果' });
+    expect(getTaskSubmissionIssues([incomplete], [])).toHaveLength(1);
+    expect(getTaskSubmissionIssues([complete], [])).toEqual([]);
   });
 });

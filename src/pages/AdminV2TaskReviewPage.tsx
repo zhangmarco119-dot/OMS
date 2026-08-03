@@ -14,6 +14,7 @@ import {
   asTaskItemSnapshot,
   canReviewV2Task,
   getV2TaskAnswerPositions,
+  isProductSpecCorrectionSnapshot,
   loadV2TaskDetail,
   loadV2TaskImageUrls,
   loadV2TaskReferenceImageUrls,
@@ -34,6 +35,7 @@ export function AdminV2TaskReviewPage() {
   const [note, setNote] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [decisions, setDecisions] = useState<Record<string, ReviewDecision>>({});
+  const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
@@ -53,6 +55,7 @@ export function AdminV2TaskReviewPage() {
       setReferenceImageUrls(nextReferenceImageUrls);
       setSelectedIds([]);
       setDecisions({});
+      setItemNotes({});
       setMessage(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '加载任务失败');
@@ -63,6 +66,7 @@ export function AdminV2TaskReviewPage() {
 
   const answerPositions = useMemo(() => getV2TaskAnswerPositions(detail?.task.snapshot ?? null), [detail?.task.snapshot]);
   const isReviewable = detail ? reviewAllowed && ['submitted', 'resubmitted'].includes(detail.task.status) : false;
+  const isProductSpecCorrection = detail ? isProductSpecCorrectionSnapshot(detail.task.snapshot) : false;
   const reviewableStatus = detail?.task.status === 'resubmitted' ? 'resubmitted' : 'pending';
   const reviewableAnswers = useMemo(
     () => detail?.answers.filter((answer) => isReviewable && answer.review_status === reviewableStatus) ?? [],
@@ -83,6 +87,7 @@ export function AdminV2TaskReviewPage() {
 
   const approveAllItems = () => {
     setDecisions({});
+    setItemNotes({});
     setSelectedIds([]);
     setMessage(null);
   };
@@ -90,16 +95,18 @@ export function AdminV2TaskReviewPage() {
   const submitReview = async () => {
     if (!supabase || !detail || busy) return;
     const hasRejection = reviewableAnswers.some((answer) => decisions[answer.item_id] === 'rejected');
-    if (hasRejection && !note.trim()) {
+    if (hasRejection && !isProductSpecCorrection && !note.trim()) {
       setMessage('包含驳回项目时，请填写具体的整改原因。');
       return;
     }
     setBusy(true);
     try {
-      await reviewV2TaskItems(supabase, taskId, reviewableAnswers.map((answer) => ({
-        decision: decisions[answer.item_id] === 'rejected' ? 'rejected' : 'approved',
-        itemId: answer.item_id,
-      })), note.trim());
+      await reviewV2TaskItems(supabase, taskId, reviewableAnswers.map((answer) => {
+        const decision = decisions[answer.item_id] === 'rejected' ? 'rejected' as const : 'approved' as const;
+        return isProductSpecCorrection
+          ? { decision, itemId: answer.item_id, note: decision === 'rejected' ? itemNotes[answer.item_id]?.trim() : '' }
+          : { decision, itemId: answer.item_id };
+      }), note.trim());
       window.dispatchEvent(new Event('storehub:todos-changed'));
       await load();
       setMessage(hasRejection ? '审核已提交，驳回项目已退回员工整改。' : '审核已提交，任务全部通过。');
@@ -153,7 +160,8 @@ export function AdminV2TaskReviewPage() {
               {canReview ? <input aria-label={`选择审核项目：${position.number} ${item.label}`} checked={selectedIds.includes(answer.item_id)} className="mt-1 h-5 w-5" onChange={() => toggleSelected(answer.item_id)} type="checkbox" /> : <span className="mt-0.5 inline-flex h-6 min-w-10 items-center justify-center rounded-md bg-slate-100 px-1.5 text-xs font-bold text-slate-600">{position.number}</span>}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2"><b>{canReview ? `${position.number} ${item.label}` : item.label}</b><ReviewStatusBadge decision={decision} status={answer.review_status} /></div>
-                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{formatAnswer(answer.answer)}</p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{formatAnswer(answer.answer, item.answer_schema)}</p>
+                {canReview && isProductSpecCorrection && decision === 'rejected' ? <textarea aria-label={`驳回原因：${item.label}（选填）`} className="ui-input mt-3 min-h-20 py-3" onChange={(event) => setItemNotes((current) => ({ ...current, [answer.item_id]: event.target.value }))} onClick={(event) => event.stopPropagation()} placeholder="驳回原因（选填）" value={itemNotes[answer.item_id] ?? ''} /> : null}
                 <TaskReferenceImagePreview urls={referenceImageUrls[answer.item_id] ?? []} />
                 <div className="mt-3"><TaskImagePreview imageUrls={imageUrls} images={images} /></div>
               </div>
@@ -166,7 +174,7 @@ export function AdminV2TaskReviewPage() {
         <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-slate-900">逐项审核</h2><p className="mt-1 text-xs leading-5 text-slate-500">勾选需要整改的项目；未标记项目提交时自动通过</p></div><button className="shrink-0 text-sm font-bold text-brand-700" onClick={() => setSelectedIds(selectedIds.length === reviewableAnswers.length ? [] : reviewableAnswers.map((answer) => answer.item_id))} type="button">{selectedIds.length === reviewableAnswers.length ? '取消全选' : '全选待审项'}</button></div>
         <div className="grid grid-cols-2 gap-2"><button className="ui-button-secondary border-red-200 text-red-700" onClick={() => rejectSelectedItems(selectedIds)} type="button">所选项驳回</button><button className="ui-button-primary" onClick={approveAllItems} type="button">一键全部通过</button></div>
         <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">审核结果：通过 {approvedCount} 项，驳回 {rejectedCount} 项</div>
-        <textarea className="ui-input min-h-24 py-3" onChange={(event) => setNote(event.target.value)} placeholder="审核意见；有驳回项目时请填写整改原因" value={note} />
+        <textarea className="ui-input min-h-24 py-3" onChange={(event) => setNote(event.target.value)} placeholder={isProductSpecCorrection ? '整体审核意见（选填）' : '审核意见；有驳回项目时请填写整改原因'} value={note} />
         <p className="text-xs leading-5 text-slate-500">重新提交时，已通过项目仅供查看，不会重复审核；本轮未勾选驳回的项目会自动通过。</p>
         <MobileActionBar><button className="ui-button-primary w-full" disabled={busy} onClick={() => void submitReview()} type="button">{busy ? '正在提交审核…' : `提交审核结果（通过 ${approvedCount} 项，驳回 ${rejectedCount} 项）`}</button></MobileActionBar>
       </section> : null}
@@ -185,10 +193,14 @@ function ReviewStatusBadge({ decision, status }: { decision?: ReviewDecision; st
   return <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">待审核</span>;
 }
 
-const formatAnswer = (answer: unknown) => {
+const formatAnswer = (answer: unknown, answerSchema?: string) => {
   if (answer === null || answer === undefined) return '尚未填写';
   if (typeof answer === 'string') return answer || '尚未填写';
   if (typeof answer === 'boolean') return answer ? '已确认' : '未确认';
   if (Array.isArray(answer)) return answer.join('、') || '尚未选择';
+  if (answerSchema === 'product_spec' && typeof answer === 'object') {
+    const value = answer as { count_unit?: unknown; spec?: unknown };
+    return `规格：${typeof value.spec === 'string' && value.spec.trim() ? value.spec : '尚未填写'}\n点货单位：${typeof value.count_unit === 'string' && value.count_unit.trim() ? value.count_unit : '尚未填写'}`;
+  }
   return String(answer);
 };

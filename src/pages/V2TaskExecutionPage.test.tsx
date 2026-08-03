@@ -127,4 +127,35 @@ describe('V2TaskExecutionPage required submission state', () => {
 
     expect(await screen.findByRole('link', { name: /新品酸奶碗制作/ })).toHaveAttribute('href', '/app/sops/sop-1');
   });
+
+  it('collects product specification and count unit as one reviewable product answer', async () => {
+    const productAnswer = {
+      ...requiredConfirmation,
+      answer: { count_unit: '盒', spec: '' },
+      item_id: 'product-item',
+      item_snapshot: {
+        answer_schema: 'product_spec',
+        current_count_unit: '盒',
+        current_spec: '请填写！',
+        field_type: 'short_text',
+        id: 'product-item',
+        is_required: true,
+        label: '银耳',
+        product_id: 'product-1',
+      },
+    } as unknown as V2TaskAnswerRow;
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [productAnswer], images: [], reviews: [], task } as V2TaskDetail);
+
+    render(
+      <MemoryRouter initialEntries={['/app/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<V2TaskExecutionPage />} path="/app/tasks/:taskId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    const specInput = await screen.findByRole('textbox', { name: '银耳正确规格' });
+    expect(screen.getByRole('textbox', { name: '银耳点货单位' })).toHaveValue('盒');
+    expect(screen.getByRole('button', { name: '提交检查' })).toHaveClass('bg-slate-300');
+    fireEvent.change(specInput, { target: { value: '15g/袋×20袋/包' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: '提交检查' })).toHaveClass('bg-brand-600'));
+  });
 });

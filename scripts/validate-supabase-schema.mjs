@@ -43,6 +43,8 @@ const attendanceTestPath = join(root, 'supabase', 'tests', '0050_dingtalk_attend
 const attendanceRlsTestPath = join(root, 'supabase', 'tests', '0050_dingtalk_attendance_rls.sql');
 const sopPublishNotificationMigrationPath = join(root, 'supabase', 'migrations', '0128_fix_sop_publish_notification_body.sql');
 const sopPublishNotificationTestPath = join(root, 'supabase', 'tests', '0104_sop_publish_notification_body.sql');
+const productSpecCorrectionMigrationPath = join(root, 'supabase', 'migrations', '0129_product_spec_correction_tasks.sql');
+const productSpecCorrectionTestPath = join(root, 'supabase', 'tests', '0105_product_spec_correction_tasks.sql');
 
 const migration = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
@@ -89,6 +91,8 @@ const attendanceTest = readFileSync(attendanceTestPath, 'utf8');
 const attendanceRlsTest = readFileSync(attendanceRlsTestPath, 'utf8');
 const sopPublishNotificationMigration = readFileSync(sopPublishNotificationMigrationPath, 'utf8');
 const sopPublishNotificationTest = readFileSync(sopPublishNotificationTestPath, 'utf8');
+const productSpecCorrectionMigration = readFileSync(productSpecCorrectionMigrationPath, 'utf8');
+const productSpecCorrectionTest = readFileSync(productSpecCorrectionTestPath, 'utf8');
 
 const requiredTables = [
   'stores',
@@ -544,6 +548,13 @@ if (!attendanceTest.includes('StoreHub DingTalk attendance schema checks passed'
 if (!sopPublishNotificationMigration.includes("coalesce(nullif(btrim(v_sop.body), ''), '请打开 SOP 查看完整内容。')")
   || !sopPublishNotificationTest.includes('non-silent SOP publishing must create a non-blank fallback notification')) {
   failures.push('non-silent SOP publishing must support an empty overall description');
+}
+
+if (!productSpecCorrectionMigration.includes("v_task.snapshot ->> 'workflow_type'")
+  || !productSpecCorrectionMigration.includes("'product_spec_updated_from_task'")
+  || !productSpecCorrectionMigration.includes("v_answer ->> 'count_unit'")
+  || !productSpecCorrectionTest.includes('StoreHub product specification correction task checks passed')) {
+  failures.push('product specification task approval must update products and preserve item-level rejection handling');
 }
 
 if (envExample.toUpperCase().includes('SERVICE_ROLE')) {

@@ -21,9 +21,11 @@ import {
   loadProductCreationRequests,
   loadProductFeedbackRecords,
   reviewProductCreationRequest,
+  type ProductCreationReviewDraft,
   type ProductCreationRequestRecord,
   type ProductFeedbackRecord,
 } from '../features/admin/adminProductsService';
+import { PRODUCT_CATEGORIES, productCategoryLabel } from '../features/products/productCategories';
 
 export function TodoPage() {
   const auth = useAuth(); const isAdmin = auth.profile?.role === 'admin'; const isManager = auth.profile?.role === 'manager';
@@ -35,7 +37,7 @@ export function TodoPage() {
   const [feedbackBatchBusy, setFeedbackBatchBusy] = useState(false);
   const [productCreationRequests, setProductCreationRequests] = useState<ProductCreationRequestRecord[]>([]);
   const [taskSubmitterNames, setTaskSubmitterNames] = useState<Record<string, string>>({});
-  const [creationReview, setCreationReview] = useState<{ approve: boolean; id: string } | null>(null);
+  const [creationReview, setCreationReview] = useState<{ approve: boolean; draft: ProductCreationReviewDraft; id: string; note: string } | null>(null);
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
@@ -109,14 +111,17 @@ export function TodoPage() {
   };
   const reviewCreationRequest = async () => {
     if (!creationReview) return;
+    if (creationReview.approve && (!creationReview.draft.name.trim() || !creationReview.draft.spec.trim() || !creationReview.draft.count_unit.trim())) {
+      setMessage('同意新增前，请填写完整的货品名称、规格和单位。');
+      return;
+    }
     try {
-      await reviewProductCreationRequest(creationReview.id, creationReview.approve);
+      await reviewProductCreationRequest(creationReview.id, creationReview.approve, creationReview.draft, creationReview.note);
       setCreationReview(null);
       setCompletionMessage(creationReview.approve ? '新增货品申请已通过，货品已加入货品库。' : '新增货品申请已拒绝。');
       window.dispatchEvent(new Event('storehub:todos-changed'));
       await load();
     } catch (error) {
-      setCreationReview(null);
       setMessage(error instanceof Error ? error.message : '处理新增货品申请失败。');
     }
   };
@@ -143,8 +148,8 @@ export function TodoPage() {
     {productCreationRequests.length > 0 ? <section className="space-y-2">
       <h2 className="text-sm font-bold text-slate-700">到货新增货品审核</h2>
       {productCreationRequests.map(({ creatorName, request, storeName }) => <article className="ui-card p-4" key={request.id}>
-        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="block truncate">{request.name}</b><p className="mt-1 text-sm text-slate-600">{request.spec} · {request.count_unit}</p><p className="mt-1 text-xs text-slate-500">{storeName} · {creatorName}</p></div><StatusBadge tone="warning">待审核</StatusBadge></div>
-        <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary text-red-700" onClick={() => setCreationReview({ approve: false, id: request.id })} type="button">拒绝</button><button className="ui-button-primary" onClick={() => setCreationReview({ approve: true, id: request.id })} type="button">同意并入货品库</button></div>
+        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="block truncate">{request.name}</b><p className="mt-1 text-sm text-slate-600">{request.spec} · {request.count_unit} · {productCategoryLabel(request.category_code)}</p><p className="mt-1 text-xs text-slate-500">{storeName} · {creatorName}</p></div><StatusBadge tone="warning">待审核</StatusBadge></div>
+        <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary text-red-700" onClick={() => setCreationReview({ approve: false, draft: { category_code: request.category_code, count_unit: request.count_unit, name: request.name, spec: request.spec }, id: request.id, note: '' })} type="button">拒绝</button><button className="ui-button-primary" onClick={() => setCreationReview({ approve: true, draft: { category_code: request.category_code, count_unit: request.count_unit, name: request.name, spec: request.spec }, id: request.id, note: '' })} type="button">编辑并同意新增</button></div>
       </article>)}
     </section> : null}
     {overtime.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工时审批</h2>{overtime.map((item) => <Link className="ui-card ui-interactive block p-4" key={item.id} to={isAdmin ? '/app/admin/payroll?tab=overtime' : '/app/overtime?tab=submit'}><div className="flex items-start justify-between gap-3"><b>{overtimeNames[item.profile_id] ?? '员工'} · {overtimeTerms[item.profile_id] ?? '加班'} · {item.overtime_date} · {item.hours} 小时</b><StatusBadge tone="warning">待审批</StatusBadge></div>{item.reason ? <p className="mt-2 text-sm text-slate-500">{item.reason}</p> : null}</Link>)}</section> : null}
@@ -157,8 +162,8 @@ export function TodoPage() {
         ? `将同意当前 ${productDeletions.length} 条删除申请，并删除对应货品。此操作无法撤销。`
         : `将当前 ${newProductRequests.length} 条新增和 ${productCorrections.length} 条已生效修改申请全部标记为已读。`}</p>
     </ConfirmDialog>
-    <ConfirmDialog confirmLabel={creationReview?.approve ? '同意并新增' : '确认拒绝'} danger={!creationReview?.approve} onCancel={() => setCreationReview(null)} onConfirm={() => void reviewCreationRequest()} open={Boolean(creationReview)} title={creationReview?.approve ? '确认新增到货品库' : '确认拒绝新增货品'}>
-      <p>{creationReview?.approve ? '审核通过后，该货品会立即加入对应门店货品库，并回填本次到货记录。' : '拒绝后不会创建货品，本次到货记录仍会保留。'}</p>
+    <ConfirmDialog confirmLabel={creationReview?.approve ? '按以上内容同意新增' : '确认拒绝'} danger={!creationReview?.approve} onCancel={() => setCreationReview(null)} onConfirm={() => void reviewCreationRequest()} open={Boolean(creationReview)} title={creationReview?.approve ? '编辑并审核新增货品' : '确认拒绝新增货品'}>
+      {creationReview?.approve ? <div className="space-y-3"><p className="text-sm leading-6 text-slate-600">请先核对或修改详细内容；通过后将按下列内容加入货品库，并回填本次到货记录。</p><label className="block text-sm font-semibold">货品名称<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, name: event.target.value } } : current)} value={creationReview.draft.name} /></label><label className="block text-sm font-semibold">规格<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, spec: event.target.value } } : current)} value={creationReview.draft.spec} /></label><label className="block text-sm font-semibold">单位<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, count_unit: event.target.value } } : current)} value={creationReview.draft.count_unit} /></label><label className="block text-sm font-semibold">分类<select className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, category_code: event.target.value as ProductCreationReviewDraft['category_code'] } } : current)} value={creationReview.draft.category_code}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label><label className="block text-sm font-semibold">审核备注（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setCreationReview((current) => current ? { ...current, note: event.target.value } : current)} value={creationReview.note} /></label></div> : <div><p>拒绝后不会创建货品，本次到货记录仍会保留。</p><label className="mt-3 block text-sm font-semibold">拒绝原因（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setCreationReview((current) => current ? { ...current, note: event.target.value } : current)} value={creationReview?.note ?? ''} /></label></div>}
     </ConfirmDialog>
     <ActionFeedbackDialog message={completionMessage} onClose={() => setCompletionMessage('')} open={Boolean(completionMessage)} title="待办已完成" tone="success" />
   </PageShell>;

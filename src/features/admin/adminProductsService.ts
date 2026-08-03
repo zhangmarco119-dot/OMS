@@ -6,7 +6,11 @@ import { asProductSnapshot } from '../tasks/taskCalculations';
 import { DEFAULT_PRODUCT_CATEGORY, productCategoryLabel, type ProductCategoryCode } from '../products/productCategories';
 
 export type StoreRow = Database['public']['Tables']['stores']['Row'];
-export type ProductRow = Database['public']['Tables']['products']['Row'];
+export type ProductRow = Database['public']['Tables']['products']['Row'] & {
+  last_inventory_item_status?: 'completed' | 'no_order_needed' | null;
+  last_inventory_quantity?: number | null;
+  last_inventory_submitted_at?: string | null;
+};
 export type ProductFeedbackRow = Database['public']['Tables']['product_feedback']['Row'];
 export type ProductCreationRequestRow = Database['public']['Tables']['product_creation_requests']['Row'];
 
@@ -48,12 +52,28 @@ export const loadProductCreationRequests = async (storeIds?: string[]): Promise<
   }));
 };
 
-export const reviewProductCreationRequest = async (requestId: string, approve: boolean, note = '') => {
+export interface ProductCreationReviewDraft {
+  category_code: ProductCategoryCode;
+  count_unit: string;
+  name: string;
+  spec: string;
+}
+
+export const reviewProductCreationRequest = async (
+  requestId: string,
+  approve: boolean,
+  draft?: ProductCreationReviewDraft,
+  note = '',
+) => {
   const client = requireClient();
-  const { data, error } = await client.rpc('review_product_creation_request', {
+  const { data, error } = await client.rpc('review_product_creation_request_v2', {
     p_action: approve ? 'approve' : 'reject',
+    p_category_code: draft?.category_code ?? null,
+    p_count_unit: draft?.count_unit.trim() ?? null,
+    p_name: draft?.name.trim() ?? null,
     p_note: note.trim(),
     p_request_id: requestId,
+    p_spec: draft?.spec.trim() ?? null,
   });
   if (error) throw new Error(error.message);
   return data;
@@ -197,12 +217,7 @@ export const loadAdminProductsData = async (storeId?: string) => {
 
   const selectedStoreId = storeId || stores?.[0]?.id || '';
   const productsResult = selectedStoreId
-    ? await client
-        .from('products')
-        .select('*')
-        .eq('store_id', selectedStoreId)
-        .order('sort_order', { ascending: true })
-        .order('name', { ascending: true })
+    ? await client.rpc('list_admin_products_with_last_inventory', { p_store_id: selectedStoreId })
     : { data: [], error: null };
 
   if (productsResult.error) {
@@ -210,7 +225,7 @@ export const loadAdminProductsData = async (storeId?: string) => {
   }
 
   return {
-    products: productsResult.data ?? [],
+    products: (Array.isArray(productsResult.data) ? productsResult.data : []) as unknown as ProductRow[],
     selectedStoreId,
     stores: stores ?? [],
   };

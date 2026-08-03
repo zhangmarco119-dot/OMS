@@ -288,6 +288,7 @@ export function ArrivalEntryPage() {
         <div className="ui-dialog-panel max-h-[85dvh] max-w-lg overflow-y-auto p-5">
           <div className="flex items-center gap-2 text-amber-800"><AlertCircle className="h-6 w-6 shrink-0" /><h2 className="text-xl font-bold text-slate-900" id="arrival-unmatched-title">发现未匹配货品</h2></div>
           <p className="mt-3 text-sm leading-6 text-slate-600">仍可提交到货上报。是否同时申请把这些货品新增到货品库？申请将交由店长或管理员审核。</p>
+          <div className="mt-3 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm leading-6 text-brand-900"><b>填写要求：</b>请按包装实物填写标准货品名称、完整规格、最小点货单位和正确分类。每种新货品只需申请一次；请勿使用简称、错别字或重复名称，审核通过后下次可直接选择。</div>
           <div className="mt-3 space-y-3">
             {productRequests.map((request, index) => <section className="rounded-xl border border-slate-200 bg-slate-50 p-3" key={request.arrivalItemId}>
               <b className="text-sm">未匹配货品 {index + 1}</b>

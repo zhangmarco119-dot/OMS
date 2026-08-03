@@ -1,5 +1,6 @@
-import { Archive, CheckCircle2, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, RotateCcw, Save, Search, Sparkles, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, ArrowUpDown, CheckCircle2, ClipboardEdit, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, RotateCcw, Save, Search, Sparkles, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -42,9 +43,11 @@ import {
 import { useAuth } from '../features/auth/AuthContext';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { DEFAULT_PRODUCT_CATEGORY, PRODUCT_CATEGORIES, productCategoryLabel, type ProductCategoryCode } from '../features/products/productCategories';
+import { saveProductCorrectionTaskDraft } from '../features/admin/productCorrectionTask';
 
 export type AdminSection = 'products' | 'users';
 type ProductTab = 'catalog' | 'batch' | 'archived';
+type ProductSortMode = 'manual' | 'recent' | 'last_inventory' | 'initial';
 type AccountType = 'staff' | 'manager' | 'part_time' | 'admin';
 
 const accountTypeOf = (role: CreateUserInput['role'], employmentType: CreateUserInput['employmentType']): AccountType =>
@@ -76,6 +79,7 @@ const productToDraft = (product: ProductRow): ProductDraft => ({
 });
 
 export function AdminPage({ section }: { section: AdminSection }) {
+  const navigate = useNavigate();
   const auth = useAuth();
   const [productTab, setProductTab] = useRememberedPageState<ProductTab>('product-tab', 'catalog');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
@@ -83,6 +87,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [productSearch, setProductSearch] = useRememberedPageState('product-search', '');
   const [productCategory, setProductCategory] = useRememberedPageState<ProductCategoryCode | ''>('product-category', '');
+  const [productSortMode, setProductSortMode] = useRememberedPageState<ProductSortMode>('product-sort-mode', 'manual');
   const [selectedArchivedProductIds, setSelectedArchivedProductIds] = useState<string[]>([]);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useRememberedPageState('selected-store', '');
@@ -356,6 +361,26 @@ export function AdminPage({ section }: { section: AdminSection }) {
     }
   };
 
+  const publishCorrectionTask = (source: 'catalog' | 'recommendations') => {
+    const items = source === 'catalog'
+      ? selectedProductIds.map((id) => {
+          const product = products.find((entry) => entry.id === id);
+          const draft = product ? productDrafts[id] ?? productToDraft(product) : null;
+          return product && draft ? { category_code: draft.category_code, count_unit: draft.count_unit, name: draft.name, product_action: 'update' as const, product_id: product.id, spec: draft.spec } : null;
+        }).filter((item): item is NonNullable<typeof item> => item !== null)
+      : selectedRecommendationKeys.map((key) => {
+          const draft = recommendedDrafts[key];
+          return draft ? { ...draft, product_action: 'create' as const, source_key: key } : null;
+        }).filter((item): item is NonNullable<typeof item> => item !== null);
+    if (!items.length) {
+      setMessage('请至少勾选一个需要更正的货品。');
+      return;
+    }
+    const storeName = stores.find((store) => store.id === selectedStoreId)?.name ?? '当前门店';
+    saveProductCorrectionTaskDraft({ items, storeId: selectedStoreId, storeName });
+    navigate('/app/admin/products/correction-task');
+  };
+
   const createUser = async () => {
     setMessage(null);
     if (!newUser.username.trim() || !newUser.displayName.trim() || !newUser.password || newUser.storeIds.length === 0) {
@@ -472,7 +497,16 @@ export function AdminPage({ section }: { section: AdminSection }) {
     return [draft.name, draft.spec, draft.count_unit]
       .some((value) => value.toLocaleLowerCase().includes(normalizedProductSearch));
   };
-  const visibleActiveProducts = activeProducts.filter(matchesProductSearch);
+  const pinyinCollator = new Intl.Collator('zh-CN-u-co-pinyin', { numeric: true, sensitivity: 'base' });
+  const visibleActiveProducts = activeProducts.filter(matchesProductSearch).sort((left, right) => {
+    if (productSortMode === 'recent') return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+    if (productSortMode === 'last_inventory') {
+      const quantityDiff = (right.last_inventory_quantity ?? Number.NEGATIVE_INFINITY) - (left.last_inventory_quantity ?? Number.NEGATIVE_INFINITY);
+      return quantityDiff || pinyinCollator.compare(left.name, right.name);
+    }
+    if (productSortMode === 'initial') return pinyinCollator.compare(left.name, right.name);
+    return left.sort_order - right.sort_order || pinyinCollator.compare(left.name, right.name);
+  });
   const visibleArchivedProducts = archivedProducts.filter(matchesProductSearch);
   const visibleProductCount = productTab === 'archived' ? visibleArchivedProducts.length : visibleActiveProducts.length;
   const currentProductCount = productTab === 'archived' ? archivedProducts.length : activeProducts.length;
@@ -540,10 +574,12 @@ export function AdminPage({ section }: { section: AdminSection }) {
           </div>
 
           <div className="space-y-2">
-            {visibleActiveProducts.length ? <div className="flex items-center justify-between gap-2 rounded-lg bg-white p-3 shadow-sm"><label className="text-sm font-bold"><input checked={selectedProductIds.length === visibleActiveProducts.length} className="mr-2" onChange={(event) => setSelectedProductIds(event.target.checked ? visibleActiveProducts.map((item) => item.id) : [])} type="checkbox" />全选当前结果</label><button className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-amber-600 px-3 text-sm font-bold text-white disabled:opacity-40" disabled={!selectedProductIds.length} onClick={() => void archiveSelectedProducts()} type="button"><Archive className="h-4 w-4" />批量归档（{selectedProductIds.length}）</button></div> : null}
+            <label className="flex items-center gap-2 rounded-lg bg-white p-3 text-sm font-bold text-slate-700 shadow-sm"><ArrowUpDown className="h-4 w-4 text-brand-600" /><span className="shrink-0">排序方式</span><select aria-label="货品排序方式" className="ui-input min-h-9 flex-1 py-1" onChange={(event) => setProductSortMode(event.target.value as ProductSortMode)} value={productSortMode}><option value="manual">后台排序值</option><option value="recent">最近新增优先</option><option value="last_inventory">上次点货数量由多到少</option><option value="initial">名称首字母</option></select></label>
+            {visibleActiveProducts.length ? <div className="rounded-lg bg-white p-3 shadow-sm"><label className="text-sm font-bold"><input checked={selectedProductIds.length === visibleActiveProducts.length} className="mr-2" onChange={(event) => setSelectedProductIds(event.target.checked ? visibleActiveProducts.map((item) => item.id) : [])} type="checkbox" />全选当前结果</label><div className="mt-2 grid grid-cols-2 gap-2"><button className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg bg-brand-600 px-2 text-sm font-bold text-white disabled:opacity-40" disabled={!selectedProductIds.length} onClick={() => publishCorrectionTask('catalog')} type="button"><ClipboardEdit className="h-4 w-4" />发布更正任务（{selectedProductIds.length}）</button><button className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg bg-amber-600 px-2 text-sm font-bold text-white disabled:opacity-40" disabled={!selectedProductIds.length} onClick={() => void archiveSelectedProducts()} type="button"><Archive className="h-4 w-4" />批量归档（{selectedProductIds.length}）</button></div></div> : null}
             {visibleActiveProducts.map((product) => (
               <article className="rounded-lg bg-white p-2.5 shadow-sm" key={product.id}>
                 <label className="mb-2 flex items-center text-xs font-bold text-slate-500"><input aria-label={`选择 ${product.name}`} checked={selectedProductIds.includes(product.id)} className="mr-2 h-4 w-4" onChange={(event) => setSelectedProductIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} type="checkbox" />选择此货品</label>
+                <p className="mb-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-900">上次点货：{product.last_inventory_item_status === 'no_order_needed' ? '无需订货' : product.last_inventory_quantity == null ? '暂无点货记录' : `${product.last_inventory_quantity} ${product.count_unit}`}{product.last_inventory_submitted_at ? ` · ${new Date(product.last_inventory_submitted_at).toLocaleDateString('zh-CN')}` : ''}</p>
                 <ProductDraftForm
                   draft={productDrafts[product.id] ?? productToDraft(product)}
                   onChange={(draft) => setProductDrafts((current) => ({ ...current, [product.id]: draft }))}
@@ -605,7 +641,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                     <p className="mt-2 text-xs leading-5 text-slate-500">{product.firstArrivalDate} 至 {product.lastArrivalDate} · {product.reportCount} 份上报 / {product.reportItemCount} 条明细 · 累计数量 {product.totalQuantity}{product.requestCount ? ` · 已有 ${product.requestCount} 次新增申请信息` : ''}</p>
                   </article>;
                 })}
-                <button className="ui-button-primary min-h-11 w-full" disabled={recommendationBusy || selectedRecommendationKeys.length === 0} onClick={() => void createSelectedRecommendations()} type="button"><PackagePlus className="h-4 w-4" />一键新增已勾选货品（{selectedRecommendationKeys.length}）</button>
+                <div className="grid grid-cols-2 gap-2"><button className="ui-button-secondary min-h-11 px-2 text-sm" disabled={recommendationBusy || selectedRecommendationKeys.length === 0} onClick={() => publishCorrectionTask('recommendations')} type="button"><ClipboardEdit className="h-4 w-4" />发布更正任务（{selectedRecommendationKeys.length}）</button><button className="ui-button-primary min-h-11 px-2 text-sm" disabled={recommendationBusy || selectedRecommendationKeys.length === 0} onClick={() => void createSelectedRecommendations()} type="button"><PackagePlus className="h-4 w-4" />一键新增已勾选货品（{selectedRecommendationKeys.length}）</button></div>
               </div> : <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-800">最近 {matchingSettings.recommendationDays} 天没有需要推荐新增的未匹配货品。</p>}
             </div>
             <div className="rounded-lg bg-white p-4 shadow-sm">

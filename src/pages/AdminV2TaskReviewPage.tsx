@@ -9,6 +9,7 @@ import { TaskImagePreview } from '../features/v2-tasks/TaskImagePreview';
 import { TaskReferenceImagePreview } from '../features/v2-tasks/TaskReferenceImagePreview';
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { useAuth } from '../features/auth/AuthContext';
+import { productCategoryLabel } from '../features/products/productCategories';
 import { supabase } from '../lib/supabase';
 import {
   asTaskItemSnapshot,
@@ -201,6 +202,11 @@ const formatAnswer = (answer: unknown, answerSchema?: string) => {
   if (answerSchema === 'product_spec' && typeof answer === 'object') {
     const value = answer as { count_unit?: unknown; spec?: unknown };
     return `规格：${typeof value.spec === 'string' && value.spec.trim() ? value.spec : '尚未填写'}\n点货单位：${typeof value.count_unit === 'string' && value.count_unit.trim() ? value.count_unit : '尚未填写'}`;
+  }
+  if (answerSchema === 'product_correction' && typeof answer === 'object') {
+    const value = answer as { category_code?: unknown; count_unit?: unknown; name?: unknown; spec?: unknown };
+    const text = (entry: unknown) => typeof entry === 'string' && entry.trim() ? entry : '尚未填写';
+    return `名称：${text(value.name)}\n规格：${text(value.spec)}\n点货单位：${text(value.count_unit)}\n分类：${typeof value.category_code === 'string' ? productCategoryLabel(value.category_code) : '尚未填写'}`;
   }
   return String(answer);
 };

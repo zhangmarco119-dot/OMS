@@ -1236,6 +1236,9 @@ export type Database = {
       configure_v2_tasks_inventory: { Args: { p_category_codes?: string[]; p_enabled: boolean; p_task_ids: string[] }; Returns: number };
       request_arrival_product_creation: { Args: { p_report_id: string; p_requests: Json }; Returns: Database['public']['Tables']['product_creation_requests']['Row'][] };
       review_product_creation_request: { Args: { p_action: string; p_note?: string | null; p_request_id: string }; Returns: Database['public']['Tables']['product_creation_requests']['Row'] };
+      review_product_creation_request_v2: { Args: { p_action: string; p_category_code?: string | null; p_count_unit?: string | null; p_name?: string | null; p_note?: string | null; p_request_id: string; p_spec?: string | null }; Returns: Database['public']['Tables']['product_creation_requests']['Row'] };
+      list_admin_products_with_last_inventory: { Args: { p_store_id: string }; Returns: Json };
+      publish_product_correction_tasks: { Args: { p_due_at: string; p_items: Json; p_manager_review_enabled?: boolean; p_profile_ids?: string[]; p_publish_at?: string; p_store_id: string; p_target_audiences?: ('staff' | 'manager' | 'part_time')[] }; Returns: Database['public']['Tables']['v2_tasks']['Row'][] };
       update_v2_task_schedule_content: { Args: { p_name: string; p_schedule_id: string; p_snapshot: Json }; Returns: Json };
       withdraw_v2_task_schedule: { Args: { p_schedule_id: string }; Returns: Json };
       admin_bind_dingtalk_employee: { Args: { p_directory_user_id: string; p_match_source?: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };

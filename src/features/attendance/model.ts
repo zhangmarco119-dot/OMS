@@ -63,9 +63,19 @@ export interface AttendanceMonthSummary {
   lastSyncedAt: string | null;
 }
 
+export interface AttendanceOvertimeRecord {
+  date: string;
+  hours: number;
+  id: string;
+  reason: string;
+  storeId: string;
+  storeName: string;
+}
+
 export interface AttendanceMonthDetail {
   summary: AttendanceMonthSummary;
   days: AttendanceDay[];
+  overtimeRecords: AttendanceOvertimeRecord[];
 }
 
 export interface AdminAttendanceRow extends AttendanceMonthSummary {
@@ -106,4 +116,5 @@ export const filterAttendanceDays = (days: AttendanceDay[], filter: 'all' | 'exc
 export const emptyAttendanceMonth = (): AttendanceMonthDetail => ({
   summary: { attendanceDates: [], attendanceDays: 0, lateCount: 0, lateMinutes: 0, missingCount: 0, abnormalCount: 0, overtimeHours: 0, lastSyncedAt: null },
   days: [],
+  overtimeRecords: [],
 });

@@ -53,18 +53,31 @@ const parseSummary = (value: Json | undefined): AttendanceMonthSummary => {
 
 export const loadAttendanceMonth = async (client: Client, profileId: string, month: string, storeId?: string): Promise<AttendanceMonthDetail> => {
   const monthEnd = new Date(`${month}-01T12:00:00+08:00`); monthEnd.setMonth(monthEnd.getMonth() + 1);
-  const overtimeQuery = client.from('payroll_overtime_requests').select('hours').eq('profile_id', profileId).eq('status', 'approved').gte('overtime_date', `${month}-01`).lt('overtime_date', monthEnd.toISOString().slice(0, 10));
+  const overtimeQuery = client.from('payroll_overtime_requests').select('id,store_id,overtime_date,hours,reason').eq('profile_id', profileId).eq('status', 'approved').gte('overtime_date', `${month}-01`).lt('overtime_date', monthEnd.toISOString().slice(0, 10));
   if (storeId) overtimeQuery.eq('store_id', storeId);
-  const [{ data, error }, overtime] = await Promise.all([
+  const [{ data, error }, overtime, stores] = await Promise.all([
     client.rpc('get_attendance_month_detail', { p_profile_id: profileId, p_month: `${month}-01`, p_store_id: storeId || null }),
     overtimeQuery,
+    client.from('stores').select('id,name').eq('is_active', true),
   ]);
   if (error) throw new Error('暂时无法加载考勤数据，请稍后重试。');
   const root = objectAt(data);
   if (!root.summary) return emptyAttendanceMonth();
   const summary = parseSummary(root.summary);
   summary.overtimeHours = (overtime.data ?? []).reduce((sum, row) => sum + Number(row.hours), 0);
-  return { summary, days: arrayAt(root.days) as unknown as AttendanceDay[] };
+  const storeNames = new Map((stores.data ?? []).map((store) => [store.id, store.name]));
+  return {
+    summary,
+    days: arrayAt(root.days) as unknown as AttendanceDay[],
+    overtimeRecords: (overtime.data ?? []).map((row) => ({
+      date: row.overtime_date,
+      hours: Number(row.hours),
+      id: row.id,
+      reason: row.reason,
+      storeId: row.store_id,
+      storeName: storeNames.get(row.store_id) ?? '未知门店',
+    })),
+  };
 };
 
 export const loadAdminAttendanceMonth = async (client: Client, options: { month: string; storeId?: string; search?: string; status?: string; offset?: number }) => {

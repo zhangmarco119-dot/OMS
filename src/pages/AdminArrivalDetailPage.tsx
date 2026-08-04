@@ -110,9 +110,9 @@ export function AdminArrivalDetailPage() {
       {status === 'loading' ? <p className="rounded-lg bg-white p-5 font-semibold text-slate-600 shadow-sm">正在加载到货详情</p> : null}
       {status === 'ready' && detail ? <>
         <section className="rounded-lg bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{detail.report.report_no}</p><h2 className="mt-1 text-xl font-bold text-slate-900">{detail.report.store_name_snapshot}</h2></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${arrivalStatusClass[detail.report.status]}`}>{arrivalStatusLabel[detail.report.status]}</span></div>
+          <div className="flex items-start justify-between gap-2"><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-brand-700">{detail.report.report_no}</p><h2 className="mt-1 truncate text-lg font-bold leading-6 text-slate-900">{detail.report.store_name_snapshot}</h2></div><span className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold leading-none ${arrivalStatusClass[detail.report.status]}`}>{arrivalStatusLabel[detail.report.status]}</span></div>
           <p className="mt-4 rounded-lg bg-brand-50 p-4 font-semibold leading-7 text-brand-900">{detail.report.generated_summary}</p>
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3">
             <Info label="提交人" value={detail.report.reporter_name_snapshot} />
             <Info label="到货时间" value={formatArrivalDateTime(detail.report.arrival_date, detail.report.arrival_time)} />
             <Info label="配送方" value={detail.report.carrier_name || '—'} />
@@ -164,7 +164,7 @@ export function AdminArrivalDetailPage() {
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 font-medium text-slate-800">{value}</dd></div>; }
+function Info({ label, value }: { label: string; value: string }) { return <div className="min-w-0"><dt className="text-[11px] font-semibold leading-4 text-slate-500">{label}</dt><dd className="mt-0.5 break-words text-[13px] font-medium leading-5 text-slate-800">{value}</dd></div>; }
 
 function ImageGroup({ images, onView, title }: { images: AdminArrivalDetail['images']; onView: (url: string) => void; title: string }) {
   return <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">{title}</h2>{images.length ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{images.map((image) => <div key={image.id}><button className="block aspect-square w-full overflow-hidden rounded-lg bg-slate-100" onClick={() => onView(image.signedUrl)} type="button"><img alt={title} className="h-full w-full object-cover" src={image.signedUrl} /></button><a className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-1 rounded-md border border-slate-200 text-xs font-bold text-slate-700" download={image.file_name} href={image.signedUrl}><Download className="h-3.5 w-3.5" />下载</a></div>)}</div> : <p className="mt-3 text-sm text-slate-500">没有图片。</p>}</section>;

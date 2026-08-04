@@ -60,7 +60,10 @@ describe('AdminArrivalDetailPage read state', () => {
     );
 
     await waitFor(() => expect(markAdminArrivalViewed).toHaveBeenCalledWith(expect.anything(), 'report-1'));
-    expect(await screen.findByText('已查看')).toBeInTheDocument();
+    const readBadge = await screen.findByText('已读');
+    expect(readBadge).toHaveClass('whitespace-nowrap', 'text-[11px]');
+    expect(screen.getByRole('heading', { name: '测试门店' })).toHaveClass('truncate', 'text-lg');
+    expect(screen.getByText('提交人').closest('dl')).toHaveClass('grid-cols-2');
     expect(loadAdminArrivalDetail).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('button', { name: '标记已查看' })).not.toBeInTheDocument();
   });

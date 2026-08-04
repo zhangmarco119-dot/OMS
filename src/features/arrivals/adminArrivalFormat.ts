@@ -3,7 +3,7 @@ import type { AdminArrivalReport } from '../../services/admin-arrivals.service';
 export const arrivalStatusLabel: Record<AdminArrivalReport['status'], string> = {
   draft: '草稿',
   submitted: '待查看',
-  viewed: '已查看',
+  viewed: '已读',
   voided: '已作废',
 };
 

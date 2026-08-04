@@ -7,7 +7,8 @@ import { EmptyState, FeedbackBanner, LoadingState } from '../components/ui/Feedb
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { featureFlags } from '../config/featureFlags';
 import { useAuth } from '../features/auth/AuthContext';
-import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
+import { formatV2TaskDueAt, getV2TaskDisplayStatus, isV2TaskOverdue, v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
+import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock';
 import { supabase } from '../lib/supabase';
 import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
 
@@ -18,6 +19,7 @@ export function V2TaskCenterPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const historyOnly = searchParams.get('view') === 'history';
+  const deadlineNow = useTaskDeadlineClock();
 
   const load = useCallback(async () => {
     if (!supabase || !auth.store) { setStatus('error'); setMessage('需要先登录并选择门店。'); return; }
@@ -46,6 +48,10 @@ export function V2TaskCenterPage() {
     {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
     {status === 'loading' ? <LoadingState label="正在加载任务" /> : null}
     {status === 'ready' && visibleTasks.length === 0 ? <EmptyState description={historyOnly ? '提交任务后，记录会显示在这里。' : '管理员发布任务后，会显示在这里。'} icon={ClipboardCheck} title={historyOnly ? '暂无已提交任务' : '当前门店暂无任务'} /> : null}
-    {status === 'ready' ? <div className="space-y-2.5">{visibleTasks.map((task) => <Link className="ui-card ui-interactive block p-4" key={task.id} to={`/app/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b className="min-w-0 line-clamp-2 leading-6">{task.name}</b><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{v2TaskStatusLabel[task.status]}</span></div><p className="mt-2 text-sm text-slate-500">截止 {new Date(task.due_at).toLocaleString('zh-CN')}</p>{task.status === 'rejected' ? <FeedbackBanner className="mt-2" title="退回整改" tone="danger">{task.review_note?.trim() || '请打开任务查看需要整改的项目。'}</FeedbackBanner> : null}</Link>)}</div> : null}
+    {status === 'ready' ? <div className="space-y-2.5">{visibleTasks.map((task) => {
+      const displayStatus = getV2TaskDisplayStatus(task, deadlineNow);
+      const overdue = isV2TaskOverdue(task, deadlineNow);
+      return <Link className="ui-card ui-interactive block p-4" key={task.id} to={`/app/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b className="min-w-0 line-clamp-2 leading-6">{task.name}</b><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[displayStatus]}`}>{v2TaskStatusLabel[displayStatus]}</span></div><p className={`mt-2 text-sm font-semibold ${overdue ? 'text-red-700' : 'text-slate-600'}`}>截止时间：{formatV2TaskDueAt(task.due_at)}</p>{overdue ? <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-800">已逾期 · 任务尚未提交</p> : null}{task.status === 'rejected' ? <FeedbackBanner className="mt-2" title="退回整改" tone="danger">{task.review_note?.trim() || '请打开任务查看需要整改的项目。'}</FeedbackBanner> : null}</Link>;
+    })}</div> : null}
   </PageShell>;
 }

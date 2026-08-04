@@ -1118,6 +1118,7 @@ export type Database = {
       };
     };
     Functions: {
+      list_admin_arrivals_v1: { Args: { p_date_from?: string | null; p_date_to?: string | null; p_store_id?: string | null; p_status?: string; p_page?: number; p_page_size?: number }; Returns: Json };
       get_product_matching_settings: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_save_product_matching_settings: { Args: { p_history_match_days: number; p_recommendation_days: number }; Returns: Json };
       list_recommended_product_additions: { Args: { p_store_id: string }; Returns: Json };

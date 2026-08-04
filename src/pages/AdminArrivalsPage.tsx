@@ -1,5 +1,5 @@
 import { CalendarDays, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -15,10 +15,15 @@ import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   loadAdminArrivalList,
+  loadAdminArrivalThumbnail,
   localIsoDate,
   type AdminArrivalListFilters,
   type AdminArrivalListItem,
 } from '../services/admin-arrivals.service';
+
+const ARRIVAL_LIST_CACHE_TTL_MS = 60_000;
+const ARRIVAL_LIST_CACHE_MAX_ENTRIES = 12;
+const arrivalListCache = new Map<string, { count: number; expiresAt: number; reports: AdminArrivalListItem[] }>();
 
 const initialFilters: AdminArrivalListFilters = {
   dateFrom: localIsoDate(),
@@ -36,28 +41,57 @@ export function AdminArrivalsPage() {
   const [count, setCount] = useState(0);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const requestId = useRef(0);
+  const activeQueryKey = useRef('');
   const pageCount = Math.max(1, Math.ceil(count / 20));
+  const resolvedFilters = useMemo(() => ({ ...filters, ...resolveArrivalPeriod(period) }), [filters, period]);
+  const queryKey = useMemo(() => JSON.stringify([auth.profile?.id ?? '', resolvedFilters]), [auth.profile?.id, resolvedFilters]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options: { force?: boolean; signal?: AbortSignal } = {}) => {
     if (!supabase) {
       setStatus('error');
       setErrorMessage('需要配置 Supabase 才能加载到货中心。');
       return;
     }
-    setStatus('loading');
+    const currentRequestId = ++requestId.current;
+    const sameQuery = activeQueryKey.current === queryKey;
+    const cached = !options.force ? arrivalListCache.get(queryKey) : undefined;
+    activeQueryKey.current = queryKey;
+    const validCache = cached && cached.expiresAt > Date.now() ? cached : undefined;
+    if (validCache) {
+      setReports(validCache.reports);
+      setCount(validCache.count);
+      setStatus('ready');
+    } else if (!sameQuery) {
+      setReports([]);
+      setCount(0);
+      setStatus('loading');
+    }
     setErrorMessage(null);
     try {
-      const list = await loadAdminArrivalList(supabase, { ...filters, ...resolveArrivalPeriod(period) });
+      const list = await loadAdminArrivalList(supabase, resolvedFilters, { signal: options.signal });
+      if (options.signal?.aborted || currentRequestId !== requestId.current) return;
+      arrivalListCache.set(queryKey, { ...list, expiresAt: Date.now() + ARRIVAL_LIST_CACHE_TTL_MS });
+      while (arrivalListCache.size > ARRIVAL_LIST_CACHE_MAX_ENTRIES) {
+        const oldestKey = arrivalListCache.keys().next().value;
+        if (typeof oldestKey !== 'string') break;
+        arrivalListCache.delete(oldestKey);
+      }
       setReports(list.reports);
       setCount(list.count);
       setStatus('ready');
     } catch (error) {
-      setStatus('error');
+      if (options.signal?.aborted || currentRequestId !== requestId.current) return;
+      setStatus(validCache || sameQuery ? 'ready' : 'error');
       setErrorMessage(error instanceof Error ? error.message : '加载到货中心失败。');
     }
-  }, [filters, period]);
+  }, [queryKey, resolvedFilters]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load({ signal: controller.signal });
+    return () => controller.abort();
+  }, [load]);
 
   const storeOptions = useMemo(() => auth.availableStores, [auth.availableStores]);
 
@@ -67,11 +101,11 @@ export function AdminArrivalsPage() {
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-baseline gap-2">
             <h2 className="shrink-0 text-base font-bold text-slate-900">到货记录</h2>
-            <span className="truncate text-xs text-slate-500">共 {count} 条</span>
+            <span className="truncate text-xs text-slate-500">共 {status === 'loading' ? '—' : count} 条</span>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <Link className="ui-button-secondary min-h-9 gap-1.5 px-2.5 py-1 text-xs" to="/app/admin/arrivals/summary"><CalendarDays className="h-4 w-4" aria-hidden="true" />到货汇总</Link>
-            <button aria-label="刷新到货记录" className="ui-icon-button h-9 min-h-9 w-9" onClick={() => void load()} type="button"><RefreshCw className="h-4 w-4" aria-hidden="true" /></button>
+            <button aria-label="刷新到货记录" className="ui-icon-button h-9 min-h-9 w-9" onClick={() => void load({ force: true })} type="button"><RefreshCw className="h-4 w-4" aria-hidden="true" /></button>
           </div>
         </div>
         <ArrivalFilters filters={filters} onChange={setFilters} onPeriodChange={(value) => { setPeriod(value); setFilters((current) => ({ ...current, page: 1 })); }} period={period} stores={storeOptions} className="mt-2.5" />
@@ -106,7 +140,22 @@ function ArrivalFilters({ className, filters, onChange, onPeriodChange, period, 
 
 function ArrivalList({ reports }: { reports: AdminArrivalListItem[] }) {
   return <div className="grid gap-2 md:grid-cols-2">{reports.map((report) => <Link className="ui-card ui-interactive flex gap-3 p-3" key={report.id} to={`/app/admin/arrivals/${report.id}`}>
-    {report.thumbnailUrl ? <img alt="到货照片预览" className="h-20 w-20 shrink-0 rounded-lg bg-slate-50 object-cover" loading="lazy" src={report.thumbnailUrl} /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] text-slate-400">暂无照片</div>}
+    <ArrivalThumbnail objectPath={report.thumbnailObjectPath} />
     <div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="min-w-0 truncate text-[11px] text-slate-400">{report.store_name_snapshot}</p><div className="flex shrink-0 flex-wrap justify-end gap-1"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${report.allProductsMatched ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{report.allProductsMatched ? '已匹配货品' : '含未匹配货品'}</span><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${report.status === 'submitted' ? 'bg-amber-50 text-amber-700' : report.status === 'viewed' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{report.status === 'submitted' ? '未读' : report.status === 'viewed' ? '已读' : '已作废'}</span></div></div><p className="mt-1 line-clamp-2 text-lg font-bold leading-6 tracking-tight text-slate-900">{report.itemSummary}</p><p className="mt-1 text-xs text-slate-500">{formatArrivalDateTime(report.arrival_date, report.arrival_time)} · {report.reporter_name_snapshot}</p></div>
   </Link>)}</div>;
+}
+
+function ArrivalThumbnail({ objectPath }: { objectPath: string | null }) {
+  const [url, setUrl] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let active = true;
+    setUrl(undefined);
+    if (!objectPath || !supabase) { setUrl(null); return () => { active = false; }; }
+    void loadAdminArrivalThumbnail(supabase, objectPath).then((nextUrl) => {
+      if (active) setUrl(nextUrl);
+    });
+    return () => { active = false; };
+  }, [objectPath]);
+  if (url) return <img alt="到货照片预览" className="h-20 w-20 shrink-0 rounded-lg bg-slate-50 object-cover" decoding="async" loading="lazy" src={url} />;
+  return <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] text-slate-400 ${url === undefined ? 'animate-pulse' : ''}`}>{url === undefined ? '照片加载中' : '暂无照片'}</div>;
 }

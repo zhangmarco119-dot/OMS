@@ -41,7 +41,7 @@ export type AdminArrivalListItem = AdminArrivalReport & {
   allProductsMatched: boolean;
   itemSummary: string;
   productTypeCount: number;
-  thumbnailUrl: string | null;
+  thumbnailObjectPath: string | null;
 };
 
 export interface AdminArrivalDetail {
@@ -73,25 +73,22 @@ const createSignedUrl = async (client: Client, objectPath: string) => {
   }
 };
 
+export const loadAdminArrivalThumbnail = async (client: Client, objectPath: string) => {
+  try {
+    return await loadStorageImageResource(client, imageBucket, objectPath, {
+      scope: 'device',
+      transform: { height: 160, quality: 55, resize: 'cover', width: 160 },
+      variant: 'arrival-thumbnail',
+      version: 'v1',
+    });
+  } catch {
+    return null;
+  }
+};
+
 export const localIsoDate = (date = new Date()) => {
   const offset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 10);
-};
-
-export const formatArrivalItemSummary = (items: Array<{ product_name_snapshot: string; quantity: number; unit: string }>) => {
-  const quantityByProduct = items.reduce((summary, item) => {
-    const name = item.product_name_snapshot?.trim() || '未命名货品';
-    const unit = item.unit?.trim() || '个';
-    const key = `${name}:${unit}`;
-    const current = summary.get(key) ?? { name, quantity: 0, unit };
-    current.quantity += Number(item.quantity ?? 0);
-    summary.set(key, current);
-    return summary;
-  }, new Map<string, { name: string; quantity: number; unit: string }>());
-  return {
-    count: quantityByProduct.size,
-    text: [...quantityByProduct.values()].map((item) => `${item.name}到货${Number(item.quantity.toFixed(2))}${item.unit}`).join('、') || '暂无货品明细',
-  };
 };
 
 export const loadAdminArrivalMessages = async (client: Client, limit = 12): Promise<AdminArrivalMessage[]> => {
@@ -180,55 +177,29 @@ export const loadAdminArrivalDashboard = async (
   };
 };
 
-export const loadAdminArrivalList = async (client: Client, filters: AdminArrivalListFilters) => {
-  const pageSize = filters.pageSize ?? 20;
-  const from = Math.max(0, filters.page - 1) * pageSize;
-  let query = client
-    .from('arrival_reports')
-    .select('*', { count: 'exact' })
-    .order('submitted_at', { ascending: false })
-    .range(from, from + pageSize - 1);
-
-  if (filters.storeId) query = query.eq('store_id', filters.storeId);
-  if (filters.dateFrom) query = query.gte('arrival_date', filters.dateFrom);
-  if (filters.dateTo) query = query.lte('arrival_date', filters.dateTo);
-  // The default arrival center is the same set used by the dashboard count:
-  // formally submitted, non-voided reports only. Voided reports remain
-  // available through the dedicated audit filter; drafts are never visible.
-  if (filters.status === 'all') query = query.in('status', ['submitted', 'viewed']);
-  else query = query.eq('status', filters.status);
-
-  const { data, error, count } = await query;
+export const loadAdminArrivalList = async (
+  client: Client,
+  filters: AdminArrivalListFilters,
+  options: { signal?: AbortSignal } = {},
+) => {
+  const request = client.rpc('list_admin_arrivals_v1', {
+    p_date_from: filters.dateFrom || null,
+    p_date_to: filters.dateTo || null,
+    p_page: filters.page,
+    p_page_size: filters.pageSize ?? 20,
+    p_status: filters.status,
+    p_store_id: filters.storeId || null,
+  });
+  const { data, error } = await (options.signal ? request.abortSignal(options.signal) : request);
+  if (options.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
   throwIfError(error);
-  const reports = data ?? [];
-  if (!reports.length) return { count: count ?? 0, reports: [] as AdminArrivalListItem[] };
-  const reportIds = reports.map((report) => report.id);
-  const [itemsResult, imagesResult] = await Promise.all([
-    client.from('arrival_report_items').select('report_id,product_id,is_unmatched_product,product_name_snapshot,quantity,unit').in('report_id', reportIds).order('sort_order'),
-    client.from('arrival_report_images').select('*').in('report_id', reportIds).order('created_at'),
-  ]);
-  throwIfError(itemsResult.error);
-  throwIfError(imagesResult.error);
-  const itemsByReport = new Map<string, typeof itemsResult.data>();
-  for (const item of itemsResult.data ?? []) itemsByReport.set(item.report_id, [...(itemsByReport.get(item.report_id) ?? []), item]);
-  const firstImageByReport = new Map<string, AdminArrivalImage>();
-  for (const image of imagesResult.data ?? []) {
-    const existing = firstImageByReport.get(image.report_id);
-    if (!existing || existing.image_type === 'waybill' && image.image_type === 'goods') firstImageByReport.set(image.report_id, image);
-  }
-  const listItems = await Promise.all(reports.map(async (report): Promise<AdminArrivalListItem> => {
-    const items = itemsByReport.get(report.id) ?? [];
-    const itemSummary = formatArrivalItemSummary(items);
-    const image = firstImageByReport.get(report.id);
-    return {
-      ...report,
-      allProductsMatched: items.length > 0 && items.every((item) => Boolean(item.product_id) && !item.is_unmatched_product),
-      itemSummary: itemSummary.text,
-      productTypeCount: itemSummary.count,
-      thumbnailUrl: image ? await createSignedUrl(client, image.object_path) : null,
-    };
-  }));
-  return { count: count ?? 0, reports: listItems };
+  const payload = data && typeof data === 'object' && !Array.isArray(data)
+    ? data as { count?: unknown; reports?: unknown }
+    : {};
+  return {
+    count: typeof payload.count === 'number' ? payload.count : 0,
+    reports: Array.isArray(payload.reports) ? payload.reports as unknown as AdminArrivalListItem[] : [],
+  };
 };
 
 export const loadAdminArrivalDetail = async (client: Client, reportId: string): Promise<AdminArrivalDetail> => {

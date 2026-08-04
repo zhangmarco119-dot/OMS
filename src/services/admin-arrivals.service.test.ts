@@ -1,18 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
+import { loadStorageImageResource } from '../lib/imageResourceCache';
 import type { Database } from '../types/database';
-import { formatArrivalItemSummary, loadAdminArrivalList, markAdminArrivalViewed, voidAdminArrival } from './admin-arrivals.service';
+import { loadAdminArrivalList, loadAdminArrivalThumbnail, markAdminArrivalViewed, voidAdminArrival } from './admin-arrivals.service';
+
+vi.mock('../lib/imageResourceCache', () => ({ loadStorageImageResource: vi.fn() }));
 
 describe('admin arrivals service mutations', () => {
-  it('formats list headlines with product names and quantities instead of a kind count', () => {
-    expect(formatArrivalItemSummary([
-      { product_name_snapshot: '淡奶油', quantity: 1, unit: '盒' },
-      { product_name_snapshot: '淡奶油', quantity: 2, unit: '盒' },
-      { product_name_snapshot: '牛奶', quantity: 1.5, unit: '箱' },
-    ])).toEqual({ count: 2, text: '淡奶油到货3盒、牛奶到货1.5箱' });
-  });
-
   it('marks a report viewed through the protected RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { status: 'viewed' }, error: null });
     const client = { rpc } as unknown as SupabaseClient<Database>;
@@ -20,22 +15,9 @@ describe('admin arrivals service mutations', () => {
     expect(rpc).toHaveBeenCalledWith('mark_arrival_viewed', { p_report_id: 'report-1' });
   });
 
-  it('uses only submitted and viewed reports for the default Arrival Center list', async () => {
-    const query = {
-      eq: vi.fn(),
-      gte: vi.fn(),
-      in: vi.fn(),
-      lte: vi.fn(),
-      order: vi.fn(),
-      range: vi.fn(),
-      select: vi.fn(),
-      then: (resolve: (value: { count: number; data: never[]; error: null }) => unknown) =>
-        Promise.resolve({ count: 0, data: [], error: null }).then(resolve),
-    };
-    for (const method of ['eq', 'gte', 'in', 'lte', 'order', 'range', 'select'] as const) {
-      query[method].mockReturnValue(query);
-    }
-    const client = { from: vi.fn().mockReturnValue(query) } as unknown as SupabaseClient<Database>;
+  it('loads the complete Arrival Center page through one bounded RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { count: 0, reports: [] }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
 
     await loadAdminArrivalList(client, {
       dateFrom: '2026-07-01',
@@ -45,7 +27,28 @@ describe('admin arrivals service mutations', () => {
       storeId: '',
     });
 
-    expect(query.in).toHaveBeenCalledWith('status', ['submitted', 'viewed']);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('list_admin_arrivals_v1', {
+      p_date_from: '2026-07-01',
+      p_date_to: '2026-07-31',
+      p_page: 1,
+      p_page_size: 20,
+      p_status: 'all',
+      p_store_id: null,
+    });
+  });
+
+  it('loads a small persistent thumbnail instead of the original image', async () => {
+    vi.mocked(loadStorageImageResource).mockResolvedValue('blob:thumbnail');
+    const client = {} as SupabaseClient<Database>;
+
+    await expect(loadAdminArrivalThumbnail(client, 'store/report/goods.jpg')).resolves.toBe('blob:thumbnail');
+    expect(loadStorageImageResource).toHaveBeenCalledWith(client, 'arrival-report-images', 'store/report/goods.jpg', {
+      scope: 'device',
+      transform: { height: 160, quality: 55, resize: 'cover', width: 160 },
+      variant: 'arrival-thumbnail',
+      version: 'v1',
+    });
   });
 
   it('requires a reason and trims it before voiding', async () => {

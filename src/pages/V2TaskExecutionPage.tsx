@@ -11,7 +11,8 @@ import { PRODUCT_CATEGORIES, productCategoryLabel } from '../features/products/p
 import { TaskImagePreview } from '../features/v2-tasks/TaskImagePreview';
 import { TaskReferenceImagePreview } from '../features/v2-tasks/TaskReferenceImagePreview';
 import { getTaskSubmissionIssues, type TaskSubmissionIssue } from '../features/v2-tasks/taskCompletion';
-import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
+import { formatV2TaskDueAt, getV2TaskDisplayStatus, isV2TaskOverdue, v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
+import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock';
 import { supabase } from '../lib/supabase';
 import type { Json } from '../types/database';
 import { asTaskItemSnapshot, deleteV2TaskImage, getV2TaskAnswerPositions, loadV2TaskDetail, loadV2TaskImageUrls, loadV2TaskReferenceImageUrls, saveV2TaskProgress, submitV2Task, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskDetail, type V2TaskImageRow } from '../services/v2-tasks.service';
@@ -20,6 +21,7 @@ export function V2TaskExecutionPage() {
   const { taskId = '' } = useParams();
   const auth = useAuth();
   const navigate = useNavigate();
+  const deadlineNow = useTaskDeadlineClock();
   const [detail, setDetail] = useState<V2TaskDetail | null>(null);
   const [answers, setAnswers] = useState<V2TaskAnswerRow[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
@@ -100,6 +102,8 @@ export function V2TaskExecutionPage() {
   }, [load, taskId]);
 
   const editable = detail ? ['pending', 'in_progress', 'rejected', 'overdue'].includes(detail.task.status) : false;
+  const displayStatus = detail ? getV2TaskDisplayStatus(detail.task, deadlineNow) : null;
+  const overdue = detail ? isV2TaskOverdue(detail.task, deadlineNow) : false;
   const answerPositions = useMemo(() => getV2TaskAnswerPositions(detail?.task.snapshot ?? null), [detail?.task.snapshot]);
   const progress = useMemo(() => answers.length ? Math.round(answers.filter((answer) => answer.answer !== null).length / answers.length * 100) : 0, [answers]);
   const currentSubmissionIssues = useMemo(() => getTaskSubmissionIssues(
@@ -233,7 +237,7 @@ export function V2TaskExecutionPage() {
   };
 
   return <PageShell eyebrow="门店运营系统 · 任务执行" title={detail?.task.name ?? '任务'} backTo="/app/tasks" contentGapClassName="gap-3">
-    {detail ? <><section className="ui-card p-4"><div className="flex items-center justify-between gap-3 text-sm"><span className="text-slate-600">截止：{new Date(detail.task.due_at).toLocaleString('zh-CN')}</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[detail.task.status]}`}>{v2TaskStatusLabel[detail.task.status]}</span></div><div className="mt-3 flex justify-between text-sm"><span className="text-slate-600">填写进度</span><b className="tabular-nums">{progress}%</b></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-2 rounded-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} /></div>{detail.task.status === 'rejected' ? <FeedbackBanner className="mt-3" title="任务已退回整改" tone="danger"><p>整改原因：{detail.task.review_note?.trim() || '管理员未填写原因，请联系管理员确认。'}</p><p>请优先修改标有“需整改”的项目后重新提交。</p></FeedbackBanner> : null}</section>
+    {detail && displayStatus ? <><section className="ui-card p-4"><div className="flex items-center justify-between gap-3 text-sm"><span className={`font-semibold ${overdue ? 'text-red-700' : 'text-slate-600'}`}>截止时间：{formatV2TaskDueAt(detail.task.due_at)}</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[displayStatus]}`}>{v2TaskStatusLabel[displayStatus]}</span></div>{overdue ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-800">已逾期 · 任务尚未提交，请尽快完成并提交</p> : null}<div className="mt-3 flex justify-between text-sm"><span className="text-slate-600">填写进度</span><b className="tabular-nums">{progress}%</b></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-2 rounded-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} /></div>{detail.task.status === 'rejected' ? <FeedbackBanner className="mt-3" title="任务已退回整改" tone="danger"><p>整改原因：{detail.task.review_note?.trim() || '管理员未填写原因，请联系管理员确认。'}</p><p>请优先修改标有“需整改”的项目后重新提交。</p></FeedbackBanner> : null}</section>
     {detail.task.related_sop_id || detail.task.related_notice_id ? <Link className="ui-card flex items-center gap-3 border-brand-100 bg-brand-50 p-3 transition active:scale-[0.99]" state={{ taskBackTo: `/app/tasks/${detail.task.id}` }} to={detail.task.related_sop_id ? `/app/sops/${detail.task.related_sop_id}` : `/app/notices/${detail.task.related_notice_id}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700">{detail.task.related_sop_id ? <BookOpenCheck className="h-5 w-5" /> : <Megaphone className="h-5 w-5" />}</span>
       <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-brand-700">{detail.task.related_sop_id ? '任务关联 SOP' : '任务关联公告'}</span><b className="mt-0.5 block truncate text-slate-900">{detail.task.related_content_title ?? (detail.task.related_sop_id ? '查看操作标准' : '查看公告内容')}</b></span>

@@ -2,6 +2,8 @@ import type { V2TaskRow } from '../../services/v2-tasks.service';
 
 type TaskStatus = V2TaskRow['status'];
 
+const taskStatusesAwaitingSubmission: TaskStatus[] = ['pending', 'in_progress', 'rejected', 'overdue'];
+
 export const v2TaskStatusLabel: Record<TaskStatus, string> = {
   approved: '已通过',
   cancelled: '已取消',
@@ -23,3 +25,20 @@ export const v2TaskStatusClass: Record<TaskStatus, string> = {
   resubmitted: 'border border-violet-200 bg-violet-50 text-violet-800',
   submitted: 'border border-blue-200 bg-blue-50 text-blue-800',
 };
+
+export const isV2TaskOverdue = (
+  task: Pick<V2TaskRow, 'due_at' | 'status'>,
+  now = Date.now(),
+) => taskStatusesAwaitingSubmission.includes(task.status)
+  && (task.status === 'overdue' || new Date(task.due_at).getTime() <= now);
+
+export const getV2TaskDisplayStatus = (
+  task: Pick<V2TaskRow, 'due_at' | 'status'>,
+  now = Date.now(),
+): TaskStatus => isV2TaskOverdue(task, now) ? 'overdue' : task.status;
+
+export const formatV2TaskDueAt = (dueAt: string) => new Date(dueAt).toLocaleString('zh-CN', {
+  dateStyle: 'medium',
+  hour12: false,
+  timeStyle: 'short',
+});

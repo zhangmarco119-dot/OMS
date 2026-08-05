@@ -63,6 +63,22 @@ describe('AdminV2TasksPage navigation', () => {
     expect(screen.getByRole('checkbox', { name: '创建周期任务时立即发布一次' })).not.toBeChecked();
   });
 
+  it('disables stores outside the selected template and explains how to enable them', async () => {
+    mocks.loadTemplates.mockResolvedValue([{
+      id: 'template-1',
+      name: '点货',
+      status: 'published',
+      storeIds: ['store-1'],
+    }]);
+
+    render(<MemoryRouter><AdminV2TaskPublishPage /></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText('任务模板'), { target: { value: 'template-1' } });
+
+    expect(screen.getByRole('checkbox', { name: '测试门店' })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: '第二门店' })).toBeDisabled();
+    expect(screen.getByText(/灰色门店请先到“任务模板”中增加后再发布/)).toBeInTheDocument();
+  });
+
   it('lets administrators explicitly select multiple people for independent completion', async () => {
     mocks.loadRecipients.mockResolvedValue([
       { display_name: '员工甲', employment_type: 'full_time', id: 'profile-1', role: 'staff', store_id: 'store-1', username: 'staff-a' },

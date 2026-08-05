@@ -9,6 +9,11 @@ describe('V2 task workflow service', () => {
     await publishV2Tasks(client,'template-1',['store-1'],'2026-07-20T12:00:00Z','2026-07-20T09:00:00Z');
     expect(rpc).toHaveBeenCalledWith('publish_v2_tasks_v4',{p_due_at:'2026-07-20T12:00:00Z',p_inventory_category_codes:[],p_manager_review_enabled:false,p_profile_ids:[],p_publish_at:'2026-07-20T09:00:00Z',p_related_notice_id:null,p_related_sop_id:null,p_requires_inventory:false,p_store_ids:['store-1'],p_target_audiences:['staff','manager'],p_template_id:'template-1'});
   });
+  it('translates template store scope rejection into an actionable Chinese message', async () => {
+    const client = { rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'template store access denied' } }) } as unknown as SupabaseClient<Database>;
+    await expect(publishV2Tasks(client, 'template-1', ['store-2'], '2026-07-20T12:00:00Z', '2026-07-20T09:00:00Z'))
+      .rejects.toThrow('所选任务模板不适用于目标门店，请先在任务模板中增加该门店后再发布。');
+  });
   it('supports scheduled one-off publication', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null }); const client = { rpc } as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client, 'template-1', ['store-1'], '2026-07-21T12:00:00Z', '2026-07-20T12:00:00Z');

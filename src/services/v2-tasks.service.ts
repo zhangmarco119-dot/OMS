@@ -60,7 +60,12 @@ export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string
 export interface V2TaskAnswerPosition { groupNumber: number; groupTitle: string; itemNumber: number; number: string }
 export type V2TaskItemDecision = { decision: 'approved' | 'rejected'; itemId: string; note?: string };
 
-const fail = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
+const friendlyTaskError = (message: string) => {
+  if (message.includes('template store access denied')) return '所选任务模板不适用于目标门店，请先在任务模板中增加该门店后再发布。';
+  if (message.includes('task recipient access denied')) return '所选接收人的所属门店不在任务模板适用范围内，请调整接收人或模板门店。';
+  return message;
+};
+const fail = (error: { message: string } | null) => { if (error) throw new Error(friendlyTaskError(error.message)); };
 export const asTaskItemSnapshot = (value: Json): TaskItemSnapshot => value as unknown as TaskItemSnapshot;
 
 const asRecord = (value: Json): Record<string, Json | undefined> | null => value !== null && !Array.isArray(value) && typeof value === 'object'

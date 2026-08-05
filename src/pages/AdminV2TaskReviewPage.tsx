@@ -32,6 +32,7 @@ export function AdminV2TaskReviewPage() {
   const { taskId = '' } = useParams();
   const [detail, setDetail] = useState<V2TaskDetail | null>(null);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [imageUrlsLoading, setImageUrlsLoading] = useState(false);
   const [referenceImageUrls, setReferenceImageUrls] = useState<Record<string, string[]>>({});
   const [note, setNote] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -48,17 +49,20 @@ export function AdminV2TaskReviewPage() {
       const [next, allowed] = await Promise.all([loadV2TaskDetail(supabase, taskId), canReviewV2Task(supabase, taskId)]);
       setDetail(next);
       setReviewAllowed(allowed);
+      setImageUrlsLoading(next.images.length > 0);
       const [nextImageUrls, nextReferenceImageUrls] = await Promise.all([
         loadV2TaskImageUrls(supabase, next.images),
         loadV2TaskReferenceImageUrls(supabase, next.answers),
       ]);
       setImageUrls(nextImageUrls);
+      setImageUrlsLoading(false);
       setReferenceImageUrls(nextReferenceImageUrls);
       setSelectedIds([]);
       setDecisions({});
       setItemNotes({});
       setMessage(null);
     } catch (error) {
+      setImageUrlsLoading(false);
       setMessage(error instanceof Error ? error.message : '加载任务失败');
     }
   }, [taskId]);
@@ -164,7 +168,7 @@ export function AdminV2TaskReviewPage() {
                 <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{formatAnswer(answer.answer, item.answer_schema)}</p>
                 {canReview && isProductSpecCorrection && decision === 'rejected' ? <textarea aria-label={`驳回原因：${item.label}（选填）`} className="ui-input mt-3 min-h-20 py-3" onChange={(event) => setItemNotes((current) => ({ ...current, [answer.item_id]: event.target.value }))} onClick={(event) => event.stopPropagation()} placeholder="驳回原因（选填）" value={itemNotes[answer.item_id] ?? ''} /> : null}
                 <TaskReferenceImagePreview urls={referenceImageUrls[answer.item_id] ?? []} />
-                <div className="mt-3"><TaskImagePreview imageUrls={imageUrls} images={images} /></div>
+                <div className="mt-3"><TaskImagePreview imageUrls={imageUrls} images={images} loading={imageUrlsLoading} /></div>
               </div>
             </div>
           </article>

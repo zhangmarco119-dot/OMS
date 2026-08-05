@@ -88,6 +88,24 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
     ], ''));
   });
 
+  it('shows image loading instead of failure while preview URLs are still resolving', async () => {
+    let resolveImageUrls: (urls: Record<string, string>) => void = () => undefined;
+    const image = { bucket: 'v2-task-images', id: 'image-1', item_id: resubmittedAnswer.item_id, object_path: 'store/task/item/image.jpg' };
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [resubmittedAnswer], images: [image], reviews: [], submitterName: '刘成跃', task } as unknown as V2TaskDetail);
+    vi.mocked(loadV2TaskImageUrls).mockReturnValue(new Promise((resolve) => { resolveImageUrls = resolve; }));
+
+    render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
+
+    expect(await screen.findByText('正在加载图片')).toBeInTheDocument();
+    expect(screen.queryByText('图片预览加载失败')).not.toBeInTheDocument();
+
+    resolveImageUrls({ [image.id]: 'blob:task-image' });
+    const preview = await screen.findByRole('img', { name: '已上传图片 1' });
+    fireEvent.load(preview);
+    await waitFor(() => expect(screen.queryByText('正在加载图片')).not.toBeInTheDocument());
+    expect(screen.queryByText('图片预览加载失败')).not.toBeInTheDocument();
+  });
+
   it('opens a visible dialog when reject actions are missing a selection or reason', async () => {
     render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
 

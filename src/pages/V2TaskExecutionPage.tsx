@@ -25,6 +25,7 @@ export function V2TaskExecutionPage() {
   const [detail, setDetail] = useState<V2TaskDetail | null>(null);
   const [answers, setAnswers] = useState<V2TaskAnswerRow[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [imageUrlsLoading, setImageUrlsLoading] = useState(false);
   const [referenceImageUrls, setReferenceImageUrls] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [submissionIssues, setSubmissionIssues] = useState<TaskSubmissionIssue[]>([]);
@@ -61,11 +62,14 @@ export function V2TaskExecutionPage() {
       setDetail(next);
       uploadedImages.current = new Map(next.images.map((image) => [image.id, image.item_id]));
       setAnswers(next.answers);
+      setImageUrlsLoading(next.images.length > 0);
       setImageUrls(await loadV2TaskImageUrls(supabase, next.images));
+      setImageUrlsLoading(false);
       setReferenceImageUrls(await loadV2TaskReferenceImageUrls(supabase, next.answers));
       if (next.task.requires_inventory) await loadInventoryStatus();
       setMessage(null);
     } catch (error) {
+      setImageUrlsLoading(false);
       setMessage(error instanceof Error ? error.message : '加载任务失败');
     }
   }, [loadInventoryStatus, taskId]);
@@ -255,7 +259,7 @@ export function V2TaskExecutionPage() {
       const showGroup = index === 0 || previous?.groupNumber !== position.groupNumber;
       const needsCorrection = detail.task.status === 'rejected' && detail.task.correction_item_ids.includes(answer.item_id);
       const itemEditable = editable && (detail.task.status !== 'rejected' || needsCorrection);
-      return <div key={answer.id}>{showGroup ? <div className="mb-2 flex items-center gap-2 px-1"><span className="rounded-md bg-brand-600 px-2 py-1 text-xs font-bold text-white">分组 {position.groupNumber}</span><h2 className="font-bold text-slate-800">{position.groupTitle}</h2></div> : null}<AnswerCard answer={answer} deletingImageIds={deletingImageIds} editable={itemEditable} imageUrls={imageUrls} images={detail.images.filter((image) => image.item_id === answer.item_id)} needsCorrection={needsCorrection} number={position.number} onChange={(value) => update(answer.item_id, value)} onDeleteImage={deleteImage} onUpload={(file) => queueUpload(answer.item_id, file)} referenceImageUrls={referenceImageUrls[answer.item_id] ?? []} uploaderId={auth.profile?.id ?? ''} /></div>;
+      return <div key={answer.id}>{showGroup ? <div className="mb-2 flex items-center gap-2 px-1"><span className="rounded-md bg-brand-600 px-2 py-1 text-xs font-bold text-white">分组 {position.groupNumber}</span><h2 className="font-bold text-slate-800">{position.groupTitle}</h2></div> : null}<AnswerCard answer={answer} deletingImageIds={deletingImageIds} editable={itemEditable} imageUrls={imageUrls} imageUrlsLoading={imageUrlsLoading} images={detail.images.filter((image) => image.item_id === answer.item_id)} needsCorrection={needsCorrection} number={position.number} onChange={(value) => update(answer.item_id, value)} onDeleteImage={deleteImage} onUpload={(file) => queueUpload(answer.item_id, file)} referenceImageUrls={referenceImageUrls[answer.item_id] ?? []} uploaderId={auth.profile?.id ?? ''} /></div>;
     })}</div>
     {editable ? <MobileActionBar className="grid grid-cols-2 gap-2.5"><button className="ui-button-secondary" disabled={busy || activeUploadCount > 0} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg font-bold disabled:opacity-60 ${currentSubmissionIssues.length > 0 || (detail.task.requires_inventory && !inventorySubmitted) ? 'bg-slate-300 text-slate-600' : 'bg-brand-600 text-white'}`} disabled={busy || activeUploadCount > 0} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />{activeUploadCount > 0 ? '图片上传中…' : '提交检查'}</button></MobileActionBar> : null}</> : <LoadingState label="正在加载任务" />}
     {submissionIssues.length > 0 ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-label="必填项目未完成"><section className="ui-dialog-panel max-w-sm p-5"><h2 className="text-lg font-bold text-slate-900">请先完成必填项目</h2><p className="mt-2 text-sm leading-6 text-slate-600">以下内容尚未完成，完成后才能提交检查：</p><ul className="mt-3 space-y-2">{submissionIssues.map((issue) => <li className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm" key={issue.itemId}><b className="block text-slate-900">项目：{issue.label}</b><span className="mt-1 block text-amber-800">{issue.reason}</span></li>)}</ul><button className="ui-button-primary mt-5 w-full" onClick={() => setSubmissionIssues([])} type="button">我知道了</button></section></div> : null}
@@ -263,7 +267,7 @@ export function V2TaskExecutionPage() {
   </PageShell>;
 }
 
-function AnswerCard({ answer, deletingImageIds, editable, images, imageUrls, needsCorrection, number, onChange, onDeleteImage, onUpload, referenceImageUrls, uploaderId }: { answer: V2TaskAnswerRow; deletingImageIds: string[]; editable: boolean; images: V2TaskImageRow[]; imageUrls: Record<string, string>; needsCorrection: boolean; number: string; onChange: (value: Json) => void; onDeleteImage: (image: V2TaskImageRow) => void; onUpload: (file: File | undefined) => void; referenceImageUrls: string[]; uploaderId: string }) {
+function AnswerCard({ answer, deletingImageIds, editable, images, imageUrls, imageUrlsLoading, needsCorrection, number, onChange, onDeleteImage, onUpload, referenceImageUrls, uploaderId }: { answer: V2TaskAnswerRow; deletingImageIds: string[]; editable: boolean; images: V2TaskImageRow[]; imageUrls: Record<string, string>; imageUrlsLoading: boolean; needsCorrection: boolean; number: string; onChange: (value: Json) => void; onDeleteImage: (image: V2TaskImageRow) => void; onUpload: (file: File | undefined) => void; referenceImageUrls: string[]; uploaderId: string }) {
   const item = asTaskItemSnapshot(answer.item_snapshot);
   const options = Array.isArray(item.options) ? item.options.filter((value): value is string => typeof value === 'string') : [];
   const value = answer.answer;
@@ -293,6 +297,6 @@ function AnswerCard({ answer, deletingImageIds, editable, images, imageUrls, nee
     {['boolean', 'confirmation'].includes(item.field_type) ? <label className="flex min-h-12 items-center gap-3"><input checked={value === true} disabled={!editable} onChange={(event) => onChange(event.target.checked)} type="checkbox" />确认完成</label> : null}
     {item.field_type === 'single_choice' ? <select className="ui-input" disabled={!editable} onChange={(event) => onChange(event.target.value)} value={typeof value === 'string' ? value : ''}><option value="">请选择</option>{options.map((option) => <option key={option}>{option}</option>)}</select> : null}
     {item.field_type === 'multi_choice' ? <div>{options.map((option) => <label className="mr-4 inline-flex gap-2" key={option}><input checked={Array.isArray(value) && value.includes(option)} disabled={!editable} onChange={(event) => { const selected = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []; onChange(event.target.checked ? [...selected, option] : selected.filter((entry) => entry !== option)); }} type="checkbox" />{option}</label>)}</div> : null}
-    {expectsImages ? <div className="space-y-3">{item.is_required ? <div className={`rounded-lg border px-3 py-2 text-sm ${uploadedImageCount >= requiredImageCount ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><b>图片要求：至少上传 {requiredImageCount} 张</b><span className="ml-2 text-xs">已完成 {uploadedImageCount}/{requiredImageCount}</span></div> : null}<label className="ui-button-secondary"><Camera className="h-4 w-4" />{images.length ? `继续上传（已选择 ${images.length} 张）` : '上传图片'}<input accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" disabled={!canUpload} onChange={(event) => { onUpload(event.target.files?.[0]); event.currentTarget.value = ''; }} type="file" /></label><TaskImagePreview deletableImageIds={images.filter((image) => image.uploaded_by === uploaderId).map((image) => image.id)} deletingImageIds={deletingImageIds} imageUrls={imageUrls} images={images} onDelete={editable ? onDeleteImage : undefined} /></div> : null}
+    {expectsImages ? <div className="space-y-3">{item.is_required ? <div className={`rounded-lg border px-3 py-2 text-sm ${uploadedImageCount >= requiredImageCount ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><b>图片要求：至少上传 {requiredImageCount} 张</b><span className="ml-2 text-xs">已完成 {uploadedImageCount}/{requiredImageCount}</span></div> : null}<label className="ui-button-secondary"><Camera className="h-4 w-4" />{images.length ? `继续上传（已选择 ${images.length} 张）` : '上传图片'}<input accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" disabled={!canUpload} onChange={(event) => { onUpload(event.target.files?.[0]); event.currentTarget.value = ''; }} type="file" /></label><TaskImagePreview deletableImageIds={images.filter((image) => image.uploaded_by === uploaderId).map((image) => image.id)} deletingImageIds={deletingImageIds} imageUrls={imageUrls} images={images} loading={imageUrlsLoading} onDelete={editable ? onDeleteImage : undefined} /></div> : null}
   </div></article>;
 }

@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { archiveNotice, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, loadSopDetail, loadSopLibraryPage, loadSopPage, publishSop, removeSopStepImage, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
+import { archiveNotice, buildContentRecipients, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, loadSopDetail, loadSopLibraryPage, loadSopPage, publishSop, removeSopStepImage, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
 
 describe('v2 content drafts', () => {
   it('loads an SOP card page with one lightweight query and a transformed preview signing request', async () => {
@@ -73,6 +73,23 @@ describe('v2 content drafts', () => {
     expect(createEmptyNoticeDraft(['store-1'])).toEqual({
       body: '', expiresAt: '', id: null, isPinned: false, recipientIds: [], requiresAcknowledgment: false, storeIds: ['store-1'], title: '',
     });
+  });
+
+  it('includes a manager in every store granted through additional store access', () => {
+    const recipients = buildContentRecipients([
+      { display_name: '李天欣', id: 'manager-1', role: 'manager', store_id: 'store-wudaokou' },
+      { display_name: '管理员', id: 'admin-1', role: 'admin', store_id: 'store-xizhimen' },
+    ], [
+      { profile_id: 'manager-1', store_id: 'store-xizhimen' },
+      { profile_id: 'manager-1', store_id: 'store-wudaokou' },
+    ]);
+
+    expect(recipients).toEqual([{
+      display_name: '李天欣',
+      id: 'manager-1',
+      role: 'manager',
+      storeIds: ['store-wudaokou', 'store-xizhimen'],
+    }]);
   });
 
   it('targets both store roles by default for a new SOP', () => {

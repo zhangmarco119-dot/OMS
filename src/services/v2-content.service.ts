@@ -14,6 +14,16 @@ export type SopAssetRow = Database['public']['Tables']['v2_sop_assets']['Row'];
 export type SopCategoryRow = Database['public']['Tables']['v2_sop_categories']['Row'];
 export type NoticeAssetRow = Database['public']['Tables']['v2_notice_assets']['Row'];
 
+export interface ContentRecipient {
+  display_name: string;
+  id: string;
+  role: 'staff' | 'manager';
+  storeIds: string[];
+}
+
+type ContentRecipientProfile = Pick<Database['public']['Tables']['profiles']['Row'], 'display_name' | 'id' | 'role' | 'store_id'>;
+type ContentRecipientStoreAccess = Pick<Database['public']['Tables']['profile_store_access']['Row'], 'profile_id' | 'store_id'>;
+
 export interface NoticeListItem extends NoticeRow {
   isRead: boolean;
   readCount: number;
@@ -66,6 +76,33 @@ const throwIfError = (error: { message: string } | null) => {
 
 export const createEmptyNoticeDraft = (storeIds: string[] = []): NoticeDraft => ({ body: '', expiresAt: '', id: null, isPinned: false, recipientIds: [], requiresAcknowledgment: false, storeIds, title: '' });
 export const createEmptySopDraft = (storeIds: string[] = []): SopDraft => ({ body: '', category: '通用', effectiveAt: '', id: null, roles: ['staff', 'manager'], storeIds, taskTemplateId: null, title: '' });
+
+export const buildContentRecipients = (profiles: ContentRecipientProfile[], storeAccess: ContentRecipientStoreAccess[]): ContentRecipient[] => {
+  const additionalStoreIds = new Map<string, Set<string>>();
+  storeAccess.forEach((access) => {
+    const storeIds = additionalStoreIds.get(access.profile_id) ?? new Set<string>();
+    storeIds.add(access.store_id);
+    additionalStoreIds.set(access.profile_id, storeIds);
+  });
+  return profiles.flatMap((profile) => profile.role === 'staff' || profile.role === 'manager'
+    ? [{
+        display_name: profile.display_name,
+        id: profile.id,
+        role: profile.role,
+        storeIds: Array.from(new Set([profile.store_id, ...(additionalStoreIds.get(profile.id) ?? [])])),
+      }]
+    : []);
+};
+
+export const loadContentRecipients = async (client: Client): Promise<ContentRecipient[]> => {
+  const [profiles, storeAccess] = await Promise.all([
+    client.from('profiles').select('id,display_name,role,store_id').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null).order('display_name'),
+    client.from('profile_store_access').select('profile_id,store_id'),
+  ]);
+  throwIfError(profiles.error);
+  throwIfError(storeAccess.error);
+  return buildContentRecipients(profiles.data ?? [], storeAccess.data ?? []);
+};
 
 export const loadNotices = async (client: Client): Promise<NoticeListItem[]> => {
   const [notices, assignments, recipients, assets, profiles, userResult] = await Promise.all([

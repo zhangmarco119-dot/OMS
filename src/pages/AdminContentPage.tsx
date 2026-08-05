@@ -31,6 +31,7 @@ import {
   deleteSopCategory,
   deleteSopAsset,
   deleteNotice,
+  loadContentRecipients,
   loadNotices,
   loadSopCategories,
   loadSopArchiveCount,
@@ -51,13 +52,13 @@ import {
   updateSopAssetSteps,
   type NoticeDraft,
   type NoticeListItem,
+  type ContentRecipient,
   type SopDraft,
   type SopListItem,
   type SopCategoryRow,
 } from '../services/v2-content.service';
 
 export type AdminContentSection = 'notices' | 'sops';
-type ContentRecipient = { display_name: string; id: string; role: 'staff' | 'manager'; store_id: string };
 type SopBatchLifecycleAction = 'publish' | 'retract' | 'archive';
 
 const sopBatchLifecycleCopy: Record<SopBatchLifecycleAction, { button: string; eligibleStatus: SopListItem['status']; success: string; title: string }> = {
@@ -153,12 +154,11 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       if (section === 'notices') {
         const [nextNotices, profiles] = await Promise.all([
           loadNotices(supabase),
-          supabase.from('profiles').select('id,display_name,role,store_id').in('role', ['staff', 'manager']).eq('is_active', true).is('deleted_at', null),
+          loadContentRecipients(supabase),
         ]);
-        if (profiles.error) throw new Error(profiles.error.message);
         if (requestId !== refreshRequestRef.current) return;
         setNotices(nextNotices);
-        setRecipientProfiles((profiles.data ?? []) as ContentRecipient[]);
+        setRecipientProfiles(profiles);
       } else {
         const activePageRequest = loadSopPage(supabase, { archived: false, category: sopCategoryFilter, limit: SOP_PAGE_SIZE, search: debouncedSopSearch });
         const metadataRequest = Promise.all([loadSopArchiveCount(supabase), loadSopCategories(supabase)]);
@@ -857,17 +857,17 @@ function NoticeArchiveManager({ busy, notices, onClose, onDelete, onDeleteMany }
 
 export function NoticeEditor({ busy, draft, onCancel, onChange, onPublish, onSave, onUpload, recipients, stores }: { busy: boolean; draft: NoticeDraft; onCancel: () => void; onChange: (value: NoticeDraft) => void; onPublish: () => void; onSave: () => void; onUpload: (file: File | undefined) => Promise<void>; recipients: ContentRecipient[]; stores: Array<{ id: string; name: string }> }) {
   const [roleFilter, setRoleFilter] = useState<'all' | 'staff' | 'manager'>('all');
-  const visibleRecipients = recipients.filter((recipient) => draft.storeIds.includes(recipient.store_id) && (roleFilter === 'all' || recipient.role === roleFilter));
+  const visibleRecipients = recipients.filter((recipient) => recipient.storeIds.some((storeId) => draft.storeIds.includes(storeId)) && (roleFilter === 'all' || recipient.role === roleFilter));
   const selectAll = () => onChange({ ...draft, recipientIds: visibleRecipients.map((recipient) => recipient.id) });
-  return <div className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog" aria-modal="true" aria-labelledby="notice-editor-title">
-    <div className="mx-auto max-w-3xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
+  return <div className="fixed inset-0 z-50 h-[100dvh] scroll-pb-[calc(11rem+env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog" aria-modal="true" aria-labelledby="notice-editor-title">
+    <div className="mx-auto max-w-3xl space-y-3 pb-[calc(11rem+env(safe-area-inset-bottom))] sm:pb-[calc(8rem+env(safe-area-inset-bottom))]">
       <header className="ui-card sticky top-0 z-20 flex items-center justify-between p-3.5"><div><p className="text-xs font-bold text-brand-700">公告编辑</p><h2 className="text-xl font-bold" id="notice-editor-title">{draft.id ? '编辑公告' : '新建公告'}</h2></div><button aria-label="关闭公告编辑" className="ui-icon-button" onClick={onCancel} type="button"><X className="h-5 w-5" /></button></header>
       <section className="ui-card space-y-4 p-4">
         <label className="block text-sm font-semibold text-slate-700">公告标题<input className="ui-input mt-1.5" onChange={(event) => onChange({ ...draft, title: event.target.value })} value={draft.title} /></label>
         <label className="block text-sm font-semibold text-slate-700">公告正文<textarea className="ui-input mt-1.5 min-h-40 py-3 leading-7" onChange={(event) => onChange({ ...draft, body: event.target.value })} value={draft.body} /></label>
         <label className="block text-sm font-semibold text-slate-700">失效时间（可选）<input className="ui-input mt-1.5" onChange={(event) => onChange({ ...draft, expiresAt: event.target.value })} type="datetime-local" value={draft.expiresAt} /></label>
         <div className="grid gap-2 sm:grid-cols-2"><label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold"><input checked={draft.isPinned} onChange={(event) => onChange({ ...draft, isPinned: event.target.checked })} type="checkbox" />置顶显示</label><label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold"><input checked={draft.requiresAcknowledgment} onChange={(event) => onChange({ ...draft, requiresAcknowledgment: event.target.checked })} type="checkbox" />要求接收人确认（计入待办）</label></div>
-        <StorePicker onChange={(storeIds) => onChange({ ...draft, recipientIds: draft.recipientIds.filter((id) => recipients.some((recipient) => recipient.id === id && storeIds.includes(recipient.store_id))), storeIds })} selected={draft.storeIds} stores={stores} />
+        <StorePicker onChange={(storeIds) => onChange({ ...draft, recipientIds: draft.recipientIds.filter((id) => recipients.some((recipient) => recipient.id === id && recipient.storeIds.some((storeId) => storeIds.includes(storeId)))), storeIds })} selected={draft.storeIds} stores={stores} />
         <div><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">接收人员（已选 {draft.recipientIds.length} 人）</p><button className="ui-button-secondary px-3" onClick={selectAll} type="button">全选当前结果</button></div><div className="mt-2 grid grid-cols-3 gap-2"><button className={`min-h-11 rounded-lg border px-2 text-sm ${roleFilter === 'all' ? 'border-brand-600 bg-brand-50 font-bold text-brand-700' : 'border-slate-200'}`} onClick={() => setRoleFilter('all')} type="button">全部</button><button className={`min-h-11 rounded-lg border px-2 text-sm ${roleFilter === 'staff' ? 'border-brand-600 bg-brand-50 font-bold text-brand-700' : 'border-slate-200'}`} onClick={() => setRoleFilter('staff')} type="button">员工</button><button className={`min-h-11 rounded-lg border px-2 text-sm ${roleFilter === 'manager' ? 'border-brand-600 bg-brand-50 font-bold text-brand-700' : 'border-slate-200'}`} onClick={() => setRoleFilter('manager')} type="button">店长</button></div><div className="mt-2 grid gap-2 sm:grid-cols-2">{visibleRecipients.map((recipient) => <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm" key={recipient.id}><input checked={draft.recipientIds.includes(recipient.id)} onChange={() => onChange({ ...draft, recipientIds: draft.recipientIds.includes(recipient.id) ? draft.recipientIds.filter((id) => id !== recipient.id) : [...draft.recipientIds, recipient.id] })} type="checkbox" />{recipient.display_name} · {recipient.role === 'staff' ? '员工' : '店长'}</label>)}</div></div>
         {draft.id ? <label className="ui-button-secondary w-fit cursor-pointer"><FileUp className="h-4 w-4" />上传图片或 PDF<input accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" disabled={busy} onChange={(event) => { void onUpload(event.target.files?.[0]); event.currentTarget.value = ''; }} type="file" /></label> : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">保存草稿后即可上传图片或 PDF 附件。</p>}
       </section>

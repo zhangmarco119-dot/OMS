@@ -418,8 +418,29 @@ describe('SopEditor image-first workflow', () => {
       stores={[{ id: 'store-1', name: '测试门店' }]}
     />);
 
-    expect(screen.getByRole('dialog', { name: '新建公告' })).toHaveClass('h-[100dvh]', 'z-50');
+    expect(screen.getByRole('dialog', { name: '新建公告' })).toHaveClass('h-[100dvh]', 'z-50', 'scroll-pb-[calc(11rem+env(safe-area-inset-bottom))]');
+    expect(screen.getByRole('dialog', { name: '新建公告' }).firstElementChild).toHaveClass('pb-[calc(11rem+env(safe-area-inset-bottom))]');
     expect(screen.getByRole('button', { name: '发布公告' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
+  });
+
+  it('shows a store manager whose access comes from an additional authorized store', () => {
+    render(<NoticeEditor
+      busy={false}
+      draft={createEmptyNoticeDraft(['store-xizhimen'])}
+      onCancel={vi.fn()}
+      onChange={vi.fn()}
+      onPublish={vi.fn()}
+      onSave={vi.fn()}
+      onUpload={vi.fn().mockResolvedValue(undefined)}
+      recipients={[
+        { display_name: '刘成跃', id: 'staff-1', role: 'staff', storeIds: ['store-xizhimen'] },
+        { display_name: '李天欣', id: 'manager-1', role: 'manager', storeIds: ['store-wudaokou', 'store-xizhimen'] },
+      ]}
+      stores={[{ id: 'store-xizhimen', name: 'OMEGA酸奶（西直门店）' }]}
+    />);
+
+    expect(screen.getByText('刘成跃 · 员工')).toBeInTheDocument();
+    expect(screen.getByText('李天欣 · 店长')).toBeInTheDocument();
   });
 
   it('renames an in-use SOP category after a second confirmation', async () => {

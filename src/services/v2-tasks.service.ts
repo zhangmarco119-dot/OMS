@@ -16,7 +16,9 @@ type Client = SupabaseClient<Database>;
 export type V2TaskRow = Database['public']['Tables']['v2_tasks']['Row'];
 export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['Row'];
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
-export type V2TaskTimelineEvent = Pick<V2TaskReviewRow, 'action' | 'created_at' | 'id' | 'task_id'>;
+export type V2TaskTimelineEvent = Pick<V2TaskReviewRow, 'created_at' | 'id' | 'task_id'> & {
+  action: 'submitted' | 'rejected' | 'resubmitted';
+};
 export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
 export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
 export type V2TaskReleaseType = 'interval_days' | 'weekly' | 'monthly';
@@ -127,7 +129,7 @@ export const loadV2TaskTimeline = async (client: Client): Promise<V2TaskTimeline
     .in('action', ['submitted', 'rejected', 'resubmitted'])
     .order('created_at', { ascending: true });
   fail(error);
-  return data ?? [];
+  return (data ?? []) as V2TaskTimelineEvent[];
 };
 export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<V2TaskDetail> => {
   const [task, answers, images, reviews] = await Promise.all([

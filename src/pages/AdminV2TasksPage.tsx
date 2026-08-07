@@ -25,6 +25,7 @@ import {
   loadV2TaskScheduleContent,
   loadV2TaskRecipients,
   loadV2TaskSchedules,
+  loadV2TaskTimeline,
   loadV2Tasks,
   pauseV2TaskSchedule,
   publishV2Tasks,
@@ -40,6 +41,7 @@ import {
   type V2TaskRelatedContentOption,
   type V2TaskRelatedContentType,
   type V2TaskRow,
+  type V2TaskTimelineEvent,
   type V2TaskScheduleFields,
   type V2TaskScheduleRow,
 } from '../services/v2-tasks.service';
@@ -186,6 +188,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
   const [categories, setCategories] = useState<TaskCategoryRow[]>([]);
   const [tasks, setTasks] = useState<V2TaskRow[]>([]);
+  const [taskTimeline, setTaskTimeline] = useState<V2TaskTimelineEvent[]>([]);
   const [schedules, setSchedules] = useState<V2TaskScheduleRow[]>([]);
   const [recipients, setRecipients] = useState<V2TaskRecipient[]>([]);
   const [relatedContentOptions, setRelatedContentOptions] = useState<V2TaskRelatedContentOption[]>([]);
@@ -235,13 +238,14 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
-      const [nextTemplates, nextCategories, nextTasks, nextSchedules, nextRecipients, nextRelatedContent] = await Promise.all([loadTaskTemplates(supabase), loadTaskCategories(supabase), loadV2Tasks(supabase), loadV2TaskSchedules(supabase), loadV2TaskRecipients(supabase), loadV2TaskRelatedContentOptions(supabase)]);
+      const [nextTemplates, nextCategories, nextTasks, nextSchedules, nextRecipients, nextRelatedContent, nextTimeline] = await Promise.all([loadTaskTemplates(supabase), loadTaskCategories(supabase), loadV2Tasks(supabase), loadV2TaskSchedules(supabase), loadV2TaskRecipients(supabase), loadV2TaskRelatedContentOptions(supabase), loadV2TaskTimeline(supabase)]);
       setTemplates(nextTemplates.filter((item) => item.status === 'published'));
       setCategories(nextCategories);
       setTasks(nextTasks);
       setSchedules(nextSchedules);
       setRecipients(nextRecipients);
       setRelatedContentOptions(nextRelatedContent);
+      setTaskTimeline(nextTimeline);
     } catch (error) { setMessage(error instanceof Error ? error.message : '加载任务失败'); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -595,7 +599,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
           const waitingForPublication = isWaitingForScheduledPublication(task);
           const overdue = !waitingForPublication && isV2TaskOverdue(task, deadlineNow);
           const submitterName = task.submitted_by ? recipients.find((recipient) => recipient.id === task.submitted_by)?.display_name ?? '已提交账号' : '';
-          return <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b>{task.name}</b><div className="flex max-w-[62%] flex-wrap justify-end gap-1.5">{waitingForPublication ? <><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900">待发布</span><span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-800">定时发布</span></> : <><span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800">已发布</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span>{overdue && task.status !== 'overdue' ? <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass.overdue}`}>{v2TaskStatusLabel.overdue}</span> : null}</>}</div></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · {task.status === 'approved' ? `完成 ${new Date(completedAt(task)).toLocaleString('zh-CN')}` : waitingForPublication ? `定时发布 ${new Date(task.publish_at).toLocaleString('zh-CN')} · 截止 ${new Date(task.due_at).toLocaleString('zh-CN')}` : `截止 ${new Date(task.due_at).toLocaleString('zh-CN')}`}{task.schedule_id ? ' · 周期任务' : ''}</p>{submitterName && ['submitted', 'resubmitted'].includes(task.status) ? <p className="mt-1 text-xs text-slate-500">提交人：{submitterName}</p> : null}</Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>;
+          const timeline = taskTimeline.filter((event) => event.task_id === task.id);
+          return <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b>{task.name}</b><div className="flex max-w-[62%] flex-wrap justify-end gap-1.5">{waitingForPublication ? <><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900">待发布</span><span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-800">定时发布</span></> : <><span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800">已发布</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span>{overdue && task.status !== 'overdue' ? <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass.overdue}`}>{v2TaskStatusLabel.overdue}</span> : null}</>}</div></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · {task.status === 'approved' ? `完成 ${new Date(completedAt(task)).toLocaleString('zh-CN')}` : waitingForPublication ? `定时发布 ${new Date(task.publish_at).toLocaleString('zh-CN')} · 截止 ${new Date(task.due_at).toLocaleString('zh-CN')}` : `截止 ${new Date(task.due_at).toLocaleString('zh-CN')}`}{task.schedule_id ? ' · 周期任务' : ''}</p>{submitterName && ['submitted', 'resubmitted'].includes(task.status) ? <p className="mt-1 text-xs text-slate-500">提交人：{submitterName}</p> : null}<TaskSubmissionTimeline events={timeline} fallbackSubmittedAt={task.submitted_at} /></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>;
         })}
         {(taskView === 'active' ? activeTasks : filteredCompletedTasks).length === 0 ? <p className="ui-card p-4 text-sm text-slate-500">{taskView === 'active' ? '当前没有进行中的任务。' : '当前筛选条件下没有已完成任务。'}</p> : null}
       </section>
@@ -623,6 +628,26 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
 export function AdminV2TaskPublishPage() {
   return <AdminV2TasksPage publisherOnly />;
+}
+
+function TaskSubmissionTimeline({ events, fallbackSubmittedAt }: { events: V2TaskTimelineEvent[]; fallbackSubmittedAt: string | null }) {
+  if (!events.length && !fallbackSubmittedAt) return null;
+  let submissionCount = 0;
+  let rejectionCount = 0;
+  let resubmissionCount = 0;
+  const rows = events.length ? events.map((event) => {
+    if (event.action === 'submitted') {
+      submissionCount += 1;
+      return { ...event, label: submissionCount === 1 ? '首次提交' : `第 ${submissionCount} 次提交` };
+    }
+    if (event.action === 'rejected') {
+      rejectionCount += 1;
+      return { ...event, label: rejectionCount === 1 ? '驳回' : `第 ${rejectionCount} 次驳回` };
+    }
+    resubmissionCount += 1;
+    return { ...event, label: `第 ${resubmissionCount} 次重新提交` };
+  }) : [{ action: 'submitted' as const, created_at: fallbackSubmittedAt!, id: 'fallback-submission', label: '提交', task_id: '' }];
+  return <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600"><p className="mb-0.5 font-bold text-slate-700">提交与整改时间</p>{rows.map((event) => <p className="flex justify-between gap-3" key={event.id}><span>{event.label}</span><time className="shrink-0 tabular-nums" dateTime={event.created_at}>{new Date(event.created_at).toLocaleString('zh-CN')}</time></p>)}</div>;
 }
 
 function PersonChecklist({ disabled = false, onChange, recipients, selectedIds, title }: {

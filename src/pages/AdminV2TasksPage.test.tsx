@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   loadScheduleContent: vi.fn(),
   loadSchedules: vi.fn(),
   loadTasks: vi.fn(),
+  loadTimeline: vi.fn(),
   loadTemplates: vi.fn(),
 }));
 
@@ -21,7 +22,7 @@ vi.mock('../features/auth/AuthContext', () => ({
 vi.mock('../services/task-templates.service', () => ({ loadTaskCategories: mocks.loadCategories, loadTaskTemplates: mocks.loadTemplates }));
 vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
-  return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskRelatedContentOptions: mocks.loadRelatedContent, loadV2TaskScheduleContent: mocks.loadScheduleContent, loadV2TaskSchedules: mocks.loadSchedules, loadV2Tasks: mocks.loadTasks };
+  return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskRelatedContentOptions: mocks.loadRelatedContent, loadV2TaskScheduleContent: mocks.loadScheduleContent, loadV2TaskSchedules: mocks.loadSchedules, loadV2TaskTimeline: mocks.loadTimeline, loadV2Tasks: mocks.loadTasks };
 });
 
 describe('AdminV2TasksPage navigation', () => {
@@ -30,6 +31,7 @@ describe('AdminV2TasksPage navigation', () => {
     mocks.loadTemplates.mockResolvedValue([]);
     mocks.loadCategories.mockResolvedValue([]);
     mocks.loadTasks.mockResolvedValue([]);
+    mocks.loadTimeline.mockResolvedValue([]);
     mocks.loadSchedules.mockResolvedValue([]);
     mocks.loadRecipients.mockResolvedValue([]);
     mocks.loadRelatedContent.mockResolvedValue([]);
@@ -234,12 +236,24 @@ describe('AdminV2TasksPage navigation', () => {
       updated_at: '2020-08-02T01:00:00.000Z',
     }]);
     mocks.loadRecipients.mockResolvedValue([{ display_name: '李天欣', employment_type: 'full_time', id: 'profile-1', role: 'manager', store_id: 'store-1', username: 'manager-a' }]);
+    mocks.loadTimeline.mockResolvedValue([
+      { action: 'submitted', created_at: '2020-08-01T10:00:00.000Z', id: 'review-1', task_id: 'rejected-task' },
+      { action: 'rejected', created_at: '2020-08-01T11:00:00.000Z', id: 'review-2', task_id: 'rejected-task' },
+      { action: 'resubmitted', created_at: '2020-08-01T12:00:00.000Z', id: 'review-3', task_id: 'rejected-task' },
+    ]);
 
     render(<MemoryRouter><AdminV2TasksPage /></MemoryRouter>);
 
     expect(await screen.findByText('已发布')).toBeInTheDocument();
     expect(screen.getByText('退回整改')).toBeInTheDocument();
     expect(screen.getByText('已逾期')).toBeInTheDocument();
+    expect(screen.getByText('提交与整改时间')).toBeInTheDocument();
+    expect(screen.getByText('首次提交')).toBeInTheDocument();
+    expect(screen.getByText('驳回')).toBeInTheDocument();
+    expect(screen.getByText('第 1 次重新提交')).toBeInTheDocument();
+    expect(screen.getByText('2020/8/1 18:00:00')).toBeInTheDocument();
+    expect(screen.getByText('2020/8/1 19:00:00')).toBeInTheDocument();
+    expect(screen.getByText('2020/8/1 20:00:00')).toBeInTheDocument();
   });
 
   it('allows the completion method to be changed while editing a recurring task', async () => {

@@ -16,6 +16,7 @@ type Client = SupabaseClient<Database>;
 export type V2TaskRow = Database['public']['Tables']['v2_tasks']['Row'];
 export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['Row'];
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
+export type V2TaskTimelineEvent = Pick<V2TaskReviewRow, 'action' | 'created_at' | 'id' | 'task_id'>;
 export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
 export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
 export type V2TaskReleaseType = 'interval_days' | 'weekly' | 'monthly';
@@ -118,6 +119,15 @@ export const loadV2Tasks = async (client: Client, storeId?: string) => {
   let query = client.from('v2_tasks').select('*').neq('status', 'cancelled').order('due_at', { ascending: true });
   if (storeId) query = query.eq('store_id', storeId);
   const { data, error } = await query; fail(error); return data ?? [];
+};
+export const loadV2TaskTimeline = async (client: Client): Promise<V2TaskTimelineEvent[]> => {
+  const { data, error } = await client
+    .from('v2_task_reviews')
+    .select('id,task_id,action,created_at')
+    .in('action', ['submitted', 'rejected', 'resubmitted'])
+    .order('created_at', { ascending: true });
+  fail(error);
+  return data ?? [];
 };
 export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<V2TaskDetail> => {
   const [task, answers, images, reviews] = await Promise.all([

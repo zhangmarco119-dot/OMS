@@ -1,9 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../types/database';
-import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow } from './v2-tasks.service';
+import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, loadV2TaskTimeline, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow } from './v2-tasks.service';
 
 describe('V2 task workflow service', () => {
+  it('loads submission and correction events in chronological order', async () => {
+    const order = vi.fn().mockResolvedValue({ data: [{ action: 'submitted', created_at: '2026-08-01T10:00:00Z', id: 'review-1', task_id: 'task-1' }], error: null });
+    const inFilter = vi.fn(() => ({ order }));
+    const select = vi.fn(() => ({ in: inFilter }));
+    const client = { from: vi.fn(() => ({ select })) } as unknown as SupabaseClient<Database>;
+    await expect(loadV2TaskTimeline(client)).resolves.toHaveLength(1);
+    expect(select).toHaveBeenCalledWith('id,task_id,action,created_at');
+    expect(inFilter).toHaveBeenCalledWith('action', ['submitted', 'rejected', 'resubmitted']);
+    expect(order).toHaveBeenCalledWith('created_at', { ascending: true });
+  });
   it('publishes immutable template tasks through RPC', async () => {
     const rpc=vi.fn().mockResolvedValue({data:[],error:null});const client={rpc} as unknown as SupabaseClient<Database>;
     await publishV2Tasks(client,'template-1',['store-1'],'2026-07-20T12:00:00Z','2026-07-20T09:00:00Z');

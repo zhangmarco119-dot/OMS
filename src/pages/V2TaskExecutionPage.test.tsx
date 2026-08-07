@@ -8,6 +8,7 @@ import {
   loadV2TaskImageUrls,
   loadV2TaskReferenceImageUrls,
   saveV2TaskProgress,
+  submitV2TaskWithAnswers,
   type V2TaskAnswerRow,
   type V2TaskDetail,
   type V2TaskRow,
@@ -24,7 +25,7 @@ vi.mock('../services/v2-tasks.service', async (importOriginal) => {
     loadV2TaskImageUrls: vi.fn(),
     loadV2TaskReferenceImageUrls: vi.fn(),
     saveV2TaskProgress: vi.fn(),
-    submitV2Task: vi.fn(),
+    submitV2TaskWithAnswers: vi.fn(),
   };
 });
 
@@ -58,6 +59,7 @@ describe('V2TaskExecutionPage required submission state', () => {
     vi.mocked(loadV2TaskImageUrls).mockResolvedValue({});
     vi.mocked(loadV2TaskReferenceImageUrls).mockResolvedValue({});
     vi.mocked(saveV2TaskProgress).mockResolvedValue(task);
+    vi.mocked(submitV2TaskWithAnswers).mockResolvedValue({ ...task, status: 'submitted', version: 2 });
   });
 
   it('shows a gray clickable submit button and a Chinese reminder until required work is complete', async () => {
@@ -185,5 +187,27 @@ describe('V2TaskExecutionPage required submission state', () => {
     expect(screen.queryByText(/图片要求/)).not.toBeInTheDocument();
     expect(screen.queryByText('上传图片')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '提交检查' })).toHaveClass('bg-brand-600');
+  });
+
+  it('atomically saves and resubmits a rejected task for review', async () => {
+    const rejectedTask = {
+      ...task,
+      correction_item_ids: ['item-1'],
+      status: 'rejected',
+      version: 4,
+    } as V2TaskRow;
+    const correctedAnswer = { ...requiredConfirmation, answer: true, review_status: 'rejected' } as V2TaskAnswerRow;
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [correctedAnswer], images: [], reviews: [], task: rejectedTask } as V2TaskDetail);
+    vi.mocked(submitV2TaskWithAnswers).mockResolvedValue({ ...rejectedTask, status: 'resubmitted', version: 6 });
+
+    render(
+      <MemoryRouter initialEntries={['/app/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<V2TaskExecutionPage />} path="/app/tasks/:taskId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '重新提交审核' }));
+    await waitFor(() => expect(submitV2TaskWithAnswers).toHaveBeenCalledWith(expect.anything(), 'task-1', 4, expect.arrayContaining([expect.objectContaining({ item_id: 'item-1' })])));
+    expect(await screen.findByText('整改任务已重新提交，等待审核')).toBeInTheDocument();
   });
 });

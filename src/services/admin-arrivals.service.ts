@@ -220,17 +220,21 @@ export const loadAdminArrivalDetail = async (client: Client, reportId: string): 
   throwIfError(auditResult.error);
   if (!reportResult.data) throw new Error('到货记录不存在或无权查看。');
 
-  const images = await Promise.all((imageResult.data ?? []).map(async (image) => ({
-    ...image,
-    signedUrl: (await createSignedUrl(client, image.object_path)) ?? '',
-  })));
   return {
     auditLogs: auditResult.data ?? [],
-    images,
+    images: (imageResult.data ?? []).map((image) => ({ ...image, signedUrl: '' })),
     items: itemResult.data ?? [],
     report: reportResult.data,
   };
 };
+
+export const loadAdminArrivalImageUrls = async (
+  client: Client,
+  images: AdminArrivalDetail['images'],
+): Promise<Record<string, string>> => Object.fromEntries(await Promise.all(images.map(async (image) => [
+  image.id,
+  (await createSignedUrl(client, image.object_path)) ?? '',
+])));
 
 export const markAdminArrivalViewed = async (client: Client, reportId: string) => {
   const { data, error } = await client.rpc('mark_arrival_viewed', { p_report_id: reportId });

@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   loadAdminArrivalDetail,
+  loadAdminArrivalImageUrls,
   markAdminArrivalViewed,
   type AdminArrivalDetail,
 } from '../services/admin-arrivals.service';
@@ -15,6 +16,7 @@ vi.mock('../services/admin-arrivals.service', async (importOriginal) => {
   return {
     ...actual,
     loadAdminArrivalDetail: vi.fn(),
+    loadAdminArrivalImageUrls: vi.fn(),
     markAdminArrivalViewed: vi.fn(),
     voidAdminArrival: vi.fn(),
   };
@@ -48,9 +50,8 @@ describe('AdminArrivalDetailPage read state', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('marks a submitted arrival as read as soon as its detail is opened', async () => {
-    vi.mocked(loadAdminArrivalDetail)
-      .mockResolvedValueOnce(detail('submitted'))
-      .mockResolvedValueOnce(detail('viewed'));
+    vi.mocked(loadAdminArrivalDetail).mockResolvedValue(detail('submitted'));
+    vi.mocked(loadAdminArrivalImageUrls).mockResolvedValue({});
     vi.mocked(markAdminArrivalViewed).mockResolvedValue({ status: 'viewed' });
 
     render(
@@ -64,7 +65,46 @@ describe('AdminArrivalDetailPage read state', () => {
     expect(readBadge).toHaveClass('whitespace-nowrap', 'text-[11px]');
     expect(screen.getByRole('heading', { name: '测试门店' })).toHaveClass('truncate', 'text-lg');
     expect(screen.getByText('提交人').closest('dl')).toHaveClass('grid-cols-2');
-    expect(loadAdminArrivalDetail).toHaveBeenCalledTimes(2);
+    expect(loadAdminArrivalDetail).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: '标记已查看' })).not.toBeInTheDocument();
+  });
+
+  it('renders arrival content before image resources finish loading', async () => {
+    let resolveUrls: (value: Record<string, string>) => void = () => undefined;
+    const imageUrls = new Promise<Record<string, string>>((resolve) => { resolveUrls = resolve; });
+    const pendingDetail = detail('viewed');
+    pendingDetail.images = [{
+      arrival_item_id: null,
+      bucket: 'arrival-report-images',
+      created_at: '2026-07-19T02:30:00Z',
+      file_name: 'waybill.jpg',
+      height: 100,
+      id: 'image-1',
+      image_type: 'waybill',
+      mime_type: 'image/jpeg',
+      object_path: 'report-1/waybill.jpg',
+      report_id: 'report-1',
+      signedUrl: '',
+      size_bytes: 100,
+      store_id: 'store-1',
+      uploaded_by: 'profile-1',
+      width: 100,
+    }];
+    vi.mocked(loadAdminArrivalDetail).mockResolvedValue(pendingDetail);
+    vi.mocked(loadAdminArrivalImageUrls).mockReturnValue(imageUrls);
+
+    render(
+      <MemoryRouter initialEntries={['/app/admin/arrivals/report-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<AdminArrivalDetailPage />} path="/app/admin/arrivals/:reportId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: '测试门店' })).toBeInTheDocument();
+    expect(screen.getByText('正在加载图片')).toBeInTheDocument();
+    expect(screen.queryByText('正在加载到货详情')).not.toBeInTheDocument();
+    await act(async () => {
+      resolveUrls({ 'image-1': 'https://example.test/waybill.jpg' });
+      await imageUrls;
+    });
   });
 });

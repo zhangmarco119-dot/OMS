@@ -10,6 +10,7 @@ import { createDefaultArrivalPeriod, resolveArrivalPeriod, type ArrivalPeriodVal
 import { weeklyDeadlineOptions } from '../features/task-templates/recurrence';
 import { useAuth } from '../features/auth/AuthContext';
 import { TaskContentEditor } from '../features/v2-tasks/TaskContentEditor';
+import { TaskSubmissionTimeline } from '../features/v2-tasks/TaskSubmissionTimeline';
 import { taskContentFromSnapshot, taskContentReferencePaths, taskContentToSnapshot, validateTaskContent, type TaskContentDraft } from '../features/v2-tasks/taskContent';
 import { isV2TaskOverdue, v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock';
@@ -628,26 +629,6 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
 export function AdminV2TaskPublishPage() {
   return <AdminV2TasksPage publisherOnly />;
-}
-
-function TaskSubmissionTimeline({ events, fallbackSubmittedAt }: { events: V2TaskTimelineEvent[]; fallbackSubmittedAt: string | null }) {
-  if (!events.length && !fallbackSubmittedAt) return null;
-  let submissionCount = 0;
-  let rejectionCount = 0;
-  let resubmissionCount = 0;
-  const rows = events.length ? events.map((event) => {
-    if (event.action === 'submitted') {
-      submissionCount += 1;
-      return { ...event, label: submissionCount === 1 ? '首次提交' : `第 ${submissionCount} 次提交` };
-    }
-    if (event.action === 'rejected') {
-      rejectionCount += 1;
-      return { ...event, label: rejectionCount === 1 ? '驳回' : `第 ${rejectionCount} 次驳回` };
-    }
-    resubmissionCount += 1;
-    return { ...event, label: `第 ${resubmissionCount} 次重新提交` };
-  }) : [{ action: 'submitted' as const, created_at: fallbackSubmittedAt!, id: 'fallback-submission', label: '提交', task_id: '' }];
-  return <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600"><p className="mb-0.5 font-bold text-slate-700">提交与整改时间</p>{rows.map((event) => <p className="flex justify-between gap-3" key={event.id}><span>{event.label}</span><time className="shrink-0 tabular-nums" dateTime={event.created_at}>{new Date(event.created_at).toLocaleString('zh-CN')}</time></p>)}</div>;
 }
 
 function PersonChecklist({ disabled = false, onChange, recipients, selectedIds, title }: {

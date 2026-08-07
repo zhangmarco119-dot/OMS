@@ -211,8 +211,35 @@ describe('AdminV2TasksPage navigation', () => {
 
     render(<MemoryRouter><AdminV2TasksPage /></MemoryRouter>);
 
-    expect(await screen.findByText('待定时发布')).toBeInTheDocument();
+    expect(await screen.findByText('待发布')).toBeInTheDocument();
+    expect(screen.getByText('定时发布')).toBeInTheDocument();
     expect(screen.getByText(/定时发布 2026\/8\/1 18:30:00/)).toBeInTheDocument();
+  });
+
+  it('shows publication, correction, and overdue states together', async () => {
+    mocks.loadTasks.mockResolvedValue([{
+      assigned_profile_id: 'profile-1',
+      category: 'cleaning',
+      due_at: '2020-08-01T14:00:00.000Z',
+      id: 'rejected-task',
+      name: '清洗工服',
+      publish_at: '2020-08-01T01:00:00.000Z',
+      publish_notified_at: '2020-08-01T01:00:05.000Z',
+      reviewed_at: '2020-08-02T01:00:00.000Z',
+      schedule_id: 'schedule-1',
+      status: 'rejected',
+      store_id: 'store-1',
+      submitted_at: '2020-08-01T10:00:00.000Z',
+      task_no: 'TASK-REJECTED',
+      updated_at: '2020-08-02T01:00:00.000Z',
+    }]);
+    mocks.loadRecipients.mockResolvedValue([{ display_name: '李天欣', employment_type: 'full_time', id: 'profile-1', role: 'manager', store_id: 'store-1', username: 'manager-a' }]);
+
+    render(<MemoryRouter><AdminV2TasksPage /></MemoryRouter>);
+
+    expect(await screen.findByText('已发布')).toBeInTheDocument();
+    expect(screen.getByText('退回整改')).toBeInTheDocument();
+    expect(screen.getByText('已逾期')).toBeInTheDocument();
   });
 
   it('allows the completion method to be changed while editing a recurring task', async () => {

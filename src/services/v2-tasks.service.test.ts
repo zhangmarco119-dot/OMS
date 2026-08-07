@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../types/database';
-import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow } from './v2-tasks.service';
+import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow } from './v2-tasks.service';
 
 describe('V2 task workflow service', () => {
   it('publishes immutable template tasks through RPC', async () => {
@@ -79,6 +79,18 @@ describe('V2 task workflow service', () => {
     expect(rpc).toHaveBeenCalledWith('update_v2_task_schedule_all_v4', { p_completion_mode: 'shared', p_fields: fields, p_inventory_category_codes: [], p_name: '更新后周期任务', p_profile_ids: [], p_related_notice_id: null, p_related_sop_id: null, p_requires_inventory: false, p_schedule_id: 'schedule-1', p_snapshot: { groups: [] }, p_target_audiences: ['staff', 'manager'] });
   });
   it('requires review action through RPC',async()=>{const rpc=vi.fn().mockResolvedValue({data:{},error:null});const client={rpc} as unknown as SupabaseClient<Database>;await reviewV2Task(client,'task-1','rejected','重新拍照',['item-1']);expect(rpc).toHaveBeenCalledWith('review_v2_task',{p_action:'rejected',p_correction_item_ids:['item-1'],p_note:'重新拍照',p_task_id:'task-1'});});
+  it('saves answers and submits through one atomic RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { id: 'task-1', status: 'resubmitted' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    const answer = { answer: true, is_issue: false, item_id: 'item-1', note: '' } as V2TaskAnswerRow;
+    await submitV2TaskWithAnswers(client, 'task-1', 4, [answer]);
+    expect(rpc).toHaveBeenCalledWith('submit_v2_task_with_answers', {
+      p_answers: [{ answer: true, is_issue: false, item_id: 'item-1', note: '' }],
+      p_expected_version: 4,
+      p_key: expect.any(String),
+      p_task_id: 'task-1',
+    });
+  });
   it('submits per-item review decisions through the guarded RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {}, error: null });
     const client = { rpc } as unknown as SupabaseClient<Database>;

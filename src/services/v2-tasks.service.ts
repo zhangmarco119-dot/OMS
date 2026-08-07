@@ -416,6 +416,16 @@ export const saveV2TaskProgress = async (client: Client, taskId: string, version
 export const submitV2Task = async (client: Client, taskId: string, version: number) => {
   const { data, error } = await client.rpc('submit_v2_task', { p_expected_version: version, p_key: createUuid(), p_task_id: taskId }); fail(error); return data;
 };
+export const submitV2TaskWithAnswers = async (client: Client, taskId: string, version: number, answers: V2TaskAnswerRow[]) => {
+  const { data, error } = await client.rpc('submit_v2_task_with_answers', {
+    p_answers: answers.map((answer) => ({ answer: answer.answer, is_issue: answer.is_issue, item_id: answer.item_id, note: answer.note })),
+    p_expected_version: version,
+    p_key: createUuid(),
+    p_task_id: taskId,
+  });
+  fail(error);
+  return data as unknown as V2TaskRow;
+};
 export const reviewV2Task = async (client: Client, taskId: string, action: 'approved' | 'rejected', note: string, correctionIds: string[]) => {
   const { data, error } = await client.rpc('review_v2_task', { p_action: action, p_correction_item_ids: correctionIds, p_note: note, p_task_id: taskId }); fail(error); return data;
 };

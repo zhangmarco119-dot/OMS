@@ -15,7 +15,7 @@ import { formatV2TaskDueAt, getV2TaskDisplayStatus, isV2TaskOverdue, v2TaskStatu
 import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock';
 import { supabase } from '../lib/supabase';
 import type { Json } from '../types/database';
-import { asTaskItemSnapshot, deleteV2TaskImage, getV2TaskAnswerPositions, loadV2TaskDetail, loadV2TaskImageUrls, loadV2TaskReferenceImageUrls, saveV2TaskProgress, submitV2Task, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskDetail, type V2TaskImageRow } from '../services/v2-tasks.service';
+import { asTaskItemSnapshot, deleteV2TaskImage, getV2TaskAnswerPositions, loadV2TaskDetail, loadV2TaskImageUrls, loadV2TaskReferenceImageUrls, saveV2TaskProgress, submitV2TaskWithAnswers, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskDetail, type V2TaskImageRow, type V2TaskRow } from '../services/v2-tasks.service';
 
 export function V2TaskExecutionPage() {
   const { taskId = '' } = useParams();
@@ -156,10 +156,12 @@ export function V2TaskExecutionPage() {
       await Promise.all([...activeUploads.current]);
     }
     let validationImages = detail.images.filter((image) => !image.id.startsWith('local-'));
+    let latestTask: V2TaskRow = detail.task;
     let refreshedImages = false;
     try {
       const latest = await loadV2TaskDetail(supabase, detail.task.id);
       validationImages = latest.images;
+      latestTask = latest.task;
       refreshedImages = true;
       setDetail((current) => current ? { ...current, images: latest.images } : current);
       latest.images.forEach((image) => uploadedImages.current.set(image.id, image.item_id));
@@ -173,10 +175,11 @@ export function V2TaskExecutionPage() {
     const issues = getTaskSubmissionIssues(answers, availableImageItemIds);
     if (issues.length > 0) { setSubmissionIssues(issues); setBusy(false); return; }
     try {
-      const saved = await save();
-      await submitV2Task(supabase, detail.task.id, saved?.version ?? detail.task.version);
+      const submittedTask = await submitV2TaskWithAnswers(supabase, detail.task.id, latestTask.version, answers);
+      dirty.current = false;
+      setDetail((current) => current ? { ...current, task: submittedTask } : current);
       window.dispatchEvent(new Event('storehub:todos-changed'));
-      setSuccessMessage('任务已提交，等待管理员审核');
+      setSuccessMessage(detail.task.status === 'rejected' ? '整改任务已重新提交，等待审核' : '任务已提交，等待管理员审核');
     } catch (error) { setMessage(error instanceof Error ? error.message : '提交失败'); }
     finally { setBusy(false); }
   };
@@ -261,9 +264,9 @@ export function V2TaskExecutionPage() {
       const itemEditable = editable && (detail.task.status !== 'rejected' || needsCorrection);
       return <div key={answer.id}>{showGroup ? <div className="mb-2 flex items-center gap-2 px-1"><span className="rounded-md bg-brand-600 px-2 py-1 text-xs font-bold text-white">分组 {position.groupNumber}</span><h2 className="font-bold text-slate-800">{position.groupTitle}</h2></div> : null}<AnswerCard answer={answer} deletingImageIds={deletingImageIds} editable={itemEditable} imageUrls={imageUrls} imageUrlsLoading={imageUrlsLoading} images={detail.images.filter((image) => image.item_id === answer.item_id)} needsCorrection={needsCorrection} number={position.number} onChange={(value) => update(answer.item_id, value)} onDeleteImage={deleteImage} onUpload={(file) => queueUpload(answer.item_id, file)} referenceImageUrls={referenceImageUrls[answer.item_id] ?? []} uploaderId={auth.profile?.id ?? ''} /></div>;
     })}</div>
-    {editable ? <MobileActionBar className="grid grid-cols-2 gap-2.5"><button className="ui-button-secondary" disabled={busy || activeUploadCount > 0} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg font-bold disabled:opacity-60 ${currentSubmissionIssues.length > 0 || (detail.task.requires_inventory && !inventorySubmitted) ? 'bg-slate-300 text-slate-600' : 'bg-brand-600 text-white'}`} disabled={busy || activeUploadCount > 0} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />{activeUploadCount > 0 ? '图片上传中…' : '提交检查'}</button></MobileActionBar> : null}</> : <LoadingState label="正在加载任务" />}
+    {editable ? <MobileActionBar className="grid grid-cols-2 gap-2.5"><button className="ui-button-secondary" disabled={busy || activeUploadCount > 0} onClick={() => void save(true)} type="button"><Save className="h-5 w-5" />保存</button><button className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg font-bold disabled:opacity-60 ${currentSubmissionIssues.length > 0 || (detail.task.requires_inventory && !inventorySubmitted) ? 'bg-slate-300 text-slate-600' : 'bg-brand-600 text-white'}`} disabled={busy || activeUploadCount > 0} onClick={() => void submit()} type="button"><Send className="h-5 w-5" />{activeUploadCount > 0 ? '图片上传中…' : detail.task.status === 'rejected' ? '重新提交审核' : '提交检查'}</button></MobileActionBar> : null}</> : <LoadingState label="正在加载任务" />}
     {submissionIssues.length > 0 ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-label="必填项目未完成"><section className="ui-dialog-panel max-w-sm p-5"><h2 className="text-lg font-bold text-slate-900">请先完成必填项目</h2><p className="mt-2 text-sm leading-6 text-slate-600">以下内容尚未完成，完成后才能提交检查：</p><ul className="mt-3 space-y-2">{submissionIssues.map((issue) => <li className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm" key={issue.itemId}><b className="block text-slate-900">项目：{issue.label}</b><span className="mt-1 block text-amber-800">{issue.reason}</span></li>)}</ul><button className="ui-button-primary mt-5 w-full" onClick={() => setSubmissionIssues([])} type="button">我知道了</button></section></div> : null}
-    <SuccessToast message={successMessage} onClose={() => { const returnToTasks = successMessage === '任务已提交，等待管理员审核'; setSuccessMessage(null); if (returnToTasks) navigate('/app/tasks'); }} />
+    <SuccessToast message={successMessage} onClose={() => { const returnToTasks = successMessage === '任务已提交，等待管理员审核' || successMessage === '整改任务已重新提交，等待审核'; setSuccessMessage(null); if (returnToTasks) navigate('/app/tasks'); }} />
   </PageShell>;
 }
 

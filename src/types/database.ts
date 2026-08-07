@@ -1260,6 +1260,7 @@ export type Database = {
       save_v2_sop: { Args: { p_fields: Json; p_roles: string[]; p_sop_id: string | null; p_store_ids: string[] }; Returns: Json };
       save_v2_task_progress: { Args: { p_answers: Json; p_expected_version: number; p_task_id: string }; Returns: Json };
       submit_v2_task: { Args: { p_expected_version: number; p_key: string; p_task_id: string }; Returns: Json };
+      submit_v2_task_with_answers: { Args: { p_answers: Json; p_expected_version: number; p_key: string; p_task_id: string }; Returns: Json };
       archive_v2_task_template: {
         Args: { p_template_id: string };
         Returns: Json;

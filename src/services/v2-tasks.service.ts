@@ -152,6 +152,19 @@ export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<
   }
   return { answers: orderV2TaskAnswers(task.data.snapshot, answers.data ?? []), images: images.data ?? [], reviews: reviews.data ?? [], submitterName, task: task.data };
 };
+export const loadSubmittedLinkedInventoryTask = async (client: Client, v2TaskId: string) => {
+  const { data, error } = await client
+    .from('tasks')
+    .select('id,submitted_at')
+    .eq('linked_v2_task_id', v2TaskId)
+    .eq('task_type', 'inventory')
+    .eq('status', 'submitted')
+    .order('submitted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  fail(error);
+  return data;
+};
 export const canReviewV2Task = async (client: Client, taskId: string) => {
   const { data, error } = await client.rpc('can_review_v2_task', { p_task_id: taskId });
   fail(error);

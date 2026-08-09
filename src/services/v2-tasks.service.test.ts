@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../types/database';
-import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, isV2TaskExecutionTodoForProfile, loadV2TaskTimeline, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
+import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, isV2TaskExecutionTodoForProfile, loadSubmittedLinkedInventoryTask, loadV2TaskTimeline, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
 
 describe('V2 task workflow service', () => {
   it('hands a manager-rejected shared task to other recipients without returning it to the rejecting manager', () => {
@@ -18,6 +18,22 @@ describe('V2 task workflow service', () => {
     expect(select).toHaveBeenCalledWith('id,task_id,action,created_at');
     expect(inFilter).toHaveBeenCalledWith('action', ['submitted', 'rejected', 'resubmitted']);
     expect(order).toHaveBeenCalledWith('created_at', { ascending: true });
+  });
+  it('loads only the latest submitted inventory sheet linked to the reviewed task', async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { id: 'inventory-1', submitted_at: '2026-08-09T10:00:00Z' }, error: null });
+    const limit = vi.fn(() => ({ maybeSingle }));
+    const order = vi.fn(() => ({ limit }));
+    const statusEq = vi.fn(() => ({ order }));
+    const typeEq = vi.fn(() => ({ eq: statusEq }));
+    const linkedEq = vi.fn(() => ({ eq: typeEq }));
+    const select = vi.fn(() => ({ eq: linkedEq }));
+    const client = { from: vi.fn(() => ({ select })) } as unknown as SupabaseClient<Database>;
+
+    await expect(loadSubmittedLinkedInventoryTask(client, 'task-1')).resolves.toEqual({ id: 'inventory-1', submitted_at: '2026-08-09T10:00:00Z' });
+    expect(linkedEq).toHaveBeenCalledWith('linked_v2_task_id', 'task-1');
+    expect(typeEq).toHaveBeenCalledWith('task_type', 'inventory');
+    expect(statusEq).toHaveBeenCalledWith('status', 'submitted');
+    expect(order).toHaveBeenCalledWith('submitted_at', { ascending: false });
   });
   it('publishes immutable template tasks through RPC', async () => {
     const rpc=vi.fn().mockResolvedValue({data:[],error:null});const client={rpc} as unknown as SupabaseClient<Database>;

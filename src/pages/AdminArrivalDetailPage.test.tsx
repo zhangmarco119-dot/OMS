@@ -67,6 +67,7 @@ describe('AdminArrivalDetailPage read state', () => {
     expect(screen.getByText('提交人').closest('dl')).toHaveClass('grid-cols-2');
     expect(loadAdminArrivalDetail).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: '标记已查看' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '修改信息' })).toHaveAttribute('href', '/app/arrivals/report-1/correct');
   });
 
   it('renders arrival content before image resources finish loading', async () => {

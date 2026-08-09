@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ArrivalDraftItem } from '../features/arrivals/arrivalForm';
 import type { Database } from '../types/database';
-import { applyArrivalOpenedAt, localArrivalDate, localArrivalTime, resetArrivalDraft, saveArrivalDraft, submitArrivalCorrectionRequest, submitArrivalReport } from './arrivals.service';
+import { adminUpdateArrivalReport, applyArrivalOpenedAt, localArrivalDate, localArrivalTime, resetArrivalDraft, saveArrivalDraft, submitArrivalCorrectionRequest, submitArrivalReport } from './arrivals.service';
 
 const report = {
   arrival_date: '2026-07-12',
@@ -155,6 +155,24 @@ describe('arrivals service', () => {
     await submitArrivalCorrectionRequest(client, report.id, correction.proposed_fields, [completeItem]);
 
     expect(rpc).toHaveBeenCalledWith('submit_arrival_correction_request', expect.objectContaining({
+      p_report_id: report.id,
+      p_items: [expect.objectContaining({ product_name_snapshot: '原味酸奶', quantity: 2 })],
+    }));
+  });
+
+  it('lets administrators save a structured arrival correction directly', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: report, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+
+    await adminUpdateArrivalReport(client, report.id, {
+      arrival_date: report.arrival_date,
+      arrival_time: report.arrival_time,
+      carrier_name: report.carrier_name,
+      note: report.note,
+      tracking_no: report.tracking_no,
+    }, [completeItem]);
+
+    expect(rpc).toHaveBeenCalledWith('admin_update_arrival_report', expect.objectContaining({
       p_report_id: report.id,
       p_items: [expect.objectContaining({ product_name_snapshot: '原味酸奶', quantity: 2 })],
     }));

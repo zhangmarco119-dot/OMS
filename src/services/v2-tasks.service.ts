@@ -122,6 +122,10 @@ export const loadV2Tasks = async (client: Client, storeId?: string) => {
   if (storeId) query = query.eq('store_id', storeId);
   const { data, error } = await query; fail(error); return data ?? [];
 };
+export const isV2TaskExecutionTodoForProfile = (task: V2TaskRow, profileId: string) => (
+  ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status)
+  && !(task.status === 'rejected' && task.reviewed_by === profileId)
+);
 export const loadV2TaskTimeline = async (client: Client): Promise<V2TaskTimelineEvent[]> => {
   const { data, error } = await client
     .from('v2_task_reviews')

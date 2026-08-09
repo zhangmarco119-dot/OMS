@@ -350,14 +350,13 @@ export const loadArrivalHistory = async (client: Client, storeId: string, dateFr
 export const loadArrivalCorrectionEditor = async (
   client: Client,
   reportId: string,
-  storeId: string,
 ): Promise<ArrivalCorrectionEditorData> => {
-  const [reportResult, itemResult, productResult] = await Promise.all([
-    client.from('arrival_reports').select('*').eq('id', reportId).single(),
-    client.from('arrival_report_items').select('*').eq('report_id', reportId).order('sort_order'),
-    client.from('products').select('*').eq('store_id', storeId).eq('is_active', true).order('sort_order').order('name'),
-  ]);
+  const reportResult = await client.from('arrival_reports').select('*').eq('id', reportId).single();
   if (reportResult.error) throw new Error(reportResult.error.message);
+  const [itemResult, productResult] = await Promise.all([
+    client.from('arrival_report_items').select('*').eq('report_id', reportId).order('sort_order'),
+    client.from('products').select('*').eq('store_id', reportResult.data.store_id).eq('is_active', true).order('sort_order').order('name'),
+  ]);
   if (itemResult.error) throw new Error(itemResult.error.message);
   if (productResult.error) throw new Error(productResult.error.message);
   const products = productResult.data ?? [];
@@ -396,6 +395,31 @@ export const submitArrivalCorrectionRequest = async (
   });
   if (error) throw new Error(error.message);
   return parseCorrectionRequest(data);
+};
+
+export const adminUpdateArrivalReport = async (
+  client: Client,
+  reportId: string,
+  fields: ArrivalCorrectionFields,
+  items: ArrivalDraftItem[],
+) => {
+  const { data, error } = await client.rpc('admin_update_arrival_report', {
+    p_fields: fields,
+    p_items: items.map((item, index) => ({
+      id: item.id,
+      note: item.note,
+      product_id: item.productId,
+      product_name_snapshot: item.productName.trim(),
+      quantity: Number(item.quantity),
+      sort_order: index,
+      unit: item.unit.trim(),
+    })),
+    p_report_id: reportId,
+  });
+  if (error) throw new Error(error.message);
+  const parsed = arrivalReportRpcSchema.safeParse(data);
+  if (!parsed.success) throw new Error('数据库返回的到货记录格式无效，请刷新后重试。');
+  return parsed.data as ArrivalReportRow;
 };
 
 export const loadLatestArrivalCorrection = async (client: Client, reportId: string) => {

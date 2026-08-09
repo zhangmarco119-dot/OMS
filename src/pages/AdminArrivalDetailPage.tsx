@@ -1,6 +1,6 @@
-import { ChevronLeft, ChevronRight, Download, FileDown, LoaderCircle, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, FileDown, LoaderCircle, Pencil, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -26,6 +26,7 @@ const auditLabel: Record<string, string> = {
   arrival_report_viewed: '管理员标记查看',
   arrival_report_voided: '管理员作废记录',
   arrival_report_reopened: '员工打开修改',
+  arrival_report_admin_updated: '管理员修改到货信息',
 };
 
 export function AdminArrivalDetailPage() {
@@ -179,6 +180,7 @@ export function AdminArrivalDetailPage() {
         <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">操作日志</h2>{detail.auditLogs.length ? <ol className="mt-3 space-y-3">{detail.auditLogs.map((log) => <li className="border-l-2 border-brand-200 pl-3 text-sm" key={log.id}><p className="font-semibold text-slate-800">{auditLabel[log.action] ?? log.action}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(log.created_at)}</p></li>)}</ol> : <p className="mt-3 text-sm text-slate-500">暂无操作日志。</p>}</section>
 
         <section className="grid gap-3 rounded-lg bg-white p-4 shadow-sm sm:grid-cols-3">
+          {detail.report.status !== 'voided' ? <Link className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-brand-200 px-4 font-bold text-brand-700" to={`/app/arrivals/${detail.report.id}/correct`}><Pencil className="h-5 w-5" />修改信息</Link> : null}
           <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 font-bold text-slate-800" onClick={exportReport} type="button"><FileDown className="h-5 w-5" />导出记录</button>
           {detail.report.status !== 'voided' ? <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-red-200 px-4 font-bold text-red-700" disabled={busy} onClick={() => setShowVoidDialog(true)} type="button"><Trash2 className="h-5 w-5" />作废</button> : null}
         </section>

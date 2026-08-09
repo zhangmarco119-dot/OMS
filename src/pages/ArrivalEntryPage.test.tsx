@@ -45,6 +45,7 @@ const setReadyDraft = (overrides: Partial<ReturnType<typeof useArrivalDraft>> = 
     message: null,
     products: [],
     reload: vi.fn(),
+    resetDraft: vi.fn(),
     removeItem: vi.fn(),
     report: {
       id: '00000000-0000-4000-8000-000000000301',
@@ -85,6 +86,20 @@ describe('ArrivalEntryPage role boundary', () => {
     expect(screen.getByRole('dialog', { name: '请先完善到货信息' })).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: '请先完善到货信息' })).toHaveClass('ui-dialog-overlay');
     expect(screen.getByText(/至少上传一张面单照片/)).toBeInTheDocument();
+  });
+
+  it('confirms before clearing and refreshing the current draft', async () => {
+    setRole('staff');
+    const resetDraft = vi.fn().mockResolvedValue(undefined);
+    setReadyDraft({ resetDraft });
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><ArrivalEntryPage /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole('button', { name: '更新草稿' }));
+    expect(screen.getByRole('dialog', { name: '确认更新当前草稿？' })).toHaveTextContent('产品明细和全部图片');
+    fireEvent.click(screen.getByRole('button', { name: '清空并更新草稿' }));
+
+    await waitFor(() => expect(resetDraft).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/草稿已更新为当前时间/)).toBeInTheDocument();
   });
 
   it('keeps the submission confirmation above the bottom navigation', () => {

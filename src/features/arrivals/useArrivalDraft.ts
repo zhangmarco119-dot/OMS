@@ -9,6 +9,7 @@ import {
   localArrivalDate,
   localArrivalTime,
   saveArrivalDraft,
+  resetArrivalDraft,
   submitArrivalReport,
   type ArrivalProductCreationRequestInput,
   type ArrivalReportRow,
@@ -107,6 +108,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
   const formRef = useRef<ArrivalDraftFormState | null>(null);
   const savePromiseRef = useRef<Promise<ArrivalReportRow> | null>(null);
   const saveAgainRef = useRef(false);
+  const resettingRef = useRef(false);
   const idempotencyKeyRef = useRef(createUuid());
 
   useEffect(() => {
@@ -185,6 +187,9 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     if (!supabase) {
       return Promise.reject(new Error('Supabase 未配置。'));
     }
+    if (resettingRef.current) {
+      return Promise.reject(new Error('正在更新草稿，请稍候。'));
+    }
     if (savePromiseRef.current) {
       saveAgainRef.current = true;
       return savePromiseRef.current;
@@ -235,6 +240,49 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     savePromiseRef.current = run;
     return run;
   }, [profileId, storeId]);
+
+  const resetDraft = useCallback(async () => {
+    if (!supabase || !profileId || !storeId || !reportRef.current) {
+      throw new Error('到货草稿尚未加载。');
+    }
+    if (resettingRef.current) return;
+    resettingRef.current = true;
+    setMessage(null);
+    setSaveStatus('saving');
+    try {
+      if (savePromiseRef.current) await savePromiseRef.current;
+      const currentReport = reportRef.current;
+      for (const image of images) await removeArrivalImage(supabase, image);
+      const refreshed = await resetArrivalDraft(supabase, currentReport.id, currentReport.version);
+      const emptyForm: ArrivalDraftFormState = {
+        arrivalDate: refreshed.arrival_date,
+        arrivalTime: refreshed.arrival_time?.slice(0, 5) ?? localArrivalTime(),
+        carrierName: '',
+        items: [createEmptyArrivalItem()],
+        note: '',
+        trackingNo: '',
+      };
+      try {
+        window.localStorage.removeItem(cacheKey(profileId, storeId));
+      } catch {
+        // The database reset is authoritative when local storage is unavailable.
+      }
+      reportRef.current = refreshed;
+      formRef.current = emptyForm;
+      idempotencyKeyRef.current = createUuid();
+      setReport(refreshed);
+      setForm(emptyForm);
+      setImages([]);
+      setDirtyRevision(0);
+      setSaveStatus('saved');
+    } catch (error) {
+      setSaveStatus('error');
+      setMessage(error instanceof Error ? error.message : '更新草稿失败。');
+      throw error;
+    } finally {
+      resettingRef.current = false;
+    }
+  }, [images, profileId, storeId]);
 
   useEffect(() => {
     if (loadStatus !== 'ready' || dirtyRevision === 0) return undefined;
@@ -355,6 +403,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     message,
     products,
     reload: () => setReloadToken((token) => token + 1),
+    resetDraft,
     removeItem,
     report,
     saveNow,

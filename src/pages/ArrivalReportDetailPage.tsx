@@ -1,15 +1,17 @@
 import { ChevronLeft, ChevronRight, Edit3, PackageCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
-import { LoadingState, StatusBadge } from '../components/ui/Feedback';
+import { FeedbackBanner, LoadingState, StatusBadge } from '../components/ui/Feedback';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
   loadArrivalReportDetail,
+  loadLatestArrivalCorrection,
   reopenVoidedArrivalReport,
+  type ArrivalCorrectionRequest,
   type ArrivalReportDetail,
 } from '../services/arrivals.service';
 
@@ -31,8 +33,10 @@ const formatTimestamp = (value: string | null) => {
 export function ArrivalReportDetailPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { reportId = '' } = useParams();
   const [detail, setDetail] = useState<ArrivalReportDetail | null>(null);
+  const [latestCorrection, setLatestCorrection] = useState<ArrivalCorrectionRequest | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,7 +50,12 @@ export function ArrivalReportDetailPage() {
     }
     setStatus('loading');
     try {
-      setDetail(await loadArrivalReportDetail(supabase, reportId));
+      const [nextDetail, correction] = await Promise.all([
+        loadArrivalReportDetail(supabase, reportId),
+        loadLatestArrivalCorrection(supabase, reportId),
+      ]);
+      setDetail(nextDetail);
+      setLatestCorrection(correction);
       setMessage(null);
       setStatus('ready');
     } catch (error) {
@@ -82,12 +91,19 @@ export function ArrivalReportDetailPage() {
 
   const canReopen = detail?.report.status === 'voided'
     && detail.report.reported_by === auth.profile?.id;
+  const canCorrect = Boolean(detail
+    && ['submitted', 'viewed'].includes(detail.report.status)
+    && detail.report.store_id === auth.store?.id
+    && (auth.profile?.role === 'manager' || detail.report.reported_by === auth.profile?.id));
+  const itemIds = new Set(detail?.items.map((item) => item.id) ?? []);
+  const historicalGoodsImages = detail?.images.filter((image) => image.image_type === 'goods' && (!image.arrival_item_id || !itemIds.has(image.arrival_item_id))) ?? [];
 
   return (
     <PageShell eyebrow="门店运营系统" title="到货记录详情" backTo="/app/arrivals/history" contentGapClassName="gap-3">
       {status === 'loading' ? <LoadingState label="正在加载到货记录" /> : null}
       {status === 'error' ? <section className="ui-card p-5"><p className="text-sm text-red-700">{message}</p><button className="ui-button-secondary mt-4 w-full" onClick={() => void load()} type="button">重新加载</button></section> : null}
       {status === 'ready' && detail ? <>
+        {searchParams.get('correction') === 'submitted' ? <FeedbackBanner title="更正申请已提交" tone="success">审核通过前，当前到货记录保持不变。你可以在这里查看最新审核状态。</FeedbackBanner> : null}
         <section className="ui-card p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0"><p className="text-xs font-bold text-brand-700">{detail.report.report_no}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{detail.report.generated_summary}</h2></div>
@@ -117,9 +133,15 @@ export function ArrivalReportDetailPage() {
           })}</div>
         </section>
 
-        {detail.images.some((image) => image.image_type === 'goods' && !image.arrival_item_id)
-          ? <ImageSection images={detail.images.filter((image) => image.image_type === 'goods' && !image.arrival_item_id)} onView={setViewerUrl} title="历史拆包照片" />
+        {historicalGoodsImages.length > 0
+          ? <ImageSection images={historicalGoodsImages} onView={setViewerUrl} title="历史拆包照片" />
           : null}
+
+        {canCorrect ? <section className="ui-card p-4">
+          <div className="flex items-start justify-between gap-3"><div><h2 className="font-bold text-slate-900">更正到货信息</h2><p className="mt-1 text-sm leading-6 text-slate-600">{auth.profile?.role === 'manager' ? '店长可修改本店所有人的到货信息，提交后由管理员审核。' : '员工只能修改自己提交的记录，提交后由店长或管理员审核。'}</p></div>{latestCorrection ? <StatusBadge tone={latestCorrection.status === 'pending' ? 'warning' : latestCorrection.status === 'approved' ? 'success' : 'danger'}>{latestCorrection.status === 'pending' ? '更正待审核' : latestCorrection.status === 'approved' ? '更正已通过' : '更正被拒绝'}</StatusBadge> : null}</div>
+          {latestCorrection?.review_note ? <FeedbackBanner className="mt-3" title="审核备注" tone={latestCorrection.status === 'rejected' ? 'danger' : 'info'}>{latestCorrection.review_note}</FeedbackBanner> : null}
+          {latestCorrection?.status !== 'pending' ? <Link className="ui-button-secondary mt-3 w-full" to={`/app/arrivals/${detail.report.id}/correct`}><Edit3 className="h-5 w-5" />申请修改到货信息</Link> : <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">已有更正申请正在审核，暂时不能重复提交。</p>}
+        </section> : null}
 
         {canReopen ? <section className="ui-card p-4"><p className="text-sm leading-6 text-slate-600">这条上报已被管理员作废。修改后重新提交，管理员会收到新的到货上报。</p><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void reopen()} type="button"><Edit3 className="h-5 w-5" aria-hidden="true" />{busy ? '正在打开草稿' : '修改并重新上报'}</button></section> : null}
       </> : null}

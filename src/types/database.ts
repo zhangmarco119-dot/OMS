@@ -240,6 +240,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      arrival_report_correction_requests: {
+        Row: {
+          created_at: string;
+          id: string;
+          original_version: number;
+          proposed_fields: Json;
+          proposed_items: Json;
+          report_id: string;
+          requested_by: string;
+          requester_role: 'staff' | 'manager';
+          review_note: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          status: 'pending' | 'approved' | 'rejected';
+          store_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          original_version: number;
+          proposed_fields: Json;
+          proposed_items: Json;
+          report_id: string;
+          requested_by: string;
+          requester_role: 'staff' | 'manager';
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: 'pending' | 'approved' | 'rejected';
+          store_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          original_version?: number;
+          proposed_fields?: Json;
+          proposed_items?: Json;
+          report_id?: string;
+          requested_by?: string;
+          requester_role?: 'staff' | 'manager';
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: 'pending' | 'approved' | 'rejected';
+          store_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       admin_store_access: {
         Row: {
           admin_profile_id: string;
@@ -1288,6 +1339,18 @@ export type Database = {
       can_edit_arrival_report: {
         Args: { target_report_id: string };
         Returns: boolean;
+      };
+      reset_arrival_draft: {
+        Args: { p_expected_version: number; p_report_id: string };
+        Returns: Json;
+      };
+      submit_arrival_correction_request: {
+        Args: { p_fields: Json; p_items: Json; p_report_id: string };
+        Returns: Json;
+      };
+      review_arrival_correction_request: {
+        Args: { p_approve: boolean; p_note?: string | null; p_request_id: string };
+        Returns: Json;
       };
       can_operate_arrival_modules: {
         Args: { target_store_id: string };

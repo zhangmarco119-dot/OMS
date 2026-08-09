@@ -475,7 +475,30 @@ export const uploadV2TaskImage = async (client: Client, task: V2TaskRow, itemId:
   onProgress?.(5);
   const processed = await compressArrivalImage(file); onProgress?.(35); const id = createUuid(); const ext = processed.mimeType === 'image/png' ? 'png' : processed.mimeType === 'image/webp' ? 'webp' : 'jpg';
   const path = `${task.store_id}/${task.id}/${itemId}/${id}.${ext}`; const bucket = 'v2-task-images';
-  const uploaded = await client.storage.from(bucket).upload(path, processed.blob, { contentType: processed.mimeType }); fail(uploaded.error);
+  const storage = client.storage.from(bucket);
+  let firstUploadMayHaveCompleted = false;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const uploaded = await storage.upload(path, processed.blob, { cacheControl: '3600', contentType: processed.mimeType, upsert: false });
+    if (!uploaded.error) break;
+    const error = uploaded.error as typeof uploaded.error & { status?: number; statusCode?: string };
+    const message = error.message.toLowerCase();
+    const duplicate = error.status === 409 || error.statusCode === '409' || message.includes('duplicate') || message.includes('already exists');
+    if (attempt === 1 && firstUploadMayHaveCompleted && duplicate) break;
+    const retryable = !error.status
+      || error.status >= 500
+      || message.includes('超时')
+      || message.includes('timeout')
+      || message.includes('abort')
+      || message.includes('failed to fetch')
+      || message.includes('network');
+    if (attempt === 0 && retryable) {
+      firstUploadMayHaveCompleted = true;
+      onProgress?.(45);
+      continue;
+    }
+    if (retryable) throw new Error('图片上传网络连接超时或中断，请检查网络后重新上传。');
+    throw new Error(error.message);
+  }
   onProgress?.(75);
   const metadata = await client.from('v2_task_images').insert({ file_name: file.name || `${id}.${ext}`, item_id: itemId, mime_type: processed.mimeType, object_path: path, size_bytes: processed.blob.size, store_id: task.store_id, task_id: task.id, uploaded_by: profileId }).select('*').single();
   if (metadata.error) { await client.storage.from(bucket).remove([path]); throw new Error(metadata.error.message); }

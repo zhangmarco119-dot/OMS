@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { downloadOperationReportImage, loadOperationReportImages } from '../services/operation-report-images.service';
+import { downloadOperationReportImage, loadOperationReportImageMetadata, loadOperationReportImageUrls } from '../services/operation-report-images.service';
 import { getOperationReport } from '../services/operation-reports.service';
 import { OperationReportDetailPage } from './OperationReportDetailPage';
 
@@ -11,7 +11,8 @@ vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../services/operation-report-images.service', () => ({
   downloadOperationReportImage: vi.fn(),
-  loadOperationReportImages: vi.fn(),
+  loadOperationReportImageMetadata: vi.fn(),
+  loadOperationReportImageUrls: vi.fn(),
 }));
 vi.mock('../services/operation-reports.service', () => ({ getOperationReport: vi.fn() }));
 
@@ -27,13 +28,14 @@ describe('OperationReportDetailPage photos', () => {
       text_report: '每日运营报告',
       title_snapshot: '每日运营报告',
     } as never);
-    vi.mocked(loadOperationReportImages).mockResolvedValue([{
+    vi.mocked(loadOperationReportImageMetadata).mockResolvedValue([{
       field_id: 'material',
       file_name: 'material.jpg',
       id: 'image-1',
       object_path: 'store/report/material.jpg',
-      signedUrl: 'https://example.test/material.jpg',
+      signedUrl: '',
     }] as never);
+    vi.mocked(loadOperationReportImageUrls).mockResolvedValue({ 'image-1': 'https://example.test/material.jpg' });
     vi.mocked(downloadOperationReportImage).mockResolvedValue(undefined);
   });
 

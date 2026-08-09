@@ -20,9 +20,19 @@ const signed = async (client: Client, path: string) => loadStorageImageResource(
 });
 
 export async function loadOperationReportImages(client: Client, reportId: string) {
+  const images = await loadOperationReportImageMetadata(client, reportId);
+  const urls = await loadOperationReportImageUrls(client, images);
+  return images.map((image) => ({ ...image, signedUrl: urls[image.id] ?? '' }));
+}
+
+export async function loadOperationReportImageMetadata(client: Client, reportId: string): Promise<OperationReportImage[]> {
   const { data, error } = await client.from('operation_report_images').select('*').eq('report_id', reportId).order('created_at');
   if (error) throw new Error(error.message);
-  return Promise.all((data ?? []).map(async (row) => ({ ...row, signedUrl: await signed(client, row.object_path) })));
+  return (data ?? []).map((row) => ({ ...row, signedUrl: '' }));
+}
+
+export async function loadOperationReportImageUrls(client: Client, images: OperationReportImage[]): Promise<Record<string, string>> {
+  return Object.fromEntries(await Promise.all(images.map(async (image) => [image.id, await signed(client, image.object_path)])));
 }
 
 export async function uploadOperationReportImage(client: Client, input: { fieldId: string; file: File; profileId: string; reportId: string; storeId: string }, onProgress?: (value: number) => void) {

@@ -15,6 +15,7 @@ export type ArrivalProductSummaryRow = Database['public']['Views']['arrival_dail
 export interface AdminArrivalMessage {
   notification: AdminArrivalNotification;
   report: AdminArrivalReport;
+  thumbnailObjectPath: string | null;
   thumbnailUrl: string | null;
 }
 
@@ -124,17 +125,28 @@ export const loadAdminArrivalMessages = async (client: Client, limit = 12): Prom
     if (!firstImageByReport.has(image.report_id)) firstImageByReport.set(image.report_id, image);
   });
 
-  return Promise.all(rows.flatMap((notification) => {
+  return rows.flatMap((notification) => {
     const report = reportById.get(notification.entity_id);
     if (!report) return [];
     const image = firstImageByReport.get(report.id);
     return [{
       notification,
       report,
-      thumbnailUrl: image ? createSignedUrl(client, image.object_path) : Promise.resolve(null),
+      thumbnailObjectPath: image?.object_path ?? null,
+      thumbnailUrl: null,
     }];
-  }).map(async (message) => ({ ...message, thumbnailUrl: await message.thumbnailUrl })));
+  });
 };
+
+export const loadAdminArrivalMessageThumbnails = async (
+  client: Client,
+  messages: AdminArrivalMessage[],
+): Promise<Record<string, string>> => Object.fromEntries(await Promise.all(messages.flatMap((message) => message.thumbnailObjectPath ? [[
+  message,
+]] : []).map(async ([message]) => [
+  message.notification.id,
+  (await loadAdminArrivalThumbnail(client, message.thumbnailObjectPath!)) ?? '',
+])));
 
 export const loadAdminArrivalDashboard = async (
   client: Client,

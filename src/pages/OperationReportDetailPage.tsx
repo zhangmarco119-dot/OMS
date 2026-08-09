@@ -5,12 +5,14 @@ import { useParams } from 'react-router-dom';
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
 import { ErrorState, LoadingState } from '../components/ui/Feedback';
+import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
   downloadOperationReportImage,
-  loadOperationReportImages,
+  loadOperationReportImageMetadata,
+  loadOperationReportImageUrls,
   type OperationReportImage,
 } from '../services/operation-report-images.service';
 import { getOperationReport, type OperationReport } from '../services/operation-reports.service';
@@ -22,6 +24,7 @@ export function OperationReportDetailPage() {
   const auth = useAuth();
   const [report, setReport] = useState<OperationReport | null>(null);
   const [images, setImages] = useState<OperationReportImage[]>([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
   const [viewer, setViewer] = useState<OperationReportImage | null>(null);
   const [downloadingId, setDownloadingId] = useState('');
   const [error, setError] = useState('');
@@ -32,7 +35,17 @@ export function OperationReportDetailPage() {
       try {
         const row = await getOperationReport(reportId);
         setReport(row);
-        if (supabase) setImages(await loadOperationReportImages(supabase, reportId));
+        if (supabase) {
+          const client = supabase;
+          void loadOperationReportImageMetadata(client, reportId).then((metadata) => {
+            setImages(metadata);
+            setImagesLoading(metadata.length > 0);
+            if (metadata.length > 0) return loadOperationReportImageUrls(client, metadata).then((urls) => {
+              setImages((current) => current.map((image) => ({ ...image, signedUrl: urls[image.id] ?? '' })));
+            });
+            return undefined;
+          }).catch(() => undefined).finally(() => setImagesLoading(false));
+        }
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : '报告加载失败。');
       }
@@ -75,11 +88,11 @@ export function OperationReportDetailPage() {
               const value = report.manual_values[image.field_id]?.trim();
               return (
                 <figure className="min-w-0" key={image.id}>
-                  <button aria-label={`查看${field?.label ?? '现场'}大图`} className="block w-full overflow-hidden rounded-xl bg-slate-50" onClick={() => setViewer(image)} type="button">
-                    <img alt="运营报告现场图片" className="aspect-square w-full object-contain" src={image.signedUrl} />
+                  <button aria-label={`查看${field?.label ?? '现场'}大图`} className="block w-full overflow-hidden rounded-xl bg-slate-50" disabled={!image.signedUrl} onClick={() => setViewer(image)} type="button">
+                    <ProgressiveImage alt="运营报告现场图片" className="aspect-square w-full object-contain" containerClassName="aspect-square w-full" resourceLoading={imagesLoading && !image.signedUrl} src={image.signedUrl} />
                   </button>
                   <figcaption className="mt-1 text-center text-xs text-slate-600">{field?.label ?? image.field_id}{value ? `：${value}${field?.unit ?? ''}` : ''}</figcaption>
-                  <button className="ui-button-secondary mt-2 min-h-9 w-full px-2 py-1.5 text-xs" disabled={downloadingId === image.id} onClick={() => void download(image)} type="button">
+                  <button className="ui-button-secondary mt-2 min-h-9 w-full px-2 py-1.5 text-xs" disabled={!image.signedUrl || downloadingId === image.id} onClick={() => void download(image)} type="button">
                     <Download className="h-3.5 w-3.5" />{downloadingId === image.id ? '正在下载' : '下载保存'}
                   </button>
                 </figure>

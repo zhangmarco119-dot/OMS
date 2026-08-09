@@ -125,17 +125,21 @@ export const loadNotices = async (client: Client): Promise<NoticeListItem[]> => 
   (recipients.data ?? []).forEach((item) => byNotice.set(item.notice_id, [...(byNotice.get(item.notice_id) ?? []), item]));
   const assetMap = new Map<string, NoticeAssetRow[]>();
   (assets.data ?? []).forEach((item) => assetMap.set(item.notice_id, [...(assetMap.get(item.notice_id) ?? []), item]));
-  return Promise.all((notices.data ?? []).map(async (notice) => {
+  return (notices.data ?? []).map((notice) => {
     const rows = byNotice.get(notice.id) ?? [];
-    const assetUrls = await Promise.all((assetMap.get(notice.id) ?? []).map(async (asset) => {
-      const signed = await client.storage.from('v2-notice-assets').createSignedUrl(asset.object_path, 3600);
-      throwIfError(signed.error);
-      if (!signed.data) throw new Error('无法生成公告附件访问链接。');
-      return { ...asset, signedUrl: signed.data.signedUrl };
-    }));
+    const assetUrls = (assetMap.get(notice.id) ?? []).map((asset) => ({ ...asset, signedUrl: '' }));
     return { ...notice, assetUrls, isRead: rows.some((item) => item.profile_id === profileId && item.first_read_at !== null), publisherName: (profiles.data ?? []).find((profile) => profile.id === notice.created_by)?.display_name ?? '系统管理员', readCount: rows.filter((item) => item.first_read_at !== null).length, recipientCount: rows.length, recipientIds: rows.map((item) => item.profile_id), recipients: rows.map((item) => ({ acknowledgedAt: item.acknowledged_at, firstReadAt: item.first_read_at, profileId: item.profile_id, role: item.role_snapshot, storeId: item.store_id })), storeIds: stores.get(notice.id) ?? [] };
-  }));
+  });
 };
+
+export const loadNoticeAssetUrls = async (
+  client: Client,
+  assets: NoticeListItem['assetUrls'],
+): Promise<Record<string, string>> => Object.fromEntries(await Promise.all(assets.map(async (asset) => {
+  const signed = await client.storage.from('v2-notice-assets').createSignedUrl(asset.object_path, 3600);
+  throwIfError(signed.error);
+  return [asset.id, signed.data?.signedUrl ?? ''];
+})));
 
 export const saveNotice = async (client: Client, draft: NoticeDraft) => {
   if (!draft.title.trim()) throw new Error('请填写公告标题。');
@@ -212,19 +216,13 @@ export const loadSops = async (client: Client): Promise<SopListItem[]> => {
   (roles.data ?? []).forEach((item) => roleMap.set(item.sop_id, [...(roleMap.get(item.sop_id) ?? []), item.role]));
   const assetMap = new Map<string, SopAssetRow[]>();
   (assets.data ?? []).forEach((item) => assetMap.set(item.sop_id, [...(assetMap.get(item.sop_id) ?? []), item]));
-  return Promise.all((sops.data ?? []).map(async (sop) => ({
+  return (sops.data ?? []).map((sop) => ({
     ...sop,
-    assetUrls: await Promise.all((assetMap.get(sop.id) ?? []).map(async (asset) => {
-      if (!asset.object_path) return { ...asset, signedUrl: null };
-      const signed = await client.storage.from('v2-sop-assets').createSignedUrl(asset.object_path, 3600);
-      throwIfError(signed.error);
-      if (!signed.data) throw new Error('无法生成 SOP 附件访问链接。');
-      return { ...asset, signedUrl: signed.data.signedUrl };
-    })),
+    assetUrls: (assetMap.get(sop.id) ?? []).map((asset) => ({ ...asset, signedUrl: null })),
     roles: roleMap.get(sop.id) ?? [],
     storeIds: stores.get(sop.id) ?? [],
     taskTemplateId: sop.task_template_id,
-  })));
+  }));
 };
 
 const escapePostgrestSearch = (value: string) => value.replace(/[,%()]/g, ' ').trim();
@@ -246,14 +244,16 @@ const parseSopCardPage = (data: Json | null) => {
   };
 };
 
-const signSopPreviewAssets = async (client: Client, items: SopCardRpcItem[]) => {
-  return Promise.all(items.map(async (item) => ({
-    item,
-    previewUrl: item.previewAsset?.object_path
-      ? await loadSopImageUrl(client, item.previewAsset.object_path, 'thumbnail')
-      : null,
-  })));
-};
+export const loadSopPreviewUrls = async (
+  client: Client,
+  items: SopListItem[],
+): Promise<Record<string, string>> => Object.fromEntries(await Promise.all(items.flatMap((item) => {
+  const preview = item.assetUrls[0];
+  return preview?.object_path ? [[item.id, preview.object_path] as const] : [];
+}).map(async ([sopId, objectPath]) => {
+  try { return [sopId, (await loadSopImageUrl(client, objectPath, 'thumbnail')) ?? '']; }
+  catch { return [sopId, '']; }
+})));
 
 export const loadSopPage = async (client: Client, options: { archived?: boolean; category?: string; limit?: number; offset?: number; search?: string; signal?: AbortSignal } = {}): Promise<SopPage> => {
   const limit = Math.min(Math.max(options.limit ?? 16, 1), 50);
@@ -270,12 +270,11 @@ export const loadSopPage = async (client: Client, options: { archived?: boolean;
   const response = await (options.signal ? request.abortSignal(options.signal) : request);
   throwIfError(response.error);
   const page = parseSopCardPage(response.data);
-  const signed = await signSopPreviewAssets(client, page.items);
   return {
     total: page.total,
-    items: signed.map(({ item, previewUrl }): SopListItem => ({
+    items: page.items.map((item): SopListItem => ({
       ...item,
-      assetUrls: item.previewAsset ? [{ ...item.previewAsset, signedUrl: previewUrl }] : [],
+      assetUrls: item.previewAsset ? [{ ...item.previewAsset, signedUrl: null }] : [],
       attachmentCount: item.attachmentCount,
       stepCount: item.stepCount,
       taskTemplateId: item.task_template_id,

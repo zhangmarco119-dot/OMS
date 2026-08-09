@@ -2,6 +2,7 @@ import { Camera, CheckCircle2, ImagePlus, Loader2, RefreshCw, Trash2, X } from '
 import { useEffect, useRef, useState } from 'react';
 
 import { createUuid } from '../../lib/uuid';
+import { ProgressiveImage } from '../../components/ui/ProgressiveImage';
 import type { ArrivalImageType, ArrivalImageWithUrl } from '../../services/arrival-images.service';
 
 interface PendingUpload {
@@ -17,6 +18,7 @@ interface ArrivalImageSectionProps {
   embedded?: boolean;
   imageType: ArrivalImageType;
   images: ArrivalImageWithUrl[];
+  imagesLoading?: boolean;
   onDelete: (image: ArrivalImageWithUrl) => Promise<void>;
   onUpload: (
     file: File,
@@ -31,6 +33,7 @@ export function ArrivalImageSection({
   embedded = false,
   imageType,
   images,
+  imagesLoading = false,
   onDelete,
   onUpload,
   prompt,
@@ -137,8 +140,8 @@ export function ArrivalImageSection({
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {images.map((image) => (
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50" key={image.id}>
-              <button className="block aspect-square w-full" onClick={() => setSelectedUrl(image.signedUrl)} type="button">
-                <img alt={image.file_name} className="h-full w-full object-cover" src={image.signedUrl} />
+              <button className="block aspect-square w-full" disabled={!image.signedUrl} onClick={() => setSelectedUrl(image.signedUrl)} type="button">
+                <ProgressiveImage alt={image.file_name} className="h-full w-full object-cover" containerClassName="h-full w-full" resourceLoading={imagesLoading && !image.signedUrl} src={image.signedUrl} />
               </button>
               <div className="flex items-center justify-between gap-2 p-2">
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />已上传</span>

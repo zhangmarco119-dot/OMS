@@ -34,6 +34,7 @@ export function AdminV2TaskReviewPage() {
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [imageUrlsLoading, setImageUrlsLoading] = useState(false);
   const [referenceImageUrls, setReferenceImageUrls] = useState<Record<string, string[]>>({});
+  const [referenceImageUrlsLoading, setReferenceImageUrlsLoading] = useState(false);
   const [note, setNote] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [decisions, setDecisions] = useState<Record<string, ReviewDecision>>({});
@@ -50,13 +51,9 @@ export function AdminV2TaskReviewPage() {
       setDetail(next);
       setReviewAllowed(allowed);
       setImageUrlsLoading(next.images.length > 0);
-      const [nextImageUrls, nextReferenceImageUrls] = await Promise.all([
-        loadV2TaskImageUrls(supabase, next.images),
-        loadV2TaskReferenceImageUrls(supabase, next.answers),
-      ]);
-      setImageUrls(nextImageUrls);
-      setImageUrlsLoading(false);
-      setReferenceImageUrls(nextReferenceImageUrls);
+      setReferenceImageUrlsLoading(next.answers.length > 0);
+      void loadV2TaskImageUrls(supabase, next.images).then(setImageUrls).catch(() => undefined).finally(() => setImageUrlsLoading(false));
+      void loadV2TaskReferenceImageUrls(supabase, next.answers).then(setReferenceImageUrls).catch(() => undefined).finally(() => setReferenceImageUrlsLoading(false));
       setSelectedIds([]);
       setDecisions({});
       setItemNotes({});
@@ -167,7 +164,7 @@ export function AdminV2TaskReviewPage() {
                 <div className="flex flex-wrap items-center gap-2"><b>{canReview ? `${position.number} ${item.label}` : item.label}</b><ReviewStatusBadge decision={decision} status={answer.review_status} /></div>
                 <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{formatAnswer(answer.answer, item.answer_schema)}</p>
                 {canReview && isProductSpecCorrection && decision === 'rejected' ? <textarea aria-label={`驳回原因：${item.label}（选填）`} className="ui-input mt-3 min-h-20 py-3" onChange={(event) => setItemNotes((current) => ({ ...current, [answer.item_id]: event.target.value }))} onClick={(event) => event.stopPropagation()} placeholder="驳回原因（选填）" value={itemNotes[answer.item_id] ?? ''} /> : null}
-                <TaskReferenceImagePreview urls={referenceImageUrls[answer.item_id] ?? []} />
+                <TaskReferenceImagePreview loading={referenceImageUrlsLoading} urls={referenceImageUrls[answer.item_id] ?? []} />
                 <div className="mt-3"><TaskImagePreview imageUrls={imageUrls} images={images} loading={imageUrlsLoading} /></div>
               </div>
             </div>

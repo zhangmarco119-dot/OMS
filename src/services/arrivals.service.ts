@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 import { isCompleteArrivalItem, type ArrivalDraftItem } from '../features/arrivals/arrivalForm';
-import { loadArrivalImages, type ArrivalImageWithUrl } from './arrival-images.service';
+import { loadArrivalImageMetadata, type ArrivalImageWithUrl } from './arrival-images.service';
 import type { Database } from '../types/database';
 
 type Client = SupabaseClient<Database>;
@@ -509,7 +509,7 @@ export const loadArrivalReportDetail = async (
   const [reportResult, itemResult, images] = await Promise.all([
     client.from('arrival_reports').select('*').eq('id', reportId).single(),
     client.from('arrival_report_items').select('*').eq('report_id', reportId).order('sort_order'),
-    loadArrivalImages(client, reportId),
+    loadArrivalImageMetadata(client, reportId),
   ]);
   if (reportResult.error) throw new Error(reportResult.error.message);
   if (itemResult.error) throw new Error(itemResult.error.message);

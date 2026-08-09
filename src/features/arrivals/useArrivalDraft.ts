@@ -16,7 +16,8 @@ import {
   type ProductRow,
 } from '../../services/arrivals.service';
 import {
-  loadArrivalImages,
+  loadArrivalImageMetadata,
+  loadArrivalImageUrls,
   removeArrivalImage,
   uploadArrivalImage,
   type ArrivalImageType,
@@ -100,6 +101,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
   const [form, setForm] = useState<ArrivalDraftFormState | null>(null);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [images, setImages] = useState<ArrivalImageWithUrl[]>([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
   const [uploadCount, setUploadCount] = useState(0);
   const [dirtyRevision, setDirtyRevision] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
@@ -127,7 +129,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     void (async () => {
       try {
         const draft = await loadOrCreateArrivalDraft(supabase, storeId, profileId, reportId);
-        const loadedImages = await loadArrivalImages(supabase, draft.report.id);
+        const loadedImages = await loadArrivalImageMetadata(supabase, draft.report.id);
         if (cancelled) return;
 
         const hasSavedContent = draft.items.length > 0
@@ -154,8 +156,16 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
         setForm(restored);
         setProducts(draft.products);
         setImages(loadedImages);
+        setImagesLoading(loadedImages.length > 0);
         setDirtyRevision(0);
         setLoadStatus('ready');
+        if (loadedImages.length > 0) {
+          void loadArrivalImageUrls(supabase, loadedImages).then((urls) => {
+            if (!cancelled) setImages((current) => current.map((image) => ({ ...image, signedUrl: urls[image.id] ?? '' })));
+          }).catch(() => undefined).finally(() => {
+            if (!cancelled) setImagesLoading(false);
+          });
+        }
       } catch (error) {
         if (!cancelled) {
           setLoadStatus('error');
@@ -273,6 +283,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
       setReport(refreshed);
       setForm(emptyForm);
       setImages([]);
+      setImagesLoading(false);
       setDirtyRevision(0);
       setSaveStatus('saved');
     } catch (error) {
@@ -399,6 +410,7 @@ export function useArrivalDraft(profileId: string | undefined, storeId: string |
     deleteImage,
     form,
     images,
+    imagesLoading,
     loadStatus,
     message,
     products,

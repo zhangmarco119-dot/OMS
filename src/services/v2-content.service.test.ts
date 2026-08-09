@@ -2,10 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { archiveNotice, buildContentRecipients, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, loadSopDetail, loadSopLibraryPage, loadSopPage, publishSop, removeSopStepImage, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
+import { archiveNotice, buildContentRecipients, createEmptyNoticeDraft, createEmptySopDraft, createSopTextStep, deleteArchivedSop, deleteNotice, deleteSopAsset, deleteSopCategory, loadSopDetail, loadSopLibraryPage, loadSopPage, loadSopPreviewUrls, publishSop, removeSopStepImage, renameSopCategory, reorderSopAssets, retractSop, unarchiveSop } from './v2-content.service';
 
 describe('v2 content drafts', () => {
-  it('loads an SOP card page with one lightweight query and a transformed preview signing request', async () => {
+  it('returns SOP card metadata before starting the optional preview signing request', async () => {
     const previewAsset = {
       asset_kind: 'cover', bucket: 'v2-sop-assets', created_at: '2026-07-16T00:00:00Z', file_name: 'cover.jpg', id: 'asset-1', mime_type: 'image/jpeg', object_path: 'sop-1/cover.jpg', size_bytes: 100, sop_id: 'sop-1', sort_order: 0, step_text: '', uploaded_by: 'admin-1',
     };
@@ -28,13 +28,17 @@ describe('v2 content drafts', () => {
     expect(rpc).toHaveBeenCalledWith('list_v2_sop_cards', {
       p_archived: false, p_category: 'drink', p_favorites_only: false, p_limit: 16, p_offset: 0, p_search: 'Test',
     });
+    expect(storageFrom).not.toHaveBeenCalled();
+    expect(page).toMatchObject({
+      items: [{ assetUrls: [{ signedUrl: null }], attachmentCount: 2, id: 'sop-1', stepCount: 6 }],
+      total: 1,
+    });
+
+    const urls = await loadSopPreviewUrls(client, page.items);
     expect(storageFrom).toHaveBeenCalledTimes(1);
     expect(createSignedUrl).toHaveBeenCalledTimes(1);
     expect(createSignedUrl).toHaveBeenCalledWith('sop-1/cover.jpg', 3600, { transform: { height: 256, quality: 60, resize: 'cover', width: 256 } });
-    expect(page).toMatchObject({
-      items: [{ assetUrls: [{ signedUrl: 'https://example.test/cover.jpg' }], attachmentCount: 2, id: 'sop-1', stepCount: 6 }],
-      total: 1,
-    });
+    expect(urls).toEqual({ 'sop-1': 'https://example.test/cover.jpg' });
   });
 
   it('returns employee card metadata without signing or downloading preview images', async () => {

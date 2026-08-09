@@ -57,7 +57,7 @@ describe('AdminArrivalsPage filters', () => {
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminArrivalsPage /></MemoryRouter>);
 
     expect(await screen.findByText('淡奶油到货2盒')).toBeInTheDocument();
-    expect(screen.getByText('照片加载中')).toBeInTheDocument();
+    expect(screen.getByText('正在加载图片')).toBeInTheDocument();
     expect(screen.getByText('共 1 条')).toBeInTheDocument();
   });
 });

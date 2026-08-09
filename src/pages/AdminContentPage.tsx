@@ -7,6 +7,7 @@ import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialo
 import { BatchImportReportDialog } from '../components/feedback/BatchImportReportDialog';
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { FeedbackBanner } from '../components/ui/Feedback';
+import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { useAuth } from '../features/auth/AuthContext';
 import type { SopBatchImportProgress, SopBatchImportResult } from '../features/content/sopBatchImport';
 import { scheduleSopBackgroundLoad } from '../features/content/sopBackgroundLoad';
@@ -37,6 +38,7 @@ import {
   loadSopArchiveCount,
   loadSopDetail,
   loadSopPage,
+  loadSopPreviewUrls,
   publishNotice,
   publishSop,
   renameSopCategory,
@@ -132,6 +134,21 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
     setSops(nextSops);
   };
 
+  const loadSopPreviews = useCallback((items: SopListItem[], archived = false) => {
+    if (!supabase || items.length === 0) return;
+    void loadSopPreviewUrls(supabase, items).then((urls) => {
+      const hydrate = (current: SopListItem[]) => current.map((sop) => Object.prototype.hasOwnProperty.call(urls, sop.id)
+        ? { ...sop, assetUrls: sop.assetUrls.map((asset, index) => index === 0 ? { ...asset, signedUrl: urls[sop.id] } : asset) }
+        : sop);
+      if (archived) setArchivedSops(hydrate);
+      else {
+        const next = hydrate(sopsRef.current);
+        sopsRef.current = next;
+        setSops(next);
+      }
+    }).catch(() => undefined);
+  }, []);
+
   const withOrderedImages = (sop: SopListItem, orderedAssetIds: string[]): SopListItem => {
     const byId = new Map(sop.assetUrls.map((asset) => [asset.id, asset]));
     const images = orderedAssetIds.flatMap((id, index) => {
@@ -165,6 +182,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         const activePage = await activePageRequest;
         if (requestId !== refreshRequestRef.current) return;
         updateSops(activePage.items);
+        loadSopPreviews(activePage.items);
         sopNextOffsetRef.current = activePage.items.length;
         setSopHasMore(activePage.items.length < activePage.total);
         setSopTotal(activePage.total);
@@ -191,7 +209,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         setSopRefreshing(false);
       }
     }
-  }, [debouncedSopSearch, section, sopCategoryFilter]);
+  }, [debouncedSopSearch, loadSopPreviews, section, sopCategoryFilter]);
   useEffect(() => { void refresh(); }, [refresh]);
   const loadMoreSops = useCallback(async () => {
     if (!supabase || section !== 'sops' || loadingMoreSopsRef.current || sopRefreshingRef.current || !sopHasMore) return;
@@ -207,6 +225,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       const next = appendSopPage(sopsRef.current, page.items, requestedOffset, page.total);
       sopNextOffsetRef.current = next.nextOffset;
       updateSops(next.items);
+      loadSopPreviews(page.items);
       setSopTotal(page.total);
       setSopHasMore(next.hasMore);
       if (!next.hasMore) setSopAutoLoadPaused(false);
@@ -218,7 +237,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         setLoadingMoreSops(false);
       }
     }
-  }, [debouncedSopSearch, section, sopCategoryFilter, sopHasMore]);
+  }, [debouncedSopSearch, loadSopPreviews, section, sopCategoryFilter, sopHasMore]);
   useEffect(() => {
     if (section !== 'sops' || status !== 'ready' || loadingMoreSops || sopRefreshing || sopAutoLoadPaused || !sopHasMore) return;
     return scheduleSopBackgroundLoad(() => void loadMoreSops());
@@ -463,6 +482,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
       const offset = reset ? 0 : archivedSops.length;
       const page = await loadSopPage(client, { archived: true, limit: SOP_ARCHIVE_PAGE_SIZE, offset });
       setArchivedSops((current) => reset ? page.items : [...current, ...page.items.filter((entry) => !current.some((item) => item.id === entry.id))]);
+      loadSopPreviews(page.items, true);
       setArchivedSopTotal(page.total);
       return true;
     } catch (error) {
@@ -692,11 +712,16 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
           backgroundLoadAbortRef.current?.abort();
           setBusy(true);
           try {
-            const detail = await loadSopDetail(supabase, sop.id);
+            const detail = await loadSopDetail(supabase, sop.id, { signAssets: false });
             if (!detail) throw new Error('找不到该 SOP。');
             updateSops(sopsRef.current.map((entry) => entry.id === detail.id ? detail : entry));
             setSopEditorAssets(detail.assetUrls);
             updateSopDraft({ body: detail.body, category: detail.category, effectiveAt: detail.effective_at?.slice(0, 16) ?? '', id: detail.id, roles: detail.roles, storeIds: detail.storeIds, taskTemplateId: detail.taskTemplateId, title: detail.title });
+            void loadSopDetail(supabase, sop.id).then((signedDetail) => {
+              if (!signedDetail || sopDraftRef.current?.id !== signedDetail.id) return;
+              setSopEditorAssets(signedDetail.assetUrls);
+              updateSops(sopsRef.current.map((entry) => entry.id === signedDetail.id ? signedDetail : entry));
+            }).catch(() => setSopEditorAssets((current) => current.map((asset) => asset.object_path ? { ...asset, signedUrl: '' } : asset)));
           } catch (error) { setMessage(error instanceof Error ? error.message : 'SOP 详情加载失败。'); }
           finally { setBusy(false); }
         };
@@ -706,7 +731,7 @@ export function AdminContentPage({ section }: { section: AdminContentSection }) 
         return <article aria-label={`${sopSelectionMode ? '选择' : '预览'} SOP ${sop.title}`} className={`ui-card p-3 transition ${sopSelectionMode ? batchEligible ? 'cursor-pointer' : 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-brand-200 hover:shadow-md'} ${selectedSopIds.includes(sop.id) ? 'border-brand-400 ring-2 ring-brand-100' : ''}`} key={sop.id} onClick={(event) => { if ((event.target as HTMLElement).closest('button,a,input,select,textarea')) return; if (sopSelectionMode) toggleSelectedSop(); else openPreview(); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); if (sopSelectionMode) toggleSelectedSop(); else openPreview(); } }} role={sopSelectionMode ? undefined : 'link'} tabIndex={batchEligible ? 0 : -1}>
           {sopSelectionMode ? <label className="mb-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-brand-50 px-3 text-sm font-bold text-brand-900" onClick={(event) => event.stopPropagation()}><input aria-label={`选择${sopExportMode ? '导出' : sopBatchLifecycleCopy[sopBatchAction!].success} ${sop.title}`} checked={selectedSopIds.includes(sop.id)} disabled={!batchEligible} onChange={toggleSelectedSop} type="checkbox" />{batchEligible ? '选择此 SOP' : `当前状态不可${sopBatchLifecycleCopy[sopBatchAction!].success}`}</label> : null}
           <div className="flex gap-3">
-            {preview?.signedUrl ? <img alt={`${sop.title} 产品预览`} className="aspect-square h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover object-center" decoding="async" loading={index < 2 ? 'eager' : 'lazy'} src={preview.signedUrl} style={{ aspectRatio: '1 / 1', objectFit: 'cover', objectPosition: '50% 50%' }} /> : <div className="flex aspect-square h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400"><ImageIcon className="h-7 w-7" /></div>}
+            {preview?.signedUrl ? <ProgressiveImage alt={`${sop.title} 产品预览`} className="h-full w-full object-cover object-center" containerClassName="aspect-square h-20 w-20 shrink-0 rounded-xl" decoding="async" loading={index < 2 ? 'eager' : 'lazy'} src={preview.signedUrl} style={{ aspectRatio: '1 / 1', objectFit: 'cover', objectPosition: '50% 50%' }} /> : <div className="flex aspect-square h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 px-2 text-center text-[10px] font-semibold text-slate-500">{preview?.object_path ? preview.signedUrl === null ? '正在加载图片' : '图片预览加载失败' : <ImageIcon className="h-7 w-7" />}</div>}
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2"><p className="min-w-0 truncate text-xs font-bold text-brand-700">{sop.category}</p><div className="shrink-0 text-right text-[11px] leading-4 text-slate-500"><p className="font-bold text-slate-700">{sopStatus[sop.status]}</p><p>{sop.effective_at ? `${new Date(sop.effective_at).toLocaleDateString('zh-CN')} 生效` : '尚未设置生效时间'}</p></div></div>
               <h2 className="mt-1 truncate text-base font-bold text-slate-900">{sop.title}</h2>
@@ -815,7 +840,7 @@ export function SopArchiveManager({ busy, loadingMore, onClose, onDelete, onDele
       {sops.length ? <section className="space-y-2">{sops.map((sop) => {
         const preview = getSopPreviewAsset(sop);
         return <article className="ui-card flex items-center gap-3 p-3" key={sop.id}><input aria-label={`选择 ${sop.title}`} checked={selectedIds.includes(sop.id)} className="h-4 w-4 shrink-0" onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, sop.id] : current.filter((id) => id !== sop.id))} type="checkbox" />
-          {preview?.signedUrl ? <img alt={`${sop.title} 归档预览`} className="aspect-square h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover object-center" src={preview.signedUrl} style={{ aspectRatio: '1 / 1', objectFit: 'cover', objectPosition: '50% 50%' }} /> : <div className="flex aspect-square h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-6 w-6" /></div>}
+          {preview?.signedUrl ? <ProgressiveImage alt={`${sop.title} 归档预览`} className="h-full w-full object-cover object-center" containerClassName="aspect-square h-16 w-16 shrink-0 rounded-lg" src={preview.signedUrl} style={{ aspectRatio: '1 / 1', objectFit: 'cover', objectPosition: '50% 50%' }} /> : <div className="flex aspect-square h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 px-1 text-center text-[9px] font-semibold text-slate-500">{preview?.object_path ? preview.signedUrl === null ? '正在加载图片' : '图片预览加载失败' : <ImageIcon className="h-6 w-6" />}</div>}
           <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-brand-700">{sop.category}</p><h3 className="mt-1 truncate font-bold text-slate-900">{sop.title}</h3><p className="mt-1 text-xs text-slate-500">已归档 · 步骤 {sop.stepCount ?? sop.assetUrls.filter((asset) => asset.asset_kind === 'step').length}</p></div>
           <div className="grid shrink-0 gap-1.5">
             <button aria-label={`取消归档 ${sop.title}`} className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg bg-brand-50 px-2 text-xs font-bold text-brand-800" disabled={busy} onClick={() => void onRestore(sop)} type="button"><ArchiveRestore className="h-3.5 w-3.5" />取消归档</button>
@@ -1168,7 +1193,7 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
         <label className="text-sm font-semibold text-slate-700">制作分类<select className="ui-input mt-1.5" onChange={(event) => onChange({ ...draft, category: event.target.value })} value={draft.category}><option value="">请选择分类</option>{!categories.includes(draft.category) && draft.category ? <option value={draft.category}>{draft.category}</option> : null}{categories.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
           <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">产品预览图（选填）</p><p className="mt-1 text-xs leading-5 text-slate-500">用于管理员 SOP 列表的小图预览；未上传时自动使用最后一个制作步骤图片。更改将在保存后生效。</p></div><TaskTemplateReferenceImageUpload disabled={busy} multiple={false} onUpload={stageCover} /></div>
-          {pendingCover?.previewUrl && pendingCover.file ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看待上传 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: pendingCover.file!.name, url: pendingCover.previewUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 待上传产品图`} className="h-20 w-20 rounded-lg object-cover" src={pendingCover.previewUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{pendingCover.file.name}</p><p className="mt-1 text-xs text-brand-700">将在保存时上传</p></div><button aria-label="移除待上传 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => removePending(pendingCover.key)} type="button"><Trash2 className="h-4 w-4" /></button></div> : existingCover?.signedUrl ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: existingCover.file_name ?? 'SOP 产品图', url: existingCover.signedUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 产品图`} className="h-20 w-20 rounded-lg object-cover" src={existingCover.signedUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{existingCover.file_name}</p><p className="mt-1 text-xs text-brand-700">当前列表预览图</p></div><button aria-label="删除 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => { if (window.confirm('确定删除当前产品预览图吗？保存后将自动使用最后一个步骤图。')) setDeletedAssetIds((current) => [...current, existingCover.id]); }} type="button"><Trash2 className="h-4 w-4" /></button></div> : null}
+          {pendingCover?.previewUrl && pendingCover.file ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看待上传 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: pendingCover.file!.name, url: pendingCover.previewUrl! })} type="button"><img alt={`${draft.title || 'SOP'} 待上传产品图`} className="h-20 w-20 rounded-lg object-cover" src={pendingCover.previewUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{pendingCover.file.name}</p><p className="mt-1 text-xs text-brand-700">将在保存时上传</p></div><button aria-label="移除待上传 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => removePending(pendingCover.key)} type="button"><Trash2 className="h-4 w-4" /></button></div> : existingCover?.signedUrl ? <div className="mt-3 flex items-center gap-3 rounded-lg bg-white p-2"><button aria-label="放大查看 SOP 产品图" className="shrink-0" onClick={() => setActiveImage({ alt: existingCover.file_name ?? 'SOP 产品图', url: existingCover.signedUrl! })} type="button"><ProgressiveImage alt={`${draft.title || 'SOP'} 产品图`} className="h-full w-full object-cover" containerClassName="h-20 w-20 rounded-lg" src={existingCover.signedUrl} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{existingCover.file_name}</p><p className="mt-1 text-xs text-brand-700">当前列表预览图</p></div><button aria-label="删除 SOP 产品图" className="ui-icon-button h-10 w-10 border-transparent bg-red-50 text-red-700" disabled={busy} onClick={() => { if (window.confirm('确定删除当前产品预览图吗？保存后将自动使用最后一个步骤图。')) setDeletedAssetIds((current) => [...current, existingCover.id]); }} type="button"><Trash2 className="h-4 w-4" /></button></div> : existingCover?.object_path ? <div className="mt-3 flex h-20 items-center justify-center rounded-lg bg-white text-xs font-semibold text-slate-500">{existingCover.signedUrl === null ? '正在加载图片' : '图片预览加载失败'}</div> : null}
         </div>
       </section>
 
@@ -1180,11 +1205,12 @@ export function SopEditor({ busy, categories, draft, errorMessage, existingAsset
           {existingImages.map((asset, index) => {
             const step = existingSteps.find((entry) => entry.id === asset.id) ?? { id: asset.id, sortOrder: index, stepText: asset.step_text };
             const replacement = replacementPreviews[asset.id];
-            const visibleImageUrl = replacement?.url ?? (removedImageAssetIds.includes(asset.id) ? null : asset.signedUrl);
+            const imageRemoved = removedImageAssetIds.includes(asset.id);
+            const visibleImageUrl = replacement?.url ?? (imageRemoved ? null : asset.signedUrl);
             const displayIndex = step.sortOrder;
             return <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white" key={asset.id} style={{ order: displayIndex }}>
               <label className="block p-2 text-xs font-semibold">步骤说明（可选）<textarea className="ui-input mt-1 min-h-20 px-2 py-2 text-sm leading-5" onChange={(event) => setExistingSteps((current) => current.map((entry) => entry.id === asset.id ? { ...entry, stepText: event.target.value } : entry))} placeholder="无图片时必须填写；有图片时可留空" value={step.stepText} /></label>
-              {visibleImageUrl ? <button aria-label={`放大查看制作图片 ${index + 1}`} className="relative block w-full" onClick={() => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: visibleImageUrl })} type="button"><img alt={replacement ? `${asset.file_name ?? '步骤图片'} 替换预览` : asset.file_name ?? `步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={visibleImageUrl} />{replacement ? <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-bold text-white">保存后替换</span> : null}</button> : <div className="flex aspect-[4/3] flex-col items-center justify-center bg-brand-50 px-3 text-center text-brand-800"><FileText className="h-5 w-5" /><span className="mt-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold">纯文字步骤</span></div>}
+              {visibleImageUrl ? <button aria-label={`放大查看制作图片 ${index + 1}`} className="relative block w-full" onClick={() => setActiveImage({ alt: asset.file_name ?? `步骤 ${index + 1}`, url: visibleImageUrl })} type="button"><ProgressiveImage alt={replacement ? `${asset.file_name ?? '步骤图片'} 替换预览` : asset.file_name ?? `步骤 ${index + 1}`} className="aspect-[4/3] w-full bg-slate-50 object-cover" containerClassName="aspect-[4/3] w-full" src={visibleImageUrl} />{replacement ? <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-bold text-white">保存后替换</span> : null}</button> : asset.object_path && !imageRemoved ? <div className="flex aspect-[4/3] items-center justify-center bg-slate-50 text-xs font-semibold text-slate-500">{asset.signedUrl === null ? '正在加载图片' : '图片预览加载失败'}</div> : <div className="flex aspect-[4/3] flex-col items-center justify-center bg-brand-50 px-3 text-center text-brand-800"><FileText className="h-5 w-5" /><span className="mt-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold">纯文字步骤</span></div>}
               <div className="space-y-1.5 p-2">
                 <select aria-label={`调整 ${asset.file_name} 的步骤序号`} className="ui-input min-h-8 w-full px-2 py-1 text-xs font-semibold" disabled={busy} onChange={(event) => changeStepPosition('existing', asset.id, Number(event.target.value))} value={displayIndex}>{Array.from({ length: existingImages.length + pendingSteps.length }, (_, position) => <option key={position} value={position}>第 {position + 1} 步</option>)}</select>
                 <div className="grid grid-cols-2 gap-1.5">

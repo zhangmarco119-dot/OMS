@@ -86,13 +86,12 @@ const referencePaths = (item: TaskTemplateItemRow) => item.reference_image_paths
   ? item.reference_image_paths
   : item.reference_image_path ? [item.reference_image_path] : [];
 
-const groupsToDraft = async (client: Client, groups: TaskTemplateGroupRow[], items: TaskTemplateItemRow[]): Promise<TaskTemplateGroupDraft[]> =>
-  Promise.all(groups.map(async (group) => ({
+const groupsToDraft = (groups: TaskTemplateGroupRow[], items: TaskTemplateItemRow[]): TaskTemplateGroupDraft[] =>
+  groups.map((group) => ({
     description: group.description,
     id: group.id,
-    items: await Promise.all(items.filter((item) => item.group_id === group.id).map(async (item) => {
+    items: items.filter((item) => item.group_id === group.id).map((item) => {
       const paths = referencePaths(item);
-      const urls = await Promise.all(paths.map((path) => getReferenceImageUrl(client, item.template_id, path)));
       return {
         fieldType: item.field_type,
         guidance: item.guidance,
@@ -103,13 +102,13 @@ const groupsToDraft = async (client: Client, groups: TaskTemplateGroupRow[], ite
         minimumImageCount: item.minimum_image_count ?? 2,
         optionsText: Array.isArray(item.options) ? item.options.filter((entry): entry is string => typeof entry === 'string').join('\n') : '',
         referenceImagePath: paths[0] ?? null,
-        referenceImageUrl: urls[0] ?? null,
+        referenceImageUrl: null,
         referenceImagePaths: paths,
-        referenceImageUrls: urls.filter((url): url is string => url !== null),
+        referenceImageUrls: [],
       };
-    })),
+    }),
     title: group.title,
-  })));
+  }));
 
 export const loadTaskTemplateDraft = async (client: Client, template: TaskTemplateListItem): Promise<TaskTemplateDraft> => {
   const [groups, items] = await Promise.all([
@@ -123,7 +122,7 @@ export const loadTaskTemplateDraft = async (client: Client, template: TaskTempla
     category: template.category,
     description: template.description,
     dueTime: '',
-    groups: await groupsToDraft(client, groups.data ?? [], items.data ?? []),
+    groups: groupsToDraft(groups.data ?? [], items.data ?? []),
     id: template.id,
     name: template.name,
     recurrence: 'none',
@@ -132,6 +131,23 @@ export const loadTaskTemplateDraft = async (client: Client, template: TaskTempla
     storeIds: template.storeIds,
   };
 };
+
+export const loadTaskTemplateDraftImageUrls = async (
+  client: Client,
+  draft: TaskTemplateDraft,
+): Promise<TaskTemplateDraft> => ({
+  ...draft,
+  groups: await Promise.all(draft.groups.map(async (group) => ({
+    ...group,
+    items: await Promise.all(group.items.map(async (item) => {
+      const urls = await Promise.all(item.referenceImagePaths.map(async (path) => {
+        try { return await getReferenceImageUrl(client, draft.id ?? '', path); }
+        catch { return null; }
+      }));
+      return { ...item, referenceImageUrl: urls[0] || null, referenceImageUrls: urls.map((url) => url ?? '') };
+    })),
+  }))),
+});
 
 const serializeGroups = (groups: TaskTemplateGroupDraft[]): Json => groups.map((group, groupIndex) => ({
   description: group.description,

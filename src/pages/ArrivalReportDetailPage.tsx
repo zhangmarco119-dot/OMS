@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
 import { FeedbackBanner, LoadingState, StatusBadge } from '../components/ui/Feedback';
+import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
@@ -14,6 +15,7 @@ import {
   type ArrivalCorrectionRequest,
   type ArrivalReportDetail,
 } from '../services/arrivals.service';
+import { loadArrivalImageUrls } from '../services/arrival-images.service';
 
 const employeeStatusLabel: Record<ArrivalReportDetail['report']['status'], string> = {
   draft: '草稿',
@@ -41,6 +43,7 @@ export function ArrivalReportDetailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [imagesLoading, setImagesLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase || !reportId) {
@@ -58,6 +61,12 @@ export function ArrivalReportDetailPage() {
       setLatestCorrection(correction);
       setMessage(null);
       setStatus('ready');
+      setImagesLoading(nextDetail.images.length > 0);
+      if (nextDetail.images.length > 0) {
+        void loadArrivalImageUrls(supabase, nextDetail.images).then((urls) => {
+          setDetail((current) => current ? { ...current, images: current.images.map((image) => ({ ...image, signedUrl: urls[image.id] ?? '' })) } : current);
+        }).catch(() => undefined).finally(() => setImagesLoading(false));
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '加载到货记录失败。');
       setStatus('error');
@@ -120,7 +129,7 @@ export function ArrivalReportDetailPage() {
           {detail.report.void_reason ? <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700">作废原因：{detail.report.void_reason}</p> : null}
         </section>
 
-        <ImageSection images={detail.images.filter((image) => image.image_type === 'waybill')} onView={setViewerUrl} title="快递面单照片" />
+        <ImageSection images={detail.images.filter((image) => image.image_type === 'waybill')} imagesLoading={imagesLoading} onView={setViewerUrl} title="快递面单照片" />
 
         <section className="ui-card p-4">
           <h2 className="font-bold text-slate-900">产品明细与拆包照片</h2>
@@ -128,13 +137,13 @@ export function ArrivalReportDetailPage() {
             const images = detail.images.filter((image) => image.image_type === 'goods' && image.arrival_item_id === item.id);
             return <article className="rounded-lg border border-slate-200 p-3" key={item.id}>
               <div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-slate-900">{index + 1}. {item.product_name_snapshot}</p>{item.note ? <p className="mt-1 text-xs text-slate-500">{item.note}</p> : null}</div><p className="shrink-0 font-bold text-brand-700">{item.quantity} {item.unit}</p></div>
-              <div className="mt-3 grid grid-cols-3 gap-2">{images.map((image) => <button className="aspect-square overflow-hidden rounded-lg bg-slate-100" key={image.id} onClick={() => setViewerUrl(image.signedUrl)} type="button"><img alt={`${item.product_name_snapshot}拆包照片`} className="h-full w-full object-cover" src={image.signedUrl} /></button>)}</div>
+              <div className="mt-3 grid grid-cols-3 gap-2">{images.map((image) => <button className="aspect-square overflow-hidden rounded-lg bg-slate-100" disabled={!image.signedUrl} key={image.id} onClick={() => setViewerUrl(image.signedUrl)} type="button"><ProgressiveImage alt={`${item.product_name_snapshot}拆包照片`} className="h-full w-full object-cover" containerClassName="h-full w-full" resourceLoading={imagesLoading && !image.signedUrl} src={image.signedUrl} /></button>)}</div>
             </article>;
           })}</div>
         </section>
 
         {historicalGoodsImages.length > 0
-          ? <ImageSection images={historicalGoodsImages} onView={setViewerUrl} title="历史拆包照片" />
+          ? <ImageSection images={historicalGoodsImages} imagesLoading={imagesLoading} onView={setViewerUrl} title="历史拆包照片" />
           : null}
 
         {canCorrect ? <section className="ui-card p-4">
@@ -156,6 +165,6 @@ function Info({ label, value }: { label: string; value: string }) {
   return <div><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 font-medium text-slate-800">{value}</dd></div>;
 }
 
-function ImageSection({ images, onView, title }: { images: ArrivalReportDetail['images']; onView: (url: string) => void; title: string }) {
-  return <section className="ui-card p-4"><div className="flex items-center gap-2"><PackageCheck className="h-5 w-5 text-brand-700" aria-hidden="true" /><h2 className="font-bold text-slate-900">{title}</h2></div>{images.length ? <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">{images.map((image) => <button className="aspect-square overflow-hidden rounded-lg bg-slate-100" key={image.id} onClick={() => onView(image.signedUrl)} type="button"><img alt={title} className="h-full w-full object-cover" src={image.signedUrl} /></button>)}</div> : <p className="mt-3 text-sm text-slate-500">没有图片。</p>}</section>;
+function ImageSection({ images, imagesLoading, onView, title }: { images: ArrivalReportDetail['images']; imagesLoading: boolean; onView: (url: string) => void; title: string }) {
+  return <section className="ui-card p-4"><div className="flex items-center gap-2"><PackageCheck className="h-5 w-5 text-brand-700" aria-hidden="true" /><h2 className="font-bold text-slate-900">{title}</h2></div>{images.length ? <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">{images.map((image) => <button className="aspect-square overflow-hidden rounded-lg bg-slate-100" disabled={!image.signedUrl} key={image.id} onClick={() => onView(image.signedUrl)} type="button"><ProgressiveImage alt={title} className="h-full w-full object-cover" containerClassName="h-full w-full" resourceLoading={imagesLoading && !image.signedUrl} src={image.signedUrl} /></button>)}</div> : <p className="mt-3 text-sm text-slate-500">没有图片。</p>}</section>;
 }

@@ -1,11 +1,13 @@
 import { Bell, ChevronRight, PackageCheck, RefreshCw, Store, Tags } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ProgressiveImage } from '../../components/ui/ProgressiveImage';
 
 import { formatTimestamp } from './adminArrivalFormat';
 import { supabase } from '../../lib/supabase';
 import {
   loadAdminArrivalDashboard,
+  loadAdminArrivalMessageThumbnails,
   markAdminArrivalViewed,
   type AdminArrivalDashboardData,
   type AdminArrivalMessage,
@@ -16,11 +18,20 @@ export function AdminArrivalOverview() {
   const [data, setData] = useState<AdminArrivalDashboardData | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [thumbnailsLoading, setThumbnailsLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) { setMessage('需要配置 Supabase 才能加载到货数据。'); setLoading(false); return; }
     setLoading(true);
-    try { setData(await loadAdminArrivalDashboard(supabase)); setMessage(null); }
+    try {
+      const dashboard = await loadAdminArrivalDashboard(supabase);
+      setData(dashboard);
+      setMessage(null);
+      setThumbnailsLoading(dashboard.messages.some((entry) => entry.thumbnailObjectPath));
+      void loadAdminArrivalMessageThumbnails(supabase, dashboard.messages).then((urls) => {
+        setData((current) => current ? { ...current, messages: current.messages.map((entry) => ({ ...entry, thumbnailUrl: urls[entry.notification.id] ?? null })) } : current);
+      }).catch(() => undefined).finally(() => setThumbnailsLoading(false));
+    }
     catch (error) { setMessage(error instanceof Error ? error.message : '加载到货概览失败。'); }
     finally { setLoading(false); }
   }, []);
@@ -50,7 +61,7 @@ export function AdminArrivalOverview() {
       </div>
       <div className="rounded-lg bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3"><div><h3 className="font-bold text-slate-900">最新未读到货</h3><p className="text-sm text-slate-500">点击后标记查看并进入详情</p></div><Link className="font-bold text-brand-700" to="/app/admin/arrivals">全部</Link></div>
-        {data.messages.length ? <div className="mt-3 space-y-2">{data.messages.slice(0, 3).map((entry) => <button className="flex w-full items-center gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-left" key={entry.notification.id} onClick={() => void openMessage(entry)} type="button">{entry.thumbnailUrl ? <img alt="面单缩略图" className="h-12 w-12 shrink-0 rounded-md object-cover" src={entry.thumbnailUrl} /> : <div className="h-12 w-12 shrink-0 rounded-md bg-white" />}<span className="min-w-0 flex-1"><span className="block text-xs font-bold text-amber-800">{entry.report.store_name_snapshot}</span><span className="block truncate font-semibold text-slate-900">{entry.report.generated_summary}</span><span className="block text-xs text-slate-500">{formatTimestamp(entry.report.submitted_at)}</span></span><ChevronRight className="h-5 w-5 shrink-0 text-slate-400" /></button>)}</div> : <p className="mt-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">暂无未读到货消息。</p>}
+        {data.messages.length ? <div className="mt-3 space-y-2">{data.messages.slice(0, 3).map((entry) => <button className="flex w-full items-center gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-left" key={entry.notification.id} onClick={() => void openMessage(entry)} type="button">{entry.thumbnailUrl ? <ProgressiveImage alt="面单缩略图" className="h-full w-full object-cover" containerClassName="h-12 w-12 shrink-0 rounded-md" src={entry.thumbnailUrl} /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-white px-1 text-center text-[10px] font-semibold text-slate-500">{thumbnailsLoading && entry.thumbnailObjectPath ? '正在加载图片' : entry.thumbnailObjectPath ? '图片加载失败' : ''}</div>}<span className="min-w-0 flex-1"><span className="block text-xs font-bold text-amber-800">{entry.report.store_name_snapshot}</span><span className="block truncate font-semibold text-slate-900">{entry.report.generated_summary}</span><span className="block text-xs text-slate-500">{formatTimestamp(entry.report.submitted_at)}</span></span><ChevronRight className="h-5 w-5 shrink-0 text-slate-400" /></button>)}</div> : <p className="mt-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">暂无未读到货消息。</p>}
       </div>
     </> : null}
   </section>;

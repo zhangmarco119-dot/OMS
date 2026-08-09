@@ -2,6 +2,7 @@ import { Archive, ClipboardPlus, Plus, RefreshCw, Rocket, Save, Trash2, Undo2, X
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
+import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { featureFlags } from '../config/featureFlags';
@@ -27,6 +28,7 @@ import {
   deleteArchivedTaskTemplate,
   deleteTaskTemplateReferenceImage,
   loadTaskTemplateDraft,
+  loadTaskTemplateDraftImageUrls,
   loadTaskCategories,
   loadTaskTemplates,
   publishTaskTemplate,
@@ -148,7 +150,14 @@ export function AdminTaskTemplatesPage() {
     if (!supabase) return;
     setMessage(null);
     setBusy(true);
-    try { setDraft(await loadTaskTemplateDraft(supabase, template)); setMessage(null); }
+    try {
+      const metadataDraft = await loadTaskTemplateDraft(supabase, template);
+      setDraft(metadataDraft);
+      setMessage(null);
+      void loadTaskTemplateDraftImageUrls(supabase, metadataDraft).then((loadedDraft) => {
+        setDraft((current) => current?.id === loadedDraft.id ? loadedDraft : current);
+      }).catch(() => undefined);
+    }
     catch (error) { setMessage(error instanceof Error ? error.message : '加载模板内容失败。'); }
     finally { setBusy(false); }
   };
@@ -338,5 +347,6 @@ function ItemEditorWithReferences(props: { busy: boolean; item: TaskTemplateItem
     if (!path) return;
     await props.onDeleteReferenceImage(item.id, path);
   };
-  return <><LegacyItemEditor {...props} />{item.referenceImageUrls.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{item.referenceImageUrls.map((url, index) => <div className="relative" key={item.referenceImagePaths[index] ?? url}><button aria-label={`全屏查看参考图片 ${index + 1}`} className="block overflow-hidden rounded-lg border" onClick={() => setActiveReferenceUrl(url)} type="button"><img alt={`参考图片 ${index + 1}`} className="h-16 w-16 object-cover" src={url} /></button><button aria-label={`删除参考图片 ${index + 1}`} className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-red-600 text-xs font-bold text-white" disabled={props.busy} onClick={() => void removeReference(index)} type="button">×</button></div>)}</div> : null}{activeReferenceUrl ? <div aria-label="管理员参考图片全屏预览" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4" onClick={() => setActiveReferenceUrl(null)} role="dialog"><button aria-label="关闭参考图片预览" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setActiveReferenceUrl(null)} type="button"><X className="h-6 w-6" /></button><img alt="管理员参考图片大图" className="max-h-full max-w-full object-contain" onClick={() => setActiveReferenceUrl(null)} src={activeReferenceUrl} /></div> : null}</>;
+  const referencesResolved = item.referenceImageUrls.length === item.referenceImagePaths.length;
+  return <><LegacyItemEditor {...props} />{item.referenceImagePaths.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{item.referenceImagePaths.map((path, index) => { const url = item.referenceImageUrls[index]; return <div className="relative" key={path}><button aria-label={`全屏查看参考图片 ${index + 1}`} className="block overflow-hidden rounded-lg border" disabled={!url} onClick={() => url && setActiveReferenceUrl(url)} type="button"><ProgressiveImage alt={`参考图片 ${index + 1}`} className="h-16 w-16 object-cover" containerClassName="h-16 w-16" resourceLoading={!referencesResolved} src={url} /></button><button aria-label={`删除参考图片 ${index + 1}`} className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-red-600 text-xs font-bold text-white" disabled={props.busy} onClick={() => void removeReference(index)} type="button">×</button></div>; })}</div> : null}{activeReferenceUrl ? <div aria-label="管理员参考图片全屏预览" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4" onClick={() => setActiveReferenceUrl(null)} role="dialog"><button aria-label="关闭参考图片预览" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setActiveReferenceUrl(null)} type="button"><X className="h-6 w-6" /></button><img alt="管理员参考图片大图" className="max-h-full max-w-full object-contain" onClick={() => setActiveReferenceUrl(null)} src={activeReferenceUrl} /></div> : null}</>;
 }

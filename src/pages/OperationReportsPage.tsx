@@ -4,12 +4,13 @@ import { Link } from 'react-router-dom';
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
+import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { FormField, SegmentedControl } from '../components/ui/FormField';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { buildOperationReportText, getMissingOperationReportFields, type OperationReportField, type RefundEntry } from '../features/operation-reports/reportText';
 import { supabase } from '../lib/supabase';
-import { loadOperationReportImages, removeOperationReportImage, uploadOperationReportImage, type OperationReportImage } from '../services/operation-report-images.service';
+import { loadOperationReportImageMetadata, loadOperationReportImageUrls, removeOperationReportImage, uploadOperationReportImage, type OperationReportImage } from '../services/operation-report-images.service';
 import {
   addOperationReportRefundReason,
   deleteOperationReportRefundReason,
@@ -79,6 +80,7 @@ function ReportComposer({ availability, onSubmitted, storeId }: { availability: 
   const [refunds, setRefunds] = useState<RefundEntry[]>([]);
   const [reasonOptions, setReasonOptions] = useState<OperationReportRefundReason[]>(availability.refundReasons ?? []);
   const [images, setImages] = useState<Record<string, OperationReportImage>>({});
+  const [imagesLoading, setImagesLoading] = useState(false);
   const [stage, setStage] = useState<keyof typeof stageCopy | null>(null);
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState<Record<string, number>>({});
@@ -97,10 +99,15 @@ function ReportComposer({ availability, onSubmitted, storeId }: { availability: 
       try {
         const draft = await getOperationReportDraft(storeId, date);
         if (!active || !draft) return;
-        setReport(draft); setValues(draft.manual_values ?? {}); setRefunds(draft.refund_entries ?? []);
+        setReport(draft); setValues(draft.manual_values ?? {}); setRefunds(draft.refund_entries ?? []); setRestoring(false);
         if (supabase) {
-          const loaded = await loadOperationReportImages(supabase, draft.id);
-          if (active) setImages(Object.fromEntries(loaded.map((image) => [image.field_id, image])));
+          const metadata = await loadOperationReportImageMetadata(supabase, draft.id);
+          if (!active) return;
+          setImages(Object.fromEntries(metadata.map((image) => [image.field_id, image])));
+          setImagesLoading(metadata.length > 0);
+          void loadOperationReportImageUrls(supabase, metadata).then((urls) => {
+            if (active) setImages(Object.fromEntries(metadata.map((image) => [image.field_id, { ...image, signedUrl: urls[image.id] ?? '' }])));
+          }).catch(() => undefined).finally(() => { if (active) setImagesLoading(false); });
         }
       } catch (cause) {
         if (active) setFeedback({ title: '草稿恢复失败', message: cause instanceof Error ? cause.message : '请稍后重试。', tone: 'warning' });
@@ -125,8 +132,14 @@ function ReportComposer({ availability, onSubmitted, storeId }: { availability: 
       const prepared = result.report;
       setReport(prepared); setValues(prepared.manual_values ?? {}); setRefunds(prepared.refund_entries ?? []); setProgress(100);
       if (supabase) {
-        const loaded = await loadOperationReportImages(supabase, prepared.id);
-        setImages(Object.fromEntries(loaded.map((image) => [image.field_id, image])));
+        const client = supabase;
+        void loadOperationReportImageMetadata(client, prepared.id).then((metadata) => {
+          setImages(Object.fromEntries(metadata.map((image) => [image.field_id, image])));
+          setImagesLoading(metadata.length > 0);
+          return loadOperationReportImageUrls(client, metadata).then((urls) => {
+            setImages(Object.fromEntries(metadata.map((image) => [image.field_id, { ...image, signedUrl: urls[image.id] ?? '' }])));
+          }).finally(() => setImagesLoading(false));
+        }).catch(() => setImagesLoading(false));
       }
       setFeedback(result.cached
         ? { title: '已使用近期数据', message: '5 分钟内已有拉取结果，本次未重复调用收银或钉钉接口。', tone: 'warning' }
@@ -213,7 +226,7 @@ function ReportComposer({ availability, onSubmitted, storeId }: { availability: 
     <SectionCard><SectionHeader icon={FileText} title="选择报告日期" description="生成时更新当日收银数据，考勤直接使用数据库最近一次同步结果；5 分钟内重复生成会复用上次结果。" /><div className="mt-3 grid grid-cols-[1fr_auto] gap-2"><input className="ui-input" max={today()} type="date" value={date} onChange={(event) => setDate(event.target.value)} /><button className="ui-button-primary px-4" disabled={Boolean(stage) || restoring} onClick={() => void begin()} type="button">{stage || restoring ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{restoring ? '恢复草稿' : report ? '重新生成' : '拉取并生成'}</button></div>{stage ? <div className="mt-4"><div className="flex justify-between text-sm font-semibold text-brand-800"><span>{stageCopy[stage]}</span><span>{progress}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} /></div></div> : null}{report?.source_synced_at ? <p className="mt-2 text-xs text-slate-500">当前结果已保存 · 数据时间 {new Date(report.source_synced_at).toLocaleString('zh-CN')}</p> : null}</SectionCard>
     {report ? <>
       <SectionCard><SectionHeader icon={CheckCircle2} title="自动数据" description="以下内容来自最新收银数据和数据库中已同步的考勤。" /><div className="mt-3 grid grid-cols-2 gap-2 text-sm">{fields.filter((field) => field.kind === 'computed' && field.enabled !== false).map((field) => <div className="rounded-lg bg-slate-50 p-3" key={field.id}><p className="text-xs text-slate-500">{field.label}</p><p className="mt-1 font-bold text-slate-900">{String(report.computed_data[field.id] ?? '-')}</p></div>)}</div></SectionCard>
-      <div className="space-y-3">{fields.filter((field) => field.kind === 'manual' && field.enabled !== false).map((field) => <SectionCard key={field.id}><FormField label={field.label} required={field.required} hint={`${field.requiresPhoto ? '需上传一张现场照片' : ''}${field.unit ? ` · 单位：${field.unit}` : ''}`}><input className="ui-input" value={values[field.id] ?? ''} onChange={(event) => setValues((current) => ({ ...current, [field.id]: event.target.value }))} /></FormField><div className="mt-3">{images[field.id] ? <div className="relative overflow-hidden rounded-xl border border-slate-200"><img alt={`${field.label}现场照片`} className="h-44 w-full object-contain bg-slate-50" src={images[field.id].signedUrl} /><button aria-label={`删除${field.label}照片`} className="absolute right-2 top-2 rounded-lg bg-white/95 p-2 text-red-700 shadow" onClick={() => void removeImage(field.id)} type="button"><Trash2 className="h-4 w-4" /></button></div> : <label className="ui-button-secondary w-full cursor-pointer"><Camera className="h-4 w-4" />{uploading[field.id] != null ? `正在上传 ${uploading[field.id]}%` : '拍摄或上传照片'}<input accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" disabled={uploading[field.id] != null} onChange={(event) => void upload(field, event.target.files?.[0])} type="file" /></label>}</div></SectionCard>)}</div>
+      <div className="space-y-3">{fields.filter((field) => field.kind === 'manual' && field.enabled !== false).map((field) => <SectionCard key={field.id}><FormField label={field.label} required={field.required} hint={`${field.requiresPhoto ? '需上传一张现场照片' : ''}${field.unit ? ` · 单位：${field.unit}` : ''}`}><input className="ui-input" value={values[field.id] ?? ''} onChange={(event) => setValues((current) => ({ ...current, [field.id]: event.target.value }))} /></FormField><div className="mt-3">{images[field.id] ? <div className="relative overflow-hidden rounded-xl border border-slate-200"><ProgressiveImage alt={`${field.label}现场照片`} className="h-44 w-full bg-slate-50 object-contain" containerClassName="h-44 w-full" resourceLoading={imagesLoading && !images[field.id].signedUrl} src={images[field.id].signedUrl} /><button aria-label={`删除${field.label}照片`} className="absolute right-2 top-2 rounded-lg bg-white/95 p-2 text-red-700 shadow" onClick={() => void removeImage(field.id)} type="button"><Trash2 className="h-4 w-4" /></button></div> : <label className="ui-button-secondary w-full cursor-pointer"><Camera className="h-4 w-4" />{uploading[field.id] != null ? `正在上传 ${uploading[field.id]}%` : '拍摄或上传照片'}<input accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" disabled={uploading[field.id] != null} onChange={(event) => void upload(field, event.target.files?.[0])} type="file" /></label>}</div></SectionCard>)}</div>
       <SectionCard>
         <SectionHeader title="外卖平台退款" description="平台序号、产品和订单总金额已自动列出；退款原因需要手动选择。" />
         {refunds.length ? <div className="mt-3 space-y-3">{refunds.map((refund, index) => {

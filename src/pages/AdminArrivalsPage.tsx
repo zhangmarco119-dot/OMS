@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/Feedback';
+import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { SectionCard } from '../components/ui/Surface';
 import {
   formatArrivalDateTime,
@@ -156,6 +157,6 @@ function ArrivalThumbnail({ objectPath }: { objectPath: string | null }) {
     });
     return () => { active = false; };
   }, [objectPath]);
-  if (url) return <img alt="到货照片预览" className="h-20 w-20 shrink-0 rounded-lg bg-slate-50 object-cover" decoding="async" loading="lazy" src={url} />;
-  return <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] text-slate-400 ${url === undefined ? 'animate-pulse' : ''}`}>{url === undefined ? '照片加载中' : '暂无照片'}</div>;
+  if (url) return <ProgressiveImage alt="到货照片预览" className="h-full w-full object-cover" containerClassName="h-20 w-20 shrink-0 rounded-lg" decoding="async" loading="lazy" src={url} />;
+  return <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-slate-100 px-1 text-center text-[11px] text-slate-400 ${url === undefined ? 'animate-pulse' : ''}`}>{url === undefined ? '正在加载图片' : objectPath ? '图片预览加载失败' : '暂无照片'}</div>;
 }

@@ -377,7 +377,7 @@ export const loadV2TaskContentReferenceImageUrls = async (client: Client, snapsh
     });
   });
   const result = await Promise.all(entries.map(async ([itemId, paths]) => {
-    const urls = (await Promise.all(paths.map(async (path) => {
+    const urls = await Promise.all(paths.map(async (path) => {
       try {
         return await loadStorageImageResource(client, 'v2-task-template-reference-images', path, {
           scope: 'session',
@@ -386,8 +386,8 @@ export const loadV2TaskContentReferenceImageUrls = async (client: Client, snapsh
       } catch {
         return null;
       }
-    }))).filter((url): url is string => Boolean(url));
-    return [itemId, urls] as const;
+    }));
+    return [itemId, urls.map((url) => url ?? '')] as const;
   }));
   return Object.fromEntries(result);
 };

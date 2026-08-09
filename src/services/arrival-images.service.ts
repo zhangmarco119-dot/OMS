@@ -101,6 +101,12 @@ const createSignedUrl = async (client: Client, objectPath: string) => {
 };
 
 export const loadArrivalImages = async (client: Client, reportId: string) => {
+  const images = await loadArrivalImageMetadata(client, reportId);
+  const urls = await loadArrivalImageUrls(client, images);
+  return images.map((image) => ({ ...image, signedUrl: urls[image.id] ?? '' }));
+};
+
+export const loadArrivalImageMetadata = async (client: Client, reportId: string): Promise<ArrivalImageWithUrl[]> => {
   const { data, error } = await client
     .from('arrival_report_images')
     .select('*')
@@ -111,11 +117,16 @@ export const loadArrivalImages = async (client: Client, reportId: string) => {
     throw new Error(error.message);
   }
 
-  return Promise.all((data ?? []).map(async (image) => ({
-    ...image,
-    signedUrl: await createSignedUrl(client, image.object_path),
-  })));
+  return (data ?? []).map((image) => ({ ...image, signedUrl: '' }));
 };
+
+export const loadArrivalImageUrls = async (
+  client: Client,
+  images: ArrivalImageWithUrl[],
+): Promise<Record<string, string>> => Object.fromEntries(await Promise.all(images.map(async (image) => [
+  image.id,
+  await createSignedUrl(client, image.object_path),
+])));
 
 export const uploadArrivalImage = async (
   client: Client,

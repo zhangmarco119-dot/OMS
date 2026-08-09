@@ -11,6 +11,7 @@ interface ArrivalItemCardProps {
   index: number;
   item: ArrivalDraftItem;
   images: ArrivalImageWithUrl[];
+  imagesLoading?: boolean;
   onChange: (item: ArrivalDraftItem) => void;
   onDeleteImage: (image: ArrivalImageWithUrl) => Promise<void>;
   onRemove: () => void;
@@ -36,6 +37,7 @@ export function ArrivalItemCard({
   index,
   item,
   images,
+  imagesLoading = false,
   onChange,
   onDeleteImage,
   onRemove,
@@ -180,6 +182,7 @@ export function ArrivalItemCard({
         embedded
         imageType="goods"
         images={images}
+        imagesLoading={imagesLoading}
         onDelete={onDeleteImage}
         onUpload={onUploadImage}
         prompt={`产品 ${index + 1} 至少上传一张拆包后的实际货品照片。`}

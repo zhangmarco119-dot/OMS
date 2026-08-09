@@ -229,7 +229,7 @@ export function ArrivalEntryPage() {
         <label className="mt-2 block text-sm font-semibold text-slate-700">快递单号（选填）<input className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('trackingNo', event.target.value)} placeholder="扫描或填写快递单号" value={draft.form.trackingNo} /></label>
       </section>
 
-      <ArrivalImageSection imageType="waybill" images={waybillImages} onDelete={draft.deleteImage} onUpload={draft.addImage} prompt="请拍摄完整的快递面单或配送标签，确保关键信息清晰可见。" title="快递面单照片" />
+      <ArrivalImageSection imageType="waybill" images={waybillImages} imagesLoading={draft.imagesLoading} onDelete={draft.deleteImage} onUpload={draft.addImage} prompt="请拍摄完整的快递面单或配送标签，确保关键信息清晰可见。" title="快递面单照片" />
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-3">
           <div><p className="text-xs font-semibold text-brand-700">结构化明细</p><h2 className="mt-0.5 text-lg font-bold text-slate-900">产品明细</h2></div>
@@ -241,6 +241,7 @@ export function ArrivalEntryPage() {
             index={index}
             item={item}
             images={goodsImages.filter((image) => image.arrival_item_id === item.id)}
+            imagesLoading={draft.imagesLoading}
             key={item.id}
             onChange={(next) => draft.updateItem(item.id, () => next)}
             onDeleteImage={draft.deleteImage}

@@ -12,7 +12,7 @@ import { formatV2TaskDueAt, getV2TaskDisplayStatus, isV2TaskOverdue, v2TaskStatu
 import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock';
 import { TaskSubmissionTimeline } from '../features/v2-tasks/TaskSubmissionTimeline';
 import { supabase } from '../lib/supabase';
-import { loadV2TaskRecipients, loadV2TaskTimeline, loadV2Tasks, type V2TaskRow, type V2TaskTimelineEvent } from '../services/v2-tasks.service';
+import { isV2TaskExecutionTodoForProfile, loadV2TaskRecipients, loadV2TaskTimeline, loadV2Tasks, type V2TaskRow, type V2TaskTimelineEvent } from '../services/v2-tasks.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { completeAttendanceCorrectionTodo, loadMyAttendanceCorrectionTodos, loadMyPayrollPayslipTodos, loadTodoSummary } from '../services/todo.service';
 import { loadAllOvertimeRequests, loadManagerOvertimeRequests, loadOvertimeProfiles } from '../services/payroll.service';
@@ -68,7 +68,7 @@ export function TodoPage() {
         if (isManager && ['submitted', 'resubmitted'].includes(task.status)) {
           return task.manager_review_enabled && task.submitted_by_role === 'staff';
         }
-        return ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status);
+        return isV2TaskExecutionTodoForProfile(task, auth.profile?.id ?? '');
       }));
       setFeedbackCount(summary.productFeedback); setFeedback(nextFeedback.filter((item) => item.feedback.status === 'open')); setNotices(nextNotices.filter((notice) => notice.requires_acknowledgment && notice.recipients.some((recipient) => recipient.profileId === auth.profile?.id && !recipient.acknowledgedAt))); setOvertime(approvableOvertime); setOvertimeNames(Object.fromEntries(overtimeProfiles.map((profile) => [profile.id, profile.display_name]))); setOvertimeTerms(Object.fromEntries(overtimeProfiles.map((profile) => [profile.id, profile.employment_type === 'part_time' ? '兼职工时' : '加班']))); setCorrections(nextCorrections); setPayslips(nextPayslips); setMessage(null);
       setProductCreationRequests(nextCreationRequests);

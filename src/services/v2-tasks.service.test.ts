@@ -1,9 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../types/database';
-import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, loadV2TaskTimeline, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow } from './v2-tasks.service';
+import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, isV2TaskExecutionTodoForProfile, loadV2TaskTimeline, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
 
 describe('V2 task workflow service', () => {
+  it('hands a manager-rejected shared task to other recipients without returning it to the rejecting manager', () => {
+    const task = { reviewed_by: 'manager-1', status: 'rejected' } as V2TaskRow;
+    expect(isV2TaskExecutionTodoForProfile(task, 'manager-1')).toBe(false);
+    expect(isV2TaskExecutionTodoForProfile(task, 'staff-1')).toBe(true);
+  });
   it('loads submission and correction events in chronological order', async () => {
     const order = vi.fn().mockResolvedValue({ data: [{ action: 'submitted', created_at: '2026-08-01T10:00:00Z', id: 'review-1', task_id: 'task-1' }], error: null });
     const inFilter = vi.fn(() => ({ order }));

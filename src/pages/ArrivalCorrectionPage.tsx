@@ -9,6 +9,7 @@ import { arrivalDraftItemSchema, createEmptyArrivalItem, type ArrivalDraftItem }
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
+  adminUpdateArrivalReport,
   loadArrivalCorrectionEditor,
   loadLatestArrivalCorrection,
   submitArrivalCorrectionRequest,
@@ -44,23 +45,26 @@ export function ArrivalCorrectionPage() {
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const isAdmin = auth.profile?.role === 'admin';
+  const detailPath = isAdmin ? `/app/admin/arrivals/${reportId}` : `/app/arrivals/${reportId}`;
 
   const load = useCallback(async () => {
-    if (!supabase || !auth.store || !reportId || !['staff', 'manager'].includes(auth.profile?.role ?? '')) {
+    if (!supabase || !reportId || !['staff', 'manager', 'admin'].includes(auth.profile?.role ?? '')) {
       setStatus('error');
-      setMessage('当前账号不能申请修改到货信息。');
+      setMessage('当前账号不能修改到货信息。');
       return;
     }
     setStatus('loading');
     try {
       const [editor, latest] = await Promise.all([
-        loadArrivalCorrectionEditor(supabase, reportId, auth.store.id),
+        loadArrivalCorrectionEditor(supabase, reportId),
         loadLatestArrivalCorrection(supabase, reportId),
       ]);
-      const canEdit = editor.report.store_id === auth.store.id
+      const hasStoreAccess = auth.availableStores.some((store) => store.id === editor.report.store_id);
+      const canEdit = hasStoreAccess
         && ['submitted', 'viewed'].includes(editor.report.status)
-        && (auth.profile?.role === 'manager' || editor.report.reported_by === auth.profile?.id);
-      if (!canEdit) throw new Error('员工只能修改自己提交的到货信息；店长可以修改本店全部到货信息。');
+        && (isAdmin || auth.profile?.role === 'manager' || editor.report.reported_by === auth.profile?.id);
+      if (!canEdit) throw new Error('员工只能修改自己提交的到货信息；店长和管理员可以修改授权门店的到货信息。');
       setData(editor);
       setForm(createForm(editor));
       setHasPendingRequest(latest?.status === 'pending');
@@ -70,7 +74,7 @@ export function ArrivalCorrectionPage() {
       setMessage(error instanceof Error ? error.message : '加载到货更正页面失败。');
       setStatus('error');
     }
-  }, [auth.profile?.id, auth.profile?.role, auth.store, reportId]);
+  }, [auth.availableStores, auth.profile?.id, auth.profile?.role, isAdmin, reportId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -108,9 +112,10 @@ export function ArrivalCorrectionPage() {
     if (!supabase || !data || !form || submitting || validationIssues.length > 0) return;
     setSubmitting(true);
     try {
-      await submitArrivalCorrectionRequest(supabase, data.report.id, form.fields, form.items);
+      if (isAdmin) await adminUpdateArrivalReport(supabase, data.report.id, form.fields, form.items);
+      else await submitArrivalCorrectionRequest(supabase, data.report.id, form.fields, form.items);
       window.dispatchEvent(new Event('storehub:todos-changed'));
-      navigate(`/app/arrivals/${data.report.id}?correction=submitted`, { replace: true });
+      navigate(`${detailPath}?correction=${isAdmin ? 'updated' : 'submitted'}`, { replace: true });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '提交到货更正申请失败。');
       setConfirming(false);
@@ -119,13 +124,13 @@ export function ArrivalCorrectionPage() {
     }
   };
 
-  return <PageShell eyebrow="门店运营系统 · 到货更正" title="修改到货信息" backTo={`/app/arrivals/${reportId}`} contentGapClassName="gap-3">
+  return <PageShell eyebrow={`门店运营系统 · ${isAdmin ? '管理员更正' : '到货更正'}`} title="修改到货信息" backTo={detailPath} contentGapClassName="gap-3">
     {status === 'loading' ? <LoadingState label="正在加载到货信息" /> : null}
     {status === 'error' ? <section className="ui-card p-5"><p className="text-sm text-red-700">{message}</p><button className="ui-button-secondary mt-3 w-full" onClick={() => void load()} type="button">重新加载</button></section> : null}
     {status === 'ready' && data && form ? <>
       <section className="ui-card p-4">
-        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{data.report.report_no}</p><h2 className="mt-1 font-bold">{data.report.reporter_name_snapshot}提交的到货记录</h2></div><StatusBadge tone="warning">更正后需审核</StatusBadge></div>
-        <p className="mt-3 text-sm leading-6 text-slate-600">这里只修改文字和产品明细，原有面单及拆包照片会保留。审核通过前，历史记录不会发生变化。</p>
+        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{data.report.report_no}</p><h2 className="mt-1 font-bold">{data.report.reporter_name_snapshot}提交的到货记录</h2></div><StatusBadge tone={isAdmin ? 'success' : 'warning'}>{isAdmin ? '管理员直接修改' : '更正后需审核'}</StatusBadge></div>
+        <p className="mt-3 text-sm leading-6 text-slate-600">这里只修改文字和产品明细，原有面单及拆包照片会保留。{isAdmin ? '保存后将立即写入正式到货记录。' : '审核通过前，历史记录不会发生变化。'}</p>
       </section>
       {hasPendingRequest ? <FeedbackBanner title="已有待审核更正" tone="warning">当前记录已经有一份待审核申请，请等待审核完成后再提交新的更正。</FeedbackBanner> : null}
       {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
@@ -151,8 +156,8 @@ export function ArrivalCorrectionPage() {
         <button className="ui-button-secondary w-full" onClick={() => setForm((current) => current ? { ...current, items: [...current.items, createEmptyArrivalItem(current.items.length)] } : current)} type="button"><Plus className="h-5 w-5" />添加产品</button>
       </section>
       {validationIssues.length > 0 ? <FeedbackBanner title="请完善更正内容" tone="warning">{validationIssues[0]}</FeedbackBanner> : null}
-      <MobileActionBar><button className="ui-button-primary w-full" disabled={hasPendingRequest || submitting || validationIssues.length > 0} onClick={() => setConfirming(true)} type="button"><Send className="h-5 w-5" />提交更正审核</button></MobileActionBar>
-      <ConfirmDialog confirmLabel={submitting ? '正在提交' : '确认提交审核'} onCancel={() => setConfirming(false)} onConfirm={() => void submit()} open={confirming} title="提交到货更正申请？"><p>{auth.profile?.role === 'manager' ? '店长提交的更正将由管理员审核，审核通过后写入到货记录。' : '更正将由店长或管理员审核，审核通过后写入到货记录。'}</p></ConfirmDialog>
+      <MobileActionBar><button className="ui-button-primary w-full" disabled={hasPendingRequest || submitting || validationIssues.length > 0} onClick={() => setConfirming(true)} type="button"><Send className="h-5 w-5" />{isAdmin ? '保存到货更正' : '提交更正审核'}</button></MobileActionBar>
+      <ConfirmDialog confirmLabel={submitting ? '正在保存' : isAdmin ? '确认保存' : '确认提交审核'} onCancel={() => setConfirming(false)} onConfirm={() => void submit()} open={confirming} title={isAdmin ? '保存到货更正？' : '提交到货更正申请？'}><p>{isAdmin ? '保存后会立即更新正式到货记录，原有照片保持不变。' : auth.profile?.role === 'manager' ? '店长提交的更正将由管理员审核，审核通过后写入到货记录。' : '更正将由店长或管理员审核，审核通过后写入到货记录。'}</p></ConfirmDialog>
     </> : null}
   </PageShell>;
 }

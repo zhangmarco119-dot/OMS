@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
+import { compressArrivalImage } from './arrival-images.service';
 import type { Database } from '../types/database';
-import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, isV2TaskExecutionTodoForProfile, loadSubmittedLinkedInventoryTask, loadV2TaskTimeline, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
+import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, isV2TaskExecutionTodoForProfile, loadSubmittedLinkedInventoryTask, loadV2TaskTimeline, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
+
+vi.mock('./arrival-images.service', () => ({ compressArrivalImage: vi.fn() }));
 
 describe('V2 task workflow service', () => {
   it('hands a manager-rejected shared task to other recipients without returning it to the rejecting manager', () => {
@@ -34,6 +37,28 @@ describe('V2 task workflow service', () => {
     expect(typeEq).toHaveBeenCalledWith('task_type', 'inventory');
     expect(statusEq).toHaveBeenCalledWith('status', 'submitted');
     expect(order).toHaveBeenCalledWith('submitted_at', { ascending: false });
+  });
+  it('automatically retries a timed-out task image upload and completes its metadata', async () => {
+    const processedBlob = new Blob(['image'], { type: 'image/jpeg' });
+    vi.mocked(compressArrivalImage).mockResolvedValue({ blob: processedBlob, height: 1000, mimeType: 'image/jpeg', width: 1000 });
+    const upload = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: { message: '任务图片上传超时，请检查网络后自动重试。' } })
+      .mockResolvedValueOnce({ data: { path: 'uploaded' }, error: null });
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    const metadata = { bucket: 'v2-task-images', id: 'image-1', item_id: 'item-1', object_path: 'path', uploaded_by: 'profile-1' } as V2TaskImageRow;
+    const single = vi.fn().mockResolvedValue({ data: metadata, error: null });
+    const select = vi.fn(() => ({ single }));
+    const insert = vi.fn(() => ({ select }));
+    const client = {
+      from: vi.fn(() => ({ insert })),
+      storage: { from: vi.fn(() => ({ remove, upload })) },
+    } as unknown as SupabaseClient<Database>;
+    const progress = vi.fn();
+
+    await expect(uploadV2TaskImage(client, { id: 'task-1', store_id: 'store-1' } as V2TaskRow, 'item-1', 'profile-1', new File(['image'], 'sample.jpg', { type: 'image/jpeg' }), progress)).resolves.toEqual(metadata);
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(upload.mock.calls[1][0]).toBe(upload.mock.calls[0][0]);
+    expect(progress.mock.calls.map(([value]) => value)).toEqual([5, 35, 45, 75, 100]);
   });
   it('publishes immutable template tasks through RPC', async () => {
     const rpc=vi.fn().mockResolvedValue({data:[],error:null});const client={rpc} as unknown as SupabaseClient<Database>;

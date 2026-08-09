@@ -72,4 +72,15 @@ describe('release control', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     window.removeEventListener(RELEASE_UPDATE_REQUIRED_EVENT, listener);
   });
+
+  it('aborts a stalled task-image storage request instead of waiting forever', async () => {
+    const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    }));
+
+    await expect(createReleaseAwareFetch(fetcher as typeof fetch, { taskImageUploadTimeoutMs: 5 })(
+      'https://example.supabase.co/storage/v1/object/v2-task-images/store/task/item/image.jpg',
+      { method: 'POST' },
+    )).rejects.toThrow('任务图片上传超时');
+  });
 });

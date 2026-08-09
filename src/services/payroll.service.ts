@@ -107,6 +107,8 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     overtimeHours: numberAt(item.overtimeHours), overtimeHourlyRate: nullableNumberAt(item.overtimeHourlyRate), accruedOvertime: numberAt(item.accruedOvertime),
     lateFine: numberAt(item.lateFine), otherFine: numberAt(item.otherFine), fineTotal: numberAt(item.fineTotal),
     individualIncomeTax: numberAt(item.individualIncomeTax),
+    registeredIndividualIncomeTax: nullableNumberAt(item.registeredIndividualIncomeTax),
+    individualIncomeTaxRegistered: boolAt(item.individualIncomeTaxRegistered),
     estimatedIndividualIncomeTax: numberAt(item.estimatedIndividualIncomeTax),
     individualIncomeTaxEstimateMode: item.individualIncomeTaxEstimateMode === 'override' ? 'override' : 'automatic',
     individualIncomeTaxEstimateBasis: item.individualIncomeTaxEstimateBasis === 'year_to_date' ? 'year_to_date' : 'current_month',
@@ -268,6 +270,7 @@ export async function confirmPayrollPayslip(client: Client, id: string) {
 
 export interface PayrollPayslipGenerationResult {
   generatedCount: number;
+  missingTaxCount: number;
   refreshedCount: number;
   skippedSentCount: number;
   month: string;
@@ -282,6 +285,7 @@ export async function generatePayrollPayslips(client: Client, month: string, pro
   const row = objectAt(data);
   return {
     generatedCount: numberAt(row.generatedCount),
+    missingTaxCount: numberAt(row.missingTaxCount),
     refreshedCount: numberAt(row.refreshedCount),
     skippedSentCount: numberAt(row.skippedSentCount),
     month: textAt(row.month, month),
@@ -363,6 +367,32 @@ export async function savePayrollIndividualTaxOverride(client: Client, profileId
   });
   if (error) throw new Error(error.message || '预计个税设置保存失败。');
   return data;
+}
+
+export interface PayrollIndividualTaxBatchResult {
+  month: string;
+  reconfirmationCount: number;
+  savedCount: number;
+  syncedPayslipCount: number;
+}
+
+export async function savePayrollIndividualTaxes(
+  client: Client,
+  payrollMonth: string,
+  entries: Array<{ amount: number; profileId: string }>,
+): Promise<PayrollIndividualTaxBatchResult> {
+  const { data, error } = await client.rpc('admin_save_payroll_individual_taxes', {
+    p_entries: entries as unknown as Json,
+    p_payroll_month: `${payrollMonth.slice(0, 7)}-01`,
+  });
+  if (error) throw new Error(error.message || '个税登记保存失败。');
+  const row = objectAt(data);
+  return {
+    month: textAt(row.month, payrollMonth),
+    reconfirmationCount: numberAt(row.reconfirmationCount),
+    savedCount: numberAt(row.savedCount),
+    syncedPayslipCount: numberAt(row.syncedPayslipCount),
+  };
 }
 
 export async function loadPayrollAdminSetup(client: Client, monthStart: string) {

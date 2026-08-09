@@ -80,6 +80,8 @@ export interface PayrollEstimate {
   otherFine: number;
   fineTotal: number;
   individualIncomeTax: number;
+  registeredIndividualIncomeTax?: number | null;
+  individualIncomeTaxRegistered?: boolean;
   estimatedIndividualIncomeTax?: number;
   individualIncomeTaxEstimateMode?: 'automatic' | 'override';
   individualIncomeTaxEstimateBasis?: 'current_month' | 'year_to_date';

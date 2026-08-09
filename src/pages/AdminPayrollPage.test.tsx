@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPosSalesSetup } from '../services/payroll.service';
+import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup } from '../services/payroll.service';
 import { AdminPayrollPage } from './AdminPayrollPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -17,6 +17,7 @@ vi.mock('../services/payroll.service', async (original) => {
     loadPayrollAdminSetup: vi.fn(),
     loadPayrollPayslipScheduleSettings: vi.fn(),
     loadPayrollProfiles: vi.fn(),
+    loadPayrollVisibilitySettings: vi.fn(),
     loadPosSalesSetup: vi.fn(),
   };
 });
@@ -58,6 +59,7 @@ describe('AdminPayrollPage update guidance', () => {
     vi.mocked(loadPayrollAdminSetup).mockResolvedValue(setup as never);
     vi.mocked(loadPayrollPayslipScheduleSettings).mockResolvedValue({ dayOfMonth:1,enabled:false,frequencyMonths:1,lastIssuedMonth:null,lastRunAt:null,sendTime:'09:00' });
     vi.mocked(loadPayrollProfiles).mockResolvedValue([{ id:'profile-1',display_name:'测试员工',role:'staff' }] as never);
+    vi.mocked(loadPayrollVisibilitySettings).mockResolvedValue({ historyAvailableUntilDay: 10, historyMonths: 3, historyOpenNow: true });
     vi.mocked(loadAdminPayrollPayslips).mockResolvedValue([]);
     vi.mocked(loadPosSalesSetup).mockResolvedValue({ integrations: [], jobs: [] });
   });
@@ -88,10 +90,17 @@ describe('AdminPayrollPage update guidance', () => {
   it('uses a preview-first payslip workflow', async () => {
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=payslips']} future={{ v7_relativeSplatPath:true,v7_startTransition:true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByText('生成工资单')).toBeInTheDocument();
-    expect(screen.getByText(/先生成草稿并预览/)).toBeInTheDocument();
+    expect(screen.getByText(/草稿会读取“个税登记”/)).toBeInTheDocument();
     expect(screen.queryByRole('button',{ name:/立即发放/ })).not.toBeInTheDocument();
     expect(screen.getByText('工资单自动推送')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
+  });
+
+  it('adds comprehensive statistics and merges visibility into employee parameters', async () => {
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=employees']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    expect(screen.getByRole('button', { name: '综合统计' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '查看期限' })).not.toBeInTheDocument();
+    expect(await screen.findByText('员工历史工资查看期限')).toBeInTheDocument();
   });
 
   it('offers one-click send and withdrawal for all eligible monthly payslips', async () => {

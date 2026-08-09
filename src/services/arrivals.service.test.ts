@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ArrivalDraftItem } from '../features/arrivals/arrivalForm';
 import type { Database } from '../types/database';
-import { applyArrivalOpenedAt, localArrivalDate, localArrivalTime, saveArrivalDraft, submitArrivalReport } from './arrivals.service';
+import { applyArrivalOpenedAt, localArrivalDate, localArrivalTime, resetArrivalDraft, saveArrivalDraft, submitArrivalCorrectionRequest, submitArrivalReport } from './arrivals.service';
 
 const report = {
   arrival_date: '2026-07-12',
@@ -127,5 +127,36 @@ describe('arrivals service', () => {
         spec: '1kg/袋',
       }],
     });
+  });
+
+  it('resets an existing draft through the version-checked RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: report, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+
+    await resetArrivalDraft(client, report.id, 2);
+
+    expect(rpc).toHaveBeenCalledWith('reset_arrival_draft', {
+      p_expected_version: 2,
+      p_report_id: report.id,
+    });
+  });
+
+  it('submits structured arrival corrections without changing the report directly', async () => {
+    const correction = {
+      created_at: '2026-08-09T02:00:00Z', id: '00000000-0000-4000-8000-000000000501', original_version: 2,
+      proposed_fields: { arrival_date: '2026-08-09', arrival_time: '09:56:00', carrier_name: '顺丰', note: null, tracking_no: null },
+      proposed_items: [{ id: completeItem.id, is_unmatched_product: true, note: null, product_id: null, product_name_snapshot: '原味酸奶', quantity: 2, sort_order: 0, unit: '杯' }],
+      report_id: report.id, requested_by: report.reported_by, requester_role: 'staff', review_note: null, reviewed_at: null, reviewed_by: null,
+      status: 'pending', store_id: report.store_id, updated_at: '2026-08-09T02:00:00Z',
+    };
+    const rpc = vi.fn().mockResolvedValue({ data: correction, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+
+    await submitArrivalCorrectionRequest(client, report.id, correction.proposed_fields, [completeItem]);
+
+    expect(rpc).toHaveBeenCalledWith('submit_arrival_correction_request', expect.objectContaining({
+      p_report_id: report.id,
+      p_items: [expect.objectContaining({ product_name_snapshot: '原味酸奶', quantity: 2 })],
+    }));
   });
 });

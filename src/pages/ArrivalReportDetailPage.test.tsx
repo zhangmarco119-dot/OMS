@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadArrivalReportDetail, reopenVoidedArrivalReport } from '../services/arrivals.service';
+import { loadArrivalReportDetail, loadLatestArrivalCorrection, reopenVoidedArrivalReport } from '../services/arrivals.service';
 import { ArrivalReportDetailPage } from './ArrivalReportDetailPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -13,6 +13,7 @@ vi.mock('../services/arrivals.service', async (importOriginal) => {
   return {
     ...original,
     loadArrivalReportDetail: vi.fn(),
+    loadLatestArrivalCorrection: vi.fn(),
     reopenVoidedArrivalReport: vi.fn(),
   };
 });
@@ -43,6 +44,7 @@ describe('ArrivalReportDetailPage', () => {
         void_reason: '照片不清楚',
       },
     } as unknown as Awaited<ReturnType<typeof loadArrivalReportDetail>>);
+    vi.mocked(loadLatestArrivalCorrection).mockResolvedValue(null);
     vi.mocked(reopenVoidedArrivalReport).mockResolvedValue({ id: reportId } as Awaited<ReturnType<typeof reopenVoidedArrivalReport>>);
   });
 

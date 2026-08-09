@@ -9,6 +9,7 @@ type Client = SupabaseClient<Database>;
 export type ArrivalReportRow = Database['public']['Tables']['arrival_reports']['Row'];
 export type ArrivalImageRow = Database['public']['Tables']['arrival_report_images']['Row'];
 export type ProductRow = Database['public']['Tables']['products']['Row'];
+export type ArrivalCorrectionRequestRow = Database['public']['Tables']['arrival_report_correction_requests']['Row'];
 
 const arrivalReportRpcSchema = z.object({
   arrival_date: z.string(),
@@ -35,6 +36,58 @@ const arrivalReportRpcSchema = z.object({
   voided_at: z.string().nullable(),
   voided_by: z.string().uuid().nullable(),
 });
+
+const correctionFieldsSchema = z.object({
+  arrival_date: z.string(),
+  arrival_time: z.string().nullable(),
+  carrier_name: z.string().nullable(),
+  note: z.string().nullable(),
+  tracking_no: z.string().nullable(),
+});
+
+const correctionItemSchema = z.object({
+  id: z.string().uuid(),
+  is_unmatched_product: z.boolean(),
+  note: z.string().nullable(),
+  product_id: z.string().uuid().nullable(),
+  product_name_snapshot: z.string(),
+  quantity: z.number().positive(),
+  sort_order: z.number().int().nonnegative(),
+  unit: z.string(),
+});
+
+const correctionRequestSchema = z.object({
+  created_at: z.string(),
+  id: z.string().uuid(),
+  original_version: z.number().int().positive(),
+  proposed_fields: correctionFieldsSchema,
+  proposed_items: z.array(correctionItemSchema),
+  report_id: z.string().uuid(),
+  requested_by: z.string().uuid(),
+  requester_role: z.enum(['staff', 'manager']),
+  review_note: z.string().nullable(),
+  reviewed_at: z.string().nullable(),
+  reviewed_by: z.string().uuid().nullable(),
+  status: z.enum(['pending', 'approved', 'rejected']),
+  store_id: z.string().uuid(),
+  updated_at: z.string(),
+});
+
+export type ArrivalCorrectionFields = z.infer<typeof correctionFieldsSchema>;
+export type ArrivalCorrectionItem = z.infer<typeof correctionItemSchema>;
+export type ArrivalCorrectionRequest = z.infer<typeof correctionRequestSchema>;
+
+export interface ArrivalCorrectionListItem {
+  report: ArrivalReportRow;
+  request: ArrivalCorrectionRequest;
+  requesterName: string;
+}
+
+export interface ArrivalCorrectionEditorData {
+  items: ArrivalDraftItem[];
+  products: ProductRow[];
+  report: ArrivalReportRow;
+}
 
 export interface ArrivalDraftData {
   items: ArrivalDraftItem[];
@@ -221,6 +274,17 @@ export const saveArrivalDraft = async (client: Client, input: SaveArrivalDraftIn
   return parsed.data as ArrivalReportRow;
 };
 
+export const resetArrivalDraft = async (client: Client, reportId: string, expectedVersion: number) => {
+  const { data, error } = await client.rpc('reset_arrival_draft', {
+    p_expected_version: expectedVersion,
+    p_report_id: reportId,
+  });
+  if (error) throw new Error(error.message);
+  const parsed = arrivalReportRpcSchema.safeParse(data);
+  if (!parsed.success) throw new Error('数据库返回的空白到货草稿格式无效，请刷新后重试。');
+  return parsed.data as ArrivalReportRow;
+};
+
 export const submitArrivalReport = async (
   client: Client,
   reportId: string,
@@ -267,19 +331,138 @@ export const requestArrivalProductCreation = async (
   return data ?? [];
 };
 
-export const loadArrivalHistory = async (client: Client, storeId: string) => {
-  const { data, error } = await client
+export const loadArrivalHistory = async (client: Client, storeId: string, dateFrom?: string, dateTo?: string) => {
+  let query = client
     .from('arrival_reports')
     .select('*')
     .eq('store_id', storeId)
-    .neq('status', 'draft')
-    .order('submitted_at', { ascending: false })
-    .limit(100);
+    .neq('status', 'draft');
+  if (dateFrom) query = query.gte('arrival_date', dateFrom);
+  if (dateTo) query = query.lte('arrival_date', dateTo);
+  const { data, error } = await query.order('submitted_at', { ascending: false }).limit(200);
 
   if (error) {
     throw new Error(error.message);
   }
   return data ?? [];
+};
+
+export const loadArrivalCorrectionEditor = async (
+  client: Client,
+  reportId: string,
+  storeId: string,
+): Promise<ArrivalCorrectionEditorData> => {
+  const [reportResult, itemResult, productResult] = await Promise.all([
+    client.from('arrival_reports').select('*').eq('id', reportId).single(),
+    client.from('arrival_report_items').select('*').eq('report_id', reportId).order('sort_order'),
+    client.from('products').select('*').eq('store_id', storeId).eq('is_active', true).order('sort_order').order('name'),
+  ]);
+  if (reportResult.error) throw new Error(reportResult.error.message);
+  if (itemResult.error) throw new Error(itemResult.error.message);
+  if (productResult.error) throw new Error(productResult.error.message);
+  const products = productResult.data ?? [];
+  const productById = new Map(products.map((product) => [product.id, product]));
+  return {
+    items: (itemResult.data ?? []).map((item) => toDraftItem(item, productById)),
+    products,
+    report: reportResult.data,
+  };
+};
+
+const parseCorrectionRequest = (value: unknown) => {
+  const parsed = correctionRequestSchema.safeParse(value);
+  if (!parsed.success) throw new Error('数据库返回的到货更正申请格式无效，请刷新后重试。');
+  return parsed.data;
+};
+
+export const submitArrivalCorrectionRequest = async (
+  client: Client,
+  reportId: string,
+  fields: ArrivalCorrectionFields,
+  items: ArrivalDraftItem[],
+) => {
+  const { data, error } = await client.rpc('submit_arrival_correction_request', {
+    p_fields: fields,
+    p_items: items.map((item, index) => ({
+      id: item.id,
+      note: item.note,
+      product_id: item.productId,
+      product_name_snapshot: item.productName.trim(),
+      quantity: Number(item.quantity),
+      sort_order: index,
+      unit: item.unit.trim(),
+    })),
+    p_report_id: reportId,
+  });
+  if (error) throw new Error(error.message);
+  return parseCorrectionRequest(data);
+};
+
+export const loadLatestArrivalCorrection = async (client: Client, reportId: string) => {
+  const { data, error } = await client
+    .from('arrival_report_correction_requests')
+    .select('*')
+    .eq('report_id', reportId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? parseCorrectionRequest(data) : null;
+};
+
+export const loadPendingArrivalCorrections = async (client: Client): Promise<ArrivalCorrectionListItem[]> => {
+  const { data, error } = await client
+    .from('arrival_report_correction_requests')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  const requests = (data ?? []).map(parseCorrectionRequest);
+  if (requests.length === 0) return [];
+  const [reportsResult, profilesResult] = await Promise.all([
+    client.from('arrival_reports').select('*').in('id', requests.map((request) => request.report_id)),
+    client.from('profiles').select('id, display_name').in('id', requests.map((request) => request.requested_by)),
+  ]);
+  if (reportsResult.error) throw new Error(reportsResult.error.message);
+  if (profilesResult.error) throw new Error(profilesResult.error.message);
+  const reportById = new Map((reportsResult.data ?? []).map((report) => [report.id, report]));
+  const nameById = new Map((profilesResult.data ?? []).map((profile) => [profile.id, profile.display_name]));
+  return requests.flatMap((request) => {
+    const report = reportById.get(request.report_id);
+    return report ? [{ report, request, requesterName: nameById.get(request.requested_by) ?? '提交人' }] : [];
+  });
+};
+
+export const loadArrivalCorrectionRequest = async (client: Client, requestId: string) => {
+  const { data, error } = await client
+    .from('arrival_report_correction_requests')
+    .select('*')
+    .eq('id', requestId)
+    .single();
+  if (error) throw new Error(error.message);
+  const request = parseCorrectionRequest(data);
+  const [reportResult, profileResult] = await Promise.all([
+    client.from('arrival_reports').select('*').eq('id', request.report_id).single(),
+    client.from('profiles').select('id, display_name').eq('id', request.requested_by).single(),
+  ]);
+  if (reportResult.error) throw new Error(reportResult.error.message);
+  if (profileResult.error) throw new Error(profileResult.error.message);
+  return { report: reportResult.data, request, requesterName: profileResult.data.display_name };
+};
+
+export const reviewArrivalCorrectionRequest = async (
+  client: Client,
+  requestId: string,
+  approve: boolean,
+  note: string,
+) => {
+  const { data, error } = await client.rpc('review_arrival_correction_request', {
+    p_approve: approve,
+    p_note: note.trim() || null,
+    p_request_id: requestId,
+  });
+  if (error) throw new Error(error.message);
+  return parseCorrectionRequest(data);
 };
 
 export const loadArrivalReport = async (client: Client, reportId: string) => {

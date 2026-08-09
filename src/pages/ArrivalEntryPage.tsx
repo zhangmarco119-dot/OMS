@@ -1,9 +1,9 @@
-import { AlertCircle, History, PackagePlus, Plus, Save, Send } from 'lucide-react';
+import { AlertCircle, History, PackagePlus, Plus, RefreshCcw, Save, Send } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
-import { MobileActionBar } from '../components/ui/Actions';
+import { ConfirmDialog, MobileActionBar } from '../components/ui/Actions';
 import { featureFlags } from '../config/featureFlags';
 import { canOperateV2Modules } from '../features/access/roleCapabilities';
 import { ArrivalImageSection } from '../features/arrivals/ArrivalImageSection';
@@ -35,6 +35,8 @@ export function ArrivalEntryPage() {
   const [productRequestIssues, setProductRequestIssues] = useState<string[]>([]);
   const [productRequestMessage, setProductRequestMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const waybillImages = draft.images.filter((image) => image.image_type === 'waybill');
@@ -93,6 +95,21 @@ export function ArrivalEntryPage() {
       setActionMessage('草稿已保存。');
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : '保存草稿失败。');
+    }
+  };
+
+  const resetCurrentDraft = async () => {
+    if (resetting) return;
+    setResetting(true);
+    setActionMessage(null);
+    try {
+      await draft.resetDraft();
+      setShowResetConfirm(false);
+      setActionMessage('草稿已更新为当前时间，原有内容和图片已清空。');
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : '更新草稿失败。');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -190,10 +207,13 @@ export function ArrivalEntryPage() {
             {saveStatusLabel[draft.saveStatus]}
           </span>
         </div>
-        <Link className="mt-2 inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700" to="/app/arrivals/history">
-          <History className="h-4 w-4" aria-hidden="true" />
-          查看到货历史
-        </Link>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700" to="/app/arrivals/history">
+            <History className="h-4 w-4" aria-hidden="true" />
+            查看到货历史
+          </Link>
+          {!reportId ? <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-bold text-amber-800" disabled={resetting || draft.saveStatus === 'saving'} onClick={() => setShowResetConfirm(true)} type="button"><RefreshCcw className="h-4 w-4" aria-hidden="true" />更新草稿</button> : null}
+        </div>
       </section>
 
       <section className="rounded-lg bg-white p-3 shadow-sm">
@@ -242,12 +262,17 @@ export function ArrivalEntryPage() {
         <label className="block text-sm font-semibold text-slate-700">补充备注（选填）<textarea className="mt-1 min-h-16 w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-brand-500" onChange={(event) => draft.updateField('note', event.target.value)} placeholder="记录包装、数量或其他需要管理员注意的信息" value={draft.form.note} /></label>
       </section>
 
-      {draft.message || actionMessage ? <p className="rounded-lg bg-red-50 p-4 text-sm leading-6 text-red-700">{actionMessage ?? draft.message}</p> : null}
+      {draft.message ? <p className="rounded-lg bg-red-50 p-4 text-sm leading-6 text-red-700">{draft.message}</p> : null}
+      {actionMessage ? <p className={`rounded-lg p-4 text-sm leading-6 ${actionMessage.startsWith('草稿已更新') || actionMessage === '草稿已保存。' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>{actionMessage}</p> : null}
 
       <MobileActionBar className="grid grid-cols-2 gap-2">
         <button className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 font-bold text-slate-800 disabled:opacity-50" disabled={draft.saveStatus === 'saving'} onClick={() => void saveManually()} type="button"><Save className="h-5 w-5" aria-hidden="true" />保存草稿</button>
         <button className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 font-bold disabled:opacity-50 ${validationIssues.length > 0 ? 'bg-slate-300 text-slate-700' : 'bg-brand-600 text-white'}`} disabled={submitting || draft.saveStatus === 'saving'} onClick={requestSubmit} type="button"><Send className="h-5 w-5" aria-hidden="true" />提交上报</button>
       </MobileActionBar>
+
+      <ConfirmDialog confirmLabel={resetting ? '正在更新' : '清空并更新草稿'} danger onCancel={() => setShowResetConfirm(false)} onConfirm={() => void resetCurrentDraft()} open={showResetConfirm} title="确认更新当前草稿？">
+        <p>这会清空当前草稿中的到货信息、产品明细和全部图片，并把到货日期、时间更新为现在。此操作无法撤销。</p>
+      </ConfirmDialog>
 
       {showValidationDialog ? (
         <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="arrival-validation-title">

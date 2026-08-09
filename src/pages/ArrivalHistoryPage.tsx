@@ -7,9 +7,11 @@ import { IconButton } from '../components/ui/Actions';
 import { EmptyState, ErrorState, FeedbackBanner, LoadingState, StatusBadge } from '../components/ui/Feedback';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { canOperateV2Modules } from '../features/access/roleCapabilities';
+import { ArrivalPeriodFilter } from '../features/arrivals/ArrivalPeriodFilter';
+import { createDefaultArrivalPeriod, resolveArrivalPeriod, type ArrivalPeriodValue } from '../features/arrivals/arrivalPeriod';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
-import { loadArrivalHistory, type ArrivalReportRow } from '../services/arrivals.service';
+import { loadArrivalHistory, localArrivalDate, type ArrivalReportRow } from '../services/arrivals.service';
 
 const statusLabel: Record<ArrivalReportRow['status'], string> = {
   draft: '草稿',
@@ -31,6 +33,7 @@ export function ArrivalHistoryPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [items, setItems] = useState<ArrivalReportRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [period, setPeriod] = useState<ArrivalPeriodValue>(() => ({ ...createDefaultArrivalPeriod(localArrivalDate()), mode: 'month' }));
 
   const load = useCallback(async () => {
     if (!supabase || !auth.store || !canOperateV2Modules(auth.profile?.role)) {
@@ -41,19 +44,21 @@ export function ArrivalHistoryPage() {
     setStatus('loading');
     setMessage(null);
     try {
-      setItems(await loadArrivalHistory(supabase, auth.store.id));
+      const { dateFrom, dateTo } = resolveArrivalPeriod(period);
+      setItems(await loadArrivalHistory(supabase, auth.store.id, dateFrom, dateTo));
       setStatus('ready');
     } catch (error) {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : '加载到货历史失败。');
     }
-  }, [auth.profile?.role, auth.store]);
+  }, [auth.profile?.role, auth.store, period]);
 
   useEffect(() => { void load(); }, [load]);
 
   return (
     <PageShell eyebrow="门店运营系统" title="到货历史" backTo="/app/arrivals" contentGapClassName="gap-3">
       <SectionCard><SectionHeader action={<IconButton aria-label="刷新到货历史" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={auth.store?.name ?? '未绑定门店'} icon={PackageCheck} title="本店上报记录" /></SectionCard>
+      <SectionCard><ArrivalPeriodFilter compact onChange={setPeriod} value={period} /></SectionCard>
       {status === 'loading' ? <LoadingState label="正在加载到货历史" /> : null}
       {status === 'error' ? <ErrorState message={message ?? '加载到货历史失败。'} onRetry={() => void load()} /> : null}
       {status === 'ready' && items.length === 0 ? <EmptyState description="提交后的到货上报会显示在这里。" icon={PackageCheck} title="暂无到货记录" /> : null}

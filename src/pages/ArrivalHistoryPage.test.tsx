@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -44,5 +44,21 @@ describe('ArrivalHistoryPage', () => {
       'href',
       `/app/arrivals/${viewedReport.id}`,
     );
+  });
+
+  it('filters arrival history by day, month, or a custom range', async () => {
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><ArrivalHistoryPage /></MemoryRouter>);
+
+    await screen.findByText('已上报');
+    fireEvent.click(screen.getByRole('tab', { name: '选择时间区间' }));
+    fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2026-07-01' } });
+    fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2026-07-31' } });
+
+    await waitFor(() => expect(loadArrivalHistory).toHaveBeenLastCalledWith(
+      expect.anything(),
+      '00000000-0000-4000-8000-000000000101',
+      '2026-07-01',
+      '2026-07-31',
+    ));
   });
 });

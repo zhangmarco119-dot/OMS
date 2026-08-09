@@ -21,6 +21,8 @@ import { AdminTaxAccountingPage } from './pages/AdminTaxAccountingPage';
 import { AdminV2TaskReviewPage } from './pages/AdminV2TaskReviewPage';
 import { AdminV2TaskPublishPage, AdminV2TasksPage } from './pages/AdminV2TasksPage';
 import { ArrivalEntryPage } from './pages/ArrivalEntryPage';
+import { ArrivalCorrectionPage } from './pages/ArrivalCorrectionPage';
+import { ArrivalCorrectionReviewPage } from './pages/ArrivalCorrectionReviewPage';
 import { ArrivalHistoryPage } from './pages/ArrivalHistoryPage';
 import { ArrivalReportDetailPage } from './pages/ArrivalReportDetailPage';
 import { ArrivalSuccessPage } from './pages/ArrivalSuccessPage';
@@ -75,6 +77,8 @@ export const router = createBrowserRouter([
       { path: 'order', element: <TaskRoutePage mode="order" /> },
       { path: 'arrivals', element: <ArrivalEntryPage /> },
       { path: 'arrivals/history', element: <ArrivalHistoryPage /> },
+      { path: 'arrivals/corrections/:requestId/review', element: <ArrivalCorrectionReviewPage /> },
+      { path: 'arrivals/:reportId/correct', element: <ArrivalCorrectionPage /> },
       { path: 'arrivals/:reportId/success', element: <ArrivalSuccessPage /> },
       { path: 'arrivals/:reportId', element: <ArrivalReportDetailPage /> },
       { path: 'tasks', element: <V2TaskCenterPage /> },

@@ -1,6 +1,6 @@
 import { FileSpreadsheet } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
@@ -31,6 +31,8 @@ type DetailView = { detail: TaskWithItems; summary: HistoryTask };
 
 export function HistoryTaskDetailPage() {
   const auth = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { taskId = '' } = useParams();
   const [view, setView] = useState<DetailView | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -58,7 +60,12 @@ export function HistoryTaskDetailPage() {
     ? view.detail.items.filter((item) => item.product_action_status === 'deletion_approved').length
     : 0;
 
-  return <PageShell eyebrow="提交记录" title={view ? taskTypeLabel[view.detail.task.task_type] : '单据明细'} backTo="/app/history" contentGapClassName="gap-3">
+  const reviewBackTo = typeof (location.state as { backTo?: unknown } | null)?.backTo === 'string'
+    && /^\/app\/admin\/tasks\/[^/]+$/.test((location.state as { backTo: string }).backTo)
+    ? (location.state as { backTo: string }).backTo
+    : null;
+
+  return <PageShell eyebrow="提交记录" title={view ? taskTypeLabel[view.detail.task.task_type] : '单据明细'} backTo={reviewBackTo ? undefined : '/app/history'} onBack={reviewBackTo ? () => navigate(reviewBackTo, { replace: true }) : undefined} contentGapClassName="gap-3">
     {status === 'loading' ? <LoadingState label="正在加载单据明细" /> : null}
     {status === 'error' ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'ready' && view ? <>

@@ -7,6 +7,7 @@ import {
   loadV2TaskDetail,
   loadV2TaskImageUrls,
   loadV2TaskReferenceImageUrls,
+  loadSubmittedLinkedInventoryTask,
   reviewV2TaskItems,
   type V2TaskAnswerRow,
   type V2TaskDetail,
@@ -24,6 +25,7 @@ vi.mock('../services/v2-tasks.service', async (importOriginal) => {
     loadV2TaskDetail: vi.fn(),
     loadV2TaskImageUrls: vi.fn(),
     loadV2TaskReferenceImageUrls: vi.fn(),
+    loadSubmittedLinkedInventoryTask: vi.fn(),
     reviewV2TaskItems: vi.fn(),
   };
 });
@@ -68,6 +70,7 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
     vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [approvedAnswer, resubmittedAnswer], images: [], reviews: [], submitterName: '刘成跃', task } as V2TaskDetail);
     vi.mocked(loadV2TaskImageUrls).mockResolvedValue({});
     vi.mocked(loadV2TaskReferenceImageUrls).mockResolvedValue({});
+    vi.mocked(loadSubmittedLinkedInventoryTask).mockResolvedValue(null);
     vi.mocked(reviewV2TaskItems).mockResolvedValue({});
   });
 
@@ -86,6 +89,22 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
     await waitFor(() => expect(reviewV2TaskItems).toHaveBeenCalledWith({}, 'task-1', [
       { decision: 'approved', itemId: resubmittedAnswer.item_id },
     ], ''));
+  });
+
+  it('shows a direct link to the submitted inventory sheet for an inventory-linked task', async () => {
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({
+      answers: [resubmittedAnswer],
+      images: [],
+      reviews: [],
+      submitterName: '刘成跃',
+      task: { ...task, requires_inventory: true },
+    } as V2TaskDetail);
+    vi.mocked(loadSubmittedLinkedInventoryTask).mockResolvedValue({ id: 'inventory-1', submitted_at: '2026-07-20T10:00:00Z' });
+
+    render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
+
+    const link = await screen.findByRole('link', { name: '打开关联点货单' });
+    expect(link).toHaveAttribute('href', '/app/history/inventory-1');
   });
 
   it('shows image loading instead of failure while preview URLs are still resolving', async () => {

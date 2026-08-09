@@ -1,4 +1,4 @@
-import { Building2, Download, Edit3, Plus, ReceiptText, RefreshCw, Save, Trash2, Users, X } from 'lucide-react';
+import { Banknote, Building2, Download, Edit3, Plus, ReceiptText, RefreshCw, Save, Search, Trash2, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
@@ -12,6 +12,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { downloadTaxCardImage } from '../features/tax-accounting/taxCardImage';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
+import { savePayrollIndividualTaxes } from '../services/payroll.service';
 import {
   loadTaxAccountingData,
   deleteTaxPerson,
@@ -23,7 +24,7 @@ import {
   type TaxPerson,
 } from '../services/tax-accounting.service';
 
-type Tab = 'reports' | 'people' | 'accounting';
+type Tab = 'reports' | 'people' | 'taxes' | 'accounting';
 type Feedback = { message: string; title: string; tone: ActionFeedbackTone };
 type SalaryMode = 'system' | 'manual';
 type PersonEditor = SaveTaxPersonInput & {
@@ -66,6 +67,8 @@ export function AdminTaxAccountingPage() {
   const [busy, setBusy] = useState('');
   const [companyInputs, setCompanyInputs] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<TaxPerson | null>(null);
+  const [taxInputs, setTaxInputs] = useState<Record<string, string>>({});
+  const [taxSearch, setTaxSearch] = useState('');
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -75,6 +78,8 @@ export function AdminTaxAccountingPage() {
       const settings = new Map(next.storeSettings.map((item) => [item.store_id, item.company_name]));
       setData(next);
       setCompanyInputs(Object.fromEntries(next.stores.map((store) => [store.id, settings.get(store.id) ?? store.name])));
+      const taxByProfile = new Map(next.individualTaxes.map((item) => [item.profile_id, item.amount]));
+      setTaxInputs(Object.fromEntries(next.profiles.map((profile) => [profile.id, taxByProfile.has(profile.id) ? String(taxByProfile.get(profile.id)) : ''])));
       setStatus('ready');
     } catch (error) {
       setStatus('error');
@@ -174,6 +179,42 @@ export function AdminTaxAccountingPage() {
     }
   };
 
+  const saveIndividualTaxes = async () => {
+    if (!supabase || !data) return;
+    const entries = data.profiles.flatMap((profile) => {
+      const raw = taxInputs[profile.id]?.trim() ?? '';
+      if (!raw) return [];
+      const amount = Number(raw);
+      return [{ amount, profileId: profile.id }];
+    });
+    const invalid = entries.find((entry) => !Number.isFinite(entry.amount) || entry.amount < 0);
+    if (invalid) {
+      setFeedback({ title: '请检查个税金额', message: '实际个税必须是大于或等于 0 的数字。', tone: 'warning' });
+      return;
+    }
+    if (!entries.length) {
+      setFeedback({ title: '尚未填写个税', message: '请至少填写一位员工的实际个税。', tone: 'warning' });
+      return;
+    }
+    setBusy('taxes');
+    try {
+      const result = await savePayrollIndividualTaxes(supabase, month, entries);
+      const missing = Math.max(data.profiles.length - entries.length, 0);
+      await load();
+      const consequences = [
+        `已登记 ${result.savedCount} 位员工`,
+        result.syncedPayslipCount ? `同步 ${result.syncedPayslipCount} 份已有工资单` : '',
+        result.reconfirmationCount ? `${result.reconfirmationCount} 份工资单需员工重新确认` : '',
+        missing ? `仍有 ${missing} 人未登记` : '本月已全部登记',
+      ].filter(Boolean).join('；');
+      setFeedback({ title: '实际个税已保存', message: `${consequences}。之后生成的工资单会直接使用这些金额。`, tone: missing ? 'warning' : 'success' });
+    } catch (error) {
+      setFeedback({ title: '个税登记保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally {
+      setBusy('');
+    }
+  };
+
   const download = async (reportIndex: number) => {
     const report = data?.taxReports[reportIndex];
     if (!report) return;
@@ -190,9 +231,10 @@ export function AdminTaxAccountingPage() {
 
   return (
     <PageShell backTo="/app/workbench" contentGapClassName="gap-3" eyebrow="门店运营系统 · 管理员" title="税务与记账">
-      <SegmentedControl className="grid-cols-3" items={[
+      <SegmentedControl className="grid-cols-4" items={[
         { active: tab === 'reports', label: '报税信息', onClick: () => setTab('reports') },
         { active: tab === 'people', label: '人员登记', onClick: () => setTab('people') },
+        { active: tab === 'taxes', label: '个税登记', onClick: () => setTab('taxes') },
         { active: tab === 'accounting', label: '记账信息', onClick: () => setTab('accounting') },
       ]} />
       <SectionCard className="p-3">
@@ -244,6 +286,34 @@ export function AdminTaxAccountingPage() {
               <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{person.full_name}</b><p className="mt-1 text-xs text-slate-500">{profile ? `已关联：${profile.display_name} · ${roleLabel(profile.role, profile.employment_type)}` : '未关联系统账号'} · {person.reporting_store_id ? storeById.get(person.reporting_store_id)?.name ?? '未知门店' : '不计入报税'}</p><p className="mt-1 text-xs text-slate-500">{month.replace('-', '年')}月薪资：{monthly?.manual_amount != null ? `手动 ${money(monthly.manual_amount)}` : person.profile_id ? `系统实时工资 ${money(estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable)}` : '待填写'}</p></div><div className="grid shrink-0 grid-cols-2 gap-1.5"><button className="ui-button-secondary min-h-8 px-2 py-1 text-xs" onClick={() => editPerson(person)} type="button"><Edit3 className="h-3.5 w-3.5" />编辑</button><button className="ui-button-danger min-h-8 px-2 py-1 text-xs" disabled={busy === `delete:${person.id}`} onClick={() => setDeleteTarget(person)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button></div></div>
             </SectionCard>;
           })}
+        </section>
+      ) : null}
+
+      {status === 'ready' && data && tab === 'taxes' ? (
+        <section className="space-y-3">
+          <SectionCard className="border-brand-100 bg-brand-50/60">
+            <SectionHeader icon={Banknote} title={`${month.replace('-', '年')}月实际个税`} description="按税务实际结果登记。保存后会同步工资单；已确认工资单发生变化时，员工需重新确认。" />
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg bg-white px-2 py-2.5"><b className="block text-base text-slate-900">{data.profiles.length}</b><span className="text-[11px] text-slate-500">应登记</span></div>
+              <div className="rounded-lg bg-white px-2 py-2.5"><b className="block text-base text-emerald-700">{data.profiles.filter((profile) => (taxInputs[profile.id] ?? '').trim() !== '').length}</b><span className="text-[11px] text-slate-500">已填写</span></div>
+              <div className="rounded-lg bg-white px-2 py-2.5"><b className="block text-base tabular-nums text-brand-800">{money(data.profiles.reduce((sum, profile) => sum + (Number(taxInputs[profile.id]) || 0), 0))}</b><span className="text-[11px] text-slate-500">个税合计</span></div>
+            </div>
+          </SectionCard>
+          <label className="relative block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => setTaxSearch(event.target.value)} placeholder="搜索员工姓名或账号" value={taxSearch} /></label>
+          <SectionCard className="overflow-hidden p-0">
+            <div className="divide-y divide-slate-100">{data.profiles.filter((profile) => {
+              const term = taxSearch.trim().toLocaleLowerCase();
+              return !term || profile.display_name.toLocaleLowerCase().includes(term) || profile.username.toLocaleLowerCase().includes(term);
+            }).map((profile) => {
+              const estimate = data.estimates.find((item) => item.profileId === profile.id);
+              const registered = (taxInputs[profile.id] ?? '').trim() !== '';
+              return <div className="grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-3 p-3" key={profile.id}>
+                <div className="min-w-0"><div className="flex items-center gap-2"><b className="truncate text-sm">{profile.display_name}</b><StatusBadge tone={registered ? 'success' : 'warning'}>{registered ? '已填写' : '待登记'}</StatusBadge></div><p className="mt-1 text-xs text-slate-500">{roleLabel(profile.role, profile.employment_type)} · 系统预计 {money(estimate?.estimatedIndividualIncomeTax ?? 0)}</p></div>
+                <label className="text-xs font-semibold text-slate-600">实际个税<input aria-label={`${profile.display_name}实际个税`} className="ui-input mt-1 text-right tabular-nums" inputMode="decimal" min="0" onChange={(event) => setTaxInputs((current) => ({ ...current, [profile.id]: event.target.value }))} placeholder="待填写" type="number" value={taxInputs[profile.id] ?? ''} /></label>
+              </div>;
+            })}</div>
+          </SectionCard>
+          <button className="ui-button-primary w-full" disabled={busy === 'taxes'} onClick={() => void saveIndividualTaxes()} type="button"><Save className="h-4 w-4" />{busy === 'taxes' ? '正在保存并同步工资单' : '保存已填写个税'}</button>
         </section>
       ) : null}
 

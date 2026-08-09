@@ -12,6 +12,7 @@ export type TaxMonthlySalary = Database['public']['Tables']['tax_reporting_month
 export type TaxStoreSetting = Database['public']['Tables']['tax_reporting_store_settings']['Row'];
 export type TaxStore = Database['public']['Tables']['stores']['Row'];
 export type TaxProfile = Database['public']['Tables']['profiles']['Row'];
+export type PayrollIndividualTax = Database['public']['Tables']['payroll_individual_tax_overrides']['Row'];
 
 export interface TaxReportRow {
   amount: number | null;
@@ -34,6 +35,7 @@ export interface TaxAccountingData {
   attendance: Database['public']['Tables']['attendance_daily_records']['Row'][];
   estimates: PayrollEstimate[];
   monthlySalaries: TaxMonthlySalary[];
+  individualTaxes: PayrollIndividualTax[];
   overtime: Database['public']['Tables']['payroll_overtime_requests']['Row'][];
   people: TaxPerson[];
   profiles: TaxProfile[];
@@ -96,6 +98,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     settingsResult,
     peopleResult,
     salariesResult,
+    individualTaxesResult,
     profiles,
     estimatesResult,
     attendanceResult,
@@ -105,12 +108,13 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     client.from('tax_reporting_store_settings').select('*'),
     client.from('tax_reporting_people').select('*').order('is_active', { ascending: false }).order('full_name'),
     client.from('tax_reporting_monthly_salaries').select('*').eq('payroll_month', start),
+    client.from('payroll_individual_tax_overrides').select('*').eq('payroll_month', start),
     loadPayrollProfiles(client),
     loadAdminPayrollEstimates(client, { asOf: payrollMonthEndDate(month.slice(0, 7), todayInChina()) }),
     client.from('attendance_daily_records').select('*').gte('attendance_date', start).lte('attendance_date', end).eq('is_attended', true),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', start).lte('overtime_date', end).eq('status', 'approved'),
   ]);
-  const firstError = storesResult.error || settingsResult.error || peopleResult.error || salariesResult.error || attendanceResult.error || overtimeResult.error;
+  const firstError = storesResult.error || settingsResult.error || peopleResult.error || salariesResult.error || individualTaxesResult.error || attendanceResult.error || overtimeResult.error;
   if (firstError) throw new Error(firstError.message || '暂时无法加载税务与记账信息。');
 
   const stores = storesResult.data ?? [];
@@ -135,6 +139,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     allocations,
     attendance,
     estimates: estimatesResult.items,
+    individualTaxes: individualTaxesResult.data ?? [],
     monthlySalaries,
     overtime,
     people,

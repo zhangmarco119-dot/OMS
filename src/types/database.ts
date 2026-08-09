@@ -1216,6 +1216,8 @@ export type Database = {
       admin_save_payroll_performance_override: { Args: { p_payroll_month: string; p_performance_score?: number | null; p_profile_id: string }; Returns: Json };
       admin_get_payroll_individual_tax_override: { Args: { p_payroll_month: string; p_profile_id: string }; Returns: number | null };
       admin_save_payroll_individual_tax_override: { Args: { p_amount?: number | null; p_payroll_month: string; p_profile_id: string }; Returns: Json };
+      admin_save_payroll_individual_taxes: { Args: { p_entries: Json; p_payroll_month: string }; Returns: Json };
+      admin_payroll_statistics_inputs: { Args: { p_from: string; p_to: string }; Returns: Json };
       configure_attendance_automation: { Args: Record<PropertyKey, never>; Returns: Json };
       get_attendance_automation_settings: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_save_attendance_automation_settings: { Args: { p_enabled: boolean; p_end_time: string; p_interval_minutes: number; p_start_time: string }; Returns: Json };

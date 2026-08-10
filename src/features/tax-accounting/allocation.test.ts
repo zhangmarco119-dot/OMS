@@ -96,6 +96,24 @@ describe('allocatePayrollCosts', () => {
     );
     expect(result[0].employees[0].attendanceHours).toBe(8);
   });
+
+  it('uses the configured fieldwork rule even when the punch address cannot identify the target store', () => {
+    const result = allocatePayrollCosts(
+      [{ estimate: estimate({ accruedOvertime: 0 }), profileId: 'p1', status: 'confirmed', storeId: 's1' }],
+      [{ actualOffAt: null, actualOnAt: null, attendanceDate: '2026-07-08', id: 'day-1', isAttended: true, plannedOffAt: '2026-07-08T21:00:00+08:00', plannedOnAt: '2026-07-08T10:00:00+08:00', profileId: 'p1', storeId: 's1' }],
+      [],
+      [{ checkType: 'off_duty', dailyRecordId: 'day-1', locationName: '北京市海淀区成府路某位置', locationResult: 'Outside', sourceType: 'DING_ATM', storeId: 's1' }],
+      [
+        { id: 's1', name: 'OMEGA酸奶（西直门店）', shortName: '西直门店' },
+        { id: 's2', name: '宝珠奶酪（五道口店）', shortName: '五道口店' },
+      ],
+      [{ effectiveFrom: '2026-01-01', effectiveTo: null, isEnabled: true, profileId: 'p1', punchScope: 'any', sourceStoreId: 's1', targetRatio: 0.4, targetStoreId: 's2' }],
+    );
+    expect(result).toEqual([
+      { amount: 600, employees: [{ amount: 600, attendanceHours: 6, overtimeHours: 0, profileId: 'p1', storeId: 's1' }], storeId: 's1' },
+      { amount: 400, employees: [{ amount: 400, attendanceHours: 4, overtimeHours: 0, profileId: 'p1', storeId: 's2' }], storeId: 's2' },
+    ]);
+  });
 });
 
 describe('includeEmptyStoreAllocations', () => {

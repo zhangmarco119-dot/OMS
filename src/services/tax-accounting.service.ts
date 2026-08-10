@@ -111,7 +111,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     client.from('payroll_individual_tax_overrides').select('*').eq('payroll_month', start),
     loadPayrollProfiles(client),
     loadAdminPayrollEstimates(client, { asOf: payrollMonthEndDate(month.slice(0, 7), todayInChina()) }),
-    client.from('attendance_daily_records').select('*').gte('attendance_date', start).lte('attendance_date', end).eq('is_attended', true),
+    client.from('attendance_daily_records').select('*').gte('attendance_date', start).lte('attendance_date', end),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', start).lte('overtime_date', end).eq('status', 'approved'),
   ]);
   const firstError = storesResult.error || settingsResult.error || peopleResult.error || salariesResult.error || individualTaxesResult.error || attendanceResult.error || overtimeResult.error;
@@ -123,6 +123,11 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
   const monthlySalaries = salariesResult.data ?? [];
   const attendance = attendanceResult.data ?? [];
   const overtime = overtimeResult.data ?? [];
+  const dailyRecordIds = attendance.map((row) => row.id);
+  const punchesResult = dailyRecordIds.length
+    ? await client.from('attendance_punch_records').select('daily_record_id,location_name,store_id').in('daily_record_id', dailyRecordIds)
+    : { data: [], error: null };
+  if (punchesResult.error) throw new Error(punchesResult.error.message || '暂时无法加载打卡地点。');
   const calculatedAllocations = allocatePayrollCosts(
     estimatesResult.items.map((estimate) => ({
       estimate,
@@ -130,8 +135,20 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
       status: 'draft' as const,
       storeId: estimate.primaryStoreId,
     })),
-    attendance.map((row) => ({ attendanceDate: row.attendance_date, isAttended: row.is_attended, profileId: row.profile_id, storeId: row.store_id })),
+    attendance.map((row) => ({
+      actualOffAt: row.actual_off_at,
+      actualOnAt: row.actual_on_at,
+      attendanceDate: row.attendance_date,
+      id: row.id,
+      isAttended: row.is_attended,
+      plannedOffAt: row.planned_off_at,
+      plannedOnAt: row.planned_on_at,
+      profileId: row.profile_id,
+      storeId: row.store_id,
+    })),
     overtime.map((row) => ({ approvedHourlyRate: row.approved_hourly_rate, hours: row.hours, profileId: row.profile_id, status: row.status, storeId: row.store_id })),
+    (punchesResult.data ?? []).map((row) => ({ dailyRecordId: row.daily_record_id, locationName: row.location_name, storeId: row.store_id })),
+    stores.map((store) => ({ id: store.id, name: store.name, shortName: store.short_name })),
   );
   const allocations = includeEmptyStoreAllocations(stores.map((store) => store.id), calculatedAllocations);
 

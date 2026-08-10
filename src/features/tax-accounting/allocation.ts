@@ -8,10 +8,27 @@ export interface CostAllocationPayslip {
 }
 
 export interface CostAttendanceEntry {
+  actualOffAt: string | null;
+  actualOnAt: string | null;
   attendanceDate: string;
+  id: string;
   isAttended: boolean;
+  plannedOffAt: string | null;
+  plannedOnAt: string | null;
   profileId: string;
   storeId: string;
+}
+
+export interface CostAttendancePunch {
+  dailyRecordId: string;
+  locationName: string | null;
+  storeId: string;
+}
+
+export interface CostStore {
+  id: string;
+  name: string;
+  shortName: string;
 }
 
 export interface CostOvertimeEntry {
@@ -24,7 +41,7 @@ export interface CostOvertimeEntry {
 
 export interface EmployeeStoreAllocation {
   amount: number;
-  attendanceDays: number;
+  attendanceHours: number;
   overtimeHours: number;
   profileId: string;
   storeId: string;
@@ -49,7 +66,65 @@ export function includeEmptyStoreAllocations(
 }
 
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const hour = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const toCents = (value: number) => Math.max(0, Math.round((Number.isFinite(value) ? value : 0) * 100));
+
+const normalizedLocation = (value: string) => value.normalize('NFKC').toLocaleLowerCase('zh-CN').replace(/[\p{P}\p{S}\s]/gu, '');
+
+function resolvePunchStoreId(punch: CostAttendancePunch, stores: CostStore[]) {
+  const location = normalizedLocation(punch.locationName ?? '');
+  if (!location) return punch.storeId;
+  const matches = stores.filter((store) => {
+    const fullName = normalizedLocation(store.name);
+    const shortName = normalizedLocation(store.shortName);
+    const shortBase = shortName.replace(/(?:门店|店)$/u, '');
+    return (fullName.length >= 2 && location.includes(fullName))
+      || (shortName.length >= 2 && location.includes(shortName))
+      || (shortBase.length >= 2 && location.includes(shortBase));
+  });
+  return matches.length === 1 ? matches[0].id : punch.storeId;
+}
+
+function scheduledHours(row: CostAttendanceEntry) {
+  const duration = (from: string | null, to: string | null) => {
+    if (!from || !to) return null;
+    const milliseconds = new Date(to).getTime() - new Date(from).getTime();
+    return Number.isFinite(milliseconds) && milliseconds > 0 ? milliseconds / 3_600_000 : null;
+  };
+  const value = duration(row.plannedOnAt, row.plannedOffAt) ?? duration(row.actualOnAt, row.actualOffAt) ?? 0;
+  return Math.max(value - 1, 0);
+}
+
+function attendanceHoursByStore(attendance: CostAttendanceEntry[], punches: CostAttendancePunch[], stores: CostStore[], profileId: string) {
+  const rowsByDay = new Map<string, CostAttendanceEntry[]>();
+  for (const row of attendance) {
+    if (row.profileId !== profileId) continue;
+    const rows = rowsByDay.get(row.attendanceDate) ?? [];
+    rows.push(row);
+    rowsByDay.set(row.attendanceDate, rows);
+  }
+  const punchesByDailyId = new Map<string, CostAttendancePunch[]>();
+  for (const punch of punches) {
+    const rows = punchesByDailyId.get(punch.dailyRecordId) ?? [];
+    rows.push(punch);
+    punchesByDailyId.set(punch.dailyRecordId, rows);
+  }
+  const result = new Map<string, number>();
+  for (const rows of rowsByDay.values()) {
+    const attended = rows.filter((row) => row.isAttended);
+    if (!attended.length) continue;
+    const involvedStores = new Set(attended.map((row) => row.storeId));
+    for (const row of rows) {
+      for (const punch of punchesByDailyId.get(row.id) ?? []) involvedStores.add(resolvePunchStoreId(punch, stores));
+    }
+    const dayHours = Math.max(...rows.map(scheduledHours), 0);
+    const storeIds = [...involvedStores].filter(Boolean);
+    if (!storeIds.length || dayHours <= 0) continue;
+    const allocatedHours = dayHours / storeIds.length;
+    for (const storeId of storeIds) result.set(storeId, (result.get(storeId) ?? 0) + allocatedHours);
+  }
+  return result;
+}
 
 function splitCents(totalCents: number, weights: Map<string, number>, fallbackStoreId: string) {
   const positive = [...weights.entries()].filter(([, weight]) => weight > 0);
@@ -75,6 +150,8 @@ export function allocatePayrollCosts(
   payslips: CostAllocationPayslip[],
   attendance: CostAttendanceEntry[],
   overtime: CostOvertimeEntry[],
+  punches: CostAttendancePunch[] = [],
+  stores: CostStore[] = [],
 ): StoreCostAllocation[] {
   const activePayslips = payslips.filter((item) => item.status !== 'withdrawn');
   const allocations: EmployeeStoreAllocation[] = [];
@@ -84,15 +161,7 @@ export function allocatePayrollCosts(
     const fallbackStoreId = estimate.primaryStoreId || payslip.storeId;
     if (!fallbackStoreId) continue;
 
-    const dayKeys = new Set<string>();
-    const attendanceWeights = new Map<string, number>();
-    for (const row of attendance) {
-      if (row.profileId !== payslip.profileId || !row.isAttended) continue;
-      const key = `${row.storeId}:${row.attendanceDate}`;
-      if (dayKeys.has(key)) continue;
-      dayKeys.add(key);
-      attendanceWeights.set(row.storeId, (attendanceWeights.get(row.storeId) ?? 0) + 1);
-    }
+    const attendanceWeights = attendanceHoursByStore(attendance, punches, stores, payslip.profileId);
 
     const overtimeRows = overtime.filter((row) => row.profileId === payslip.profileId && row.status === 'approved');
     const overtimeHours = new Map<string, number>();
@@ -123,7 +192,7 @@ export function allocatePayrollCosts(
       if (cents === 0 && !attendanceWeights.has(storeId) && !overtimeHours.has(storeId)) continue;
       allocations.push({
         amount: cents / 100,
-        attendanceDays: attendanceWeights.get(storeId) ?? 0,
+        attendanceHours: hour(attendanceWeights.get(storeId) ?? 0),
         overtimeHours: money(overtimeHours.get(storeId) ?? 0),
         profileId: payslip.profileId,
         storeId,

@@ -34,8 +34,8 @@ describe('payroll statistics', () => {
         profiles: [{ displayName: '测试员工', employmentType: 'full_time', id: 'profile-1', primaryStoreId: 'store-1' }],
         stores: [{ id: 'store-1', name: '一店' }, { id: 'store-2', name: '二店' }],
         work: [
-          { attendanceDays: 2, overtimeCost: 0, overtimeHours: 0, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' },
-          { attendanceDays: 1, overtimeCost: 0, overtimeHours: 0, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-2' },
+          { attendanceHours: 16, overtimeCost: 0, overtimeHours: 0, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' },
+          { attendanceHours: 8, overtimeCost: 0, overtimeHours: 0, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-2' },
         ],
         revenues: [{ amount: 3000, storeId: 'store-1' }, { amount: 1000, storeId: 'store-2' }],
         payslips: [],
@@ -59,7 +59,7 @@ describe('payroll statistics', () => {
       if (name === 'admin_payroll_statistics_inputs') return { data: {
         profiles: [{ displayName: '测试员工', employmentType: 'full_time', id: 'profile-1', primaryStoreId: 'store-1' }],
         stores: [{ id: 'store-1', name: '一店' }],
-        work: [{ attendanceDays: 2, overtimeCost: 0, overtimeHours: 0, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' }],
+        work: [{ attendanceHours: 16, overtimeCost: 0, overtimeHours: 0, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' }],
         revenues: [], payslips: [],
       }, error: null };
       if (name === 'admin_payroll_estimates') return { data: { items: [estimate(args.p_as_of === '2026-07-09' ? 300 : 800)] }, error: null };
@@ -81,7 +81,7 @@ describe('payroll statistics', () => {
       if (name === 'admin_payroll_statistics_inputs') return { data: {
         profiles: [{ displayName: '测试员工', employmentType: 'full_time', id: 'profile-1', primaryStoreId: 'store-1' }],
         stores: [{ id: 'store-1', name: '一店' }],
-        work: [{ attendanceDays: 1, overtimeCost: 50, overtimeHours: 2, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' }],
+        work: [{ attendanceHours: 8, overtimeCost: 50, overtimeHours: 2, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' }],
         revenues: [{ amount: 5000, storeId: 'store-1' }],
         payslips: [{ estimate: detailedEstimate, id: 'slip-1', payrollMonth: '2026-07-01', profileId: 'profile-1', status: 'confirmed' }],
       }, error: null };

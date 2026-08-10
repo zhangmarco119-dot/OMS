@@ -320,14 +320,14 @@ export function AdminTaxAccountingPage() {
       {status === 'ready' && data && tab === 'accounting' ? (
         <section className="space-y-3">
           <SectionCard className="bg-brand-50/50">
-            <SectionHeader icon={Building2} title="门店实时工资成本" description="直接使用所选月份的实时工资，无需等待工资单生成或发送；全职人员按有效出勤天数分摊，已审批工时按实际门店计入。" />
+              <SectionHeader icon={Building2} title="门店实时工资成本" description="直接使用所选月份的实时工资；普通工时按每日排班扣除 1 小时用餐后计算，同日涉及多店时按打卡地点拆分，已审批工时按实际门店计入。" />
           </SectionCard>
           {data.allocations.map((allocation) => (
             <SectionCard key={allocation.storeId}>
               <SectionHeader icon={Users} title={storeById.get(allocation.storeId)?.name ?? '未知门店'} description={`${allocation.employees.length}人 · 工资成本 ${money(allocation.amount)}`} />
               {allocation.employees.length ? <div className="mt-3 divide-y divide-slate-100">{allocation.employees.map((employee) => {
                 const profile = profileById.get(employee.profileId);
-                return <div className="grid grid-cols-[1fr_auto] gap-3 py-3 first:pt-0 last:pb-0" key={employee.profileId}><div><b className="text-sm">{profile?.display_name ?? data.estimates.find((item) => item.profileId === employee.profileId)?.displayName ?? '未命名员工'}</b><p className="mt-1 text-xs text-slate-500">出勤 {employee.attendanceDays} 天 · 已审批{profile?.employment_type === 'part_time' ? '兼职' : '加班'} {employee.overtimeHours} 小时</p></div><b className="self-center tabular-nums text-brand-800">{money(employee.amount)}</b></div>;
+                return <div className="grid grid-cols-[1fr_auto] gap-3 py-3 first:pt-0 last:pb-0" key={employee.profileId}><div><b className="text-sm">{profile?.display_name ?? data.estimates.find((item) => item.profileId === employee.profileId)?.displayName ?? '未命名员工'}</b><p className="mt-1 text-xs text-slate-500">普通工时 {employee.attendanceHours} 小时 · 已审批{profile?.employment_type === 'part_time' ? '兼职' : '加班'} {employee.overtimeHours} 小时</p></div><b className="self-center tabular-nums text-brand-800">{money(employee.amount)}</b></div>;
               })}</div> : <p className="mt-3 rounded-lg bg-slate-50 px-3 py-3 text-sm text-slate-500">本月该门店暂无可分摊工资记录。</p>}
             </SectionCard>
           ))}

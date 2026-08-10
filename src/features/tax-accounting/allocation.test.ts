@@ -33,8 +33,8 @@ describe('allocatePayrollCosts', () => {
     const result = allocatePayrollCosts(
       [{ estimate: estimate(), profileId: 'p1', status: 'confirmed', storeId: 's1' }],
       [
-        ...Array.from({ length: 4 }, (_, index) => ({ attendanceDate: `2026-07-0${index + 1}`, isAttended: true, profileId: 'p1', storeId: 's1' })),
-        ...Array.from({ length: 2 }, (_, index) => ({ attendanceDate: `2026-07-1${index + 1}`, isAttended: true, profileId: 'p1', storeId: 's2' })),
+        ...Array.from({ length: 4 }, (_, index) => ({ actualOffAt: null, actualOnAt: null, attendanceDate: `2026-07-0${index + 1}`, id: `s1-${index}`, isAttended: true, plannedOffAt: `2026-07-0${index + 1}T18:00:00+08:00`, plannedOnAt: `2026-07-0${index + 1}T09:00:00+08:00`, profileId: 'p1', storeId: 's1' })),
+        ...Array.from({ length: 2 }, (_, index) => ({ actualOffAt: null, actualOnAt: null, attendanceDate: `2026-07-1${index + 1}`, id: `s2-${index}`, isAttended: true, plannedOffAt: `2026-07-1${index + 1}T18:00:00+08:00`, plannedOnAt: `2026-07-1${index + 1}T09:00:00+08:00`, profileId: 'p1', storeId: 's2' })),
       ],
       [{ approvedHourlyRate: 25, hours: 4, profileId: 'p1', status: 'approved', storeId: 's2' }],
     );
@@ -62,7 +62,39 @@ describe('allocatePayrollCosts', () => {
       [],
       [],
     );
-    expect(result).toEqual([{ amount: 1000.01, employees: [{ amount: 1000.01, attendanceDays: 0, overtimeHours: 0, profileId: 'p1', storeId: 's1' }], storeId: 's1' }]);
+    expect(result).toEqual([{ amount: 1000.01, employees: [{ amount: 1000.01, attendanceHours: 0, overtimeHours: 0, profileId: 'p1', storeId: 's1' }], storeId: 's1' }]);
+  });
+
+  it('splits one scheduled day across the scheduled store and a uniquely matched fieldwork punch store', () => {
+    const result = allocatePayrollCosts(
+      [{ estimate: estimate({ accruedOvertime: 0 }), profileId: 'p1', status: 'confirmed', storeId: 's1' }],
+      [{
+        actualOffAt: '2026-07-08T21:05:00+08:00', actualOnAt: '2026-07-08T10:00:00+08:00', attendanceDate: '2026-07-08', id: 'day-1',
+        isAttended: true, plannedOffAt: '2026-07-08T21:00:00+08:00', plannedOnAt: '2026-07-08T10:00:00+08:00', profileId: 'p1', storeId: 's1',
+      }],
+      [],
+      [
+        { dailyRecordId: 'day-1', locationName: 'OMEGA酸奶（西直门店）', storeId: 's1' },
+        { dailyRecordId: 'day-1', locationName: '北京市海淀区五道口店外勤点', storeId: 's1' },
+      ],
+      [
+        { id: 's1', name: 'OMEGA酸奶（西直门店）', shortName: '西直门店' },
+        { id: 's2', name: '宝珠奶酪（五道口店）', shortName: '五道口店' },
+      ],
+    );
+    expect(result).toEqual([
+      { amount: 500, employees: [{ amount: 500, attendanceHours: 5, overtimeHours: 0, profileId: 'p1', storeId: 's1' }], storeId: 's1' },
+      { amount: 500, employees: [{ amount: 500, attendanceHours: 5, overtimeHours: 0, profileId: 'p1', storeId: 's2' }], storeId: 's2' },
+    ]);
+  });
+
+  it('uses actual punch duration only when the scheduled duration is unavailable, then subtracts the meal hour', () => {
+    const result = allocatePayrollCosts(
+      [{ estimate: estimate({ accruedOvertime: 0 }), profileId: 'p1', status: 'confirmed', storeId: 's1' }],
+      [{ actualOffAt: '2026-07-08T18:30:00+08:00', actualOnAt: '2026-07-08T09:30:00+08:00', attendanceDate: '2026-07-08', id: 'day-1', isAttended: true, plannedOffAt: null, plannedOnAt: null, profileId: 'p1', storeId: 's1' }],
+      [],
+    );
+    expect(result[0].employees[0].attendanceHours).toBe(8);
   });
 });
 

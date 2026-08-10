@@ -78,7 +78,7 @@ interface ProfileInput {
 }
 
 interface StoreInput { id: string; name: string }
-interface WorkInput { attendanceDays: number; overtimeCost: number; overtimeHours: number; payrollMonth: string; profileId: string; storeId: string }
+interface WorkInput { attendanceHours: number; overtimeCost: number; overtimeHours: number; payrollMonth: string; profileId: string; storeId: string }
 interface PayslipInput { estimate: PayrollEstimate; id: string; payrollMonth: string; profileId: string; status: 'draft' | 'issued' | 'confirmed' }
 
 const objectAt = (value: Json | null | undefined): Record<string, Json | undefined> => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -183,7 +183,7 @@ function parseInputs(value: Json) {
   const stores = arrayAt(root.stores).map((entry): StoreInput => { const row = objectAt(entry); return { id: textAt(row.id), name: textAt(row.name) }; });
   const work = arrayAt(root.work).map((entry): WorkInput => {
     const row = objectAt(entry);
-    return { attendanceDays: numberAt(row.attendanceDays), overtimeCost: numberAt(row.overtimeCost), overtimeHours: numberAt(row.overtimeHours), payrollMonth: textAt(row.payrollMonth), profileId: textAt(row.profileId), storeId: textAt(row.storeId) };
+    return { attendanceHours: numberAt(row.attendanceHours), overtimeCost: numberAt(row.overtimeCost), overtimeHours: numberAt(row.overtimeHours), payrollMonth: textAt(row.payrollMonth), profileId: textAt(row.profileId), storeId: textAt(row.storeId) };
   });
   const revenues = new Map(arrayAt(root.revenues).map((entry) => { const row = objectAt(entry); return [textAt(row.storeId), numberAt(row.amount)] as const; }));
   const payslips = arrayAt(root.payslips).flatMap((entry): PayslipInput[] => {
@@ -226,7 +226,7 @@ export async function loadPayrollStatistics(client: Client, from: string, to: st
         : subtractBreakdown(breakdownFromEstimate(endEstimate), startEstimate ? breakdownFromEstimate(startEstimate) : undefined);
       const salaryCost = money(Math.max(breakdown.grossIncome - breakdown.fines, 0));
       const monthWork = input.work.filter((row) => row.payrollMonth === segment.month && row.profileId === profile.id);
-      const attendanceHours = monthWork.reduce((sum, row) => sum + row.attendanceDays * 8, 0);
+      const attendanceHours = monthWork.reduce((sum, row) => sum + row.attendanceHours, 0);
       const overtimeHours = monthWork.reduce((sum, row) => sum + row.overtimeHours, 0);
       const periodHours = hours(attendanceHours + overtimeHours);
       if (salaryCost <= 0 && periodHours <= 0) continue;
@@ -259,7 +259,7 @@ export async function loadPayrollStatistics(client: Client, from: string, to: st
       current.periods.push(period);
       employeeMap.set(profile.id, current);
 
-      const attendanceWeights = new Map(monthWork.map((row) => [row.storeId, row.attendanceDays * 8]));
+      const attendanceWeights = new Map(monthWork.map((row) => [row.storeId, row.attendanceHours]));
       const overtimeWeights = new Map(monthWork.map((row) => [row.storeId, row.overtimeCost > 0 ? row.overtimeCost : row.overtimeHours]));
       const overtimeComponent = formal
         ? Math.min(salaryCost, Math.max(formal.estimate.accruedOvertime, profile.employmentType === 'part_time' ? formal.estimate.accruedPartTimeWage : 0))
@@ -271,7 +271,7 @@ export async function loadPayrollStatistics(client: Client, from: string, to: st
       for (const storeId of new Set([...baseParts.keys(), ...overtimeParts.keys(), ...monthWork.map((row) => row.storeId)])) {
         const store = storeCosts.get(storeId) ?? { cost: 0, hours: 0 };
         store.cost = money(store.cost + (baseParts.get(storeId) ?? 0) + (overtimeParts.get(storeId) ?? 0));
-        store.hours = hours(store.hours + monthWork.filter((row) => row.storeId === storeId).reduce((sum, row) => sum + row.attendanceDays * 8 + row.overtimeHours, 0));
+        store.hours = hours(store.hours + monthWork.filter((row) => row.storeId === storeId).reduce((sum, row) => sum + row.attendanceHours + row.overtimeHours, 0));
         storeCosts.set(storeId, store);
       }
     }

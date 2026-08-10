@@ -661,6 +661,12 @@ export type Database = {
         Update: { payroll_month?: string; profile_id?: string; updated_by?: string };
         Relationships: [];
       };
+      payroll_attendance_allocation_rules: {
+        Row: { created_at: string; effective_from: string; effective_to: string | null; is_enabled: boolean; profile_id: string; punch_scope: 'any' | 'on_duty' | 'off_duty'; source_store_id: string; target_ratio: number; target_store_id: string; updated_at: string; updated_by: string | null };
+        Insert: { created_at?: string; effective_from: string; effective_to?: string | null; is_enabled?: boolean; profile_id: string; punch_scope?: 'any' | 'on_duty' | 'off_duty'; source_store_id: string; target_ratio?: number; target_store_id: string; updated_at?: string; updated_by?: string | null };
+        Update: { effective_from?: string; effective_to?: string | null; is_enabled?: boolean; punch_scope?: 'any' | 'on_duty' | 'off_duty'; source_store_id?: string; target_ratio?: number; target_store_id?: string; updated_at?: string; updated_by?: string | null };
+        Relationships: [];
+      };
       payroll_employee_commission_stores: {
         Row: { created_at: string; rule_id: string; store_id: string };
         Insert: { created_at?: string; rule_id: string; store_id: string };
@@ -1214,6 +1220,7 @@ export type Database = {
       admin_create_payroll_penalty: { Args: { p_fields: Json }; Returns: Json };
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };
       admin_save_payroll_employee_rule_v2: { Args: { p_commission_store_ids?: string[]; p_fields: Json; p_performance_stores?: Json; p_profile_id: string }; Returns: string };
+      admin_save_payroll_attendance_allocation_rule: { Args: { p_effective_from: string; p_effective_to?: string | null; p_is_enabled?: boolean; p_profile_id: string; p_punch_scope: 'any' | 'on_duty' | 'off_duty'; p_source_store_id: string; p_target_ratio: number; p_target_store_id: string }; Returns: string };
       admin_save_payroll_monthly_performance: { Args: { p_final_amount?: number | null; p_payroll_month: string; p_profile_id: string; p_store_settings?: Json }; Returns: Json };
       admin_save_payroll_visibility_settings: { Args: { p_history_available_until_day: number; p_history_months: number }; Returns: Json };
       admin_save_payroll_overtime_rate: { Args: { p_change_reason?: string; p_effective_from: string; p_hourly_rate: number }; Returns: string };

@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup } from '../services/payroll.service';
+import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
 import { AdminPayrollPage } from './AdminPayrollPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -19,11 +19,12 @@ vi.mock('../services/payroll.service', async (original) => {
     loadPayrollProfiles: vi.fn(),
     loadPayrollVisibilitySettings: vi.fn(),
     loadPosSalesSetup: vi.fn(),
+    savePayrollAttendanceAllocationRule: vi.fn(),
   };
 });
 
 const setup = {
-  profiles: [], rules: [], commissionStores: [], performanceStores: [], departureMonths: [], profileStoreAccess: [], performanceRules: [], revenues: [], revenueInputs: [], penalties: [], penaltyAssets: [], overtimeRates: [], overtimeRequests: [],
+  profiles: [], rules: [], commissionStores: [], performanceStores: [], departureMonths: [], attendanceAllocationRules: [], profileStoreAccess: [], performanceRules: [], revenues: [], revenueInputs: [], penalties: [], penaltyAssets: [], overtimeRates: [], overtimeRequests: [],
 };
 
 const estimate = {
@@ -103,6 +104,32 @@ describe('AdminPayrollPage update guidance', () => {
     expect(await screen.findByText('员工历史工资查看期限')).toBeInTheDocument();
     expect(screen.getByText('离职月工资设置')).toBeInTheDocument();
     expect(screen.getByText(/最多连续两个月不核算绩效、提成和房补/)).toBeInTheDocument();
+    expect(screen.getByText('跨店工时与薪资分配')).toBeInTheDocument();
+    expect(screen.getByText(/同一天的普通工时和对应薪资成本会使用同一比例拆分/)).toBeInTheDocument();
+  });
+
+  it('loads and saves one employee fieldwork allocation rule', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      availableStores: [
+        { id: 'store-1', name: 'OMEGA酸奶（西直门店）', short_name: 'OMEGA酸奶' },
+        { id: 'store-2', name: '宝珠奶酪（五道口店）', short_name: '宝珠奶酪' },
+      ],
+      profile: { id: 'admin-1', role: 'admin' },
+    } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({
+      ...setup,
+      profiles: [{ id: 'profile-1', display_name: '李天欣', employment_type: 'full_time', role: 'staff', store_id: 'store-1' }],
+      profileStoreAccess: [{ profile_id: 'profile-1', store_id: 'store-1' }, { profile_id: 'profile-1', store_id: 'store-2' }],
+      attendanceAllocationRules: [{ effective_from: '2026-01-01', effective_to: null, is_enabled: true, profile_id: 'profile-1', punch_scope: 'any', source_store_id: 'store-1', target_ratio: 0.5, target_store_id: 'store-2' }],
+    } as never);
+    vi.mocked(savePayrollAttendanceAllocationRule).mockResolvedValue('profile-1');
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=employees']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole('checkbox', { name: '启用该员工的跨店分摊规则' })).toBeChecked();
+    expect(screen.getByLabelText('排班门店')).toHaveValue('store-1');
+    expect(screen.getByLabelText('分摊门店')).toHaveValue('store-2');
+    fireEvent.change(screen.getByLabelText('分到另一门店（%）'), { target: { value: '40' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存跨店分摊规则' }));
+    await waitFor(() => expect(savePayrollAttendanceAllocationRule).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ profileId: 'profile-1', sourceStoreId: 'store-1', targetStoreId: 'store-2', targetRatio: 0.4 })));
   });
 
   it('offers one-click send and withdrawal for all eligible monthly payslips', async () => {

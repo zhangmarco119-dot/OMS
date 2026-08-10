@@ -103,6 +103,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     estimatesResult,
     attendanceResult,
     overtimeResult,
+    allocationRulesResult,
   ] = await Promise.all([
     client.from('stores').select('*').eq('is_active', true).order('name'),
     client.from('tax_reporting_store_settings').select('*'),
@@ -113,8 +114,9 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
     loadAdminPayrollEstimates(client, { asOf: payrollMonthEndDate(month.slice(0, 7), todayInChina()) }),
     client.from('attendance_daily_records').select('*').gte('attendance_date', start).lte('attendance_date', end),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', start).lte('overtime_date', end).eq('status', 'approved'),
+    client.from('payroll_attendance_allocation_rules').select('*'),
   ]);
-  const firstError = storesResult.error || settingsResult.error || peopleResult.error || salariesResult.error || individualTaxesResult.error || attendanceResult.error || overtimeResult.error;
+  const firstError = storesResult.error || settingsResult.error || peopleResult.error || salariesResult.error || individualTaxesResult.error || attendanceResult.error || overtimeResult.error || allocationRulesResult.error;
   if (firstError) throw new Error(firstError.message || '暂时无法加载税务与记账信息。');
 
   const stores = storesResult.data ?? [];
@@ -125,7 +127,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
   const overtime = overtimeResult.data ?? [];
   const dailyRecordIds = attendance.map((row) => row.id);
   const punchesResult = dailyRecordIds.length
-    ? await client.from('attendance_punch_records').select('daily_record_id,location_name,store_id').in('daily_record_id', dailyRecordIds)
+    ? await client.from('attendance_punch_records').select('check_type,daily_record_id,location_name,location_result,source_type,store_id').in('daily_record_id', dailyRecordIds)
     : { data: [], error: null };
   if (punchesResult.error) throw new Error(punchesResult.error.message || '暂时无法加载打卡地点。');
   const calculatedAllocations = allocatePayrollCosts(
@@ -139,16 +141,20 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
       actualOffAt: row.actual_off_at,
       actualOnAt: row.actual_on_at,
       attendanceDate: row.attendance_date,
+      dailyStatus: row.daily_status,
       id: row.id,
       isAttended: row.is_attended,
+      offDutyResult: row.off_duty_result,
+      onDutyResult: row.on_duty_result,
       plannedOffAt: row.planned_off_at,
       plannedOnAt: row.planned_on_at,
       profileId: row.profile_id,
       storeId: row.store_id,
     })),
     overtime.map((row) => ({ approvedHourlyRate: row.approved_hourly_rate, hours: row.hours, profileId: row.profile_id, status: row.status, storeId: row.store_id })),
-    (punchesResult.data ?? []).map((row) => ({ dailyRecordId: row.daily_record_id, locationName: row.location_name, storeId: row.store_id })),
+    (punchesResult.data ?? []).map((row) => ({ checkType: row.check_type, dailyRecordId: row.daily_record_id, locationName: row.location_name, locationResult: row.location_result, sourceType: row.source_type, storeId: row.store_id })),
     stores.map((store) => ({ id: store.id, name: store.name, shortName: store.short_name })),
+    (allocationRulesResult.data ?? []).map((row) => ({ effectiveFrom: row.effective_from, effectiveTo: row.effective_to, isEnabled: row.is_enabled, profileId: row.profile_id, punchScope: row.punch_scope, sourceStoreId: row.source_store_id, targetRatio: row.target_ratio, targetStoreId: row.target_store_id })),
   );
   const allocations = includeEmptyStoreAllocations(stores.map((store) => store.id), calculatedAllocations);
 

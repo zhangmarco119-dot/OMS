@@ -397,12 +397,13 @@ export async function savePayrollIndividualTaxes(
 }
 
 export async function loadPayrollAdminSetup(client: Client, monthStart: string) {
-  const [profiles, rules, commissionStores, performanceStores, departureMonths, profileStoreAccess, performanceRules, revenues, revenueInputs, penalties, penaltyAssets, overtimeRates, overtimeRequests] = await Promise.all([
+  const [profiles, rules, commissionStores, performanceStores, departureMonths, attendanceAllocationRules, profileStoreAccess, performanceRules, revenues, revenueInputs, penalties, penaltyAssets, overtimeRates, overtimeRequests] = await Promise.all([
     client.from('profiles').select('*').in('role', ['staff', 'manager']).is('deleted_at', null).order('display_name'),
     client.from('payroll_employee_rules').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_employee_commission_stores').select('*'),
     client.from('payroll_employee_performance_stores').select('*'),
     client.from('payroll_employee_departure_months').select('*').order('payroll_month'),
+    client.from('payroll_attendance_allocation_rules').select('*'),
     client.from('profile_store_access').select('*'),
     client.from('payroll_performance_rules').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_store_revenues').select('*').gte('revenue_date', monthStart).order('revenue_date', { ascending: false }),
@@ -412,14 +413,38 @@ export async function loadPayrollAdminSetup(client: Client, monthStart: string) 
     client.from('payroll_overtime_rates').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', monthStart).order('created_at', { ascending: false }),
   ]);
-  const error = profiles.error ?? rules.error ?? commissionStores.error ?? performanceStores.error ?? departureMonths.error ?? profileStoreAccess.error ?? performanceRules.error ?? revenues.error ?? revenueInputs.error ?? penalties.error ?? penaltyAssets.error ?? overtimeRates.error ?? overtimeRequests.error;
+  const error = profiles.error ?? rules.error ?? commissionStores.error ?? performanceStores.error ?? departureMonths.error ?? attendanceAllocationRules.error ?? profileStoreAccess.error ?? performanceRules.error ?? revenues.error ?? revenueInputs.error ?? penalties.error ?? penaltyAssets.error ?? overtimeRates.error ?? overtimeRequests.error;
   if (error) throw new Error(error.message || '暂时无法加载工资设置。');
-  return { profiles: profiles.data ?? [], rules: rules.data ?? [], commissionStores: commissionStores.data ?? [], performanceStores: performanceStores.data ?? [], departureMonths: departureMonths.data ?? [], profileStoreAccess: profileStoreAccess.data ?? [], performanceRules: performanceRules.data ?? [], revenues: revenues.data ?? [], revenueInputs: revenueInputs.data ?? [], penalties: penalties.data ?? [], penaltyAssets: penaltyAssets.data ?? [], overtimeRates: overtimeRates.data ?? [], overtimeRequests: overtimeRequests.data ?? [] };
+  return { profiles: profiles.data ?? [], rules: rules.data ?? [], commissionStores: commissionStores.data ?? [], performanceStores: performanceStores.data ?? [], departureMonths: departureMonths.data ?? [], attendanceAllocationRules: attendanceAllocationRules.data ?? [], profileStoreAccess: profileStoreAccess.data ?? [], performanceRules: performanceRules.data ?? [], revenues: revenues.data ?? [], revenueInputs: revenueInputs.data ?? [], penalties: penalties.data ?? [], penaltyAssets: penaltyAssets.data ?? [], overtimeRates: overtimeRates.data ?? [], overtimeRequests: overtimeRequests.data ?? [] };
 }
 
 export async function savePayrollEmployeeRule(client: Client, profileId: string, fields: Record<string, Json | undefined>, storeIds: string[], performanceStores: { allocationRatio: number; storeId: string }[]) {
   const { data, error } = await client.rpc('admin_save_payroll_employee_rule_v2', { p_profile_id: profileId, p_fields: fields as Json, p_commission_store_ids: storeIds, p_performance_stores: performanceStores as unknown as Json });
   if (error) throw new Error(error.message || '工资参数保存失败。');
+  return data;
+}
+
+export async function savePayrollAttendanceAllocationRule(client: Client, input: {
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  enabled: boolean;
+  profileId: string;
+  punchScope: 'any' | 'on_duty' | 'off_duty';
+  sourceStoreId: string;
+  targetRatio: number;
+  targetStoreId: string;
+}) {
+  const { data, error } = await client.rpc('admin_save_payroll_attendance_allocation_rule', {
+    p_effective_from: input.effectiveFrom,
+    p_effective_to: input.effectiveTo || null,
+    p_is_enabled: input.enabled,
+    p_profile_id: input.profileId,
+    p_punch_scope: input.punchScope,
+    p_source_store_id: input.sourceStoreId,
+    p_target_ratio: input.targetRatio,
+    p_target_store_id: input.targetStoreId,
+  });
+  if (error) throw new Error(error.message || '跨店工时与薪资分配规则保存失败。');
   return data;
 }
 
@@ -597,6 +622,7 @@ export async function saveOvertimeRate(client: Client, input: { hourlyRate: numb
 }
 
 export type PayrollEmployeeRule = RuleRow;
+export type PayrollAttendanceAllocationRule = Database['public']['Tables']['payroll_attendance_allocation_rules']['Row'];
 export type PayrollPerformanceRule = PerformanceRuleRow;
 export type PayrollRevenue = RevenueRow;
 export type PayrollPenalty = PenaltyRow;

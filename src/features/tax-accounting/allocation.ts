@@ -11,8 +11,11 @@ export interface CostAttendanceEntry {
   actualOffAt: string | null;
   actualOnAt: string | null;
   attendanceDate: string;
+  dailyStatus?: string;
   id: string;
   isAttended: boolean;
+  offDutyResult?: string;
+  onDutyResult?: string;
   plannedOffAt: string | null;
   plannedOnAt: string | null;
   profileId: string;
@@ -20,9 +23,23 @@ export interface CostAttendanceEntry {
 }
 
 export interface CostAttendancePunch {
+  checkType?: 'on_duty' | 'off_duty' | 'unknown';
   dailyRecordId: string;
   locationName: string | null;
+  locationResult?: string | null;
+  sourceType?: string | null;
   storeId: string;
+}
+
+export interface CostAttendanceAllocationRule {
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  isEnabled: boolean;
+  profileId: string;
+  punchScope: 'any' | 'on_duty' | 'off_duty';
+  sourceStoreId: string;
+  targetRatio: number;
+  targetStoreId: string;
 }
 
 export interface CostStore {
@@ -95,7 +112,26 @@ function scheduledHours(row: CostAttendanceEntry) {
   return Math.max(value - 1, 0);
 }
 
-function attendanceHoursByStore(attendance: CostAttendanceEntry[], punches: CostAttendancePunch[], stores: CostStore[], profileId: string) {
+const fieldworkPattern = /(outside|field|外勤)/iu;
+const isFieldworkPunch = (punch: CostAttendancePunch) => fieldworkPattern.test(`${punch.sourceType ?? ''} ${punch.locationResult ?? ''}`);
+
+function dayHasFieldwork(rows: CostAttendanceEntry[], punches: CostAttendancePunch[], scope: CostAttendanceAllocationRule['punchScope']) {
+  const statusFieldwork = scope === 'on_duty'
+    ? rows.some((row) => row.onDutyResult === 'fieldwork')
+    : scope === 'off_duty'
+      ? rows.some((row) => row.offDutyResult === 'fieldwork')
+      : rows.some((row) => row.dailyStatus === 'fieldwork' || row.onDutyResult === 'fieldwork' || row.offDutyResult === 'fieldwork');
+  if (statusFieldwork) return true;
+  return punches.some((punch) => isFieldworkPunch(punch) && (scope === 'any' || punch.checkType === scope));
+}
+
+function attendanceHoursByStore(
+  attendance: CostAttendanceEntry[],
+  punches: CostAttendancePunch[],
+  stores: CostStore[],
+  rules: CostAttendanceAllocationRule[],
+  profileId: string,
+) {
   const rowsByDay = new Map<string, CostAttendanceEntry[]>();
   for (const row of attendance) {
     if (row.profileId !== profileId) continue;
@@ -114,12 +150,25 @@ function attendanceHoursByStore(attendance: CostAttendanceEntry[], punches: Cost
     const attended = rows.filter((row) => row.isAttended);
     if (!attended.length) continue;
     const involvedStores = new Set(attended.map((row) => row.storeId));
+    const dayPunches = rows.flatMap((row) => punchesByDailyId.get(row.id) ?? []);
     for (const row of rows) {
       for (const punch of punchesByDailyId.get(row.id) ?? []) involvedStores.add(resolvePunchStoreId(punch, stores));
     }
     const dayHours = Math.max(...rows.map(scheduledHours), 0);
     const storeIds = [...involvedStores].filter(Boolean);
     if (!storeIds.length || dayHours <= 0) continue;
+    const attendanceDate = rows[0].attendanceDate;
+    const rule = rules.find((item) => item.profileId === profileId
+      && item.isEnabled
+      && item.effectiveFrom <= attendanceDate
+      && (!item.effectiveTo || item.effectiveTo >= attendanceDate)
+      && attended.some((row) => row.storeId === item.sourceStoreId)
+      && dayHasFieldwork(rows, dayPunches, item.punchScope));
+    if (rule) {
+      result.set(rule.sourceStoreId, (result.get(rule.sourceStoreId) ?? 0) + dayHours * (1 - rule.targetRatio));
+      result.set(rule.targetStoreId, (result.get(rule.targetStoreId) ?? 0) + dayHours * rule.targetRatio);
+      continue;
+    }
     const allocatedHours = dayHours / storeIds.length;
     for (const storeId of storeIds) result.set(storeId, (result.get(storeId) ?? 0) + allocatedHours);
   }
@@ -152,6 +201,7 @@ export function allocatePayrollCosts(
   overtime: CostOvertimeEntry[],
   punches: CostAttendancePunch[] = [],
   stores: CostStore[] = [],
+  rules: CostAttendanceAllocationRule[] = [],
 ): StoreCostAllocation[] {
   const activePayslips = payslips.filter((item) => item.status !== 'withdrawn');
   const allocations: EmployeeStoreAllocation[] = [];
@@ -161,7 +211,7 @@ export function allocatePayrollCosts(
     const fallbackStoreId = estimate.primaryStoreId || payslip.storeId;
     if (!fallbackStoreId) continue;
 
-    const attendanceWeights = attendanceHoursByStore(attendance, punches, stores, payslip.profileId);
+    const attendanceWeights = attendanceHoursByStore(attendance, punches, stores, rules, payslip.profileId);
 
     const overtimeRows = overtime.filter((row) => row.profileId === payslip.profileId && row.status === 'approved');
     const overtimeHours = new Map<string, number>();

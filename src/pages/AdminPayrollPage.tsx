@@ -1,5 +1,5 @@
 import { Banknote, Camera, Clock3, ClipboardPen, FileText, RefreshCw, Search, Settings2, ShieldCheck, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
@@ -20,7 +20,7 @@ import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
   generatePayrollPayslips, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollMonthlyPerformance, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, sendPayrollPayslips, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips,
-  savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
+  savePayrollAttendanceAllocationRule, savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
   savePayrollMonthlyPerformance, savePayrollPayslipScheduleSettings, savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollMonthlyStoreSetting, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
 } from '../services/payroll.service';
@@ -30,6 +30,7 @@ type Tab = 'overview' | 'statistics' | 'payslips' | 'employees' | 'performance' 
 type Feedback = { title: string; message: string; tone: ActionFeedbackTone };
 type Setup = Awaited<ReturnType<typeof loadPayrollAdminSetup>>;
 type MonthlyPerformanceForm = { grade: 'A' | 'B' | 'C' | 'D'; mode: 'automatic' | 'score' | 'grade'; score: string; storeId: string };
+type AttendanceAllocationForm = { effectiveFrom: string; effectiveTo: string; enabled: boolean; punchScope: 'any' | 'on_duty' | 'off_duty'; sourceStoreId: string; targetPercent: string; targetStoreId: string };
 const tabs: { key: Tab; label: string }[] = [
   { key: 'overview', label: '实时工资' }, { key: 'statistics', label: '综合统计' }, { key: 'payslips', label: '工资单' }, { key: 'employees', label: '员工参数' },
   { key: 'performance', label: '绩效规则' }, { key: 'revenue', label: '营业收入' },
@@ -39,6 +40,7 @@ const monthStart = (date = todayInChina()) => `${date.slice(0, 7)}-01`;
 const penaltyDefaults = { reminder: 0, warning: 3, formal_warning: 5, serious: 10 } as const;
 const payrollRoleLabel = { staff: '员工', manager: '店长', admin: '管理员' } as const;
 const payrollProfileLabel = (profile: { employment_type: 'full_time' | 'part_time'; role: keyof typeof payrollRoleLabel }) => profile.employment_type === 'part_time' ? '兼职员工' : payrollRoleLabel[profile.role];
+const emptyAttendanceAllocationForm = (): AttendanceAllocationForm => ({ effectiveFrom: '2026-01-01', effectiveTo: '', enabled: false, punchScope: 'any', sourceStoreId: '', targetPercent: '50', targetStoreId: '' });
 
 export function AdminPayrollPage() {
   const [params, setParams] = useSearchParams();
@@ -272,6 +274,7 @@ function EmployeeRules() {
   const auth = useAuth(); const [setup, setSetup] = useState<Setup | null>(null); const [profileId, setProfileId] = useRememberedPageState('employee-rule-profile', '');
   const [params] = useSearchParams(); const requestedProfileId = params.get('profile') || '';
   const [form, setForm] = useState(ruleToForm(undefined, [], [], [])); const [feedback, setFeedback] = useState<Feedback | null>(null); const [busy, setBusy] = useState(false);
+  const [attendanceAllocation, setAttendanceAllocation] = useState(emptyAttendanceAllocationForm); const [attendanceAllocationBusy, setAttendanceAllocationBusy] = useState(false);
   const [performanceMonth, setPerformanceMonth] = useRememberedPageState('employee-performance-month', todayInChina().slice(0, 7));
   const [monthlyPerformance, setMonthlyPerformance] = useState<MonthlyPerformanceForm[]>([]);
   const [finalPerformanceMode, setFinalPerformanceMode] = useState<'automatic' | 'override'>('automatic');
@@ -289,7 +292,22 @@ function EmployeeRules() {
       : assignedStoreIds.map((storeId) => ({ allocationPercent: String(100 / Math.max(assignedStoreIds.length, 1)), storeId }));
     const departureMonths = setup.departureMonths.filter((item) => item.profile_id === profileId).map((item) => item.payroll_month);
     setForm(ruleToForm(rule, setup.commissionStores.filter((item) => item.rule_id === rule?.id).map((item) => item.store_id), allocation, departureMonths));
-  }, [profileId, setup]);
+    const attendanceRule = setup.attendanceAllocationRules.find((item) => item.profile_id === profileId);
+    const sourceStoreId = attendanceRule?.source_store_id || assignedStoreIds[0] || auth.availableStores[0]?.id || '';
+    setAttendanceAllocation(attendanceRule ? {
+      effectiveFrom: attendanceRule.effective_from,
+      effectiveTo: attendanceRule.effective_to ?? '',
+      enabled: attendanceRule.is_enabled,
+      punchScope: attendanceRule.punch_scope,
+      sourceStoreId,
+      targetPercent: String(Number(attendanceRule.target_ratio) * 100),
+      targetStoreId: attendanceRule.target_store_id,
+    } : {
+      ...emptyAttendanceAllocationForm(),
+      sourceStoreId,
+      targetStoreId: assignedStoreIds.find((storeId) => storeId !== sourceStoreId) || auth.availableStores.find((store) => store.id !== sourceStoreId)?.id || '',
+    });
+  }, [auth.availableStores, profileId, setup]);
   useEffect(() => {
     let active = true;
     if (!supabase || !profileId || !setup) return undefined;
@@ -343,6 +361,43 @@ function EmployeeRules() {
     } catch (error) {
       setFeedback({ title: '保存未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
     } finally { setBusy(false); }
+  };
+  const saveAttendanceAllocation = async () => {
+    if (!supabase || !profileId) return;
+    const targetPercent = Number(attendanceAllocation.targetPercent);
+    if (!attendanceAllocation.sourceStoreId || !attendanceAllocation.targetStoreId) {
+      setFeedback({ title: '请选择分摊门店', message: '排班门店和分摊门店都必须选择。', tone: 'warning' });
+      return;
+    }
+    if (attendanceAllocation.sourceStoreId === attendanceAllocation.targetStoreId) {
+      setFeedback({ title: '门店不能相同', message: '分摊门店必须与排班门店不同。', tone: 'warning' });
+      return;
+    }
+    if (!Number.isFinite(targetPercent) || targetPercent <= 0 || targetPercent >= 100) {
+      setFeedback({ title: '请检查分摊比例', message: '分到另一门店的比例必须大于 0% 且小于 100%。', tone: 'warning' });
+      return;
+    }
+    if (!attendanceAllocation.effectiveFrom || (attendanceAllocation.effectiveTo && attendanceAllocation.effectiveTo < attendanceAllocation.effectiveFrom)) {
+      setFeedback({ title: '请检查生效日期', message: '结束日期不能早于开始日期。', tone: 'warning' });
+      return;
+    }
+    setAttendanceAllocationBusy(true);
+    try {
+      await savePayrollAttendanceAllocationRule(supabase, {
+        effectiveFrom: attendanceAllocation.effectiveFrom,
+        effectiveTo: attendanceAllocation.effectiveTo || null,
+        enabled: attendanceAllocation.enabled,
+        profileId,
+        punchScope: attendanceAllocation.punchScope,
+        sourceStoreId: attendanceAllocation.sourceStoreId,
+        targetRatio: targetPercent / 100,
+        targetStoreId: attendanceAllocation.targetStoreId,
+      });
+      setFeedback({ title: '跨店分摊规则已保存', message: attendanceAllocation.enabled ? '符合外勤打卡条件的日期会按该比例同时拆分工时和薪资成本。' : '该员工的跨店分摊规则已停用。', tone: 'success' });
+      await load();
+    } catch (error) {
+      setFeedback({ title: '跨店分摊规则保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setAttendanceAllocationBusy(false); }
   };
   const saveMonthlyPerformance = async () => {
     if (!supabase || !profileId) return;
@@ -399,7 +454,30 @@ function EmployeeRules() {
     <label className="mt-3 block text-sm font-semibold">修改原因（选填）<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, reason: event.target.value }))} placeholder="例如：转正调薪" value={form.reason} /></label>
     <label className="mt-3 flex items-center rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={form.confirmed} className="mr-2" onChange={(event) => setForm((value) => ({ ...value, confirmed: event.target.checked }))} type="checkbox" />我已核对并确认本员工工资参数</label>
     <button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void save()} type="button">{busy ? '正在保存' : '保存员工工资参数'}</button>
-  </SectionCard>{form.performanceEnabled ? <SectionCard><SectionHeader icon={ShieldCheck} title="按月设置门店绩效" description="每个关联门店独立计算，也可单独手动设置分数或等级。" /><MonthPicker label="绩效月份" onChange={setPerformanceMonth} value={performanceMonth} /><div className="mt-3 space-y-2">{monthlyPerformance.map((item) => <div className="rounded-xl border border-slate-200 p-3" key={item.storeId}><b className="text-sm text-slate-900">{auth.availableStores.find((store) => store.id === item.storeId)?.name ?? '门店'}</b><label className="mt-2 block text-xs font-semibold">计算方式<select className="ui-input mt-1" onChange={(event) => setMonthlyPerformance((current) => current.map((entry) => entry.storeId === item.storeId ? { ...entry, mode: event.target.value as MonthlyPerformanceForm['mode'] } : entry))} value={item.mode}><option value="automatic">自动按评分计算</option><option value="score">手动设置绩效分</option><option value="grade">手动设置绩效等级</option></select></label>{item.mode === 'score' ? <Field label="本月绩效分（0–100）" value={item.score} onChange={(score) => setMonthlyPerformance((current) => current.map((entry) => entry.storeId === item.storeId ? { ...entry, score } : entry))} /> : null}{item.mode === 'grade' ? <label className="mt-3 block text-sm font-semibold">本月绩效等级<select className="ui-input mt-1" onChange={(event) => setMonthlyPerformance((current) => current.map((entry) => entry.storeId === item.storeId ? { ...entry, grade: event.target.value as MonthlyPerformanceForm['grade'] } : entry))} value={item.grade}>{(['A','B','C','D'] as const).map((grade) => <option key={grade} value={grade}>{grade} 级</option>)}</select></label> : null}</div>)}</div><div className="mt-3 rounded-xl bg-amber-50 p-3"><label className="text-sm font-semibold">最终绩效奖金额<select className="ui-input mt-1" onChange={(event) => setFinalPerformanceMode(event.target.value as 'automatic' | 'override')} value={finalPerformanceMode}><option value="automatic">按门店占比和等级自动计算</option><option value="override">手动设置最终实际金额</option></select></label>{finalPerformanceMode === 'override' ? <><Field label="本月最终绩效奖" value={finalPerformanceAmount} onChange={setFinalPerformanceAmount} /><p className="mt-1 text-xs leading-5 text-amber-800">手动金额不会显示为“管理员覆盖”；但仍需为每个门店手动设置分数或等级。</p></> : null}</div><button className="ui-button-primary mt-3 w-full" disabled={performanceBusy} onClick={() => void saveMonthlyPerformance()} type="button">{performanceBusy ? '正在保存' : '保存本月门店绩效'}</button></SectionCard> : null}<FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+  </SectionCard><AttendanceAllocationRuleCard busy={attendanceAllocationBusy} form={attendanceAllocation} onChange={setAttendanceAllocation} onSave={() => void saveAttendanceAllocation()} stores={auth.availableStores} />{form.performanceEnabled ? <SectionCard><SectionHeader icon={ShieldCheck} title="按月设置门店绩效" description="每个关联门店独立计算，也可单独手动设置分数或等级。" /><MonthPicker label="绩效月份" onChange={setPerformanceMonth} value={performanceMonth} /><div className="mt-3 space-y-2">{monthlyPerformance.map((item) => <div className="rounded-xl border border-slate-200 p-3" key={item.storeId}><b className="text-sm text-slate-900">{auth.availableStores.find((store) => store.id === item.storeId)?.name ?? '门店'}</b><label className="mt-2 block text-xs font-semibold">计算方式<select className="ui-input mt-1" onChange={(event) => setMonthlyPerformance((current) => current.map((entry) => entry.storeId === item.storeId ? { ...entry, mode: event.target.value as MonthlyPerformanceForm['mode'] } : entry))} value={item.mode}><option value="automatic">自动按评分计算</option><option value="score">手动设置绩效分</option><option value="grade">手动设置绩效等级</option></select></label>{item.mode === 'score' ? <Field label="本月绩效分（0–100）" value={item.score} onChange={(score) => setMonthlyPerformance((current) => current.map((entry) => entry.storeId === item.storeId ? { ...entry, score } : entry))} /> : null}{item.mode === 'grade' ? <label className="mt-3 block text-sm font-semibold">本月绩效等级<select className="ui-input mt-1" onChange={(event) => setMonthlyPerformance((current) => current.map((entry) => entry.storeId === item.storeId ? { ...entry, grade: event.target.value as MonthlyPerformanceForm['grade'] } : entry))} value={item.grade}>{(['A','B','C','D'] as const).map((grade) => <option key={grade} value={grade}>{grade} 级</option>)}</select></label> : null}</div>)}</div><div className="mt-3 rounded-xl bg-amber-50 p-3"><label className="text-sm font-semibold">最终绩效奖金额<select className="ui-input mt-1" onChange={(event) => setFinalPerformanceMode(event.target.value as 'automatic' | 'override')} value={finalPerformanceMode}><option value="automatic">按门店占比和等级自动计算</option><option value="override">手动设置最终实际金额</option></select></label>{finalPerformanceMode === 'override' ? <><Field label="本月最终绩效奖" value={finalPerformanceAmount} onChange={setFinalPerformanceAmount} /><p className="mt-1 text-xs leading-5 text-amber-800">手动金额不会显示为“管理员覆盖”；但仍需为每个门店手动设置分数或等级。</p></> : null}</div><button className="ui-button-primary mt-3 w-full" disabled={performanceBusy} onClick={() => void saveMonthlyPerformance()} type="button">{performanceBusy ? '正在保存' : '保存本月门店绩效'}</button></SectionCard> : null}<FeedbackDialog feedback={feedback} close={() => setFeedback(null)} /></>;
+}
+
+function AttendanceAllocationRuleCard({ busy, form, onChange, onSave, stores }: {
+  busy: boolean;
+  form: AttendanceAllocationForm;
+  onChange: Dispatch<SetStateAction<AttendanceAllocationForm>>;
+  onSave: () => void;
+  stores: Array<{ id: string; name: string; short_name: string }>;
+}) {
+  return <SectionCard>
+    <SectionHeader icon={Clock3} title="跨店工时与薪资分配" description="外勤打卡满足规则时，同一天的普通工时和对应薪资成本会使用同一比例拆分。" />
+    <label className="mt-3 flex items-center rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={form.enabled} className="mr-2" onChange={(event) => onChange((value) => ({ ...value, enabled: event.target.checked }))} type="checkbox" />启用该员工的跨店分摊规则</label>
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      <label className="text-sm font-semibold">排班门店<select className="ui-input mt-1" onChange={(event) => onChange((value) => ({ ...value, sourceStoreId: event.target.value }))} value={form.sourceStoreId}>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+      <label className="text-sm font-semibold">分摊门店<select className="ui-input mt-1" onChange={(event) => onChange((value) => ({ ...value, targetStoreId: event.target.value }))} value={form.targetStoreId}>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+      <label className="text-sm font-semibold">外勤打卡条件<select className="ui-input mt-1" onChange={(event) => onChange((value) => ({ ...value, punchScope: event.target.value as AttendanceAllocationForm['punchScope'] }))} value={form.punchScope}><option value="any">上班或下班任一外勤</option><option value="on_duty">仅上班外勤</option><option value="off_duty">仅下班外勤</option></select></label>
+      <Field label="分到另一门店（%）" value={form.targetPercent} onChange={(targetPercent) => onChange((value) => ({ ...value, targetPercent }))} />
+      <label className="text-sm font-semibold">开始日期<input className="ui-input mt-1" onChange={(event) => onChange((value) => ({ ...value, effectiveFrom: event.target.value }))} type="date" value={form.effectiveFrom} /></label>
+      <label className="text-sm font-semibold">结束日期（选填）<input className="ui-input mt-1" min={form.effectiveFrom} onChange={(event) => onChange((value) => ({ ...value, effectiveTo: event.target.value }))} type="date" value={form.effectiveTo} /></label>
+    </div>
+    <p className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900">例如设置 50%：当天满足外勤条件后，排班门店承担 50%，分摊门店承担 50%；加班仍按审批记录中的实际门店单独计算。</p>
+    <button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={onSave} type="button">{busy ? '正在保存' : '保存跨店分摊规则'}</button>
+  </SectionCard>;
 }
 
 function PerformanceRules() {

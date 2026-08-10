@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
+import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -18,6 +18,18 @@ describe('payroll service', () => {
     const result = await loadMyPayrollEstimate({ rpc } as never, 'p1', '2026-07-17');
     expect(rpc).toHaveBeenCalledWith('get_payroll_estimate', { p_profile_id: 'p1', p_as_of: '2026-07-17' });
     expect(result.displayName).toBe('李天欣');
+  });
+
+  it('saves a configurable fieldwork allocation rule for one employee', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: 'p1', error: null });
+    await savePayrollAttendanceAllocationRule({ rpc } as never, {
+      effectiveFrom: '2026-01-01', effectiveTo: null, enabled: true, profileId: 'p1', punchScope: 'any',
+      sourceStoreId: 'west', targetRatio: 0.5, targetStoreId: 'wudaokou',
+    });
+    expect(rpc).toHaveBeenCalledWith('admin_save_payroll_attendance_allocation_rule', {
+      p_effective_from: '2026-01-01', p_effective_to: null, p_is_enabled: true, p_profile_id: 'p1', p_punch_scope: 'any',
+      p_source_store_id: 'west', p_target_ratio: 0.5, p_target_store_id: 'wudaokou',
+    });
   });
 
   it('saves a performance score for one month and restores automatic calculation with null', async () => {

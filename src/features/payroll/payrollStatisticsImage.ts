@@ -1,8 +1,28 @@
 import { formatMoney } from './model';
+import { currentRelease } from '../../config/release';
 import type { PayrollStatistics } from '../../services/payroll-statistics.service';
 
 const percent = (value: number | null) => value == null ? '—' : `${(value * 100).toFixed(2)}%`;
 const numericMoney = (value: number) => formatMoney(value).replace('¥', '¥ ');
+const DOWNLOAD_URL_LIFETIME_MS = 60_000;
+
+function chinaTimeParts(value: Date) {
+  return Object.fromEntries(new Intl.DateTimeFormat('zh-CN', {
+    day: '2-digit', hour: '2-digit', hour12: false, minute: '2-digit', month: '2-digit',
+    second: '2-digit', timeZone: 'Asia/Shanghai', year: 'numeric',
+  }).formatToParts(value).map((part) => [part.type, part.value]));
+}
+
+export function payrollStatisticsImageFileName(statistics: Pick<PayrollStatistics, 'from' | 'to'>, generatedAt = new Date()) {
+  const part = chinaTimeParts(generatedAt);
+  const milliseconds = String(generatedAt.getMilliseconds()).padStart(3, '0');
+  return `StoreHub_薪资综合统计_${statistics.from}_${statistics.to}_${part.year}${part.month}${part.day}_${part.hour}${part.minute}${part.second}${milliseconds}.png`;
+}
+
+function generatedAtLabel(value: Date) {
+  const part = chinaTimeParts(value);
+  return `${part.year}-${part.month}-${part.day} ${part.hour}:${part.minute}:${part.second}`;
+}
 
 function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number, fill: string) {
   context.beginPath();
@@ -18,7 +38,7 @@ function text(context: CanvasRenderingContext2D, value: string, x: number, y: nu
   context.fillText(value, x, y);
 }
 
-export async function downloadPayrollStatisticsImage(statistics: PayrollStatistics) {
+export async function downloadPayrollStatisticsImage(statistics: PayrollStatistics, generatedAt = new Date()) {
   const width = 2400;
   const storeHeight = Math.max(statistics.stores.length, 1) * 64 + 94;
   const employeeHeight = Math.max(statistics.employees.length, 1) * 58 + 94;
@@ -93,13 +113,16 @@ export async function downloadPayrollStatisticsImage(statistics: PayrollStatisti
     text(context, numericMoney(detail.netPayable), employeeColumns[14], y, { align: 'right', color: '#047857', font: 'bold 16px "Microsoft YaHei", sans-serif' });
   });
 
-  text(context, '工时口径：有效出勤按 8 小时/天，另加已审批兼职/加班工时 · 由 StoreHub 生成', 70, height - 48, { color: '#64748b', font: '20px "Microsoft YaHei", sans-serif' });
+  text(context, `工时口径：排班时长扣除 1 小时用餐时间，另加已审批兼职/加班工时 · ${currentRelease.version} · 生成于 ${generatedAtLabel(generatedAt)}`, 70, height - 48, { color: '#64748b', font: '20px "Microsoft YaHei", sans-serif' });
 
   const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('统计图表生成失败。')), 'image/png'));
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `StoreHub_薪资综合统计_${statistics.from}_${statistics.to}.png`;
+  link.download = payrollStatisticsImageFileName(statistics, generatedAt);
+  link.style.display = 'none';
+  document.body.appendChild(link);
   link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
 }

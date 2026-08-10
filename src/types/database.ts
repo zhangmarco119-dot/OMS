@@ -655,6 +655,12 @@ export type Database = {
         Update: { commission_enabled?: boolean; commission_rate?: number | null; confirmed?: boolean; created_at?: string; created_by?: string | null; effective_from?: string; effective_to?: string | null; extra_reward_amount?: number; full_attendance_bonus_amount?: number; full_attendance_bonus_enabled?: boolean; full_performance_amount?: number | null; housing_enabled?: boolean; id?: string; monthly_base_salary?: number; monthly_housing_allowance?: number; performance_enabled?: boolean; performance_override_amount?: number; performance_override_enabled?: boolean; profile_id?: string; change_reason?: string; regularization_date?: string | null; service_award_amount?: number; service_award_enabled?: boolean };
         Relationships: [];
       };
+      payroll_employee_departure_months: {
+        Row: { created_at: string; payroll_month: string; profile_id: string; updated_by: string };
+        Insert: { created_at?: string; payroll_month: string; profile_id: string; updated_by: string };
+        Update: { payroll_month?: string; profile_id?: string; updated_by?: string };
+        Relationships: [];
+      };
       payroll_employee_commission_stores: {
         Row: { created_at: string; rule_id: string; store_id: string };
         Insert: { created_at?: string; rule_id: string; store_id: string };

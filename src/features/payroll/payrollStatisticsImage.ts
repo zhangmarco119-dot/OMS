@@ -19,7 +19,7 @@ function text(context: CanvasRenderingContext2D, value: string, x: number, y: nu
 }
 
 export async function downloadPayrollStatisticsImage(statistics: PayrollStatistics) {
-  const width = 1440;
+  const width = 2400;
   const storeHeight = Math.max(statistics.stores.length, 1) * 64 + 94;
   const employeeHeight = Math.max(statistics.employees.length, 1) * 58 + 94;
   const height = 410 + storeHeight + employeeHeight + 100;
@@ -47,9 +47,9 @@ export async function downloadPayrollStatisticsImage(statistics: PayrollStatisti
     ['总营业收入', numericMoney(statistics.totalRevenue)],
     ['全部门店薪资占比', percent(statistics.overallPayrollRatio)],
   ];
-  const cardWidth = 248;
+  const cardWidth = 438;
   metrics.forEach(([label, value], index) => {
-    const x = 55 + index * 270;
+    const x = 55 + index * 460;
     roundedRect(context, x, 270, cardWidth, 112, 18, '#ffffff');
     text(context, label, x + 20, 310, { color: '#64748b', font: '20px "Microsoft YaHei", sans-serif' });
     text(context, value, x + 20, 357, { color: index === 0 || index === 4 ? '#047857' : '#0f172a', font: 'bold 27px "Microsoft YaHei", sans-serif' });
@@ -58,7 +58,7 @@ export async function downloadPayrollStatisticsImage(statistics: PayrollStatisti
   let top = 420;
   roundedRect(context, 55, top, width - 110, storeHeight, 20, '#ffffff');
   text(context, '门店薪资与营收', 85, top + 48, { font: 'bold 30px "Microsoft YaHei", sans-serif' });
-  const storeColumns = [85, 475, 680, 875, 1080, 1330];
+  const storeColumns = [85, 900, 1250, 1600, 1950, 2300];
   ['门店', '薪资成本', '总薪资占比', '营业收入', '薪资/营收', '工时'].forEach((label, index) => text(context, label, storeColumns[index], top + 84, { align: index ? 'right' : 'left', color: '#64748b', font: '18px "Microsoft YaHei", sans-serif' }));
   if (!statistics.stores.length) text(context, '暂无门店数据', 85, top + 135, { color: '#94a3b8', font: '22px "Microsoft YaHei", sans-serif' });
   statistics.stores.forEach((store, index) => {
@@ -75,16 +75,22 @@ export async function downloadPayrollStatisticsImage(statistics: PayrollStatisti
   top += storeHeight + 28;
   roundedRect(context, 55, top, width - 110, employeeHeight, 20, '#ffffff');
   text(context, `员工工资（${statistics.employees.length} 人）`, 85, top + 48, { font: 'bold 30px "Microsoft YaHei", sans-serif' });
-  const employeeColumns = [85, 760, 1010, 1330];
-  ['员工', '工资成本', '工时', '平均工时成本'].forEach((label, index) => text(context, label, employeeColumns[index], top + 84, { align: index ? 'right' : 'left', color: '#64748b', font: '18px "Microsoft YaHei", sans-serif' }));
+  const employeeColumns = [85, 410, 535, 660, 785, 910, 1035, 1160, 1285, 1410, 1535, 1660, 1785, 1910, 2300];
+  ['员工', '工时', '时均', '基本', '房补', '绩效', '全勤', '超勤', '工龄', '奖励', '提成', '加班/兼职', '扣款', '个税', '实发'].forEach((label, index) => text(context, label, employeeColumns[index], top + 84, { align: index ? 'right' : 'left', color: '#64748b', font: '15px "Microsoft YaHei", sans-serif' }));
   if (!statistics.employees.length) text(context, '选定时间内暂无员工工资', 85, top + 135, { color: '#94a3b8', font: '22px "Microsoft YaHei", sans-serif' });
   statistics.employees.forEach((employee, index) => {
     const y = top + 126 + index * 58;
+    const detail = employee.breakdown;
     if (index % 2 === 0) roundedRect(context, 75, y - 29, width - 150, 48, 10, '#f8fafc');
-    text(context, `${employee.displayName}${employee.employmentType === 'part_time' ? ' · 兼职' : ''}`, employeeColumns[0], y, { font: '21px "Microsoft YaHei", sans-serif' });
-    text(context, numericMoney(employee.salaryCost), employeeColumns[1], y, { align: 'right', font: 'bold 21px "Microsoft YaHei", sans-serif' });
-    text(context, `${employee.hours.toFixed(2)} h`, employeeColumns[2], y, { align: 'right', font: '21px "Microsoft YaHei", sans-serif' });
-    text(context, employee.averageHourlyCost == null ? '—' : `${numericMoney(employee.averageHourlyCost)} / h`, employeeColumns[3], y, { align: 'right', color: '#047857', font: '21px "Microsoft YaHei", sans-serif' });
+    text(context, `${employee.displayName}${employee.employmentType === 'part_time' ? ' · 兼职' : ''}`, employeeColumns[0], y, { font: '18px "Microsoft YaHei", sans-serif' });
+    text(context, `${employee.hours.toFixed(2)} h`, employeeColumns[1], y, { align: 'right', font: '14px "Microsoft YaHei", sans-serif' });
+    text(context, employee.averageHourlyCost == null ? '—' : numericMoney(employee.averageHourlyCost), employeeColumns[2], y, { align: 'right', font: '14px "Microsoft YaHei", sans-serif' });
+    [detail.baseSalary, detail.housingAllowance, detail.performance, detail.fullAttendanceBonus,
+      detail.extraAttendanceBonus, detail.serviceAward, detail.extraReward, detail.commission,
+      detail.overtime + detail.partTimeWage, detail.fines, detail.individualIncomeTax].forEach((value, columnIndex) => {
+      text(context, numericMoney(value), employeeColumns[columnIndex + 3], y, { align: 'right', color: columnIndex >= 9 ? '#be123c' : '#0f172a', font: '14px "Microsoft YaHei", sans-serif' });
+    });
+    text(context, numericMoney(detail.netPayable), employeeColumns[14], y, { align: 'right', color: '#047857', font: 'bold 16px "Microsoft YaHei", sans-serif' });
   });
 
   text(context, '工时口径：有效出勤按 8 小时/天，另加已审批兼职/加班工时 · 由 StoreHub 生成', 70, height - 48, { color: '#64748b', font: '20px "Microsoft YaHei", sans-serif' });

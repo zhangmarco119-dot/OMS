@@ -7,6 +7,7 @@ import { loadAdminPayrollEstimates, parsePayrollEstimate } from './payroll.servi
 type Client = SupabaseClient<Database>;
 
 export interface PayrollStatisticsPeriod {
+  breakdown: PayrollStatisticsBreakdown;
   estimate: PayrollEstimate;
   from: string;
   hours: number;
@@ -20,12 +21,30 @@ export interface PayrollStatisticsPeriod {
 
 export interface PayrollStatisticsEmployee {
   averageHourlyCost: number | null;
+  breakdown: PayrollStatisticsBreakdown;
   displayName: string;
   employmentType: 'full_time' | 'part_time';
   hours: number;
   periods: PayrollStatisticsPeriod[];
   profileId: string;
   salaryCost: number;
+}
+
+export interface PayrollStatisticsBreakdown {
+  baseSalary: number;
+  commission: number;
+  extraAttendanceBonus: number;
+  extraReward: number;
+  fines: number;
+  fullAttendanceBonus: number;
+  grossIncome: number;
+  housingAllowance: number;
+  individualIncomeTax: number;
+  netPayable: number;
+  overtime: number;
+  partTimeWage: number;
+  performance: number;
+  serviceAward: number;
 }
 
 export interface PayrollStatisticsStore {
@@ -89,10 +108,49 @@ function monthSegments(from: string, to: string) {
   return segments;
 }
 
-const estimateCost = (estimate: PayrollEstimate | undefined) => {
-  if (!estimate) return 0;
-  const payable = estimate.estimatedPayable ?? estimate.knownEstimatedPayable ?? 0;
-  return money(Math.max(payable + (estimate.individualIncomeTax ?? 0), 0));
+const emptyBreakdown = (): PayrollStatisticsBreakdown => ({
+  baseSalary: 0, commission: 0, extraAttendanceBonus: 0, extraReward: 0, fines: 0,
+  fullAttendanceBonus: 0, grossIncome: 0, housingAllowance: 0, individualIncomeTax: 0,
+  netPayable: 0, overtime: 0, partTimeWage: 0, performance: 0, serviceAward: 0,
+});
+
+const breakdownFromEstimate = (estimate: PayrollEstimate | undefined, formal = false): PayrollStatisticsBreakdown => {
+  if (!estimate) return emptyBreakdown();
+  const values = {
+    baseSalary: estimate.accruedBaseSalary,
+    commission: estimate.accruedCommission ?? 0,
+    extraAttendanceBonus: estimate.accruedExtraAttendanceBonus,
+    extraReward: estimate.accruedExtraReward,
+    fines: estimate.fineTotal,
+    fullAttendanceBonus: estimate.accruedFullAttendanceBonus,
+    housingAllowance: estimate.accruedHousingAllowance,
+    individualIncomeTax: formal
+      ? estimate.registeredIndividualIncomeTax ?? estimate.individualIncomeTax ?? estimate.estimatedIndividualIncomeTax ?? 0
+      : estimate.estimatedIndividualIncomeTax ?? estimate.individualIncomeTax ?? 0,
+    overtime: estimate.accruedOvertime,
+    partTimeWage: estimate.accruedPartTimeWage,
+    performance: estimate.accruedPerformance ?? 0,
+    serviceAward: estimate.accruedServiceAward,
+  };
+  const grossIncome = money(values.baseSalary + values.housingAllowance + values.performance + values.fullAttendanceBonus
+    + values.extraAttendanceBonus + values.serviceAward + values.extraReward + values.commission + values.overtime + values.partTimeWage);
+  return { ...values, grossIncome, netPayable: money(Math.max(grossIncome - values.fines - values.individualIncomeTax, 0)) };
+};
+
+const subtractBreakdown = (end: PayrollStatisticsBreakdown, start?: PayrollStatisticsBreakdown): PayrollStatisticsBreakdown => {
+  const result = emptyBreakdown();
+  const keys = Object.keys(result) as Array<keyof PayrollStatisticsBreakdown>;
+  for (const key of keys) result[key] = money(Math.max(end[key] - (start?.[key] ?? 0), 0));
+  result.grossIncome = money(result.baseSalary + result.housingAllowance + result.performance + result.fullAttendanceBonus
+    + result.extraAttendanceBonus + result.serviceAward + result.extraReward + result.commission + result.overtime + result.partTimeWage);
+  result.netPayable = money(Math.max(result.grossIncome - result.fines - result.individualIncomeTax, 0));
+  return result;
+};
+
+const addBreakdown = (left: PayrollStatisticsBreakdown, right: PayrollStatisticsBreakdown): PayrollStatisticsBreakdown => {
+  const result = emptyBreakdown();
+  for (const key of Object.keys(result) as Array<keyof PayrollStatisticsBreakdown>) result[key] = money(left[key] + right[key]);
+  return result;
 };
 
 function splitCents(total: number, weights: Map<string, number>, fallbackStoreId: string) {
@@ -163,7 +221,10 @@ export async function loadPayrollStatistics(client: Client, from: string, to: st
       const endEstimate = formal?.estimate ?? endByProfile.get(profile.id);
       if (!endEstimate) continue;
       const startEstimate = formal ? undefined : startByProfile.get(profile.id);
-      const salaryCost = formal ? estimateCost(formal.estimate) : money(Math.max(estimateCost(endEstimate) - estimateCost(startEstimate), 0));
+      const breakdown = formal
+        ? breakdownFromEstimate(formal.estimate, true)
+        : subtractBreakdown(breakdownFromEstimate(endEstimate), startEstimate ? breakdownFromEstimate(startEstimate) : undefined);
+      const salaryCost = money(Math.max(breakdown.grossIncome - breakdown.fines, 0));
       const monthWork = input.work.filter((row) => row.payrollMonth === segment.month && row.profileId === profile.id);
       const attendanceHours = monthWork.reduce((sum, row) => sum + row.attendanceDays * 8, 0);
       const overtimeHours = monthWork.reduce((sum, row) => sum + row.overtimeHours, 0);
@@ -171,6 +232,7 @@ export async function loadPayrollStatistics(client: Client, from: string, to: st
       if (salaryCost <= 0 && periodHours <= 0) continue;
 
       const period: PayrollStatisticsPeriod = {
+        breakdown,
         estimate: endEstimate,
         from: segment.from,
         hours: periodHours,
@@ -183,6 +245,7 @@ export async function loadPayrollStatistics(client: Client, from: string, to: st
       };
       const current = employeeMap.get(profile.id) ?? {
         averageHourlyCost: null,
+        breakdown: emptyBreakdown(),
         displayName: profile.displayName,
         employmentType: profile.employmentType,
         hours: 0,
@@ -192,6 +255,7 @@ export async function loadPayrollStatistics(client: Client, from: string, to: st
       };
       current.hours = hours(current.hours + periodHours);
       current.salaryCost = money(current.salaryCost + salaryCost);
+      current.breakdown = addBreakdown(current.breakdown, breakdown);
       current.periods.push(period);
       employeeMap.set(profile.id, current);
 

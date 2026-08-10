@@ -271,7 +271,7 @@ function PayrollOverview() {
 function EmployeeRules() {
   const auth = useAuth(); const [setup, setSetup] = useState<Setup | null>(null); const [profileId, setProfileId] = useRememberedPageState('employee-rule-profile', '');
   const [params] = useSearchParams(); const requestedProfileId = params.get('profile') || '';
-  const [form, setForm] = useState(ruleToForm(undefined, [], [])); const [feedback, setFeedback] = useState<Feedback | null>(null); const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState(ruleToForm(undefined, [], [], [])); const [feedback, setFeedback] = useState<Feedback | null>(null); const [busy, setBusy] = useState(false);
   const [performanceMonth, setPerformanceMonth] = useRememberedPageState('employee-performance-month', todayInChina().slice(0, 7));
   const [monthlyPerformance, setMonthlyPerformance] = useState<MonthlyPerformanceForm[]>([]);
   const [finalPerformanceMode, setFinalPerformanceMode] = useState<'automatic' | 'override'>('automatic');
@@ -287,7 +287,8 @@ function EmployeeRules() {
     const allocation = configured.length
       ? configured.map((item) => ({ allocationPercent: String(Number(item.allocation_ratio) * 100), storeId: item.store_id }))
       : assignedStoreIds.map((storeId) => ({ allocationPercent: String(100 / Math.max(assignedStoreIds.length, 1)), storeId }));
-    setForm(ruleToForm(rule, setup.commissionStores.filter((item) => item.rule_id === rule?.id).map((item) => item.store_id), allocation));
+    const departureMonths = setup.departureMonths.filter((item) => item.profile_id === profileId).map((item) => item.payroll_month);
+    setForm(ruleToForm(rule, setup.commissionStores.filter((item) => item.rule_id === rule?.id).map((item) => item.store_id), allocation, departureMonths));
   }, [profileId, setup]);
   useEffect(() => {
     let active = true;
@@ -333,6 +334,8 @@ function EmployeeRules() {
         serviceAwardEnabled: form.serviceAwardEnabled, serviceAwardAmount: Number(form.serviceAward || 100),
         extraRewardAmount: Number(form.extraReward || 0),
         regularizationDate: form.regularizationDate || '', confirmed: form.confirmed,
+        departureMonthStart: form.departureMonth ? `${form.departureMonth}-01` : '',
+        departureMonthCount: form.departureMonth ? Number(form.departureMonthCount) : 0,
         effectiveFrom: form.effectiveFrom, changeReason: form.reason.trim(),
       }, form.storeIds, form.performanceStores.map((item) => ({ allocationRatio: Number(item.allocationPercent) / 100, storeId: item.storeId })));
       setFeedback({ title: '员工工资参数已保存', message: '新参数将按所选生效日期参与实时预估，历史规则已保留。', tone: 'success' });
@@ -384,6 +387,14 @@ function EmployeeRules() {
     {form.performanceEnabled ? <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3"><p className="text-sm font-semibold text-emerald-950">各门店绩效占比</p><p className="mt-1 text-xs leading-5 text-emerald-800">满绩效金额会按下列占比分配，再分别乘以各门店当月绩效等级对应的发放比例。</p><div className="mt-2 grid grid-cols-2 gap-2">{form.performanceStores.map((item) => <Field key={item.storeId} label={`${auth.availableStores.find((store) => store.id === item.storeId)?.short_name ?? '门店'}占比（%）`} value={item.allocationPercent} onChange={(allocationPercent) => setForm((current) => ({ ...current, performanceStores: current.performanceStores.map((entry) => entry.storeId === item.storeId ? { ...entry, allocationPercent } : entry) }))} />)}</div><p className="mt-2 text-right text-xs font-semibold text-emerald-900">当前合计 {form.performanceStores.reduce((sum, item) => sum + Number(item.allocationPercent || 0), 0).toFixed(2)}%</p></div> : null}
     <label className="mt-3 block text-sm font-semibold">转正日期（选填）<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, regularizationDate: event.target.value }))} type="date" value={form.regularizationDate} /></label>
     <p className="mt-1 text-xs leading-5 text-slate-500">转正前不计绩效和提成；转正当月仅按转正后的实际出勤日期折算。</p>
+    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+      <p className="text-sm font-semibold text-amber-950">离职月工资设置</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <label className="text-sm font-semibold">离职月（选填）<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, departureMonth: event.target.value }))} type="month" value={form.departureMonth} /></label>
+        <label className="text-sm font-semibold">连续月份<select className="ui-input mt-1" disabled={!form.departureMonth} onChange={(event) => setForm((value) => ({ ...value, departureMonthCount: event.target.value }))} value={form.departureMonthCount}><option value="1">1 个月</option><option value="2">连续 2 个月</option></select></label>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-amber-900">所选离职月起最多连续两个月不核算绩效、提成和房补；基本工资、工时工资、奖励与扣款仍按实际数据计算。清空离职月即可取消。</p>
+    </div>
     <label className="mt-3 block text-sm font-semibold">生效日期<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, effectiveFrom: event.target.value }))} type="date" value={form.effectiveFrom} /></label>
     <label className="mt-3 block text-sm font-semibold">修改原因（选填）<input className="ui-input mt-1" onChange={(event) => setForm((value) => ({ ...value, reason: event.target.value }))} placeholder="例如：转正调薪" value={form.reason} /></label>
     <label className="mt-3 flex items-center rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={form.confirmed} className="mr-2" onChange={(event) => setForm((value) => ({ ...value, confirmed: event.target.checked }))} type="checkbox" />我已核对并确认本员工工资参数</label>
@@ -454,13 +465,13 @@ function RevenueManager() {
 
   const saveManual = async () => {
     if (!supabase || !auth.profile || !storeId || amount === '') {
-      setFeedback({ title: '请完善提成计算基数', message: '请选择门店并填写本月 1 日至截止日期的累计提成计算基数。', tone: 'warning' });
+      setFeedback({ title: '请完善累计营业额', message: '请选择门店并填写本月 1 日至截止日期的累计营业额。', tone: 'warning' });
       return;
     }
     setBusyAction('manual-cumulative');
     try {
       await savePayrollRevenueInput(supabase, { asOfDate: date, mode: 'manual', manualCumulativeAmount: Number(amount), note, storeId });
-      setFeedback({ title: '手动提成基数已保存', message: `${date.slice(0, 7)}-01 至 ${date} 的金额仅用于员工提成计算，不会修改西直门的银豹营业额和每日营业额明细。`, tone: 'success' });
+      setFeedback({ title: '手动营业额已保存', message: `${date.slice(0, 7)}-01 至 ${date} 的累计营业额会用于综合统计和员工提成计算；不会覆盖收银系统的每日营业额明细。`, tone: 'success' });
       await load();
     } catch (error) {
       setFeedback({ title: '保存未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
@@ -469,7 +480,7 @@ function RevenueManager() {
 
   const syncMonth = async () => {
     if (!supabase || !integration || integration.provider !== 'pospal') {
-      setFeedback({ title: '当前门店未接入收银系统', message: '请选择已经接入银豹的西直门店，或仅手动设置员工提成计算基数。', tone: 'warning' });
+      setFeedback({ title: '当前门店未接入收银系统', message: '请选择已经接入银豹的西直门店，或改为手动填写营业额。', tone: 'warning' });
       return;
     }
     setBusyAction(`sync-month:${integration.id}`);
@@ -539,17 +550,17 @@ function RevenueManager() {
     </SectionCard>
 
     <SectionCard>
-      <SectionHeader icon={Banknote} title="本月累计营业额与提成基数" description="西直门实际营业额始终以银豹 API 数据为准；手动金额只覆盖员工提成计算基数，不修改营业额记录。" />
+      <SectionHeader icon={Banknote} title="本月累计营业额" description="有收银系统数据时使用自动同步结果；尚未自动更新的月份可手动填写，综合统计和员工提成将使用同一金额。" />
       <div className="mt-3 grid grid-cols-2 gap-2">
         <label className="text-sm font-semibold">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
         <label className="text-sm font-semibold">截止日期<input className="ui-input mt-1" max={todayInChina()} onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
       </div>
-      <div className="mt-3 rounded-xl bg-brand-50 p-3 text-center"><p className="text-xs font-semibold text-brand-700">{date.slice(0, 7)}-01 至 {date} 累计提成基数</p><p className="mt-1 text-2xl font-bold tabular-nums text-brand-900">{formatMoney(cumulativeRevenue)}</p></div>
+      <div className="mt-3 rounded-xl bg-brand-50 p-3 text-center"><p className="text-xs font-semibold text-brand-700">{date.slice(0, 7)}-01 至 {date} 累计营业额</p><p className="mt-1 text-2xl font-bold tabular-nums text-brand-900">{formatMoney(cumulativeRevenue)}</p></div>
       <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="营业额更新方式">
         <button className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${inputMode === 'pos_sync' ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} disabled={!integration || integration.provider !== 'pospal'} onClick={() => setInputMode('pos_sync')} type="button">收银系统同步</button>
-        <button className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${inputMode === 'manual' ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} onClick={() => setInputMode('manual')} type="button">手动设置提成基数</button>
+        <button className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${inputMode === 'manual' ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} onClick={() => setInputMode('manual')} type="button">手动填写营业额</button>
       </div>
-      {inputMode === 'pos_sync' ? <div className="mt-3 rounded-xl border border-brand-100 bg-emerald-50/60 p-3"><p className="text-sm font-semibold text-slate-800">从银豹同步本月累计营业额</p><p className="mt-1 text-xs leading-5 text-slate-600">银豹接口每次最多查询 1 天；系统会分小批读取本月全部有效销售与退货单，完成后统一更新每日明细。</p><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void syncMonth()} type="button">{busyAction.startsWith('sync-month:') ? '正在同步本月数据' : '同步本月累计营业额'}</button></div> : <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3"><p className="text-xs leading-5 text-amber-800">这里填写的金额只用于员工提成比例计算。西直门营业额仍由银豹 API 同步，且不会被此处覆盖。</p><Field label={`本月累计提成计算基数（截至 ${date}）`} value={amount} onChange={setAmount} /><label className="mt-3 block text-sm font-semibold">备注（选填）<input className="ui-input mt-1" onChange={(event) => setNote(event.target.value)} value={note} /></label><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void saveManual()} type="button">{busyAction === 'manual-cumulative' ? '正在保存' : '保存手动提成基数'}</button></div>}
+      {inputMode === 'pos_sync' ? <div className="mt-3 rounded-xl border border-brand-100 bg-emerald-50/60 p-3"><p className="text-sm font-semibold text-slate-800">从银豹同步本月累计营业额</p><p className="mt-1 text-xs leading-5 text-slate-600">银豹接口每次最多查询 1 天；系统会分小批读取本月全部有效销售与退货单，完成后统一更新每日明细。</p><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void syncMonth()} type="button">{busyAction.startsWith('sync-month:') ? '正在同步本月数据' : '同步本月累计营业额'}</button></div> : <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3"><p className="text-xs leading-5 text-amber-800">未自动更新时可填写本月累计营业额，系统会同步用于综合统计和员工提成；以后切回收银系统同步即可恢复使用自动数据。</p><Field label={`本月累计营业额（截至 ${date}）`} value={amount} onChange={setAmount} /><label className="mt-3 block text-sm font-semibold">备注（选填）<input className="ui-input mt-1" onChange={(event) => setNote(event.target.value)} value={note} /></label><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void saveManual()} type="button">{busyAction === 'manual-cumulative' ? '正在保存' : '保存手动营业额'}</button></div>}
     </SectionCard>
 
     <section className="space-y-2"><h3 className="px-1 text-sm font-bold text-slate-700">每日营业额明细</h3>{setup?.revenues.slice(0, 30).map((row) => <SectionCard className="p-3" key={row.id}><div className="flex items-start justify-between gap-3"><span><b>{auth.availableStores.find((store) => store.id === row.store_id)?.short_name ?? '门店'}</b><small className="mt-0.5 block text-slate-500">{row.revenue_date}</small><StatusBadge tone={row.source === 'pospal' ? 'success' : row.source === 'qmai' ? 'info' : 'warning'}>{row.source === 'pospal' ? '银豹同步' : row.source === 'qmai' ? '企迈同步' : '历史手动明细'}</StatusBadge></span><b>{formatMoney(row.confirmed_amount)}</b></div></SectionCard>)}</section>
@@ -685,6 +696,6 @@ function FeedbackDialog({ close, feedback }: { close: () => void; feedback: Feed
 function Field({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) { return <label className="mt-3 block text-sm font-semibold">{label}<input className="ui-input mt-1" min="0" onChange={(event) => onChange(event.target.value)} step="0.01" type="number" value={value} /></label>; }
 function Mini({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-slate-50 p-2"><b className="block truncate text-xs tabular-nums">{value}</b><span className="text-[10px] text-slate-500">{label}</span></div>; }
 function SummaryMetric({ label, value }: { label: string; value: string }) { return <SectionCard className="p-3"><b className="block text-lg tabular-nums text-slate-900">{value}</b><span className="text-xs text-slate-500">{label}</span></SectionCard>; }
-function ruleToForm(rule: PayrollEmployeeRule | undefined, storeIds: string[], performanceStores: { allocationPercent: string; storeId: string }[]) { return { base: rule ? String(rule.monthly_base_salary) : '', housing: rule ? String(rule.monthly_housing_allowance) : '', performance: rule?.full_performance_amount == null ? '' : String(rule.full_performance_amount), commission: rule?.commission_rate == null ? '' : String(rule.commission_rate * 100), extraReward: rule ? String(rule.extra_reward_amount) : '0', fullAttendanceBonus: rule ? String(rule.full_attendance_bonus_amount) : '', serviceAward: rule ? String(rule.service_award_amount) : '100', regularizationDate: rule?.regularization_date ?? '', effectiveFrom: rule?.effective_from ?? todayInChina(), reason: '', housingEnabled: rule?.housing_enabled ?? true, performanceEnabled: rule?.performance_enabled ?? true, commissionEnabled: rule?.commission_enabled ?? false, fullAttendanceBonusEnabled: rule?.full_attendance_bonus_enabled ?? false, serviceAwardEnabled: rule?.service_award_enabled ?? false, confirmed: rule?.confirmed ?? false, performanceStores, storeIds }; }
+function ruleToForm(rule: PayrollEmployeeRule | undefined, storeIds: string[], performanceStores: { allocationPercent: string; storeId: string }[], departureMonths: string[]) { const sortedDepartureMonths = [...departureMonths].sort(); return { base: rule ? String(rule.monthly_base_salary) : '', housing: rule ? String(rule.monthly_housing_allowance) : '', performance: rule?.full_performance_amount == null ? '' : String(rule.full_performance_amount), commission: rule?.commission_rate == null ? '' : String(rule.commission_rate * 100), extraReward: rule ? String(rule.extra_reward_amount) : '0', fullAttendanceBonus: rule ? String(rule.full_attendance_bonus_amount) : '', serviceAward: rule ? String(rule.service_award_amount) : '100', regularizationDate: rule?.regularization_date ?? '', departureMonth: sortedDepartureMonths[0]?.slice(0, 7) ?? '', departureMonthCount: String(Math.min(Math.max(sortedDepartureMonths.length, 1), 2)), effectiveFrom: rule?.effective_from ?? todayInChina(), reason: '', housingEnabled: rule?.housing_enabled ?? true, performanceEnabled: rule?.performance_enabled ?? true, commissionEnabled: rule?.commission_enabled ?? false, fullAttendanceBonusEnabled: rule?.full_attendance_bonus_enabled ?? false, serviceAwardEnabled: rule?.service_award_enabled ?? false, confirmed: rule?.confirmed ?? false, performanceStores, storeIds }; }
 function defaultPerformanceForm() { return { taskWeight: '60', attendanceWeight: '25', disciplineWeight: '15', late1: '1', late2: '3', late3: '5', late4: '10', aMin: '90', bMin: '80', cMin: '70', aRate: '100', bRate: '80', cRate: '50', dRate: '20', effectiveFrom: todayInChina(), reason: '' }; }
 function performanceToForm(rule: PayrollPerformanceRule) { return { taskWeight: String(rule.task_weight), attendanceWeight: String(rule.attendance_weight), disciplineWeight: String(rule.discipline_weight), late1: String(rule.late_deduction_1_10), late2: String(rule.late_deduction_11_20), late3: String(rule.late_deduction_21_30), late4: String(rule.late_deduction_31_plus), aMin: String(rule.grade_a_min), bMin: String(rule.grade_b_min), cMin: String(rule.grade_c_min), aRate: String(rule.grade_a_coefficient * 100), bRate: String(rule.grade_b_coefficient * 100), cRate: String(rule.grade_c_coefficient * 100), dRate: String(rule.grade_d_coefficient * 100), effectiveFrom: rule.effective_from, reason: '' }; }

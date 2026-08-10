@@ -111,6 +111,7 @@ export interface PayrollEstimate {
   penaltiesUpdatedAt: string | null;
   overtimeUpdatedAt: string | null;
   dataIssues: string[];
+  departureMonthExcluded?: boolean;
 }
 
 export interface AdminPayrollSummary {

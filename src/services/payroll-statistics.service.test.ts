@@ -3,14 +3,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { loadPayrollStatistics } from './payroll-statistics.service';
 
 const estimate = (amount: number) => ({
+  accruedBaseSalary: amount,
+  accruedCommission: 0,
+  accruedExtraAttendanceBonus: 0,
+  accruedExtraReward: 0,
+  accruedFullAttendanceBonus: 0,
+  accruedHousingAllowance: 0,
   accruedOvertime: 0,
   accruedPartTimeWage: 0,
+  accruedPerformance: 0,
+  accruedServiceAward: 0,
   asOf: '2026-07-31',
   dataComplete: true,
   displayName: '测试员工',
   employmentType: 'full_time',
   estimatedPayable: amount,
   individualIncomeTax: 0,
+  fineTotal: 0,
   knownEstimatedPayable: amount,
   monthEnd: '2026-07-31',
   monthStart: '2026-07-01',
@@ -42,6 +51,7 @@ describe('payroll statistics', () => {
       expect.objectContaining({ name: '二店', salaryCost: 300, payrollShare: 1 / 3, payrollToRevenueRatio: 0.3 }),
     ]);
     expect(result.employees[0]).toMatchObject({ displayName: '测试员工', hours: 24, salaryCost: 900 });
+    expect(result.employees[0].breakdown).toMatchObject({ baseSalary: 900, grossIncome: 900, netPayable: 900 });
   });
 
   it('uses the difference between month-to-date estimates for a partial range', async () => {
@@ -58,5 +68,32 @@ describe('payroll statistics', () => {
     const result = await loadPayrollStatistics({ rpc } as never, '2026-07-10', '2026-07-20');
     expect(result.totalSalaryCost).toBe(500);
     expect(result.employees[0].periods[0]).toMatchObject({ from: '2026-07-10', salaryCost: 500, source: 'realtime', to: '2026-07-20' });
+  });
+
+  it('aggregates detailed payslip items for the exported employee row', async () => {
+    const detailedEstimate = {
+      ...estimate(1000), accruedBaseSalary: 500, accruedHousingAllowance: 100, accruedPerformance: 100,
+      accruedFullAttendanceBonus: 50, accruedExtraAttendanceBonus: 50, accruedServiceAward: 50,
+      accruedExtraReward: 50, accruedCommission: 50, accruedOvertime: 50, fineTotal: 25,
+      individualIncomeTax: 75, estimatedPayable: 925, knownEstimatedPayable: 925,
+    };
+    const rpc = vi.fn(async (name: string) => {
+      if (name === 'admin_payroll_statistics_inputs') return { data: {
+        profiles: [{ displayName: '测试员工', employmentType: 'full_time', id: 'profile-1', primaryStoreId: 'store-1' }],
+        stores: [{ id: 'store-1', name: '一店' }],
+        work: [{ attendanceDays: 1, overtimeCost: 50, overtimeHours: 2, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' }],
+        revenues: [{ amount: 5000, storeId: 'store-1' }],
+        payslips: [{ estimate: detailedEstimate, id: 'slip-1', payrollMonth: '2026-07-01', profileId: 'profile-1', status: 'confirmed' }],
+      }, error: null };
+      if (name === 'admin_payroll_estimates') return { data: { items: [detailedEstimate] }, error: null };
+      throw new Error(`unexpected rpc ${name}`);
+    });
+    const result = await loadPayrollStatistics({ rpc } as never, '2026-07-01', '2026-07-31');
+    expect(result.employees[0].breakdown).toMatchObject({
+      baseSalary: 500, housingAllowance: 100, performance: 100, fullAttendanceBonus: 50,
+      extraAttendanceBonus: 50, serviceAward: 50, extraReward: 50, commission: 50,
+      overtime: 50, fines: 25, individualIncomeTax: 75, grossIncome: 1000, netPayable: 900,
+    });
+    expect(result.employees[0].periods[0].source).toBe('payslip');
   });
 });

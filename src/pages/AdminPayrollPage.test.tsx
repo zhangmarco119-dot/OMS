@@ -23,7 +23,7 @@ vi.mock('../services/payroll.service', async (original) => {
 });
 
 const setup = {
-  profiles: [], rules: [], commissionStores: [], performanceStores: [], profileStoreAccess: [], performanceRules: [], revenues: [], revenueInputs: [], penalties: [], penaltyAssets: [], overtimeRates: [], overtimeRequests: [],
+  profiles: [], rules: [], commissionStores: [], performanceStores: [], departureMonths: [], profileStoreAccess: [], performanceRules: [], revenues: [], revenueInputs: [], penalties: [], penaltyAssets: [], overtimeRates: [], overtimeRequests: [],
 };
 
 const estimate = {
@@ -67,7 +67,7 @@ describe('AdminPayrollPage update guidance', () => {
   it('jumps from a revenue issue to the revenue maintenance tab', async () => {
     render(<MemoryRouter initialEntries={['/app/admin/payroll?employee=profile-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: /营业收入待更新.*去更新/ }));
-    expect(await screen.findByText('本月累计营业额与提成基数')).toBeInTheDocument();
+    expect(await screen.findByText('本月累计营业额')).toBeInTheDocument();
   });
 
   it('explains the active performance formula below the administrator controls', async () => {
@@ -101,6 +101,8 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.getByRole('button', { name: '综合统计' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '查看期限' })).not.toBeInTheDocument();
     expect(await screen.findByText('员工历史工资查看期限')).toBeInTheDocument();
+    expect(screen.getByText('离职月工资设置')).toBeInTheDocument();
+    expect(screen.getByText(/最多连续两个月不核算绩效、提成和房补/)).toBeInTheDocument();
   });
 
   it('offers one-click send and withdrawal for all eligible monthly payslips', async () => {

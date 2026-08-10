@@ -108,6 +108,15 @@ describe('PayrollEstimateView', () => {
     expect(screen.getAllByText(/转正日 2026-07-15/).length).toBeGreaterThan(0);
   });
 
+  it('explains departure-month exclusions without showing a performance score card', () => {
+    render(<PayrollEstimateView estimate={{ ...estimate, departureMonthExcluded: true, accruedHousingAllowance: 0, accruedPerformance: 0, accruedCommission: 0, dataIssues: [] }} />);
+    expect(screen.getByText('本月为离职月')).toBeInTheDocument();
+    expect(screen.getByText('离职月不核算房补')).toBeInTheDocument();
+    expect(screen.getByText('离职月不核算绩效')).toBeInTheDocument();
+    expect(screen.getByText('离职月不核算提成')).toBeInTheDocument();
+    expect(screen.queryByText('绩效评分')).not.toBeInTheDocument();
+  });
+
   it('shows only approved part-time hours and part-time wage for a part-time account', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, employmentType: 'part_time', partTimeHours: 12.5, partTimeHourlyRate: 25, accruedPartTimeWage: 312.5, knownEstimatedPayable: 312.5, estimatedPayable: 312.5 }} />);
     expect(screen.getByText('12.5 小时')).toBeInTheDocument();

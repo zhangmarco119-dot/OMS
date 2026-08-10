@@ -9,6 +9,10 @@ describe('payroll service', () => {
     expect(parsePayrollEstimate({ ...estimate, monthStart: '2026-07-01', accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true })).toMatchObject({ attendanceDays: 8, accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true, dataIssues: ['2026年7月营业收入尚未录入，提成暂未计入'] });
   });
 
+  it('preserves the departure-month exclusion marker from payroll calculation', () => {
+    expect(parsePayrollEstimate({ ...estimate, departureMonthExcluded: true })).toMatchObject({ departureMonthExcluded: true });
+  });
+
   it('loads the current employee estimate with an explicit cutoff date', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: estimate, error: null });
     const result = await loadMyPayrollEstimate({ rpc } as never, 'p1', '2026-07-17');

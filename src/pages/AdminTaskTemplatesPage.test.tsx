@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -72,8 +72,9 @@ describe('AdminTaskTemplatesPage reference images', () => {
     await waitFor(() => expect(uploadTaskTemplateReferenceImage).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByAltText('参考图片 1')).toHaveAttribute('src', 'https://signed.example/reference.jpg'));
     fireEvent.click(screen.getByRole('button', { name: '全屏查看参考图片 1' }));
-    expect(screen.getByRole('dialog', { name: '管理员参考图片全屏预览' })).toBeInTheDocument();
-    fireEvent.click(screen.getByAltText('管理员参考图片大图'));
+    const imageViewer = screen.getByRole('dialog', { name: '管理员参考图片全屏预览' });
+    expect(imageViewer).toBeInTheDocument();
+    fireEvent.click(within(imageViewer).getByAltText('参考图片 1'));
     expect(screen.queryByRole('dialog', { name: '管理员参考图片全屏预览' })).not.toBeInTheDocument();
   });
 

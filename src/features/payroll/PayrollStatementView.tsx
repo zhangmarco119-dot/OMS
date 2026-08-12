@@ -38,7 +38,17 @@ export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }:
       {estimate.hasMultiplePerformanceStores ? <div className="border-b border-slate-100 py-2.5"><p className="text-xs text-slate-500">门店绩效等级</p><div className="mt-1.5 flex flex-wrap gap-1.5">{(estimate.performanceStores ?? []).map((item) => <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-900" key={item.storeId}>{item.storeName} · {item.grade} 级</span>)}</div></div> : null}
       <div className="flex items-center justify-between border-b border-slate-100 py-2.5 text-sm"><span className="text-slate-600">个税扣除</span><b className="tabular-nums text-rose-700">{estimate.individualIncomeTax ? `-${formatMoney(estimate.individualIncomeTax)}` : formatMoney(0)}</b></div>
       <PayrollDeductionRow detailsTitle="其他扣款明细" emptyMessage="本期没有其他扣款记录。" estimate={estimate} label="其他扣款" total={otherDeductions} />
-      <div className="flex items-end justify-between py-4"><div><p className="text-xs text-slate-500">实发合计</p><p className="mt-0.5 text-xs text-slate-400">收入 {formatMoney(income)} · 个税 {formatMoney(estimate.individualIncomeTax)} · 其他扣款 {formatMoney(otherDeductions)}</p></div><strong className="text-2xl tabular-nums text-brand-800">{formatMoney(payable)}</strong></div>
+      <div className="py-4">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <p className="shrink-0 text-sm font-semibold text-slate-600">实发合计</p>
+          <strong className="shrink-0 whitespace-nowrap text-[clamp(1.75rem,8vw,2.5rem)] font-bold leading-none tabular-nums tracking-tight text-brand-800">{formatMoney(payable)}</strong>
+        </div>
+        <dl className="mt-3 space-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-xs">
+          <div className="flex items-center justify-between gap-3"><dt className="text-slate-500">收入总计</dt><dd className="whitespace-nowrap font-semibold tabular-nums text-slate-700">{formatMoney(income)}</dd></div>
+          <div className="flex items-center justify-between gap-3"><dt className="text-slate-500">个税</dt><dd className="whitespace-nowrap font-semibold tabular-nums text-rose-700">-{formatMoney(estimate.individualIncomeTax)}</dd></div>
+          <div className="flex items-center justify-between gap-3"><dt className="text-slate-500">其他扣款</dt><dd className="whitespace-nowrap font-semibold tabular-nums text-rose-700">-{formatMoney(otherDeductions)}</dd></div>
+        </dl>
+      </div>
       {adminNote ? <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900"><b>工资单备注：</b>{adminNote}</p> : null}
     </div>
   </SectionCard>;

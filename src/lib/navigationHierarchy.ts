@@ -40,7 +40,15 @@ export function rememberedParentRoute(pathname: string) {
 
 export function queryDetailParentRoute(pathname: string, search: string) {
   const params = new URLSearchParams(search);
-  const childKeys = pathname === '/app/admin/payroll' ? ['employee'] : pathname === '/app/payroll' ? ['payslip'] : pathname === '/app/notices' ? ['notice'] : [];
+  const childKeys = pathname === '/app/admin/payroll'
+    ? ['employee', 'payslip', 'editPayslip', 'statisticsEmployee', 'statisticsPeriod']
+    : pathname === '/app/payroll'
+      ? ['payslip']
+      : pathname === '/app/notices'
+        ? ['notice']
+        : pathname === '/app/account'
+          ? ['view']
+          : [];
   if (!childKeys.some((key) => params.has(key))) return null;
   childKeys.forEach((key) => params.delete(key));
   const next = params.toString();
@@ -57,6 +65,7 @@ export function logicalParentPath(pathname: string, role?: UserRole) {
   if (path === '/app/admin/arrivals/summary') return '/app/admin/arrivals';
   if (/^\/app\/admin\/tasks\/[^/]+$/.test(path) || path === '/app/admin/tasks/publish' || path === '/app/admin/task-templates') return '/app/admin/tasks';
   if (/^\/app\/tasks\/[^/]+$/.test(path)) return '/app/tasks';
+  if (/^\/app\/payroll-confirmations\/[^/]+$/.test(path)) return '/app/todos';
   if (/^\/app\/notices\/[^/]+$/.test(path)) return '/app/notices';
   if (/^\/app\/sops\/[^/]+$/.test(path)) return role === 'admin' ? '/app/admin/sops' : '/app/sops';
   if (/^\/app\/operation-reports\/[^/]+$/.test(path)) return '/app/operation-reports';

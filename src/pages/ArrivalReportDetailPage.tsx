@@ -1,10 +1,11 @@
-import { ChevronLeft, ChevronRight, Edit3, PackageCheck, X } from 'lucide-react';
+import { Edit3, PackageCheck } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
 import { FeedbackBanner, LoadingState, StatusBadge } from '../components/ui/Feedback';
+import { ImageViewer } from '../components/ui/ImageViewer';
 import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -42,7 +43,7 @@ export function ArrivalReportDetailPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [imagesLoading, setImagesLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -89,13 +90,10 @@ export function ArrivalReportDetailPage() {
     }
   };
 
-  const viewerIndex = detail && viewerUrl
-    ? detail.images.findIndex((image) => image.signedUrl === viewerUrl)
-    : -1;
-  const changeViewerImage = (offset: number) => {
-    if (!detail || viewerIndex < 0 || detail.images.length < 2) return;
-    const nextIndex = (viewerIndex + offset + detail.images.length) % detail.images.length;
-    setViewerUrl(detail.images[nextIndex].signedUrl);
+  const viewerImages = (detail?.images ?? []).flatMap((image) => image.signedUrl ? [{ alt: image.file_name || '到货图片', url: image.signedUrl }] : []);
+  const openViewer = (url: string) => {
+    const index = viewerImages.findIndex((image) => image.url === url);
+    if (index >= 0) setViewerIndex(index);
   };
 
   const canReopen = detail?.report.status === 'voided'
@@ -129,7 +127,7 @@ export function ArrivalReportDetailPage() {
           {detail.report.void_reason ? <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700">作废原因：{detail.report.void_reason}</p> : null}
         </section>
 
-        <ImageSection images={detail.images.filter((image) => image.image_type === 'waybill')} imagesLoading={imagesLoading} onView={setViewerUrl} title="快递面单照片" />
+        <ImageSection images={detail.images.filter((image) => image.image_type === 'waybill')} imagesLoading={imagesLoading} onView={openViewer} title="快递面单照片" />
 
         <section className="ui-card p-4">
           <h2 className="font-bold text-slate-900">产品明细与拆包照片</h2>
@@ -137,13 +135,13 @@ export function ArrivalReportDetailPage() {
             const images = detail.images.filter((image) => image.image_type === 'goods' && image.arrival_item_id === item.id);
             return <article className="rounded-lg border border-slate-200 p-3" key={item.id}>
               <div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-slate-900">{index + 1}. {item.product_name_snapshot}</p>{item.note ? <p className="mt-1 text-xs text-slate-500">{item.note}</p> : null}</div><p className="shrink-0 font-bold text-brand-700">{item.quantity} {item.unit}</p></div>
-              <div className="mt-3 grid grid-cols-3 gap-2">{images.map((image) => <button className="aspect-square overflow-hidden rounded-lg bg-slate-100" disabled={!image.signedUrl} key={image.id} onClick={() => setViewerUrl(image.signedUrl)} type="button"><ProgressiveImage alt={`${item.product_name_snapshot}拆包照片`} className="h-full w-full object-cover" containerClassName="h-full w-full" resourceLoading={imagesLoading && !image.signedUrl} src={image.signedUrl} /></button>)}</div>
+              <div className="mt-3 grid grid-cols-3 gap-2">{images.map((image) => <button className="aspect-square overflow-hidden rounded-lg bg-slate-100" disabled={!image.signedUrl} key={image.id} onClick={() => image.signedUrl && openViewer(image.signedUrl)} type="button"><ProgressiveImage alt={`${item.product_name_snapshot}拆包照片`} className="h-full w-full object-cover" containerClassName="h-full w-full" resourceLoading={imagesLoading && !image.signedUrl} src={image.signedUrl} /></button>)}</div>
             </article>;
           })}</div>
         </section>
 
         {historicalGoodsImages.length > 0
-          ? <ImageSection images={historicalGoodsImages} imagesLoading={imagesLoading} onView={setViewerUrl} title="历史拆包照片" />
+          ? <ImageSection images={historicalGoodsImages} imagesLoading={imagesLoading} onView={openViewer} title="历史拆包照片" />
           : null}
 
         {canCorrect ? <section className="ui-card p-4">
@@ -155,7 +153,7 @@ export function ArrivalReportDetailPage() {
         {canReopen ? <section className="ui-card p-4"><p className="text-sm leading-6 text-slate-600">这条上报已被管理员作废。修改后重新提交，管理员会收到新的到货上报。</p><button className="ui-button-primary mt-3 w-full" disabled={busy} onClick={() => void reopen()} type="button"><Edit3 className="h-5 w-5" aria-hidden="true" />{busy ? '正在打开草稿' : '修改并重新上报'}</button></section> : null}
       </> : null}
 
-      {viewerUrl ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" aria-label="查看到货图片" onClick={() => setViewerUrl(null)}><button aria-label="关闭图片" className="absolute right-4 top-4 h-12 w-12 rounded-full bg-white/15 text-white" onClick={() => setViewerUrl(null)} type="button"><X className="mx-auto h-6 w-6" /></button>{detail && detail.images.length > 1 ? <><button aria-label="上一张图片" className="absolute left-3 h-12 w-12 rounded-full bg-white/15 text-white" onClick={(event) => { event.stopPropagation(); changeViewerImage(-1); }} type="button"><ChevronLeft className="mx-auto h-7 w-7" /></button><button aria-label="下一张图片" className="absolute right-3 h-12 w-12 rounded-full bg-white/15 text-white" onClick={(event) => { event.stopPropagation(); changeViewerImage(1); }} type="button"><ChevronRight className="mx-auto h-7 w-7" /></button></> : null}<img alt="到货大图" className="max-h-[85vh] max-w-full object-contain" onClick={(event) => event.stopPropagation()} src={viewerUrl} /></div> : null}
+      {viewerIndex != null ? <ImageViewer activeIndex={viewerIndex} images={viewerImages} label="查看到货图片" onClose={() => setViewerIndex(null)} onIndexChange={setViewerIndex} /> : null}
       <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title="操作未完成" tone="danger" />
     </PageShell>
   );

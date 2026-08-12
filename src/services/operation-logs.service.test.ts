@@ -2,9 +2,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { loadOperationLogActors, recordSystemActivity } from './operation-logs.service';
+import { compactConsecutiveOperationLogs, loadOperationLogActors, recordSystemActivity, type OperationLog } from './operation-logs.service';
 
 describe('operation logs service', () => {
+  it('collapses only consecutive duplicate actions and keeps their repeat count', () => {
+    const row = { actor_id: 'profile-1', entity_id: 'item-1', entity_type: 'notice', id: 'log-1', metadata: {}, module: 'notice', occurred_at: '2026-08-13T01:00:00Z', operation: 'updated', repeatCount: 1, summary: '修改公告' } as OperationLog;
+    const other = { ...row, entity_id: 'item-2', id: 'log-2', summary: '发布公告' };
+    expect(compactConsecutiveOperationLogs([row, { ...row, id: 'log-1b' }, other, { ...row, id: 'log-1c' }])).toEqual([
+      expect.objectContaining({ id: 'log-1', repeatCount: 2 }),
+      expect.objectContaining({ id: 'log-2', repeatCount: 1 }),
+      expect.objectContaining({ id: 'log-1c', repeatCount: 1 }),
+    ]);
+  });
+
   it('records a privacy-conscious access event with page context', async () => {
     window.history.replaceState({}, '', '/app/payroll?employee=profile-2');
     const rpc = vi.fn().mockResolvedValue({ data: 'log-1', error: null });

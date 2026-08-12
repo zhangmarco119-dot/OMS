@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 
 import { TaskTemplateReferenceImageUpload } from '../task-templates/TaskTemplateReferenceImageUpload';
 import { ProgressiveImage } from '../../components/ui/ProgressiveImage';
+import { ImageViewer } from '../../components/ui/ImageViewer';
 import { fieldTypeLabel, taskTemplateFieldTypes } from '../task-templates/templateForm';
 import {
   createEmptyTaskContentGroup,
@@ -86,7 +87,10 @@ function TaskItemEditor({ busy, item, itemNumber, onChange, onRemove, onRemoveRe
   onRemoveReferenceImage: (itemId: string, path: string) => void;
   onUploadReferenceImage: (itemId: string, file: File, onProgress: (progress: number) => void) => Promise<void>;
 }) {
-  const [preview, setPreview] = useState<string | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const previewImages = item.referenceImageUrls
+    .map((url, index) => url ? { alt: `参考图片 ${index + 1}`, url } : null)
+    .filter((image): image is { alt: string; url: string } => Boolean(image));
   return <article className="rounded-lg border border-slate-200 p-3">
     <div className="flex items-center justify-between gap-2"><span className="rounded-md bg-slate-800 px-2 py-1 text-xs font-bold text-white">项目 {itemNumber}</span><button aria-label={`删除项目 ${itemNumber}`} className="ui-icon-button h-10 w-10 border-red-100 text-red-600" onClick={onRemove} type="button"><Trash2 className="h-4 w-4" /></button></div>
     <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -98,9 +102,9 @@ function TaskItemEditor({ busy, item, itemNumber, onChange, onRemove, onRemoveRe
       {item.imageRequirement === 'multiple' ? <label className="text-sm font-semibold">至少上传张数<input className="ui-input mt-1" max={20} min={2} onChange={(event) => onChange({ minimumImageCount: Math.max(2, Math.min(20, Number(event.target.value) || 2)) })} type="number" value={item.minimumImageCount} /><span className="mt-1 block text-xs font-normal text-slate-500">员工少于此数量时无法提交。</span></label> : null}
       <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold"><input checked={item.isRequired} onChange={(event) => onChange({ isRequired: event.target.checked })} type="checkbox" />必填</label>
       <div className="sm:col-span-2 rounded-lg bg-slate-50 p-3"><div className="flex items-start justify-between gap-3"><div><b className="text-sm">参考图片（选填）</b><p className="mt-1 text-xs text-slate-500">上传后立即预览；保存任务后员工端同步显示。</p></div><TaskTemplateReferenceImageUpload disabled={busy} onUpload={(file, onProgress) => onUploadReferenceImage(item.id, file, onProgress)} /></div>
-        {item.referenceImagePaths.length ? <div className="mt-3 flex flex-wrap gap-2">{item.referenceImagePaths.map((path, index) => { const url = item.referenceImageUrls[index]; const referencesResolved = item.referenceImageUrls.length === item.referenceImagePaths.length; return <div className="relative" key={path}><button className="block overflow-hidden rounded-lg border" disabled={!url} onClick={() => url && setPreview(url)} type="button"><ProgressiveImage alt={`参考图片 ${index + 1}`} className="h-16 w-16 object-cover" containerClassName="h-16 w-16" resourceLoading={!referencesResolved} src={url} /></button><button aria-label={`删除参考图片 ${index + 1}`} className="absolute -right-2 -top-2 h-6 min-h-0 w-6 rounded-full bg-red-600 text-xs font-bold text-white" onClick={() => onRemoveReferenceImage(item.id, path)} type="button">×</button></div>; })}</div> : null}
+        {item.referenceImagePaths.length ? <div className="mt-3 flex flex-wrap gap-2">{item.referenceImagePaths.map((path, index) => { const url = item.referenceImageUrls[index]; const referencesResolved = item.referenceImageUrls.length === item.referenceImagePaths.length; const resolvedIndex = url ? previewImages.findIndex((image) => image.url === url) : -1; return <div className="relative" key={path}><button className="block overflow-hidden rounded-lg border" disabled={!url} onClick={() => resolvedIndex >= 0 && setPreviewIndex(resolvedIndex)} type="button"><ProgressiveImage alt={`参考图片 ${index + 1}`} className="h-16 w-16 object-cover" containerClassName="h-16 w-16" resourceLoading={!referencesResolved} src={url} /></button><button aria-label={`删除参考图片 ${index + 1}`} className="absolute -right-2 -top-2 h-6 min-h-0 w-6 rounded-full bg-red-600 text-xs font-bold text-white" onClick={() => onRemoveReferenceImage(item.id, path)} type="button">×</button></div>; })}</div> : null}
       </div>
     </div>
-    {preview ? <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-4" onClick={() => setPreview(null)} role="dialog" aria-label="参考图片大图预览"><img alt="参考图片大图" className="max-h-full max-w-full object-contain" src={preview} /></div> : null}
+    {previewIndex !== null ? <ImageViewer activeIndex={previewIndex} images={previewImages} label="参考图片大图预览" onClose={() => setPreviewIndex(null)} onIndexChange={setPreviewIndex} /> : null}
   </article>;
 }

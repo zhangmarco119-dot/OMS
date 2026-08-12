@@ -41,7 +41,8 @@ function text(context: CanvasRenderingContext2D, value: string, x: number, y: nu
 export async function downloadPayrollStatisticsImage(statistics: PayrollStatistics, generatedAt = new Date()) {
   const width = 2400;
   const storeHeight = Math.max(statistics.stores.length, 1) * 64 + 94;
-  const employeeHeight = Math.max(statistics.employees.length, 1) * 58 + 94;
+  const employeeRowHeight = 164;
+  const employeeHeight = Math.max(statistics.employees.length, 1) * employeeRowHeight + 86;
   const height = 410 + storeHeight + employeeHeight + 100;
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -94,23 +95,17 @@ export async function downloadPayrollStatisticsImage(statistics: PayrollStatisti
 
   top += storeHeight + 28;
   roundedRect(context, 55, top, width - 110, employeeHeight, 20, '#ffffff');
-  text(context, `员工工资（${statistics.employees.length} 人）`, 85, top + 48, { font: 'bold 30px "Microsoft YaHei", sans-serif' });
-  const employeeColumns = [85, 410, 535, 660, 785, 910, 1035, 1160, 1285, 1410, 1535, 1660, 1785, 1910, 2300];
-  ['员工', '工时', '时均', '基本', '房补', '绩效', '全勤', '超勤', '工龄', '奖励', '提成', '加班/兼职', '扣款', '个税', '实发'].forEach((label, index) => text(context, label, employeeColumns[index], top + 84, { align: index ? 'right' : 'left', color: '#64748b', font: '15px "Microsoft YaHei", sans-serif' }));
-  if (!statistics.employees.length) text(context, '选定时间内暂无员工工资', 85, top + 135, { color: '#94a3b8', font: '22px "Microsoft YaHei", sans-serif' });
+  text(context, `员工详细工资单（${statistics.employees.length} 人）`, 85, top + 50, { font: 'bold 32px "Microsoft YaHei", sans-serif' });
+  if (!statistics.employees.length) text(context, '选定时间内暂无员工工资', 85, top + 112, { color: '#94a3b8', font: '22px "Microsoft YaHei", sans-serif' });
   statistics.employees.forEach((employee, index) => {
-    const y = top + 126 + index * 58;
+    const rowTop = top + 72 + index * employeeRowHeight;
     const detail = employee.breakdown;
-    if (index % 2 === 0) roundedRect(context, 75, y - 29, width - 150, 48, 10, '#f8fafc');
-    text(context, `${employee.displayName}${employee.employmentType === 'part_time' ? ' · 兼职' : ''}`, employeeColumns[0], y, { font: '18px "Microsoft YaHei", sans-serif' });
-    text(context, `${employee.hours.toFixed(2)} h`, employeeColumns[1], y, { align: 'right', font: '14px "Microsoft YaHei", sans-serif' });
-    text(context, employee.averageHourlyCost == null ? '—' : numericMoney(employee.averageHourlyCost), employeeColumns[2], y, { align: 'right', font: '14px "Microsoft YaHei", sans-serif' });
-    [detail.baseSalary, detail.housingAllowance, detail.performance, detail.fullAttendanceBonus,
-      detail.extraAttendanceBonus, detail.serviceAward, detail.extraReward, detail.commission,
-      detail.overtime + detail.partTimeWage, detail.fines, detail.individualIncomeTax].forEach((value, columnIndex) => {
-      text(context, numericMoney(value), employeeColumns[columnIndex + 3], y, { align: 'right', color: columnIndex >= 9 ? '#be123c' : '#0f172a', font: '14px "Microsoft YaHei", sans-serif' });
-    });
-    text(context, numericMoney(detail.netPayable), employeeColumns[14], y, { align: 'right', color: '#047857', font: 'bold 16px "Microsoft YaHei", sans-serif' });
+    roundedRect(context, 75, rowTop, width - 150, employeeRowHeight - 12, 14, index % 2 === 0 ? '#f8fafc' : '#ffffff');
+    text(context, `${employee.displayName}${employee.employmentType === 'part_time' ? ' · 兼职' : ''}`, 105, rowTop + 40, { font: 'bold 28px "Microsoft YaHei", sans-serif' });
+    text(context, `实发 ${numericMoney(detail.netPayable)}`, width - 105, rowTop + 40, { align: 'right', color: '#047857', font: 'bold 32px "Microsoft YaHei", sans-serif' });
+    text(context, `收入 ${numericMoney(detail.grossIncome)} · 工时 ${employee.hours.toFixed(2)} h · 时均 ${employee.averageHourlyCost == null ? '—' : `${numericMoney(employee.averageHourlyCost)} / h`}`, 105, rowTop + 78, { color: '#334155', font: '22px "Microsoft YaHei", sans-serif' });
+    text(context, `基本 ${numericMoney(detail.baseSalary)} · 房补 ${numericMoney(detail.housingAllowance)} · 绩效 ${numericMoney(detail.performance)} · 全勤 ${numericMoney(detail.fullAttendanceBonus)} · 超勤 ${numericMoney(detail.extraAttendanceBonus)} · 工龄 ${numericMoney(detail.serviceAward)}`, 105, rowTop + 113, { color: '#475569', font: '21px "Microsoft YaHei", sans-serif' });
+    text(context, `奖励 ${numericMoney(detail.extraReward)} · 提成 ${numericMoney(detail.commission)} · 加班/兼职 ${numericMoney(detail.overtime + detail.partTimeWage)} · 其他扣款 -${numericMoney(detail.fines)} · 个税 -${numericMoney(detail.individualIncomeTax)}`, 105, rowTop + 145, { color: '#64748b', font: '21px "Microsoft YaHei", sans-serif' });
   });
 
   text(context, `工时口径：排班时长扣除 1 小时用餐时间，另加已审批兼职/加班工时 · ${currentRelease.version} · 生成于 ${generatedAtLabel(generatedAt)}`, 70, height - 48, { color: '#64748b', font: '20px "Microsoft YaHei", sans-serif' });

@@ -1,7 +1,8 @@
-import { Camera, CheckCircle2, ImagePlus, Loader2, RefreshCw, Trash2, X } from 'lucide-react';
+import { Camera, CheckCircle2, ImagePlus, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { createUuid } from '../../lib/uuid';
+import { ImageViewer } from '../../components/ui/ImageViewer';
 import { ProgressiveImage } from '../../components/ui/ProgressiveImage';
 import type { ArrivalImageType, ArrivalImageWithUrl } from '../../services/arrival-images.service';
 
@@ -43,7 +44,7 @@ export function ArrivalImageSection({
   const albumRef = useRef<HTMLInputElement>(null);
   const pendingRef = useRef<PendingUpload[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,6 +108,14 @@ export function ArrivalImageSection({
     URL.revokeObjectURL(entry.previewUrl);
     setPending((current) => current.filter((item) => item.id !== entry.id));
   };
+  const viewerImages = [
+    ...images.flatMap((image) => image.signedUrl ? [{ alt: image.file_name, url: image.signedUrl }] : []),
+    ...pending.map((entry) => ({ alt: entry.file.name || '本地待上传预览', url: entry.previewUrl })),
+  ];
+  const openImage = (url: string) => {
+    const index = viewerImages.findIndex((image) => image.url === url);
+    if (index >= 0) setActiveIndex(index);
+  };
 
   return (
     <section className={embedded ? 'mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3' : 'ui-card p-3.5'}>
@@ -140,7 +149,7 @@ export function ArrivalImageSection({
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {images.map((image) => (
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50" key={image.id}>
-              <button className="block aspect-square w-full" disabled={!image.signedUrl} onClick={() => setSelectedUrl(image.signedUrl)} type="button">
+              <button className="block aspect-square w-full" disabled={!image.signedUrl} onClick={() => image.signedUrl && openImage(image.signedUrl)} type="button">
                 <ProgressiveImage alt={image.file_name} className="h-full w-full object-cover" containerClassName="h-full w-full" resourceLoading={imagesLoading && !image.signedUrl} src={image.signedUrl} />
               </button>
               <div className="flex items-center justify-between gap-2 p-2">
@@ -152,7 +161,7 @@ export function ArrivalImageSection({
 
           {pending.map((entry) => (
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50" key={entry.id}>
-              <img alt="本地待上传预览" className="aspect-square w-full object-cover" src={entry.previewUrl} />
+              <button className="block w-full" onClick={() => openImage(entry.previewUrl)} type="button"><img alt="本地待上传预览" className="aspect-square w-full object-cover" src={entry.previewUrl} /></button>
               <div className="p-2">
                 {entry.status === 'uploading' ? (
                   <>
@@ -174,12 +183,7 @@ export function ArrivalImageSection({
         </div>
       )}
 
-      {selectedUrl ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true">
-          <button aria-label="关闭图片预览" className="absolute right-4 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-900" onClick={() => setSelectedUrl(null)} type="button"><X className="h-6 w-6" aria-hidden="true" /></button>
-          <img alt="到货图片大图预览" className="max-h-[88vh] max-w-full rounded-lg object-contain" src={selectedUrl} />
-        </div>
-      ) : null}
+      {activeIndex != null ? <ImageViewer activeIndex={activeIndex} images={viewerImages} label="到货图片全屏预览" onClose={() => setActiveIndex(null)} onIndexChange={setActiveIndex} /> : null}
     </section>
   );
 }

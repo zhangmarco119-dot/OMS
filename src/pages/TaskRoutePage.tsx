@@ -326,7 +326,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       <div className={`mx-auto flex max-w-5xl flex-col ${compact ? 'gap-2.5' : 'gap-4'}`}>
         <header className={`rounded-2xl bg-white shadow-sm ${compact ? 'p-2.5' : 'p-4'}`}>
           <div className="flex items-start justify-between gap-4">
-            <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={() => navigate(linkedV2TaskId ? `/app/tasks/${linkedV2TaskId}` : '/app/workbench', { replace: true })} type="button"><ArrowLeft className="h-5 w-5" /></button>
+            <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={() => { if (Number(window.history.state?.idx ?? 0) > 0) navigate(-1); else navigate(linkedV2TaskId ? `/app/tasks/${linkedV2TaskId}` : '/app/workbench', { replace: true }); }} type="button"><ArrowLeft className="h-5 w-5" /></button>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-slate-500">{auth.store?.name ?? '当前门店'}</p>
               <h1 className={`${compact ? 'text-lg' : 'mt-1 text-xl'} font-bold text-slate-900`}>{text.title}</h1>

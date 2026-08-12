@@ -5,7 +5,15 @@ import { downloadPayrollStatisticsImage, payrollStatisticsImageFileName } from '
 
 const statistics: PayrollStatistics = {
   averageHourlyCost: 33.26,
-  employees: [],
+  employees: [{
+    averageHourlyCost: 43.21,
+    breakdown: {
+      baseSalary: 8000, commission: 600, extraAttendanceBonus: 100, extraReward: 50, fines: 20,
+      fullAttendanceBonus: 100, grossIncome: 9000, housingAllowance: 100, individualIncomeTax: 80,
+      netPayable: 8900, overtime: 50, partTimeWage: 0, performance: 0, serviceAward: 0,
+    },
+    displayName: '员工甲', employmentType: 'full_time', hours: 208.28, periods: [], profileId: 'profile-1', salaryCost: 8920,
+  }],
   from: '2026-07-01',
   overallPayrollRatio: 0.1843,
   stores: [{
@@ -67,6 +75,8 @@ describe('payroll statistics image', () => {
     expect(drawnValues).toContain('¥ 166,437.93');
     expect(drawnValues).toContain('¥ 129,413.00');
     expect(drawnValues).toContain('12.22%');
+    expect(drawnValues).toContain('实发 ¥ 8,900.00');
+    expect(drawnValues).toContain('基本 ¥ 8,000.00 · 房补 ¥ 100.00 · 绩效 ¥ 0.00 · 全勤 ¥ 100.00 · 超勤 ¥ 100.00 · 工龄 ¥ 0.00');
   });
 
   it('uses a unique timestamped file name and keeps the Blob URL alive for mobile downloads', async () => {

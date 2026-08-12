@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { cn } from '../../lib/cn';
-import { rememberedParentRoute, rememberedRoute } from '../../lib/navigationHierarchy';
+import { queryDetailParentRoute, rememberedParentRoute, rememberedRoute } from '../../lib/navigationHierarchy';
 
 interface PageShellProps {
   eyebrow?: string;
@@ -19,7 +19,11 @@ export function PageShell({ eyebrow, title, children, backTo, contentGapClassNam
   const location = useLocation();
   const goBack = () => {
     if (onBack) { onBack(); return; }
-    if (backTo) navigate(rememberedParentRoute(location.pathname) ?? rememberedRoute(backTo), { replace: true, state: { from: location.pathname } });
+    const historyIndex = Number(window.history.state?.idx ?? 0);
+    if (historyIndex > 0) { navigate(-1); return; }
+    const queryParent = queryDetailParentRoute(location.pathname, location.search);
+    const fallback = queryParent ?? rememberedParentRoute(location.pathname) ?? (backTo ? rememberedRoute(backTo) : null);
+    if (fallback) navigate(fallback, { replace: true, state: { from: location.pathname } });
   };
   return (
     <section className="app-page-min-height px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8">

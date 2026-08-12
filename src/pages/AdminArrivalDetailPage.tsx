@@ -1,10 +1,11 @@
-import { ChevronLeft, ChevronRight, Download, FileDown, LoaderCircle, Pencil, Trash2, X } from 'lucide-react';
+import { Download, FileDown, LoaderCircle, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { ConfirmDialog } from '../components/ui/Actions';
+import { ImageViewer } from '../components/ui/ImageViewer';
 import {
   arrivalStatusClass,
   arrivalStatusLabel,
@@ -34,7 +35,7 @@ export function AdminArrivalDetailPage() {
   const [detail, setDetail] = useState<AdminArrivalDetail | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
-  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidReason, setVoidReason] = useState('');
@@ -123,14 +124,10 @@ export function AdminArrivalDetailPage() {
     if (detail) downloadArrivalExport(createArrivalReportExport(detail));
   };
 
-  const viewerImages = detail?.images.filter((image) => image.signedUrl) ?? [];
-  const viewerIndex = viewerUrl
-    ? viewerImages.findIndex((image) => image.signedUrl === viewerUrl)
-    : -1;
-  const changeViewerImage = (offset: number) => {
-    if (viewerIndex < 0 || viewerImages.length < 2) return;
-    const nextIndex = (viewerIndex + offset + viewerImages.length) % viewerImages.length;
-    setViewerUrl(viewerImages[nextIndex].signedUrl);
+  const viewerImages = (detail?.images ?? []).flatMap((image) => image.signedUrl ? [{ alt: image.file_name || '到货图片', url: image.signedUrl }] : []);
+  const openViewer = (url: string) => {
+    const index = viewerImages.findIndex((image) => image.url === url);
+    if (index >= 0) setViewerIndex(index);
   };
 
   return (
@@ -155,7 +152,7 @@ export function AdminArrivalDetailPage() {
           {detail.report.void_reason ? <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">作废原因：{detail.report.void_reason}</p> : null}
         </section>
 
-        <ImageGroup images={detail.images.filter((image) => image.image_type === 'waybill')} loading={imageUrlsLoading} onView={setViewerUrl} title="面单照片" />
+        <ImageGroup images={detail.images.filter((image) => image.image_type === 'waybill')} loading={imageUrlsLoading} onView={openViewer} title="面单照片" />
 
         <section className="rounded-lg bg-white p-5 shadow-sm">
           <h2 className="font-bold text-slate-900">产品明细与拆包照片</h2>
@@ -167,14 +164,14 @@ export function AdminArrivalDetailPage() {
                   <div><p className="font-semibold text-slate-900">{index + 1}. {item.product_name_snapshot}</p>{item.note ? <p className="mt-1 text-xs text-slate-500">{item.note}</p> : null}{item.is_unmatched_product ? <span className="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">未匹配货品</span> : null}</div>
                   <p className="shrink-0 font-bold text-brand-700">{item.quantity} {item.unit}</p>
                 </div>
-                <ProductImageGrid images={itemImages} loading={imageUrlsLoading} onView={setViewerUrl} productName={item.product_name_snapshot} />
+                <ProductImageGrid images={itemImages} loading={imageUrlsLoading} onView={openViewer} productName={item.product_name_snapshot} />
               </article>;
             })}
           </div>
         </section>
 
         {detail.images.some((image) => image.image_type === 'goods' && !image.arrival_item_id)
-          ? <ImageGroup images={detail.images.filter((image) => image.image_type === 'goods' && !image.arrival_item_id)} loading={imageUrlsLoading} onView={setViewerUrl} title="历史货品照片（未关联具体产品）" />
+          ? <ImageGroup images={detail.images.filter((image) => image.image_type === 'goods' && !image.arrival_item_id)} loading={imageUrlsLoading} onView={openViewer} title="历史货品照片（未关联具体产品）" />
           : null}
 
         <section className="rounded-lg bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">操作日志</h2>{detail.auditLogs.length ? <ol className="mt-3 space-y-3">{detail.auditLogs.map((log) => <li className="border-l-2 border-brand-200 pl-3 text-sm" key={log.id}><p className="font-semibold text-slate-800">{auditLabel[log.action] ?? log.action}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(log.created_at)}</p></li>)}</ol> : <p className="mt-3 text-sm text-slate-500">暂无操作日志。</p>}</section>
@@ -186,7 +183,7 @@ export function AdminArrivalDetailPage() {
         </section>
       </> : null}
 
-      {viewerUrl ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" aria-label="查看到货图片"><button aria-label="关闭图片" className="absolute right-4 top-4 h-12 w-12 rounded-full bg-white/15 text-white" onClick={() => setViewerUrl(null)} type="button"><X className="mx-auto h-6 w-6" /></button>{viewerImages.length > 1 ? <><button aria-label="上一张图片" className="absolute left-3 h-12 w-12 rounded-full bg-white/15 text-white" onClick={() => changeViewerImage(-1)} type="button"><ChevronLeft className="mx-auto h-7 w-7" /></button><button aria-label="下一张图片" className="absolute right-3 h-12 w-12 rounded-full bg-white/15 text-white" onClick={() => changeViewerImage(1)} type="button"><ChevronRight className="mx-auto h-7 w-7" /></button><p className="absolute bottom-4 rounded-full bg-black/50 px-3 py-1 text-sm text-white">{viewerIndex + 1} / {viewerImages.length}</p></> : null}<img alt="到货大图" className="max-h-[85vh] max-w-full object-contain" src={viewerUrl} /></div> : null}
+      {viewerIndex != null ? <ImageViewer activeIndex={viewerIndex} images={viewerImages} label="查看到货图片" onClose={() => setViewerIndex(null)} onIndexChange={setViewerIndex} /> : null}
       {showVoidDialog ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="void-title"><div className="ui-dialog-panel max-w-md p-5"><h2 className="text-lg font-bold" id="void-title">作废到货记录</h2><p className="mt-2 text-sm text-slate-600">作废后记录仍保留，但不会计入每日汇总。</p><label className="mt-4 block text-sm font-semibold">作废原因<textarea className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 p-3" onChange={(event) => setVoidReason(event.target.value)} value={voidReason} /></label><div className="mt-4 grid grid-cols-2 gap-3"><button className="min-h-11 rounded-lg border border-slate-200 font-bold" onClick={() => setShowVoidDialog(false)} type="button">取消</button><button className="min-h-11 rounded-lg bg-red-600 font-bold text-white" disabled={busy} onClick={() => void confirmVoid()} type="button">继续作废</button></div></div></div> : null}
       <ConfirmDialog confirmLabel="确认作废" danger onCancel={() => setShowVoidConfirm(false)} onConfirm={() => void voidReport()} open={showVoidConfirm} title="再次确认作废"><p>确定作废到货单 {detail?.report.report_no} 吗？作废后该记录不会计入到货汇总。</p></ConfirmDialog>
       <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title={message?.includes('已标记') || message?.includes('已作废') ? '操作成功' : message?.includes('请填写') ? '请完善作废信息' : '操作未完成'} tone={message?.includes('已标记') || message?.includes('已作废') ? 'success' : message?.includes('请填写') ? 'warning' : 'danger'} />

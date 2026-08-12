@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ProgressiveImage } from '../components/ui/ProgressiveImage';
+import { ImageViewer } from '../components/ui/ImageViewer';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { SuccessToast } from '../components/feedback/SuccessToast';
 import { featureFlags } from '../config/featureFlags';
@@ -340,7 +341,7 @@ function ItemEditor(props: { busy: boolean; item: TaskTemplateItemDraft; itemNum
 
 function ItemEditorWithReferences(props: { busy: boolean; item: TaskTemplateItemDraft; itemNumber: string; onChange: (item: TaskTemplateItemDraft) => void; onDeleteReferenceImage: (itemId: string, path: string) => Promise<void>; onRemove: () => void; onUploadReferenceImage: (itemId: string, file: File, onProgress: (progress: number) => void) => Promise<void> }) {
   const { item } = props;
-  const [activeReferenceUrl, setActiveReferenceUrl] = useState<string | null>(null);
+  const [activeReferenceIndex, setActiveReferenceIndex] = useState<number | null>(null);
   const removeReference = async (index: number) => {
     if (!window.confirm('删除这张参考图片吗？保存模板后将不再向员工展示。')) return;
     const path = item.referenceImagePaths[index];
@@ -348,5 +349,6 @@ function ItemEditorWithReferences(props: { busy: boolean; item: TaskTemplateItem
     await props.onDeleteReferenceImage(item.id, path);
   };
   const referencesResolved = item.referenceImageUrls.length === item.referenceImagePaths.length;
-  return <><LegacyItemEditor {...props} />{item.referenceImagePaths.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{item.referenceImagePaths.map((path, index) => { const url = item.referenceImageUrls[index]; return <div className="relative" key={path}><button aria-label={`全屏查看参考图片 ${index + 1}`} className="block overflow-hidden rounded-lg border" disabled={!url} onClick={() => url && setActiveReferenceUrl(url)} type="button"><ProgressiveImage alt={`参考图片 ${index + 1}`} className="h-16 w-16 object-cover" containerClassName="h-16 w-16" resourceLoading={!referencesResolved} src={url} /></button><button aria-label={`删除参考图片 ${index + 1}`} className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-red-600 text-xs font-bold text-white" disabled={props.busy} onClick={() => void removeReference(index)} type="button">×</button></div>; })}</div> : null}{activeReferenceUrl ? <div aria-label="管理员参考图片全屏预览" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4" onClick={() => setActiveReferenceUrl(null)} role="dialog"><button aria-label="关闭参考图片预览" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setActiveReferenceUrl(null)} type="button"><X className="h-6 w-6" /></button><img alt="管理员参考图片大图" className="max-h-full max-w-full object-contain" onClick={() => setActiveReferenceUrl(null)} src={activeReferenceUrl} /></div> : null}</>;
+  const referenceImages = item.referenceImageUrls.map((url, index) => url ? { alt: `参考图片 ${index + 1}`, url } : null).filter((image): image is { alt: string; url: string } => Boolean(image));
+  return <><LegacyItemEditor {...props} />{item.referenceImagePaths.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{item.referenceImagePaths.map((path, index) => { const url = item.referenceImageUrls[index]; const resolvedIndex = url ? referenceImages.findIndex((image) => image.url === url) : -1; return <div className="relative" key={path}><button aria-label={`全屏查看参考图片 ${index + 1}`} className="block overflow-hidden rounded-lg border" disabled={!url} onClick={() => resolvedIndex >= 0 && setActiveReferenceIndex(resolvedIndex)} type="button"><ProgressiveImage alt={`参考图片 ${index + 1}`} className="h-16 w-16 object-cover" containerClassName="h-16 w-16" resourceLoading={!referencesResolved} src={url} /></button><button aria-label={`删除参考图片 ${index + 1}`} className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-red-600 text-xs font-bold text-white" disabled={props.busy} onClick={() => void removeReference(index)} type="button">×</button></div>; })}</div> : null}{activeReferenceIndex !== null ? <ImageViewer activeIndex={activeReferenceIndex} images={referenceImages} label="管理员参考图片全屏预览" onClose={() => setActiveReferenceIndex(null)} onIndexChange={setActiveReferenceIndex} /> : null}</>;
 }

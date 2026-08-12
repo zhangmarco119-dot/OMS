@@ -16,7 +16,10 @@ describe('PayrollStatementView', () => {
     expect(screen.getByText('个税扣除')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /其他扣款.*点击查看扣款时间和原因.*-¥20\.00/ })).toBeInTheDocument();
     expect(screen.queryByText('扣款合计')).not.toBeInTheDocument();
-    expect(screen.getByText(/个税 ¥50\.00 · 其他扣款 ¥20\.00/)).toBeInTheDocument();
+    expect(screen.getByText('收入总计')).toBeInTheDocument();
+    expect(screen.getByText('个税', { selector: 'dt' })).toBeInTheDocument();
+    expect(screen.getByText('其他扣款', { selector: 'dt' })).toBeInTheDocument();
+    expect(screen.getByText('¥4,335.00')).toHaveClass('whitespace-nowrap');
     expect(screen.getByText(/本月核对完成/)).toBeInTheDocument();
     expect(screen.queryByText('数据更新时间')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /其他扣款.*点击查看扣款时间和原因/ }));

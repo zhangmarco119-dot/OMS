@@ -35,6 +35,7 @@ import { HistoryTaskDetailPage } from './pages/HistoryTaskDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { MyAttendancePage } from './pages/MyAttendancePage';
 import { MyPayrollPage } from './pages/MyPayrollPage';
+import { ManagerPayrollConfirmationPage } from './pages/ManagerPayrollConfirmationPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { OvertimePage } from './pages/OvertimePage';
@@ -92,6 +93,7 @@ export const router = createBrowserRouter([
       { path: 'operations-history', element: <OperationsHistoryPage /> },
       { path: 'attendance', element: <MyAttendancePage /> },
       { path: 'payroll', element: <MyPayrollPage /> },
+      { path: 'payroll-confirmations/:payslipId', element: <ProtectedRoute requireTaskReviewer><ManagerPayrollConfirmationPage /></ProtectedRoute> },
       { path: 'overtime', element: <OvertimePage /> },
       { path: 'operation-reports', element: <OperationReportsPage /> },
       { path: 'operation-reports/:reportId', element: <OperationReportDetailPage /> },

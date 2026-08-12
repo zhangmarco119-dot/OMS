@@ -1,6 +1,7 @@
-import { Loader2, Trash2, X } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { ImageViewer } from '../../components/ui/ImageViewer';
 import type { V2TaskImageRow } from '../../services/v2-tasks.service';
 
 interface TaskImagePreviewProps {
@@ -22,12 +23,20 @@ export function TaskImagePreview({
   onDelete,
   pendingImageUrls = [],
 }: TaskImagePreviewProps) {
-  const [activeImage, setActiveImage] = useState<{ alt: string; url: string } | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   if (images.length === 0 && pendingImageUrls.length === 0) return null;
+  const viewerImages = [
+    ...pendingImageUrls.map((url, index) => ({ alt: `上传中的图片 ${index + 1}`, url })),
+    ...images.flatMap((image, index) => imageUrls[image.id] ? [{ alt: `已上传图片 ${index + 1}`, url: imageUrls[image.id] }] : []),
+  ];
+  const activate = (alt: string, url: string) => {
+    const index = viewerImages.findIndex((image) => image.url === url && image.alt === alt);
+    if (index >= 0) setActiveIndex(index);
+  };
 
   return <>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {pendingImageUrls.map((url, index) => <button aria-label={`全屏查看上传中的图片 ${index + 1}`} className="block overflow-hidden rounded-lg border bg-slate-50 text-left" key={url} onClick={() => setActiveImage({ alt: `上传中的图片 ${index + 1}`, url })} type="button">
+      {pendingImageUrls.map((url, index) => <button aria-label={`全屏查看上传中的图片 ${index + 1}`} className="block overflow-hidden rounded-lg border bg-slate-50 text-left" key={url} onClick={() => activate(`上传中的图片 ${index + 1}`, url)} type="button">
         <img alt={`上传中的图片 ${index + 1}`} className="aspect-square w-full object-cover" src={url} />
         <span className="block truncate px-2 py-1 text-xs text-slate-600">正在上传</span>
       </button>)}
@@ -39,13 +48,13 @@ export function TaskImagePreview({
           index={index}
           key={image.id}
           loadingUrl={loading}
-          onActivate={(alt, activeUrl) => setActiveImage({ alt, url: activeUrl })}
+          onActivate={activate}
           onDelete={onDelete && (!deletableImageIds || deletableImageIds.includes(image.id)) ? onDelete : undefined}
           url={url}
         />;
       })}
     </div>
-    {activeImage ? <div aria-label="图片全屏预览" className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setActiveImage(null)} role="dialog"><button aria-label="关闭图片预览" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setActiveImage(null)} type="button"><X className="h-6 w-6" /></button><img alt={activeImage.alt} className="max-h-full max-w-full object-contain" onClick={() => setActiveImage(null)} src={activeImage.url} /></div> : null}
+    {activeIndex != null ? <ImageViewer activeIndex={activeIndex} images={viewerImages} onClose={() => setActiveIndex(null)} onIndexChange={setActiveIndex} /> : null}
   </>;
 }
 

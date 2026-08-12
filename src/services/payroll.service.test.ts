@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
+import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmDelegatedPayrollPayslip, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, listPayrollConfirmationManagers, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, sendPayrollPayslipToManager, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -72,6 +72,19 @@ describe('payroll service', () => {
     expect(rpc).toHaveBeenNthCalledWith(1,'admin_send_payroll_payslip',{ p_payslip_id:'slip-1' });
     expect(rpc).toHaveBeenNthCalledWith(2,'admin_update_payroll_payslip',{ p_payslip_id:'slip-1',p_fields:fields });
     expect(rpc).toHaveBeenNthCalledWith(3,'admin_withdraw_payroll_payslip',{ p_payslip_id:'slip-1' });
+  });
+
+  it('loads eligible managers and uses the delegated confirmation RPCs', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [{ displayName: '西直门店长', id: 'manager-1', storeName: '西直门店', username: 'manager' }], error: null })
+      .mockResolvedValueOnce({ data: {}, error: null })
+      .mockResolvedValueOnce({ data: {}, error: null });
+    await expect(listPayrollConfirmationManagers({ rpc } as never, 'slip-1')).resolves.toEqual([{ displayName: '西直门店长', id: 'manager-1', storeName: '西直门店', username: 'manager' }]);
+    await sendPayrollPayslipToManager({ rpc } as never, 'slip-1', 'manager-1');
+    await confirmDelegatedPayrollPayslip({ rpc } as never, 'slip-1');
+    expect(rpc).toHaveBeenNthCalledWith(1, 'list_available_payroll_confirmation_managers', { p_payslip_id: 'slip-1' });
+    expect(rpc).toHaveBeenNthCalledWith(2, 'admin_send_payroll_payslip_to_manager', { p_manager_id: 'manager-1', p_payslip_id: 'slip-1' });
+    expect(rpc).toHaveBeenNthCalledWith(3, 'confirm_delegated_payroll_payslip', { p_payslip_id: 'slip-1' });
   });
 
   it('sends and withdraws multiple payslips in one atomic request', async () => {

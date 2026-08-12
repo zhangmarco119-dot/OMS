@@ -752,9 +752,9 @@ export type Database = {
         Relationships: [];
       };
       payroll_payslips: {
-        Row: { admin_note: string; confirmed_at: string | null; created_at: string; estimate_snapshot: Json; id: string; issue_source: 'scheduled' | 'admin'; issued_at: string | null; issued_by: string | null; last_modified_by: string | null; payroll_month: string; profile_id: string; revision: number; status: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id: string | null; updated_at: string; withdrawn_at: string | null; withdrawn_by: string | null };
-        Insert: { admin_note?: string; confirmed_at?: string | null; created_at?: string; estimate_snapshot: Json; id?: string; issue_source: 'scheduled' | 'admin'; issued_at?: string | null; issued_by?: string | null; last_modified_by?: string | null; payroll_month: string; profile_id: string; revision?: number; status?: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id?: string | null; updated_at?: string; withdrawn_at?: string | null; withdrawn_by?: string | null };
-        Update: { admin_note?: string; confirmed_at?: string | null; estimate_snapshot?: Json; id?: string; issue_source?: 'scheduled' | 'admin'; issued_at?: string | null; issued_by?: string | null; last_modified_by?: string | null; payroll_month?: string; profile_id?: string; revision?: number; status?: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id?: string | null; updated_at?: string; withdrawn_at?: string | null; withdrawn_by?: string | null };
+        Row: { admin_note: string; confirmation_assignee_id: string | null; confirmation_target: 'employee' | 'manager'; confirmed_at: string | null; confirmed_by: string | null; created_at: string; delegated_at: string | null; delegated_by: string | null; estimate_snapshot: Json; id: string; issue_source: 'scheduled' | 'admin'; issued_at: string | null; issued_by: string | null; last_modified_by: string | null; payroll_month: string; profile_id: string; revision: number; status: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id: string | null; updated_at: string; withdrawn_at: string | null; withdrawn_by: string | null };
+        Insert: { admin_note?: string; confirmation_assignee_id?: string | null; confirmation_target?: 'employee' | 'manager'; confirmed_at?: string | null; confirmed_by?: string | null; created_at?: string; delegated_at?: string | null; delegated_by?: string | null; estimate_snapshot: Json; id?: string; issue_source: 'scheduled' | 'admin'; issued_at?: string | null; issued_by?: string | null; last_modified_by?: string | null; payroll_month: string; profile_id: string; revision?: number; status?: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id?: string | null; updated_at?: string; withdrawn_at?: string | null; withdrawn_by?: string | null };
+        Update: { admin_note?: string; confirmation_assignee_id?: string | null; confirmation_target?: 'employee' | 'manager'; confirmed_at?: string | null; confirmed_by?: string | null; delegated_at?: string | null; delegated_by?: string | null; estimate_snapshot?: Json; id?: string; issue_source?: 'scheduled' | 'admin'; issued_at?: string | null; issued_by?: string | null; last_modified_by?: string | null; payroll_month?: string; profile_id?: string; revision?: number; status?: 'draft' | 'issued' | 'confirmed' | 'withdrawn'; store_id?: string | null; updated_at?: string; withdrawn_at?: string | null; withdrawn_by?: string | null };
         Relationships: [];
       };
       payroll_payslip_schedule_settings: {
@@ -1208,14 +1208,17 @@ export type Database = {
       admin_attendance_month: { Args: { p_limit?: number; p_month: string; p_offset?: number; p_search?: string; p_status?: string; p_store_id?: string | null }; Returns: Json };
       complete_attendance_missing_punch_todo: { Args: { p_todo_id: string }; Returns: Json };
       confirm_my_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
+      confirm_delegated_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
       admin_issue_payroll_payslips: { Args: { p_payroll_month: string; p_profile_ids?: string[] | null }; Returns: Json };
       admin_generate_payroll_payslips: { Args: { p_payroll_month: string; p_profile_ids?: string[] | null }; Returns: Json };
       admin_send_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
+      admin_send_payroll_payslip_to_manager: { Args: { p_manager_id: string; p_payslip_id: string }; Returns: Json };
       admin_send_payroll_payslips: { Args: { p_payslip_ids: string[] }; Returns: Json };
       admin_update_payroll_payslip: { Args: { p_fields: Json; p_payslip_id: string }; Returns: Json };
       get_payroll_deduction_items: { Args: { p_from: string; p_profile_id: string; p_to: string }; Returns: Json };
       admin_withdraw_payroll_payslip: { Args: { p_payslip_id: string }; Returns: Json };
       admin_withdraw_payroll_payslips: { Args: { p_payslip_ids: string[] }; Returns: Json };
+      list_available_payroll_confirmation_managers: { Args: { p_payslip_id: string }; Returns: Json };
       admin_payroll_estimates: { Args: { p_as_of?: string; p_search?: string; p_store_id?: string | null }; Returns: Json };
       admin_create_payroll_penalty: { Args: { p_fields: Json }; Returns: Json };
       admin_save_payroll_employee_rule: { Args: { p_fields: Json; p_profile_id: string; p_store_ids?: string[] }; Returns: string };

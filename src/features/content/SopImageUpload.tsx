@@ -2,6 +2,7 @@ import { ImagePlus, Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { createUuid } from '../../lib/uuid';
+import { ImageViewer } from '../../components/ui/ImageViewer';
 
 interface PendingSopImage {
   error: string | null;
@@ -36,6 +37,7 @@ export function SopImageUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const pendingRef = useRef<PendingSopImage[]>([]);
   const [pending, setPending] = useState<PendingSopImage[]>([]);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [insertPosition, setInsertPosition] = useState<'end' | number>('end');
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export function SopImageUpload({
     </div>
 
     {pending.length > 0 ? <div className="mt-3 grid grid-cols-2 gap-2">{pending.map((entry) => <div className="overflow-hidden rounded-xl border border-brand-200 bg-white" key={entry.id}>
-      <img alt={entry.file.name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={entry.previewUrl} />
+      <button className="block w-full" onClick={() => setActiveIndex(pending.findIndex((item) => item.id === entry.id))} type="button"><img alt={entry.file.name} className="aspect-[4/3] w-full bg-slate-50 object-cover" src={entry.previewUrl} /></button>
       <div className="p-2">
         <p className="mb-1 text-[11px] font-bold text-brand-700">准备插入第 {entry.insertAt + 1} 步</p>
         {entry.status === 'uploading' ? <>
@@ -137,5 +139,6 @@ export function SopImageUpload({
         </>}
       </div>
     </div>)}</div> : null}
+    {activeIndex !== null ? <ImageViewer activeIndex={activeIndex} images={pending.map((entry) => ({ alt: entry.file.name, url: entry.previewUrl }))} label="待上传 SOP 图片预览" onClose={() => setActiveIndex(null)} onIndexChange={setActiveIndex} /> : null}
   </div>;
 }

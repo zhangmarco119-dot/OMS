@@ -31,6 +31,8 @@ describe('navigation hierarchy', () => {
     expect(queryDetailParentRoute('/app/admin/payroll', '?tab=overview&date=2026-06-30&store=s1&employee=p1')).toBe('/app/admin/payroll?tab=overview&date=2026-06-30&store=s1');
     expect(queryDetailParentRoute('/app/payroll', '?tab=payslips&payslip=slip-1')).toBe('/app/payroll?tab=payslips');
     expect(queryDetailParentRoute('/app/notices', '?notice=notice-1')).toBe('/app/notices');
+    expect(queryDetailParentRoute('/app/account', '?view=password')).toBe('/app/account');
+    expect(queryDetailParentRoute('/app/admin/payroll', '?tab=statistics&statisticsEmployee=p1&statisticsPeriod=2026-07')).toBe('/app/admin/payroll?tab=statistics');
     expect(queryDetailParentRoute('/app/admin/payroll', '?tab=revenue&date=2026-06-30')).toBeNull();
   });
 });

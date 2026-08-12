@@ -240,7 +240,7 @@ export interface PayrollPayslip extends Omit<PayrollPayslipRow, 'estimate_snapsh
   estimate: PayrollEstimate;
 }
 
-const parsePayslip = (row: PayrollPayslipRow): PayrollPayslip => ({
+export const parsePayslip = (row: PayrollPayslipRow): PayrollPayslip => ({
   ...row,
   estimate: parsePayrollEstimate(row.estimate_snapshot),
 });
@@ -265,6 +265,45 @@ export async function loadPayrollProfiles(client: Client) {
 
 export async function confirmPayrollPayslip(client: Client, id: string) {
   const { data, error } = await client.rpc('confirm_my_payroll_payslip', { p_payslip_id: id });
+  if (error) throw new Error(error.message || '工资单暂时无法确认。');
+  return data;
+}
+
+export interface PayrollConfirmationManager {
+  displayName: string;
+  id: string;
+  storeName: string;
+  username: string;
+}
+
+export async function listPayrollConfirmationManagers(client: Client, payslipId: string): Promise<PayrollConfirmationManager[]> {
+  const { data, error } = await client.rpc('list_available_payroll_confirmation_managers', { p_payslip_id: payslipId });
+  if (error) throw new Error(error.message || '暂时无法加载可确认工资单的店长。');
+  return Array.isArray(data) ? data.flatMap((value) => {
+    const row = objectAt(value);
+    return typeof row.id === 'string' && typeof row.displayName === 'string' ? [{
+      displayName: row.displayName,
+      id: row.id,
+      storeName: textAt(row.storeName),
+      username: textAt(row.username),
+    }] : [];
+  }) : [];
+}
+
+export async function sendPayrollPayslipToManager(client: Client, id: string, managerId: string) {
+  const { data, error } = await client.rpc('admin_send_payroll_payslip_to_manager', { p_manager_id: managerId, p_payslip_id: id });
+  if (error) throw new Error(error.message || '工资单暂时无法发送给店长。');
+  return data;
+}
+
+export async function loadDelegatedPayrollPayslip(client: Client, id: string) {
+  const { data, error } = await client.from('payroll_payslips').select('*').eq('id', id).eq('confirmation_target', 'manager').maybeSingle();
+  if (error) throw new Error(error.message || '暂时无法加载待确认工资单。');
+  return data ? parsePayslip(data) : null;
+}
+
+export async function confirmDelegatedPayrollPayslip(client: Client, id: string) {
+  const { data, error } = await client.rpc('confirm_delegated_payroll_payslip', { p_payslip_id: id });
   if (error) throw new Error(error.message || '工资单暂时无法确认。');
   return data;
 }

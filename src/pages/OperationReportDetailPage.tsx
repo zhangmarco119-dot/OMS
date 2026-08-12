@@ -1,10 +1,11 @@
-import { ClipboardCopy, Download, Images, X } from 'lucide-react';
+import { ClipboardCopy, Download, Images } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
 import { ErrorState, LoadingState } from '../components/ui/Feedback';
+import { ImageViewer } from '../components/ui/ImageViewer';
 import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
@@ -25,7 +26,7 @@ export function OperationReportDetailPage() {
   const [report, setReport] = useState<OperationReport | null>(null);
   const [images, setImages] = useState<OperationReportImage[]>([]);
   const [imagesLoading, setImagesLoading] = useState(false);
-  const [viewer, setViewer] = useState<OperationReportImage | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState('');
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -69,6 +70,11 @@ export function OperationReportDetailPage() {
   if (!report) return <PageShell backTo="/app/operation-reports" eyebrow="门店运营" title="运营报告详情"><LoadingState /></PageShell>;
 
   const canSeePhotos = auth.profile?.role === 'admin' || auth.profile?.role === 'manager';
+  const viewerImages = images.flatMap((image) => image.signedUrl ? [{ alt: '运营报告现场图片', url: image.signedUrl }] : []);
+  const openViewer = (url: string) => {
+    const index = viewerImages.findIndex((image) => image.url === url);
+    if (index >= 0) setViewerIndex(index);
+  };
   return (
     <PageShell backTo="/app/operation-reports" eyebrow={report.report_date} title={report.title_snapshot}>
       <SectionCard>
@@ -88,7 +94,7 @@ export function OperationReportDetailPage() {
               const value = report.manual_values[image.field_id]?.trim();
               return (
                 <figure className="min-w-0" key={image.id}>
-                  <button aria-label={`查看${field?.label ?? '现场'}大图`} className="block w-full overflow-hidden rounded-xl bg-slate-50" disabled={!image.signedUrl} onClick={() => setViewer(image)} type="button">
+                  <button aria-label={`查看${field?.label ?? '现场'}大图`} className="block w-full overflow-hidden rounded-xl bg-slate-50" disabled={!image.signedUrl} onClick={() => image.signedUrl && openViewer(image.signedUrl)} type="button">
                     <ProgressiveImage alt="运营报告现场图片" className="aspect-square w-full object-contain" containerClassName="aspect-square w-full" resourceLoading={imagesLoading && !image.signedUrl} src={image.signedUrl} />
                   </button>
                   <figcaption className="mt-1 text-center text-xs text-slate-600">{field?.label ?? image.field_id}{value ? `：${value}${field?.unit ?? ''}` : ''}</figcaption>
@@ -102,15 +108,19 @@ export function OperationReportDetailPage() {
         </SectionCard>
       ) : null}
 
-      {viewer ? (
-        <div aria-label="运营报告现场图片大图" className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4" onClick={() => setViewer(null)} role="dialog">
-          <button aria-label="关闭大图" className="absolute right-4 top-4 rounded-full bg-white/20 p-3 text-white" onClick={() => setViewer(null)} type="button"><X className="h-6 w-6" /></button>
-          <img alt="运营报告现场图片大图" className="max-h-[82vh] max-w-full object-contain" onClick={(event) => event.stopPropagation()} src={viewer.signedUrl} />
-          <button className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 font-bold text-slate-900 shadow-xl" disabled={downloadingId === viewer.id} onClick={(event) => { event.stopPropagation(); void download(viewer); }} type="button">
-            <Download className="h-4 w-4" />{downloadingId === viewer.id ? '正在下载' : '下载原图'}
-          </button>
-        </div>
-      ) : null}
+      {viewerIndex != null ? <ImageViewer
+        actionLabel={downloadingId ? '正在下载' : '下载原图'}
+        activeIndex={viewerIndex}
+        images={viewerImages}
+        label="运营报告现场图片大图"
+        onAction={(index) => {
+          const activeUrl = viewerImages[index]?.url;
+          const activeImage = images.find((image) => image.signedUrl === activeUrl);
+          if (activeImage && !downloadingId) void download(activeImage);
+        }}
+        onClose={() => setViewerIndex(null)}
+        onIndexChange={setViewerIndex}
+      /> : null}
 
       <ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} />
     </PageShell>

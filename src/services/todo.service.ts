@@ -4,6 +4,12 @@ import type { Database } from '../types/database';
 
 type Client = SupabaseClient<Database>;
 
+const payrollPayslipTodoQuery = (client: Client, profileId: string, isManager: boolean, countOnly = false) => {
+  const query = client.from('payroll_payslips').select(countOnly ? 'id' : '*', countOnly ? { count: 'exact', head: true } : undefined).eq('status', 'issued');
+  if (isManager) return query.or(`and(confirmation_target.eq.employee,profile_id.eq.${profileId}),and(confirmation_target.eq.manager,confirmation_assignee_id.eq.${profileId})`);
+  return query.eq('confirmation_target', 'employee').eq('profile_id', profileId);
+};
+
 export interface TodoSummary {
   count: number;
   payrollConfirmations: number;
@@ -43,7 +49,7 @@ export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean;
     input.isManager ? client.from('product_creation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending') : Promise.resolve({ count: 0, error: null }),
     input.isManager ? client.rpc('payroll_overtime_todo_count') : Promise.resolve({ data: 0, error: null }),
     client.from('attendance_missing_punch_todos').select('id', { count: 'exact', head: true }).eq('profile_id', input.profileId).eq('status', 'pending'),
-    client.from('payroll_payslips').select('id', { count: 'exact', head: true }).eq('profile_id', input.profileId).eq('status', 'issued'),
+    payrollPayslipTodoQuery(client, input.profileId, Boolean(input.isManager), true),
     input.isManager ? client.from('arrival_report_correction_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending') : Promise.resolve({ count: 0, error: null }),
   ]);
   if (tasks.error) throw new Error(tasks.error.message);
@@ -82,10 +88,10 @@ export const completeAdminPayrollConfirmationTodo = async (client: Client, id: s
   if (error) throw new Error(error.message || '工资单确认提醒暂时无法标记为已读。');
 };
 
-export const loadMyPayrollPayslipTodos = async (client: Client, profileId: string) => {
-  const { data, error } = await client.from('payroll_payslips').select('*').eq('profile_id', profileId).eq('status', 'issued').order('payroll_month', { ascending: false });
+export const loadMyPayrollPayslipTodos = async (client: Client, profileId: string, isManager = false) => {
+  const { data, error } = await payrollPayslipTodoQuery(client, profileId, isManager).order('payroll_month', { ascending: false });
   if (error) throw new Error(error.message || '暂时无法加载工资单确认待办。');
-  return data ?? [];
+  return (data ?? []) as Database['public']['Tables']['payroll_payslips']['Row'][];
 };
 
 export const loadMyAttendanceCorrectionTodos = async (client: Client, profileId: string) => {

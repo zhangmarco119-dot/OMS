@@ -1,6 +1,6 @@
 import { Bell, ChevronRight, CircleHelp, Eye, EyeOff, History, KeyRound, LogOut, Store, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -17,7 +17,8 @@ const roleLabel = {
 
 export function AccountPage() {
   const auth = useAuth();
-  const [view, setView] = useState<'profile' | 'password'>('profile');
+  const [params, setParams] = useSearchParams();
+  const view = params.get('view') === 'password' ? 'password' : 'profile';
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -83,7 +84,7 @@ export function AccountPage() {
             <History className="h-5 w-5 text-slate-500" aria-hidden="true" />
             <span className="flex-1 font-semibold text-ink">个人历史与运营记录</span><ChevronRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
           </Link>
-          <button className="flex min-h-14 w-full items-center gap-3 px-4 text-left" onClick={() => { setMessage(null); setView('password'); }} type="button">
+          <button className="flex min-h-14 w-full items-center gap-3 px-4 text-left" onClick={() => { setMessage(null); setParams({ view: 'password' }); }} type="button">
             <KeyRound className="h-5 w-5 text-slate-500" aria-hidden="true" />
             <span className="flex-1 font-semibold text-ink">修改密码</span>
             <ChevronRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
@@ -108,7 +109,7 @@ export function AccountPage() {
   }
 
   return (
-    <PageShell eyebrow="账户安全" title="修改密码" onBack={() => setView('profile')}>
+    <PageShell eyebrow="账户安全" title="修改密码" backTo="/app/account">
       <div className="ui-card p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">

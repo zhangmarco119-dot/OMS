@@ -14,11 +14,15 @@ describe('PayrollStatementView', () => {
     expect(screen.getByText('超勤奖')).toBeInTheDocument();
     expect(screen.getByText('额外奖励')).toBeInTheDocument();
     expect(screen.getByText('个税扣除')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /其他扣款.*点击查看扣款时间和原因.*-¥20\.00/ })).toBeInTheDocument();
+    expect(screen.queryByText('扣款合计')).not.toBeInTheDocument();
+    expect(screen.getByText(/个税 ¥50\.00 · 其他扣款 ¥20\.00/)).toBeInTheDocument();
     expect(screen.getByText(/本月核对完成/)).toBeInTheDocument();
     expect(screen.queryByText('数据更新时间')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /扣款合计.*点击查看扣款时间和原因/ }));
+    fireEvent.click(screen.getByRole('button', { name: /其他扣款.*点击查看扣款时间和原因/ }));
     expect(screen.getByText('盘点差异处罚')).toBeInTheDocument();
-    expect(screen.getByText('本月工资单个人所得税扣除')).toBeInTheDocument();
+    expect(screen.getByText('其他扣款明细')).toBeInTheDocument();
+    expect(screen.queryByText('本月工资单个人所得税扣除')).not.toBeInTheDocument();
   });
 
   it('shows store grades without scores on multi-store payslips', () => {

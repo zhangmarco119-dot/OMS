@@ -24,8 +24,9 @@ export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }:
     ['加班', estimate.accruedOvertime],
   ] as const;
   const income = earnings.reduce((sum, [, amount]) => sum + amount, 0);
-  const deductions = estimate.fineTotal + estimate.individualIncomeTax;
-  const payable = income - deductions;
+  const otherDeductions = estimate.fineTotal;
+  const totalDeductions = otherDeductions + estimate.individualIncomeTax;
+  const payable = income - totalDeductions;
   return <SectionCard className="overflow-hidden border-slate-200 p-0">
     <header className="border-b border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-center">
       <ReceiptText className="mx-auto h-6 w-6 text-brand-700" />
@@ -36,8 +37,8 @@ export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }:
       {earnings.filter(([, amount]) => amount !== 0).map(([label, amount]) => <div className="flex items-center justify-between border-b border-slate-100 py-2.5 text-sm" key={label}><span className="text-slate-600">{label}</span><b className="tabular-nums text-slate-900">{formatMoney(amount)}</b></div>)}
       {estimate.hasMultiplePerformanceStores ? <div className="border-b border-slate-100 py-2.5"><p className="text-xs text-slate-500">门店绩效等级</p><div className="mt-1.5 flex flex-wrap gap-1.5">{(estimate.performanceStores ?? []).map((item) => <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-900" key={item.storeId}>{item.storeName} · {item.grade} 级</span>)}</div></div> : null}
       <div className="flex items-center justify-between border-b border-slate-100 py-2.5 text-sm"><span className="text-slate-600">个税扣除</span><b className="tabular-nums text-rose-700">{estimate.individualIncomeTax ? `-${formatMoney(estimate.individualIncomeTax)}` : formatMoney(0)}</b></div>
-      <PayrollDeductionRow estimate={estimate} label="扣款合计" total={deductions} />
-      <div className="flex items-end justify-between py-4"><div><p className="text-xs text-slate-500">实发合计</p><p className="mt-0.5 text-xs text-slate-400">收入 {formatMoney(income)} · 扣款 {formatMoney(deductions)}</p></div><strong className="text-2xl tabular-nums text-brand-800">{formatMoney(payable)}</strong></div>
+      <PayrollDeductionRow detailsTitle="其他扣款明细" emptyMessage="本期没有其他扣款记录。" estimate={estimate} label="其他扣款" total={otherDeductions} />
+      <div className="flex items-end justify-between py-4"><div><p className="text-xs text-slate-500">实发合计</p><p className="mt-0.5 text-xs text-slate-400">收入 {formatMoney(income)} · 个税 {formatMoney(estimate.individualIncomeTax)} · 其他扣款 {formatMoney(otherDeductions)}</p></div><strong className="text-2xl tabular-nums text-brand-800">{formatMoney(payable)}</strong></div>
       {adminNote ? <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900"><b>工资单备注：</b>{adminNote}</p> : null}
     </div>
   </SectionCard>;

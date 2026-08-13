@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-08-14',
+    highlights: [
+      '修复管理员 AI 质检入口无法显示，以及质检中心列表和试点范围报错的问题。',
+      '修正前端调用数据库 RPC 时丢失客户端方法绑定导致的配置与列表请求失败；AI 检查现可正常进入、查看建议并采纳到草稿。',
+    ],
+    title: '修复管理员 AI 质检入口与检查中心',
+    version: 'StoreHub v3.0.2',
+  },
+  {
     date: '2026-08-13',
     highlights: [
       '停止首次部署产生的历史批量回填，只保留上线后的新业务自动检查与管理员主动重跑，避免试点额度被旧数据消耗。',

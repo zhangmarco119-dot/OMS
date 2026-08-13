@@ -189,7 +189,10 @@ export const normalizeAiSuggestion = (value: unknown): AiSuggestion => {
 };
 
 const callRpc = async (client: Client, name: string, args?: Record<string, unknown>) => {
-  const rpc = client.rpc as unknown as (fn: string, input?: Record<string, unknown>) => RpcResult;
+  const rpc = client.rpc.bind(client) as unknown as (
+    fn: string,
+    input?: Record<string, unknown>,
+  ) => RpcResult;
   const { data, error } = await rpc(name, args);
   if (error) throw new Error(error.message);
   return data;

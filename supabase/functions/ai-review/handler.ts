@@ -14,7 +14,7 @@ type Client = SupabaseClient;
 
 export interface HandlerDependencies {
   anonClient: (authorization: string) => Client;
-  deepSeekClient: () => DeepSeekClient;
+  deepSeekClient: () => Promise<DeepSeekClient>;
   serviceClient: Client;
   workerSecret?: string;
 }
@@ -152,7 +152,7 @@ const processJobs = async (dependencies: HandlerDependencies, requestedLimit: nu
   const results = await Promise.all(jobs.map(async (job): Promise<Record<string, unknown>> => {
     let execution: Awaited<ReturnType<typeof executeReview>>;
     try {
-      execution = await executeReview(dependencies.deepSeekClient(), job.workflow, job.context);
+      execution = await executeReview(await dependencies.deepSeekClient(), job.workflow, job.context);
     } catch (error) {
       const failure = await fail(dependencies.serviceClient, job.run_id, job.attempt, error);
       return { runId: job.run_id, status: failure.retryable ? 'retry_scheduled' : 'failed', errorCode: failure.code };
@@ -253,6 +253,9 @@ export const createAiReviewHandler = (dependencies: HandlerDependencies) => asyn
         p_product_id: draft.productId ?? null,
         p_store_id: storeId,
       }), 'Unable to start product draft review.');
+      if (started.status === 'disabled') {
+        return json({ runId: null, status: 'disabled', error: 'AI 自动分析已关闭', errorCode: 'AI_AUTO_DISABLED' });
+      }
       const runId = parseUuid(started.run_id, 'run_id');
       const workerId = `draft-${crypto.randomUUID()}`;
       const claimed = await rpcData<unknown>(dependencies.serviceClient.rpc('claim_ai_review_run', {
@@ -265,7 +268,7 @@ export const createAiReviewHandler = (dependencies: HandlerDependencies) => asyn
       }
       let execution: Awaited<ReturnType<typeof executeReview>>;
       try {
-        execution = await executeReview(dependencies.deepSeekClient(), 'product', draftJob.context);
+        execution = await executeReview(await dependencies.deepSeekClient(), 'product', draftJob.context);
       } catch (error) {
         const failure = await fail(dependencies.serviceClient, runId, draftJob.attempt, error);
         return json({ runId, status: failure.retryable ? 'retry_scheduled' : 'failed', error: failure.message, errorCode: failure.code, retryable: failure.retryable });

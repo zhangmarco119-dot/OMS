@@ -84,9 +84,21 @@ export interface AiPilotSettings {
   adminApplyEnabled: boolean;
   adminVisible: boolean;
   autoRunEnabled: boolean;
+  dailyRunLimit?: number;
   globalEnabled: boolean;
   pilotStores: AiPilotStoreScope[];
   workflowFlags: Partial<Record<AiWorkflow, boolean>>;
+}
+
+export type AiProvider = 'deepseek' | 'openai';
+
+export interface AiProviderConfig {
+  apiKeyConfigured: boolean;
+  apiKeyLast4: string | null;
+  baseUrl: string;
+  configuredAt: string;
+  model: string;
+  provider: AiProvider;
 }
 
 const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value)
@@ -131,6 +143,79 @@ export const loadAiPilotSettings = async (client: Client): Promise<AiPilotSettin
     adminApplyEnabled: data.admin_apply_enabled === true,
     adminVisible: data.admin_visible === true,
     autoRunEnabled: data.auto_run_enabled === true,
+    dailyRunLimit: numberValue(data.daily_run_limit, 200),
+    globalEnabled: data.global_enabled === true,
+    pilotStores: (Array.isArray(data.pilot_stores) ? data.pilot_stores : []).flatMap((value) => {
+      const row = asRecord(value);
+      const storeId = textValue(row.store_id);
+      if (!storeId) return [];
+      return [{
+        enabled: row.enabled === true,
+        storeId,
+        storeName: textValue(row.store_name, '试点门店'),
+        workflowFlags: workflowFlagsValue(row.workflow_flags),
+      }];
+    }),
+    workflowFlags: workflowFlagsValue(data.workflow_flags),
+  };
+};
+
+export const loadAiProviderConfig = async (client: Client): Promise<AiProviderConfig> => {
+  const data = asRecord(await callRpc(client, 'admin_get_ai_provider_config'));
+  return {
+    apiKeyConfigured: data.api_key_configured === true,
+    apiKeyLast4: nullableText(data.api_key_last4),
+    baseUrl: textValue(data.base_url),
+    configuredAt: textValue(data.configured_at),
+    model: textValue(data.model, 'deepseek-v4-pro'),
+    provider: data.provider === 'openai' ? 'openai' : 'deepseek',
+  };
+};
+
+export const saveAiProviderConfig = async (
+  client: Client,
+  input: { provider: AiProvider; model: string; apiKey?: string | null; clearApiKey?: boolean },
+): Promise<AiProviderConfig> => {
+  const data = asRecord(await callRpc(client, 'admin_save_ai_provider_config', {
+    p_api_key: input.apiKey ?? null,
+    p_clear_api_key: input.clearApiKey === true,
+    p_model: input.model,
+    p_provider: input.provider,
+  }));
+  return {
+    apiKeyConfigured: data.api_key_configured === true,
+    apiKeyLast4: nullableText(data.api_key_last4),
+    baseUrl: textValue(data.base_url),
+    configuredAt: textValue(data.configured_at),
+    model: textValue(data.model, 'deepseek-v4-pro'),
+    provider: data.provider === 'openai' ? 'openai' : 'deepseek',
+  };
+};
+
+export const saveAiSettings = async (
+  client: Client,
+  input: {
+    adminApplyEnabled: boolean;
+    adminVisible: boolean;
+    autoRunEnabled: boolean;
+    dailyRunLimit: number;
+    globalEnabled: boolean;
+    workflowFlags: Partial<Record<AiWorkflow, boolean>>;
+  },
+): Promise<AiPilotSettings> => {
+  const data = asRecord(await callRpc(client, 'admin_save_ai_settings', {
+    p_admin_apply_enabled: input.adminApplyEnabled,
+    p_admin_visible: input.adminVisible,
+    p_auto_run_enabled: input.autoRunEnabled,
+    p_daily_run_limit: input.dailyRunLimit,
+    p_global_enabled: input.globalEnabled,
+    p_workflow_flags: input.workflowFlags,
+  }));
+  return {
+    adminApplyEnabled: data.admin_apply_enabled === true,
+    adminVisible: data.admin_visible === true,
+    autoRunEnabled: data.auto_run_enabled === true,
+    dailyRunLimit: numberValue(data.daily_run_limit, 200),
     globalEnabled: data.global_enabled === true,
     pilotStores: (Array.isArray(data.pilot_stores) ? data.pilot_stores : []).flatMap((value) => {
       const row = asRecord(value);

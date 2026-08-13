@@ -13,9 +13,14 @@ import { supabase } from '../lib/supabase';
 import {
   actOnAiSuggestion,
   listAiReviews,
+  loadAiProviderConfig,
   loadAiReview,
   rerunAiReview,
+  saveAiProviderConfig,
+  saveAiSettings,
   skipAiReview,
+  type AiProvider,
+  type AiProviderConfig,
   type AiReviewDetail,
   type AiReviewRun,
   type AiRunStatus,
@@ -63,6 +68,11 @@ const existingProductIdFromSuggestion = (suggestion: AiSuggestion) => (
     : null
 );
 
+const modelOptions: Record<AiProvider, string[]> = {
+  deepseek: ['deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1'],
+};
+
 const canAdoptSuggestion = (workflow: AiWorkflow, suggestion: AiSuggestion) => {
   if (workflow === 'arrival_report') return buildAiArrivalDraftPatch(suggestion, suggestion.draftPatch) !== null;
   if (workflow === 'product' || workflow === 'product_creation_request') {
@@ -89,6 +99,11 @@ export function AdminAiReviewPage() {
   const [detail, setDetail] = useState<AiReviewDetail | null>(null);
   const [detailState, setDetailState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [busySuggestionId, setBusySuggestionId] = useState<string | null>(null);
+  const [providerConfig, setProviderConfig] = useState<AiProviderConfig | null>(null);
+  const [providerForm, setProviderForm] = useState<{ apiKey: string; model: string; provider: AiProvider }>({ apiKey: '', model: 'deepseek-v4-pro', provider: 'deepseek' });
+  const [providerMessage, setProviderMessage] = useState('');
+  const [savingAuto, setSavingAuto] = useState(false);
+  const [savingProvider, setSavingProvider] = useState(false);
 
   const pilotStores = (aiPilot.settings?.pilotStores ?? []).filter((store) => store.enabled);
 
@@ -108,6 +123,77 @@ export function AdminAiReviewPage() {
   }, [auth.profile?.role, status, storeId, workflow]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (auth.profile?.role !== 'admin' || !supabase) return;
+    void loadAiProviderConfig(supabase)
+      .then((config) => {
+        setProviderConfig(config);
+        setProviderForm((current) => ({ ...current, model: config.model, provider: config.provider }));
+      })
+      .catch(() => undefined);
+  }, [auth.profile?.role]);
+
+  const toggleAutoRun = async () => {
+    const settings = aiPilot.settings;
+    if (!supabase || !settings) return;
+    setSavingAuto(true);
+    setProviderMessage('');
+    try {
+      await saveAiSettings(supabase, {
+        adminApplyEnabled: settings.adminApplyEnabled,
+        adminVisible: settings.adminVisible,
+        autoRunEnabled: !settings.autoRunEnabled,
+        dailyRunLimit: settings.dailyRunLimit ?? 200,
+        globalEnabled: settings.globalEnabled,
+        workflowFlags: settings.workflowFlags,
+      });
+      await aiPilot.reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存自动分析开关失败。');
+    } finally {
+      setSavingAuto(false);
+    }
+  };
+
+  const saveProvider = async () => {
+    if (!supabase) return;
+    setSavingProvider(true);
+    setProviderMessage('');
+    try {
+      const config = await saveAiProviderConfig(supabase, {
+        apiKey: providerForm.apiKey.trim() || null,
+        model: providerForm.model,
+        provider: providerForm.provider,
+      });
+      setProviderConfig(config);
+      setProviderForm((current) => ({ ...current, apiKey: '' }));
+      setProviderMessage('模型与 API Key 已保存。');
+    } catch (error) {
+      setProviderMessage(error instanceof Error ? error.message : '保存模型与 API Key 失败。');
+    } finally {
+      setSavingProvider(false);
+    }
+  };
+
+  const clearApiKey = async () => {
+    if (!supabase) return;
+    setSavingProvider(true);
+    setProviderMessage('');
+    try {
+      const config = await saveAiProviderConfig(supabase, {
+        clearApiKey: true,
+        model: providerForm.model,
+        provider: providerForm.provider,
+      });
+      setProviderConfig(config);
+      setProviderMessage('API Key 已清除。');
+    } catch (error) {
+      setProviderMessage(error instanceof Error ? error.message : '清除 API Key 失败。');
+    } finally {
+      setSavingProvider(false);
+    }
+  };
 
   const visibleRuns = runs.filter((run) => risk === 'all'
     || (risk === 'none' ? run.suggestionCount === 0 : run.maxSeverity === risk));
@@ -233,6 +319,51 @@ export function AdminAiReviewPage() {
   return <PageShell eyebrow="门店运营系统 · 管理员试点" title="AI 质检中心" backTo="/app/workbench" contentGapClassName="gap-3">
     <section className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm leading-6 text-violet-900">
       <b>结构化数据试点</b><p>仅五道口和西直门，图片暂不参与检查。员工和店长看不到本页面；AI 只提供提醒，所有正式操作仍走原业务流程。</p>
+    </section>
+    <section className="ui-card p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-slate-900">AI 自动分析</p>
+          <p className="mt-1 text-xs text-slate-500">关闭后自动分析不再调用模型 API；管理员仍可手动重新检查。</p>
+        </div>
+        <button
+          aria-pressed={aiPilot.settings?.autoRunEnabled === true}
+          className={`min-h-9 shrink-0 rounded-full px-3 text-xs font-bold ${aiPilot.settings?.autoRunEnabled ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}
+          disabled={savingAuto || !aiPilot.settings}
+          onClick={() => void toggleAutoRun()}
+          type="button"
+        >{aiPilot.settings?.autoRunEnabled ? '已开启' : '已关闭'}</button>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <label className="text-xs font-semibold text-slate-600">模型服务商
+          <select className="ui-input mt-1 min-h-10 text-sm" onChange={(event) => setProviderForm((current) => ({ ...current, provider: event.target.value as AiProvider, model: modelOptions[event.target.value as AiProvider][0] }))} value={providerForm.provider}>
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-slate-600">模型
+          <select className="ui-input mt-1 min-h-10 text-sm" onChange={(event) => setProviderForm((current) => ({ ...current, model: event.target.value }))} value={providerForm.model}>
+            {modelOptions[providerForm.provider].map((model) => <option key={model} value={model}>{model}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <label className="mt-2 block text-xs font-semibold text-slate-600">API Key
+        <input
+          className="ui-input mt-1"
+          onChange={(event) => setProviderForm((current) => ({ ...current, apiKey: event.target.value }))}
+          placeholder={providerConfig?.apiKeyConfigured ? `已配置，尾号 ${providerConfig.apiKeyLast4}` : '请输入 sk- 开头的 API Key'}
+          type="password"
+          value={providerForm.apiKey}
+        />
+      </label>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button className="ui-button-primary min-h-9 px-3 text-xs" disabled={savingProvider} onClick={() => void saveProvider()} type="button">保存模型与 Key</button>
+        {providerConfig?.apiKeyConfigured ? <button className="ui-button-secondary min-h-9 px-3 text-xs" disabled={savingProvider} onClick={() => void clearApiKey()} type="button">清除 Key</button> : null}
+        {providerMessage ? <span className="text-xs text-slate-500">{providerMessage}</span> : null}
+      </div>
     </section>
     <section className="ui-card p-3">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

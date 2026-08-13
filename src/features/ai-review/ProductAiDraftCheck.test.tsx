@@ -54,7 +54,7 @@ describe('ProductAiDraftCheck', () => {
 
   it('runs automatically after fields stay stable for one second and applies only to the draft callback', async () => {
     const onApply = vi.fn();
-    render(<ProductAiDraftCheck draft={draft} enabled onApply={onApply} productId="product-1" storeId="store-1" />);
+    render(<ProductAiDraftCheck autoRunEnabled draft={draft} enabled onApply={onApply} productId="product-1" storeId="store-1" />);
     expect(checkAiProductDraft).not.toHaveBeenCalled();
     await act(async () => { vi.advanceTimersByTime(1000); await Promise.resolve(); });
     expect(checkAiProductDraft).toHaveBeenCalledWith({}, expect.objectContaining({ productId: 'product-1', storeId: 'store-1' }));
@@ -67,7 +67,7 @@ describe('ProductAiDraftCheck', () => {
   it('lets the administrator skip waiting without disabling the original save action', async () => {
     vi.mocked(checkAiProductDraft).mockReturnValue(new Promise(() => undefined));
     const onSkipAndSave = vi.fn();
-    render(<div><ProductAiDraftCheck draft={draft} enabled onApply={vi.fn()} onSkipAndSave={onSkipAndSave} storeId="store-1" /><button type="button">保存货品</button></div>);
+    render(<div><ProductAiDraftCheck autoRunEnabled draft={draft} enabled onApply={vi.fn()} onSkipAndSave={onSkipAndSave} storeId="store-1" /><button type="button">保存货品</button></div>);
     await act(async () => { vi.advanceTimersByTime(1000); });
     fireEvent.click(screen.getByRole('button', { name: '跳过本次检查并继续保存' }));
     expect(screen.getByText(/正在按原流程保存/)).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe('ProductAiDraftCheck', () => {
   it('does not apply a draft patch when the database marks the suggestion stale', async () => {
     const onApply = vi.fn();
     vi.mocked(actOnAiSuggestion).mockResolvedValue({ actionType: null, draftPatch: {}, runId: 'run-1', sourceHash: null, status: 'stale', suggestionId: 'suggestion-1', targetEntityId: null, targetEntityType: null, targetStoreId: null });
-    render(<ProductAiDraftCheck draft={draft} enabled onApply={onApply} productId="product-1" storeId="store-1" />);
+    render(<ProductAiDraftCheck autoRunEnabled draft={draft} enabled onApply={onApply} productId="product-1" storeId="store-1" />);
     await act(async () => { vi.advanceTimersByTime(1000); await Promise.resolve(); });
 
     fireEvent.click(screen.getByRole('button', { name: '采纳到草稿' }));
@@ -99,7 +99,7 @@ describe('ProductAiDraftCheck', () => {
     const onApply = vi.fn();
     const onUseExistingProduct = vi.fn();
 
-    render(<ProductAiDraftCheck draft={draft} enabled onApply={onApply} onUseExistingProduct={onUseExistingProduct} productId="product-1" storeId="store-1" />);
+    render(<ProductAiDraftCheck autoRunEnabled draft={draft} enabled onApply={onApply} onUseExistingProduct={onUseExistingProduct} productId="product-1" storeId="store-1" />);
     await act(async () => { vi.advanceTimersByTime(1000); await Promise.resolve(); });
 
     expect(screen.queryByRole('button', { name: '修改后采纳' })).not.toBeInTheDocument();
@@ -113,9 +113,15 @@ describe('ProductAiDraftCheck', () => {
 
   it('is completely invisible and makes no request for staff accounts', async () => {
     vi.mocked(useAuth).mockReturnValue({ profile: { id: 'staff-1', role: 'staff' } } as ReturnType<typeof useAuth>);
-    render(<ProductAiDraftCheck draft={draft} enabled onApply={vi.fn()} storeId="store-1" />);
+    render(<ProductAiDraftCheck autoRunEnabled draft={draft} enabled onApply={vi.fn()} storeId="store-1" />);
     await act(async () => { vi.advanceTimersByTime(1500); });
     expect(screen.queryByText('AI 草稿检查')).not.toBeInTheDocument();
     expect(checkAiProductDraft).not.toHaveBeenCalled();
+  });
+it('makes no model request when automatic analysis is turned off', async () => {
+    render(<ProductAiDraftCheck autoRunEnabled={false} draft={draft} enabled onApply={vi.fn()} storeId="store-1" />);
+    await act(async () => { vi.advanceTimersByTime(1500); });
+    expect(checkAiProductDraft).not.toHaveBeenCalled();
+    expect(screen.getByText('AI 自动分析已关闭，可在 AI 质检中心重新开启。')).toBeInTheDocument();
   });
 });

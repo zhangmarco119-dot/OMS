@@ -10,6 +10,15 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-08-14',
     highlights: [
+      'AI 质检中心新增自动分析总开关，关闭后不再自动调用模型 API，管理员仍可手动重新检查。',
+      '新增模型与 API Key 配置入口，支持 DeepSeek 与 OpenAI 常用模型切换；API Key 仅保存在服务端，不会回显给浏览器。',
+    ],
+    title: '新增 AI 自动分析开关与模型配置',
+    version: 'StoreHub v3.0.4',
+  },
+  {
+    date: '2026-08-14',
+    highlights: [
       '到货上报中未匹配货品必须申请新增后才能提交，不再允许仅按手工货品直接提交。',
       '已匹配货品严格按货品库计量单位计数，单位自动带入且不可在到货明细中随意修改。',
     ],

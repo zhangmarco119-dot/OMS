@@ -37,7 +37,7 @@ export function AnnouncementsPage() {
 
   const openNotice = (notice: NoticeListItem) => navigate(`/app/notices/${notice.id}`);
 
-  return <PageShell eyebrow="门店运营系统" title="门店公告" backTo="/app" contentGapClassName="gap-3">
+  return <PageShell eyebrow="门店运营系统" title="门店公告" backTo="/app/workbench" contentGapClassName="gap-3">
     <SectionCard><SectionHeader action={<IconButton aria-label="刷新公告" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description="展示当前门店可查看的公告，打开后会自动标记已读。" icon={Bell} title="公告中心" /></SectionCard>
     {status === 'error' && message ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'loading' ? <LoadingState label="正在加载公告" /> : null}

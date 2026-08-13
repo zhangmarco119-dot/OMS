@@ -61,7 +61,7 @@ export function AccountPage() {
   if (view === 'profile') {
     return (
       <PageShell eyebrow="账户" title="我的" contentGapClassName="gap-3">
-        {notices.length ? <Link className="notice-ticker ui-interactive flex min-h-11 items-center gap-2 overflow-hidden rounded-xl border border-brand-700 bg-brand-700 px-3 text-sm font-semibold text-white" to={`/app/notices?notice=${notices[0].id}`}><Bell className="h-4 w-4 shrink-0" /><span className="notice-ticker-text">未读公告：{notices.map((notice) => notice.title).join('　·　')}</span><ChevronRight className="ml-auto h-4 w-4 shrink-0" /></Link> : null}
+        {notices.length ? <Link className="notice-ticker ui-interactive flex min-h-11 items-center gap-2 overflow-hidden rounded-xl border border-brand-700 bg-brand-700 px-3 text-sm font-semibold text-white" to={`/app/notices/${notices[0].id}`}><Bell className="h-4 w-4 shrink-0" /><span className="notice-ticker-text">未读公告：{notices.map((notice) => notice.title).join('　·　')}</span><ChevronRight className="ml-auto h-4 w-4 shrink-0" /></Link> : null}
         <section className="ui-card overflow-hidden">
           <div className="flex items-center gap-3 border-b border-line p-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-brand-700">

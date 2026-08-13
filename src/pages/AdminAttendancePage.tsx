@@ -19,7 +19,7 @@ type Tab = 'overview' | 'enterprises' | 'bindings' | 'logs';
 export function AdminAttendancePage() {
   const [params, setParams] = useSearchParams();
   const tab = (['overview', 'enterprises', 'bindings', 'logs'].includes(params.get('tab') ?? '') ? params.get('tab') : 'overview') as Tab;
-  return <PageShell eyebrow="门店运营系统 · 管理员" title="考勤管理" backTo="/app/menu" contentGapClassName="gap-3">
+  return <PageShell eyebrow="门店运营系统 · 管理员" title="考勤管理" backTo="/app/workbench" contentGapClassName="gap-3">
     <nav className="ui-card grid grid-cols-4 gap-1 p-1.5" aria-label="考勤管理功能">
       {([{ key: 'overview', label: '月度考勤', icon: ListChecks }, { key: 'enterprises', label: '企业门店', icon: Building2 }, { key: 'bindings', label: '员工绑定', icon: Users }, { key: 'logs', label: '同步日志', icon: RefreshCw }] as const).map(({ key, label, icon: Icon }) => <button className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg text-[11px] font-bold sm:flex-row sm:text-sm ${tab === key ? 'bg-brand-700 text-white shadow-sm' : 'text-slate-600'}`} key={key} onClick={() => setParams({ tab: key }, { replace: true })} type="button"><Icon className="h-4 w-4" />{label}</button>)}
     </nav>

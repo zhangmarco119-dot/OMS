@@ -142,7 +142,7 @@ export function AdminTaskTemplatesPage() {
   const categoryName = (code: string) => categories.find((item) => item.code === code)?.label ?? categoryLabel[code] ?? code;
 
   if (!featureFlags.taskTemplates) {
-    return <PageShell eyebrow="门店运营系统" title="任务模板暂未开放" backTo="/app"><p className="rounded-lg bg-white p-5 text-sm text-slate-600 shadow-sm">当前环境已关闭任务模板功能。</p></PageShell>;
+    return <PageShell eyebrow="门店运营系统" title="任务模板暂未开放" backTo="/app/admin/tasks"><p className="rounded-lg bg-white p-5 text-sm text-slate-600 shadow-sm">当前环境已关闭任务模板功能。</p></PageShell>;
   }
 
   const storeName = (id: string) => auth.availableStores.find((store) => store.id === id)?.short_name ?? '未知门店';

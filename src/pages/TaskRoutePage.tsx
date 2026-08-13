@@ -8,6 +8,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { asProductSnapshot, type TaskItemRow } from '../features/tasks/taskCalculations';
 import { useTaskSession } from '../features/tasks/useTaskSession';
+import { useBusinessBack } from '../lib/useBusinessBack';
 import type { InventoryTemplate } from '../features/tasks/taskService';
 import type { TaskType } from '../types/domain';
 import { PRODUCT_CATEGORIES, productCategoryLabel, type ProductCategoryCode } from '../features/products/productCategories';
@@ -66,7 +67,7 @@ export function TaskRoutePage({ mode }: TaskRoutePageProps) {
 
   if (auth.profile?.role === 'admin') {
     return (
-      <PageShell eyebrow="管理员账号" title="管理员不执行点货和订货" backTo="/app">
+      <PageShell eyebrow="管理员账号" title="管理员不执行点货和订货" backTo="/app/workbench">
         <div className="rounded-lg bg-white p-5 shadow-sm">
           <p className="text-sm leading-6 text-slate-600">
             管理员账号用于查看提交消息、审阅全部记录以及维护货品和账号。请使用员工或店长账号完成门店点货、订货提交。
@@ -92,6 +93,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const linkedV2TaskId = mode === 'inventory' ? searchParams.get('linkedTaskId') : null;
+  const businessBack = useBusinessBack(linkedV2TaskId ? `/app/tasks/${linkedV2TaskId}` : '/app/workbench');
   const text = copy[mode];
   // Both inventory and ordering are high-frequency mobile workflows. Keep the
   // same dense one-screen layout so switching modules does not reintroduce
@@ -326,7 +328,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       <div className={`mx-auto flex max-w-5xl flex-col ${compact ? 'gap-2.5' : 'gap-4'}`}>
         <header className={`rounded-2xl bg-white shadow-sm ${compact ? 'p-2.5' : 'p-4'}`}>
           <div className="flex items-start justify-between gap-4">
-            <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={() => { if (Number(window.history.state?.idx ?? 0) > 0) navigate(-1); else navigate(linkedV2TaskId ? `/app/tasks/${linkedV2TaskId}` : '/app/workbench', { replace: true }); }} type="button"><ArrowLeft className="h-5 w-5" /></button>
+            <button aria-label="返回" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700" onClick={businessBack} type="button"><ArrowLeft className="h-5 w-5" /></button>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-slate-500">{auth.store?.name ?? '当前门店'}</p>
               <h1 className={`${compact ? 'text-lg' : 'mt-1 text-xl'} font-bold text-slate-900`}>{text.title}</h1>

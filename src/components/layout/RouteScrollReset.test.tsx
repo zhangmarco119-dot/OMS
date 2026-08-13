@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { Link, MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RouteScrollReset } from './RouteScrollReset';
@@ -36,5 +36,28 @@ describe('RouteScrollReset', () => {
     scrollTo.mockClear();
     fireEvent.click(screen.getByRole('link', { name: '切换第二页筛选' }));
     expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('restores the exact parent route scroll position after a business back', () => {
+    function Controls() {
+      const location = useLocation();
+      return <>
+        <output>{location.pathname}{location.search}</output>
+        <Link to="/parent?month=2026-07">父页面</Link>
+        <Link to="/child">子页面</Link>
+        <Link replace state={{ restoreScroll: true }} to="/parent?month=2026-07">业务返回</Link>
+      </>;
+    }
+    render(<MemoryRouter initialEntries={['/parent?month=2026-07']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <RouteScrollReset />
+      <Controls />
+    </MemoryRouter>);
+
+    document.documentElement.scrollTop = 236;
+    document.body.scrollTop = 236;
+    fireEvent.click(screen.getByRole('link', { name: '子页面' }));
+    scrollTo.mockClear();
+    fireEvent.click(screen.getByRole('link', { name: '业务返回' }));
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', left: 0, top: 236 });
   });
 });

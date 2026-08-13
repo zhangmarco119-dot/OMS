@@ -14,6 +14,7 @@ import { PayrollStatementView } from '../features/payroll/PayrollStatementView';
 import { payrollMonthEndDate } from '../features/payroll/monthSelection';
 import { formatMoney, todayInChina, type PayrollEstimate } from '../features/payroll/model';
 import { supabase } from '../lib/supabase';
+import { useBusinessBack } from '../lib/useBusinessBack';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { confirmPayrollPayslip, loadMyPayrollEstimate, loadMyPayrollPayslips, loadPayrollVisibilitySettings, type PayrollPayslip, type PayrollVisibilitySettings } from '../services/payroll.service';
 import { recordSystemActivity } from '../services/operation-logs.service';
@@ -36,9 +37,9 @@ export function MyPayrollPage() {
     const copy = new URLSearchParams(params);
     copy.set('tab', next);
     copy.delete('payslip');
-    setParams(copy);
+    setParams(copy, { replace: true });
   };
-  return <PageShell eyebrow="个人薪资" title="我的薪资" backTo="/app/menu" contentGapClassName="gap-3">
+  return <PageShell eyebrow="个人薪资" title="我的薪资" backTo="/app/workbench" contentGapClassName="gap-3">
     <nav className="ui-card grid grid-cols-2 gap-1 p-1.5" aria-label="我的薪资功能">
       <button className={`min-h-11 rounded-lg text-sm font-bold ${tab === 'estimate' ? 'bg-brand-700 text-white' : 'text-slate-600'}`} onClick={() => setTab('estimate')} type="button">预估薪资</button>
       <button className={`min-h-11 rounded-lg text-sm font-bold ${tab === 'payslips' ? 'bg-brand-700 text-white' : 'text-slate-600'}`} onClick={() => setTab('payslips')} type="button">工资单</button>
@@ -81,6 +82,7 @@ function PayslipPanel() {
   const auth = useAuth();
   const profileId = auth.profile?.id;
   const [params, setParams] = useSearchParams();
+  const close = useBusinessBack('/app/payroll?tab=payslips');
   const [items, setItems] = useState<PayrollPayslip[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [confirming, setConfirming] = useState<PayrollPayslip | null>(null);
@@ -95,7 +97,6 @@ function PayslipPanel() {
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (!supabase || !profileId || !selected) return; void recordSystemActivity(supabase, { module: 'payroll', view: 'payslip_detail', period: selected.payroll_month.slice(0, 7), targetProfileId: profileId, context: { scope: 'self' } }).catch(() => undefined); }, [profileId, selected]);
   const open = (id: string) => { const copy = new URLSearchParams(params); copy.set('tab','payslips'); copy.set('payslip',id); setParams(copy); };
-  const close = () => { const copy = new URLSearchParams(params); copy.delete('payslip'); setParams(copy); };
   const confirm = async () => {
     if (!supabase || !confirming) return;
     const id = confirming.id; setConfirming(null);

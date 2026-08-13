@@ -1,15 +1,17 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation, useNavigationType } from 'react-router-dom';
 
-import { queryDetailParentRoute } from '../../lib/navigationHierarchy';
+import { normalizedRoute, queryDetailParentRoute } from '../../lib/navigationHierarchy';
 
-const SCROLL_PREFIX = 'storehub:scroll-position:';
+const SCROLL_PREFIX = 'storehub:scroll-position:v2:';
+
+const scrollTop = () => window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
 
 export function RouteScrollReset() {
   const location = useLocation();
-  const { key, pathname, search } = location;
+  const { pathname, search } = location;
   const navigationType = useNavigationType();
-  const storageKey = `${SCROLL_PREFIX}${key}`;
+  const routeKey = `${SCROLL_PREFIX}${normalizedRoute(pathname, search)}`;
   const previousLocation = useRef<typeof location | null>(null);
 
   useEffect(() => {
@@ -21,25 +23,29 @@ export function RouteScrollReset() {
 
   useLayoutEffect(() => {
     const previous = previousLocation.current;
-    const samePathQueryUpdate = Boolean(previous) && previous!.pathname === pathname
+    const samePathPeerUpdate = Boolean(previous) && previous!.pathname === pathname
       && !queryDetailParentRoute(pathname, search)
       && !queryDetailParentRoute(previous!.pathname, previous!.search);
+    const restoreRequested = navigationType === 'POP'
+      || Boolean((location.state as { restoreScroll?: unknown } | null)?.restoreScroll);
     let top = 0;
-    if (navigationType === 'POP') {
-      try { top = Number(sessionStorage.getItem(storageKey) ?? 0) || 0; } catch { top = 0; }
-    } else if (samePathQueryUpdate) {
-      top = window.scrollY || document.documentElement.scrollTop || 0;
+    if (restoreRequested) {
+      try { top = Number(sessionStorage.getItem(routeKey) ?? 0) || 0; } catch { top = 0; }
+    } else if (samePathPeerUpdate) {
+      top = scrollTop();
     }
-    if (!samePathQueryUpdate || navigationType === 'POP') {
+
+    if (!samePathPeerUpdate || restoreRequested) {
       window.scrollTo({ behavior: 'auto', left: 0, top });
       document.documentElement.scrollTop = top;
       document.body.scrollTop = top;
     }
+
     previousLocation.current = location;
     return () => {
-      try { sessionStorage.setItem(storageKey, String(window.scrollY || document.documentElement.scrollTop || 0)); } catch { /* restricted storage */ }
+      try { sessionStorage.setItem(routeKey, String(scrollTop())); } catch { /* restricted storage */ }
     };
-  }, [location, navigationType, pathname, search, storageKey]);
+  }, [location, navigationType, pathname, routeKey, search]);
 
   return null;
 }

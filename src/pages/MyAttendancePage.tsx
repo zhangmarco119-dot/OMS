@@ -23,7 +23,7 @@ export function MyAttendancePage() {
     catch (error) { setMessage(error instanceof Error ? error.message : '加载考勤失败。'); setStatus('error'); }
   }, [auth.profile, month]);
   useEffect(() => { void load(); }, [load]);
-  return <PageShell eyebrow="个人考勤" title="我的考勤" backTo="/app/menu" contentGapClassName="gap-3">
+  return <PageShell eyebrow="个人考勤" title="我的考勤" backTo="/app/workbench" contentGapClassName="gap-3">
     <label className="ui-card block p-3 text-sm font-semibold text-slate-700">查看月份<input className="ui-input mt-1" max={currentMonth()} onChange={(event) => setMonth(event.target.value)} type="month" value={month} /></label>
     {status === 'loading' ? <LoadingState label="正在加载月度考勤" /> : null}
     {status === 'error' ? <ErrorState message={message} onRetry={() => void load()} /> : null}

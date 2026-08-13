@@ -17,6 +17,7 @@ import { payrollMonthEndDate } from '../features/payroll/monthSelection';
 import { formatMoney, todayInChina, type AdminPayrollSummary } from '../features/payroll/model';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useBusinessBack } from '../lib/useBusinessBack';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
@@ -46,7 +47,7 @@ const emptyAttendanceAllocationForm = (): AttendanceAllocationForm => ({ effecti
 export function AdminPayrollPage() {
   const [params, setParams] = useSearchParams();
   const tab = (tabs.some((item) => item.key === params.get('tab')) ? params.get('tab') : 'overview') as Tab;
-  const changeTab = (nextTab: Tab) => { const next = new URLSearchParams(params); next.set('tab', nextTab); next.delete('employee'); next.delete('profile'); setParams(next); };
+  const changeTab = (nextTab: Tab) => { const next = new URLSearchParams(params); next.set('tab', nextTab); ['employee', 'profile', 'payslip', 'editPayslip', 'statisticsEmployee', 'statisticsPeriod'].forEach((key) => next.delete(key)); setParams(next, { replace: true }); };
   return <PageShell eyebrow="门店运营系统 · 管理员" title="实时薪资" backTo="/app/workbench" contentGapClassName="gap-3">
     <nav className="ui-card grid grid-cols-4 gap-1 p-1.5 sm:grid-cols-8" aria-label="实时薪资功能">{tabs.map((item) => <button className={`min-h-10 rounded-lg px-1 text-[11px] font-bold ${tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600'}`} key={item.key} onClick={() => changeTab(item.key)} type="button">{item.label}</button>)}</nav>
     {tab === 'overview' ? <PayrollOverview /> : null}
@@ -84,7 +85,7 @@ function PayrollVisibilityManager() {
 function PayrollPayslipManager() {
   type Payslip = Awaited<ReturnType<typeof loadAdminPayrollPayslips>>[number];
   type Action = { item: Payslip; type: 'send' | 'withdraw' };
-  const navigate = useNavigate();
+  const closePayslipChild = useBusinessBack('/app/admin/payroll?tab=payslips');
   const [routeParams, setRouteParams] = useSearchParams();
   const [month, setMonth] = useRememberedPageState('payslip-month', todayInChina().slice(0, 7));
   const [scope, setScope] = useRememberedPageState<'all' | 'single'>('payslip-scope', 'all');
@@ -176,10 +177,6 @@ function PayrollPayslipManager() {
     });
   };
   const openPayslip = (item: Payslip) => { const next = new URLSearchParams(routeParams); next.delete('editPayslip'); next.set('payslip', item.id); setRouteParams(next); setViewing(item); };
-  const closePayslipChild = () => {
-    if (Number(window.history.state?.idx ?? 0) > 0) navigate(-1);
-    else { const next = new URLSearchParams(routeParams); next.delete('payslip'); next.delete('editPayslip'); setRouteParams(next, { replace: true }); }
-  };
   const saveEdit = async () => {
     if (!supabase || !editing) return;
     const numericKeys = ['accruedBaseSalary','accruedHousingAllowance','accruedPerformance','accruedFullAttendanceBonus','accruedExtraAttendanceBonus','accruedServiceAward','accruedExtraReward','accruedCommission','accruedOvertime','fineTotal','individualIncomeTax'] as const;
@@ -278,6 +275,7 @@ function PayrollPayslipManager() {
 function PayrollOverview() {
   const auth = useAuth(); const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
+  const backToPayrollList = useBusinessBack('/app/admin/payroll?tab=overview');
   const asOf = params.get('date') || todayInChina(); const storeId = params.get('store') || ''; const search = params.get('q') || ''; const employeeId = params.get('employee') || '';
   const selectedMonth = asOf.slice(0, 7);
   const [result, setResult] = useState<AdminPayrollSummary | null>(null); const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -287,14 +285,14 @@ function PayrollOverview() {
   const selected = result?.items.find((item) => item.profileId === employeeId);
   useEffect(() => { if (!supabase || !selected) return; void recordSystemActivity(supabase, { module: 'payroll', view: 'estimate_detail', period: selectedMonth, storeId: storeId || undefined, targetProfileId: selected.profileId, context: { scope: storeId ? 'single_store' : 'all_authorized_stores' } }).catch(() => undefined); }, [selected, selectedMonth, storeId]);
   const resolveIssue = (issue: string) => {
-    if (issue.includes('任务数据')) { void navigate('/app/admin/tasks'); return; }
+    if (issue.includes('任务数据')) { void navigate('/app/admin/tasks', { replace: true }); return; }
     const next = new URLSearchParams(params);
     next.delete('employee');
     if (issue.includes('营业收入')) next.set('tab', 'revenue');
     else { next.set('tab', 'employees'); next.set('profile', employeeId); }
-    setParams(next);
+    setParams(next, { replace: true });
   };
-  if (employeeId && selected) return <><button className="ui-button-secondary" onClick={() => navigate(-1)} type="button">返回工资列表</button><PayrollEstimateView estimate={selected} onResolveIssue={resolveIssue} /></>;
+  if (employeeId && selected) return <><button className="ui-button-secondary" onClick={backToPayrollList} type="button">返回工资列表</button><PayrollEstimateView estimate={selected} onResolveIssue={resolveIssue} /></>;
   return <>
     <SectionCard className="p-3"><div className="grid grid-cols-2 gap-2"><MonthPicker label="查看月份" maxMonth={todayInChina().slice(0, 7)} onChange={(month) => update('date', payrollMonthEndDate(month, todayInChina()))} value={selectedMonth} /><label className="text-sm font-semibold text-slate-700">门店范围<select className="ui-input mt-1" onChange={(event) => update('store', event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><p className="mt-2 text-xs leading-5 text-slate-500">管理员可查看任意历史月份和本月；历史月份按该月最后一天汇总，本月按今天汇总。</p><label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => update('q', event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label></SectionCard>
     {result ? <section className="grid grid-cols-2 gap-2"><SummaryMetric label="预估合计（已知项）" value={formatMoney(result.knownEstimatedTotal)} /><SummaryMetric label="数据完整员工" value={`${result.completeCount}/${result.employeeCount}`} /></section> : null}

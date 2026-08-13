@@ -1,6 +1,6 @@
 import { BarChart3, ChevronRight, Clock3, Download, RefreshCw, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../../components/feedback/ActionFeedbackDialog';
 import { MonthPicker } from '../../components/forms/MonthPicker';
@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../../compone
 import { SegmentedControl } from '../../components/ui/FormField';
 import { SectionCard, SectionHeader } from '../../components/ui/Surface';
 import { supabase } from '../../lib/supabase';
+import { useBusinessBack } from '../../lib/useBusinessBack';
 import { useRememberedPageState } from '../../lib/useRememberedPageState';
 import { loadPayrollStatistics, type PayrollStatistics, type PayrollStatisticsEmployee, type PayrollStatisticsPeriod } from '../../services/payroll-statistics.service';
 import { PayrollEstimateView } from './PayrollEstimateView';
@@ -25,8 +26,9 @@ const monthRange = (month: string) => ({ from: `${month}-01`, to: payrollMonthEn
 
 export function AdminPayrollStatistics() {
   const today = todayInChina();
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const backToEmployee = useBusinessBack('/app/admin/payroll?tab=statistics');
+  const backToEmployeeList = useBusinessBack('/app/admin/payroll?tab=statistics');
   const [mode, setMode] = useRememberedPageState<RangeMode>('payroll-statistics-mode', 'month');
   const [month, setMonth] = useRememberedPageState('payroll-statistics-month', currentMonth());
   const [day, setDay] = useRememberedPageState('payroll-statistics-day', today);
@@ -85,14 +87,14 @@ export function AdminPayrollStatistics() {
 
   if (selectedPeriod && selectedEmployee) {
     return <div aria-labelledby="payroll-statistics-detail-title" aria-modal="true" className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog"><div className="mx-auto max-w-2xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
-      <header className="ui-card sticky top-0 z-20 flex items-center justify-between p-3.5"><div><p className="text-xs font-bold text-brand-700">{selectedPeriod.from} 至 {selectedPeriod.to}</p><h2 className="text-xl font-bold" id="payroll-statistics-detail-title">{selectedEmployee.displayName}工资详情</h2></div><button aria-label="关闭工资详情" className="ui-icon-button" onClick={() => navigate(-1)} type="button"><X className="h-5 w-5" /></button></header>
+      <header className="ui-card sticky top-0 z-20 flex items-center justify-between p-3.5"><div><p className="text-xs font-bold text-brand-700">{selectedPeriod.from} 至 {selectedPeriod.to}</p><h2 className="text-xl font-bold" id="payroll-statistics-detail-title">{selectedEmployee.displayName}工资详情</h2></div><button aria-label="关闭工资详情" className="ui-icon-button" onClick={backToEmployee} type="button"><X className="h-5 w-5" /></button></header>
       <SectionCard className="grid grid-cols-2 gap-2"><Mini label="区间薪资成本" value={formatMoney(selectedPeriod.salaryCost)} /><Mini label="区间工时" value={`${selectedPeriod.hours.toFixed(2)} 小时`} /></SectionCard>
       {selectedPeriod.source === 'payslip' ? <><StatusBadge tone={selectedPeriod.payslipStatus === 'confirmed' ? 'success' : 'warning'}>{selectedPeriod.payslipStatus === 'confirmed' ? '工资单已确认' : selectedPeriod.payslipStatus === 'issued' ? '工资单已发送' : '工资单草稿'}</StatusBadge><PayrollStatementView estimate={selectedPeriod.estimate} payrollMonth={selectedPeriod.payrollMonth} /></> : <><p className="rounded-lg bg-blue-50 p-3 text-xs leading-5 text-blue-900">该区间尚无完整月正式工资单，以区间结束日的实时薪资明细作为计算依据。</p><PayrollEstimateView estimate={selectedPeriod.estimate} /></>}
     </div></div>;
   }
 
   if (selectedEmployee) {
-    return <><button className="ui-button-secondary" onClick={() => navigate(-1)} type="button">返回员工工资列表</button><SectionCard className="bg-gradient-to-br from-brand-700 to-emerald-800 text-white"><p className="text-sm font-bold">{selectedEmployee.displayName}{selectedEmployee.employmentType === 'part_time' ? ' · 兼职' : ''}</p><p className="mt-2 text-3xl font-bold">{formatMoney(selectedEmployee.salaryCost)}</p><p className="mt-1 text-xs text-emerald-100">{range.from} 至 {range.to} · {selectedEmployee.hours.toFixed(2)} 小时 · 平均 {selectedEmployee.averageHourlyCost == null ? '—' : `${formatMoney(selectedEmployee.averageHourlyCost)}/小时`}</p></SectionCard><SectionCard className="overflow-hidden p-0"><div className="border-b border-slate-100 p-4"><SectionHeader icon={Clock3} title="按月工资明细" description="点击查看正式工资单或实时计算明细。" /></div><div className="divide-y divide-slate-100">{selectedEmployee.periods.map((period) => <button className="ui-interactive flex w-full items-center justify-between gap-3 p-4 text-left" key={`${period.payrollMonth}:${period.from}`} onClick={() => openPeriod(period)} type="button"><div><b className="text-sm">{period.from === period.to ? period.from : `${period.from} 至 ${period.to}`}</b><p className="mt-1 text-xs text-slate-500">{period.source === 'payslip' ? '正式工资单' : '实时计算'} · {period.hours.toFixed(2)} 小时</p></div><div className="flex items-center gap-2"><b className="tabular-nums text-brand-800">{formatMoney(period.salaryCost)}</b><ChevronRight className="h-4 w-4 text-slate-400" /></div></button>)}</div></SectionCard></>;
+    return <><button className="ui-button-secondary" onClick={backToEmployeeList} type="button">返回员工工资列表</button><SectionCard className="bg-gradient-to-br from-brand-700 to-emerald-800 text-white"><p className="text-sm font-bold">{selectedEmployee.displayName}{selectedEmployee.employmentType === 'part_time' ? ' · 兼职' : ''}</p><p className="mt-2 text-3xl font-bold">{formatMoney(selectedEmployee.salaryCost)}</p><p className="mt-1 text-xs text-emerald-100">{range.from} 至 {range.to} · {selectedEmployee.hours.toFixed(2)} 小时 · 平均 {selectedEmployee.averageHourlyCost == null ? '—' : `${formatMoney(selectedEmployee.averageHourlyCost)}/小时`}</p></SectionCard><SectionCard className="overflow-hidden p-0"><div className="border-b border-slate-100 p-4"><SectionHeader icon={Clock3} title="按月工资明细" description="点击查看正式工资单或实时计算明细。" /></div><div className="divide-y divide-slate-100">{selectedEmployee.periods.map((period) => <button className="ui-interactive flex w-full items-center justify-between gap-3 p-4 text-left" key={`${period.payrollMonth}:${period.from}`} onClick={() => openPeriod(period)} type="button"><div><b className="text-sm">{period.from === period.to ? period.from : `${period.from} 至 ${period.to}`}</b><p className="mt-1 text-xs text-slate-500">{period.source === 'payslip' ? '正式工资单' : '实时计算'} · {period.hours.toFixed(2)} 小时</p></div><div className="flex items-center gap-2"><b className="tabular-nums text-brand-800">{formatMoney(period.salaryCost)}</b><ChevronRight className="h-4 w-4 text-slate-400" /></div></button>)}</div></SectionCard></>;
   }
 
   return <>

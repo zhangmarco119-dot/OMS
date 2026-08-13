@@ -87,6 +87,7 @@ export function AppLayout() {
             <Link
               aria-current={active ? 'page' : undefined}
               key={to}
+              replace
               to={to}
               className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-semibold transition ${active ? 'text-brand-700' : 'text-slate-500'}`}
             >

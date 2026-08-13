@@ -68,7 +68,7 @@ export function HistoryPage() {
   }, [loadHistory]);
 
   return (
-    <PageShell eyebrow={isAdmin ? '管理员记录' : '我的记录'} title={isAdmin ? '全部提交记录' : '提交记录'} backTo="/app">
+    <PageShell eyebrow={isAdmin ? '管理员记录' : '我的记录'} title={isAdmin ? '全部提交记录' : '提交记录'} backTo="/app/workbench">
       {isAdmin ? (
         <SegmentedControl className="grid-cols-2" items={[{ active: adminView === 'tasks', label: '点货与订货', onClick: () => setAdminView('tasks') }, { active: adminView === 'feedback', label: '货品反馈', onClick: () => setAdminView('feedback') }]} />
       ) : null}

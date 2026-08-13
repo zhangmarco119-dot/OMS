@@ -88,7 +88,7 @@ export function SopLibraryPage() {
   };
 
   const filtered = Boolean(debouncedQuery || category !== 'all' || favoritesOnly);
-  return <PageShell eyebrow="门店运营系统" title="SOP 手册" backTo="/app" contentGapClassName="gap-3">
+  return <PageShell eyebrow="门店运营系统" title="SOP 手册" backTo="/app/workbench" contentGapClassName="gap-3">
     <SectionCard className="p-3">
       <div className="grid grid-cols-2 gap-2"><button className={`min-h-10 rounded-lg text-sm font-bold ${!favoritesOnly ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-600'}`} onClick={() => setFavoritesOnly(false)} type="button">全部 SOP</button><button className={`min-h-10 rounded-lg text-sm font-bold ${favoritesOnly ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-600'}`} onClick={() => setFavoritesOnly(true)} type="button"><Star className="mr-1 inline h-4 w-4" />我的收藏</button></div>
       <label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><span className="sr-only">搜索 SOP</span><input className="ui-input pl-10" onChange={(event) => setQuery(event.target.value)} placeholder="搜索产品名称" type="search" value={query} /></label>

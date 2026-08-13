@@ -69,4 +69,28 @@ describe('ai review service', () => {
     const result = await actOnAiSuggestion(clientWithRpc(rpc), 'suggestion-1', 'apply_to_draft', null, 'hash-1');
     expect(result).toMatchObject({ actionType: null, draftPatch: {}, runId: 'run-1', status: 'stale', suggestionId: 'suggestion-1' });
   });
+  it('keeps the Supabase client method bound when calling an RPC', async () => {
+    class RpcClient {
+      capturedThis: unknown = null;
+      rpc() {
+        this.capturedThis = this;
+        return Promise.resolve({
+          data: {
+            admin_apply_enabled: true,
+            admin_visible: true,
+            auto_run_enabled: true,
+            global_enabled: true,
+            pilot_stores: [],
+            workflow_flags: {},
+          },
+          error: null,
+        });
+      }
+    }
+    const raw = new RpcClient();
+    const client = raw as unknown as SupabaseClient<Database>;
+    await loadAiPilotSettings(client);
+    expect(raw.capturedThis).toBe(raw);
+  });
+
 });

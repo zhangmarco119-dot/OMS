@@ -148,7 +148,7 @@ const toDraftItem = (
   quantity: String(row.quantity),
   sortOrder: row.sort_order,
   spec: row.product_id ? productById.get(row.product_id)?.spec ?? '' : '',
-  unit: row.unit,
+  unit: row.product_id ? productById.get(row.product_id)?.count_unit ?? row.unit : row.unit,
 });
 
 export const loadOrCreateArrivalDraft = async (

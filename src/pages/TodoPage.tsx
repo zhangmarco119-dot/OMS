@@ -1,6 +1,6 @@
 import { CheckCircle2, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -29,9 +29,24 @@ import {
 } from '../features/admin/adminProductsService';
 import { PRODUCT_CATEGORIES, productCategoryLabel } from '../features/products/productCategories';
 import { loadPendingArrivalCorrections, type ArrivalCorrectionListItem } from '../services/arrivals.service';
+import type { AiProductCreationReviewDraft } from '../features/ai-review/aiReviewDrafts';
+
+const productCreationPatch = (value: unknown): Partial<ProductCreationReviewDraft> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const row = value as Record<string, unknown>;
+  const result: Partial<ProductCreationReviewDraft> = {};
+  if (typeof row.name === 'string') result.name = row.name;
+  if (typeof row.spec === 'string') result.spec = row.spec;
+  if (typeof row.count_unit === 'string') result.count_unit = row.count_unit;
+  if (typeof row.category_code === 'string' && PRODUCT_CATEGORIES.some((category) => category.code === row.category_code)) {
+    result.category_code = row.category_code as ProductCreationReviewDraft['category_code'];
+  }
+  return result;
+};
 
 export function TodoPage() {
   const auth = useAuth(); const isAdmin = auth.profile?.role === 'admin'; const isManager = auth.profile?.role === 'manager';
+  const location = useLocation(); const navigate = useNavigate();
   const deadlineNow = useTaskDeadlineClock();
   const [tasks, setTasks] = useState<V2TaskRow[]>([]); const [feedbackCount, setFeedbackCount] = useState(0); const [feedback, setFeedback] = useState<ProductFeedbackRecord[]>([]); const [notices, setNotices] = useState<NoticeListItem[]>([]); const [overtime, setOvertime] = useState<Database['public']['Tables']['payroll_overtime_requests']['Row'][]>([]); const [overtimeNames, setOvertimeNames] = useState<Record<string, string>>({}); const [overtimeTerms, setOvertimeTerms] = useState<Record<string, string>>({}); const [message, setMessage] = useState<string | null>(null);
   const [corrections, setCorrections] = useState<Database['public']['Tables']['attendance_missing_punch_todos']['Row'][]>([]);
@@ -44,9 +59,11 @@ export function TodoPage() {
   const [arrivalCorrections, setArrivalCorrections] = useState<ArrivalCorrectionListItem[]>([]);
   const [taskSubmitterNames, setTaskSubmitterNames] = useState<Record<string, string>>({});
   const [taskTimeline, setTaskTimeline] = useState<V2TaskTimelineEvent[]>([]);
-  const [creationReview, setCreationReview] = useState<{ approve: boolean; draft: ProductCreationReviewDraft; id: string; note: string } | null>(null);
+  const [todoDataLoaded, setTodoDataLoaded] = useState(false);
+  const [creationReview, setCreationReview] = useState<{ aiSuggestionId?: string; approve: boolean; draft: ProductCreationReviewDraft; id: string; note: string } | null>(null);
   const load = useCallback(async () => {
     if (!supabase) return;
+    setTodoDataLoaded(false);
     try {
       const [nextTasks, summary, nextNotices, nextFeedback, nextOvertime, nextCorrections, nextPayslips, nextCreationRequests, nextTaskRecipients, nextTaskTimeline, nextArrivalCorrections, nextPayrollConfirmations] = await Promise.all([
         loadV2Tasks(supabase, isAdmin || isManager ? undefined : auth.store?.id),
@@ -78,9 +95,35 @@ export function TodoPage() {
       setTaskTimeline(nextTaskTimeline);
       setArrivalCorrections(nextArrivalCorrections);
       setPayrollConfirmations(nextPayrollConfirmations);
+      setTodoDataLoaded(true);
     } catch (error) { setMessage(error instanceof Error ? error.message : '加载待办失败。'); }
   }, [auth.availableStores, auth.profile?.id, auth.store?.id, isAdmin, isManager]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const routeState = location.state as { aiProductCreationReview?: AiProductCreationReviewDraft } | null;
+    const aiDraft = isAdmin ? routeState?.aiProductCreationReview : null;
+    if (!aiDraft || !todoDataLoaded) return;
+    const record = productCreationRequests.find(({ request }) => request.id === aiDraft.requestId && request.store_id === aiDraft.storeId);
+    if (!record) {
+      setMessage('AI 对应的新增货品申请已处理或不在当前管理员范围内。');
+      navigate(location.pathname, { replace: true, state: null });
+      return;
+    }
+    setCreationReview({
+      aiSuggestionId: aiDraft.suggestionId,
+      approve: true,
+      draft: {
+        category_code: record.request.category_code,
+        count_unit: record.request.count_unit,
+        name: record.request.name,
+        spec: record.request.spec,
+        ...productCreationPatch(aiDraft.draftPatch),
+      },
+      id: record.request.id,
+      note: '',
+    });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [isAdmin, location.pathname, location.state, navigate, productCreationRequests, todoDataLoaded]);
   const completeCorrection = async (id: string) => {
     if (!supabase) return;
     try {
@@ -190,7 +233,7 @@ export function TodoPage() {
         : `将当前 ${newProductRequests.length} 条新增和 ${productCorrections.length} 条已生效修改申请全部标记为已读。`}</p>
     </ConfirmDialog>
     <ConfirmDialog confirmLabel={creationReview?.approve ? '按以上内容同意新增' : '确认拒绝'} danger={!creationReview?.approve} onCancel={() => setCreationReview(null)} onConfirm={() => void reviewCreationRequest()} open={Boolean(creationReview)} title={creationReview?.approve ? '编辑并审核新增货品' : '确认拒绝新增货品'}>
-      {creationReview?.approve ? <div className="space-y-3"><p className="text-sm leading-6 text-slate-600">请先核对或修改详细内容；通过后将按下列内容加入货品库，并回填本次到货记录。</p><label className="block text-sm font-semibold">货品名称<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, name: event.target.value } } : current)} value={creationReview.draft.name} /></label><label className="block text-sm font-semibold">规格<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, spec: event.target.value } } : current)} value={creationReview.draft.spec} /></label><label className="block text-sm font-semibold">单位<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, count_unit: event.target.value } } : current)} value={creationReview.draft.count_unit} /></label><label className="block text-sm font-semibold">分类<select className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, category_code: event.target.value as ProductCreationReviewDraft['category_code'] } } : current)} value={creationReview.draft.category_code}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label><label className="block text-sm font-semibold">审核备注（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setCreationReview((current) => current ? { ...current, note: event.target.value } : current)} value={creationReview.note} /></label></div> : <div><p>拒绝后不会创建货品，本次到货记录仍会保留。</p><label className="mt-3 block text-sm font-semibold">拒绝原因（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setCreationReview((current) => current ? { ...current, note: event.target.value } : current)} value={creationReview?.note ?? ''} /></label></div>}
+      {creationReview?.approve ? <div className="space-y-3">{creationReview.aiSuggestionId ? <FeedbackBanner title="已带入 AI 建议" tone="info">建议仅填入当前审核草稿，尚未同意申请或创建货品。请逐项核对后再确认。</FeedbackBanner> : null}<p className="text-sm leading-6 text-slate-600">请先核对或修改详细内容；通过后将按下列内容加入货品库，并回填本次到货记录。</p><label className="block text-sm font-semibold">货品名称<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, name: event.target.value } } : current)} value={creationReview.draft.name} /></label><label className="block text-sm font-semibold">规格<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, spec: event.target.value } } : current)} value={creationReview.draft.spec} /></label><label className="block text-sm font-semibold">单位<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, count_unit: event.target.value } } : current)} value={creationReview.draft.count_unit} /></label><label className="block text-sm font-semibold">分类<select className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, category_code: event.target.value as ProductCreationReviewDraft['category_code'] } } : current)} value={creationReview.draft.category_code}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label><label className="block text-sm font-semibold">审核备注（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setCreationReview((current) => current ? { ...current, note: event.target.value } : current)} value={creationReview.note} /></label></div> : <div><p>拒绝后不会创建货品，本次到货记录仍会保留。</p><label className="mt-3 block text-sm font-semibold">拒绝原因（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setCreationReview((current) => current ? { ...current, note: event.target.value } : current)} value={creationReview?.note ?? ''} /></label></div>}
     </ConfirmDialog>
     <ActionFeedbackDialog message={completionMessage} onClose={() => setCompletionMessage('')} open={Boolean(completionMessage)} title="待办已完成" tone="success" />
   </PageShell>;

@@ -1,13 +1,15 @@
 import { Plus, Send, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ConfirmDialog, MobileActionBar } from '../components/ui/Actions';
 import { FeedbackBanner, LoadingState, StatusBadge } from '../components/ui/Feedback';
 import { arrivalDraftItemSchema, createEmptyArrivalItem, type ArrivalDraftItem } from '../features/arrivals/arrivalForm';
+import { applyAiArrivalDraftPatch, type ArrivalCorrectionDraft } from '../features/ai-review/arrivalAiDraftPatch';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
+import type { Json } from '../types/database';
 import {
   adminUpdateArrivalReport,
   loadArrivalCorrectionEditor,
@@ -18,10 +20,7 @@ import {
   type ProductRow,
 } from '../services/arrivals.service';
 
-interface CorrectionForm {
-  fields: ArrivalCorrectionFields;
-  items: ArrivalDraftItem[];
-}
+type CorrectionForm = ArrivalCorrectionDraft;
 
 const createForm = (data: ArrivalCorrectionEditorData): CorrectionForm => ({
   fields: {
@@ -36,6 +35,7 @@ const createForm = (data: ArrivalCorrectionEditorData): CorrectionForm => ({
 
 export function ArrivalCorrectionPage() {
   const auth = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const { reportId = '' } = useParams();
   const [data, setData] = useState<ArrivalCorrectionEditorData | null>(null);
@@ -66,7 +66,11 @@ export function ArrivalCorrectionPage() {
         && (isAdmin || auth.profile?.role === 'manager' || editor.report.reported_by === auth.profile?.id);
       if (!canEdit) throw new Error('员工只能修改自己提交的到货信息；店长和管理员可以修改授权门店的到货信息。');
       setData(editor);
-      setForm(createForm(editor));
+      const routeState = location.state as { aiDraftPatch?: unknown; aiModifiedValue?: Json; aiSuggestionId?: string } | null;
+      const adminAiRouteState = isAdmin ? routeState : null;
+      setForm(adminAiRouteState?.aiDraftPatch
+        ? applyAiArrivalDraftPatch(createForm(editor), adminAiRouteState.aiDraftPatch, adminAiRouteState.aiModifiedValue, editor.products)
+        : createForm(editor));
       setHasPendingRequest(latest?.status === 'pending');
       setMessage(null);
       setStatus('ready');
@@ -74,7 +78,7 @@ export function ArrivalCorrectionPage() {
       setMessage(error instanceof Error ? error.message : '加载到货更正页面失败。');
       setStatus('error');
     }
-  }, [auth.availableStores, auth.profile?.id, auth.profile?.role, isAdmin, reportId]);
+  }, [auth.availableStores, auth.profile?.id, auth.profile?.role, isAdmin, location.state, reportId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -132,6 +136,7 @@ export function ArrivalCorrectionPage() {
         <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{data.report.report_no}</p><h2 className="mt-1 font-bold">{data.report.reporter_name_snapshot}提交的到货记录</h2></div><StatusBadge tone={isAdmin ? 'success' : 'warning'}>{isAdmin ? '管理员直接修改' : '更正后需审核'}</StatusBadge></div>
         <p className="mt-3 text-sm leading-6 text-slate-600">这里只修改文字和产品明细，原有面单及拆包照片会保留。{isAdmin ? '保存后将立即写入正式到货记录。' : '审核通过前，历史记录不会发生变化。'}</p>
       </section>
+      {isAdmin && (location.state as { aiSuggestionId?: string } | null)?.aiSuggestionId ? <FeedbackBanner title="已带入 AI 建议" tone="info">建议只填入当前更正草稿，尚未修改正式到货记录。请逐项核对后再使用原保存按钮。</FeedbackBanner> : null}
       {hasPendingRequest ? <FeedbackBanner title="已有待审核更正" tone="warning">当前记录已经有一份待审核申请，请等待审核完成后再提交新的更正。</FeedbackBanner> : null}
       {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
       <section className="ui-card p-4">

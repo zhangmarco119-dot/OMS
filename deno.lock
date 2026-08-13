@@ -1,0 +1,68 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/node-fetch@^2.6.13?target=denonext": "https://esm.sh/@supabase/node-fetch@2.6.15?target=denonext",
+    "https://esm.sh/@supabase/node-fetch@^2.6.14?target=denonext": "https://esm.sh/@supabase/node-fetch@2.6.15?target=denonext",
+    "https://esm.sh/isows@^1.0.7?target=denonext": "https://esm.sh/isows@1.0.7?target=denonext",
+    "https://esm.sh/tr46@~0.0.3?target=denonext": "https://esm.sh/tr46@0.0.3?target=denonext",
+    "https://esm.sh/webidl-conversions@^3.0.0?target=denonext": "https://esm.sh/webidl-conversions@3.0.1?target=denonext",
+    "https://esm.sh/whatwg-url@^5.0.0?target=denonext": "https://esm.sh/whatwg-url@5.0.0?target=denonext"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/auth-js@2.71.0/denonext/auth-js.mjs": "33b1a1b8540f1d55f286cc363040b3f66c987973093291d65f4d6522dbfef2eb",
+    "https://esm.sh/@supabase/functions-js@2.4.5/denonext/functions-js.mjs": "acfcb4db90c292c335a9dbb5664485f5e0b680533d68e6942abb9387ec7e0d0b",
+    "https://esm.sh/@supabase/node-fetch@2.6.15/denonext/node-fetch.mjs": "0bae9052231f4f6dbccc7234d05ea96923dbf967be12f402764580b6bf9f713d",
+    "https://esm.sh/@supabase/node-fetch@2.6.15?target=denonext": "4d28c4ad97328403184353f68434f2b6973971507919e9150297413664919cf3",
+    "https://esm.sh/@supabase/postgrest-js@1.19.4/denonext/postgrest-js.mjs": "2073b5552ba10c7a8302bffffae771e3aede1daf833382355dae239fb0ab2576",
+    "https://esm.sh/@supabase/realtime-js@2.11.15/denonext/realtime-js.mjs": "3b7511415165a1b503eae1dfbc10814ef3d0c1c866c97fdec4f6714bfa34a847",
+    "https://esm.sh/@supabase/storage-js@2.7.1/denonext/storage-js.mjs": "73ac8cdc95cfcd794fe603dbd7ce06d539ab51538ae6467eabe0f9cc26c993aa",
+    "https://esm.sh/@supabase/supabase-js@2.51.0": "8603496eeecc4070b53b2f3c1f008367c2de72a0acdc8f7fb9c339a53dcff68e",
+    "https://esm.sh/@supabase/supabase-js@2.51.0/denonext/supabase-js.mjs": "45570f96cdd576aaa555004dad987c5833aa0a5200362c643f80fff1fbd5075b",
+    "https://esm.sh/isows@1.0.7/denonext/isows.mjs": "be1812ebbf28737b43588bbcbd89bf43345e3d58d32be13def331d12361045b4",
+    "https://esm.sh/isows@1.0.7?target=denonext": "31b7306eada995ba18e29841d688a42bcc0166caf302e1b183b6d2a7c649f262",
+    "https://esm.sh/tr46@0.0.3/denonext/tr46.mjs": "5753ec0a99414f4055f0c1f97691100f13d88e48a8443b00aebb90a512785fa2",
+    "https://esm.sh/tr46@0.0.3?target=denonext": "19cb9be0f0d418a0c3abb81f2df31f080e9540a04e43b0f699bce1149cba0cbb",
+    "https://esm.sh/webidl-conversions@3.0.1/denonext/webidl-conversions.mjs": "238cd0743827707cbc1c2d7c2cf1027dbc536fb53ec9a3fde0ff8026a3ac5385",
+    "https://esm.sh/webidl-conversions@3.0.1?target=denonext": "4e20318d50528084616c79d7b3f6e7f0fe7b6d09013bd01b3974d7448d767e29",
+    "https://esm.sh/whatwg-url@5.0.0/denonext/whatwg-url.mjs": "29b16d74ee72624c915745bbd25b617cfd2248c6af0f5120d131e232a9a9af79",
+    "https://esm.sh/whatwg-url@5.0.0?target=denonext": "f001a2cadf81312d214ca330033f474e74d81a003e21e8c5d70a1f46dc97b02d"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@eslint/js@^9.9.0",
+        "npm:@hookform/resolvers@^5.1.1",
+        "npm:@supabase/supabase-js@^2.51.0",
+        "npm:@testing-library/jest-dom@^6.4.8",
+        "npm:@testing-library/react@^16.0.1",
+        "npm:@testing-library/user-event@^14.5.2",
+        "npm:@types/node@^22.5.0",
+        "npm:@types/react-dom@^18.3.0",
+        "npm:@types/react@^18.3.4",
+        "npm:@vitejs/plugin-react@^4.3.1",
+        "npm:autoprefixer@^10.4.20",
+        "npm:class-variance-authority@~0.7.1",
+        "npm:clsx@^2.1.1",
+        "npm:eslint-plugin-react-hooks@^5.1.0-rc.0",
+        "npm:eslint-plugin-react-refresh@~0.4.11",
+        "npm:eslint@^9.9.0",
+        "npm:jsdom@25",
+        "npm:lucide-react@0.468",
+        "npm:playwright@1.61.1",
+        "npm:postcss@^8.4.41",
+        "npm:react-dom@^18.3.1",
+        "npm:react-hook-form@^7.52.2",
+        "npm:react-router-dom@^6.26.2",
+        "npm:react@^18.3.1",
+        "npm:tailwind-merge@^2.5.2",
+        "npm:tailwindcss@^3.4.10",
+        "npm:typescript-eslint@^8.1.0",
+        "npm:typescript@^5.5.4",
+        "npm:vite@^5.4.2",
+        "npm:vitest@^2.0.5",
+        "npm:xlsx@~0.18.5",
+        "npm:zod@^3.23.8"
+      ]
+    }
+  }
+}

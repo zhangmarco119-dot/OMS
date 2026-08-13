@@ -66,6 +66,10 @@ const forbiddenPatterns = [
     reason: 'Supabase access token must not be committed',
   },
   {
+    pattern: /\bsk-[a-f0-9]{32}\b/i,
+    reason: 'possible committed DeepSeek API key',
+  },
+  {
     pattern: /(?:appId|appID)\s*[:=]\s*['"][a-f0-9]{32}['"]/i,
     reason: 'possible committed POS application id',
   },

@@ -1,10 +1,14 @@
 import { FileSpreadsheet } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
 import { SectionCard } from '../components/ui/Surface';
+import { AiEntityReviewPanel } from '../features/ai-review/AiEntityReviewPanel';
+import { saveAiFollowUpTaskDraft } from '../features/ai-review/aiReviewDrafts';
+import { isAiWorkflowEnabledForStore } from '../features/ai-review/pilot';
+import { useAiPilotSettings } from '../features/ai-review/useAiPilotSettings';
 import { useAuth } from '../features/auth/AuthContext';
 import { loadSubmittedTaskDetailView, type HistoryTask } from '../features/history/historyService';
 import { asProductSnapshot } from '../features/tasks/taskCalculations';
@@ -31,7 +35,9 @@ type DetailView = { detail: TaskWithItems; summary: HistoryTask };
 
 export function HistoryTaskDetailPage() {
   const auth = useAuth();
+  const aiPilot = useAiPilotSettings();
   const location = useLocation();
+  const navigate = useNavigate();
   const { taskId = '' } = useParams();
   const [view, setView] = useState<DetailView | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -58,6 +64,10 @@ export function HistoryTaskDetailPage() {
   const deletedItemCount = view?.detail.task.task_type === 'inventory'
     ? view.detail.items.filter((item) => item.product_action_status === 'deletion_approved').length
     : 0;
+  const aiReviewEnabled = Boolean(view && auth.profile?.role === 'admin'
+    && isAiWorkflowEnabledForStore(aiPilot.settings, view.detail.task.store_id, view.detail.task.task_type));
+  const aiApplyEnabled = Boolean(view && auth.profile?.role === 'admin'
+    && isAiWorkflowEnabledForStore(aiPilot.settings, view.detail.task.store_id, view.detail.task.task_type, true));
 
   const reviewBackTo = typeof (location.state as { backTo?: unknown } | null)?.backTo === 'string'
     && /^\/app\/admin\/tasks\/[^/]+$/.test((location.state as { backTo: string }).backTo)
@@ -80,6 +90,31 @@ export function HistoryTaskDetailPage() {
           <Info label="单据编号" value={view.detail.task.id.slice(0, 8)} />
         </div>
       </SectionCard>
+
+      <AiEntityReviewPanel
+        applyLabel="创建复核任务草稿"
+        enabled={aiReviewEnabled}
+        entityId={view.detail.task.id}
+        onAdopt={aiApplyEnabled ? (suggestion, result, modifiedValue) => {
+          saveAiFollowUpTaskDraft({
+            actionType: suggestion.actionType,
+            currentValue: suggestion.currentValue,
+            draftPatch: result.draftPatch,
+            entityId: view.detail.task.id,
+            fieldPath: suggestion.fieldPath,
+            rationale: suggestion.rationale,
+            sourceWorkflow: view.detail.task.task_type,
+            storeId: view.detail.task.store_id,
+            storeName: view.summary.storeName,
+            suggestionId: suggestion.id,
+            suggestedValue: modifiedValue ?? suggestion.suggestedValue,
+            title: suggestion.title,
+          });
+          navigate('/app/admin/tasks/publish?source=ai-review');
+        } : undefined}
+        storeId={view.detail.task.store_id}
+        workflow={view.detail.task.task_type}
+      />
 
       <SectionCard className="p-3 sm:p-4">
         <div className="mb-3 flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-brand-700" /><h2 className="font-bold text-slate-900">货品明细</h2></div>

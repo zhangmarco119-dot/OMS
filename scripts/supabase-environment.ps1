@@ -95,6 +95,7 @@ try {
       Invoke-Pnpm dlx supabase@latest functions deploy task-template-images --project-ref $TargetRef --agent no
       Invoke-Pnpm dlx supabase@latest functions deploy dingtalk-attendance --project-ref $TargetRef --no-verify-jwt --agent no
       Invoke-Pnpm dlx supabase@latest functions deploy pospal-sales --project-ref $TargetRef --no-verify-jwt --agent no
+      Invoke-Pnpm dlx supabase@latest functions deploy ai-review --project-ref $TargetRef --no-verify-jwt --agent no
     }
     'PushAuthConfig' {
       if ($AuthSiteUrl -notmatch '^https://[^/]+/?$' -or $AuthRedirectUrl -notmatch '^https://[^/]+/?$') {

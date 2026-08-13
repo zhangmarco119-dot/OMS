@@ -1,6 +1,6 @@
 import { Archive, ArrowUpDown, CheckCircle2, ClipboardEdit, Download, Eye, EyeOff, FileUp, PackagePlus, RefreshCw, RotateCcw, Save, Search, Sparkles, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -44,6 +44,10 @@ import { useAuth } from '../features/auth/AuthContext';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { DEFAULT_PRODUCT_CATEGORY, PRODUCT_CATEGORIES, productCategoryLabel, type ProductCategoryCode } from '../features/products/productCategories';
 import { saveProductCorrectionTaskDraft } from '../features/admin/productCorrectionTask';
+import { ProductAiDraftCheck } from '../features/ai-review/ProductAiDraftCheck';
+import { isAiWorkflowEnabledForStore } from '../features/ai-review/pilot';
+import { useAiPilotSettings } from '../features/ai-review/useAiPilotSettings';
+import type { Json } from '../types/database';
 
 export type AdminSection = 'products' | 'users';
 type ProductTab = 'catalog' | 'batch' | 'archived';
@@ -78,9 +82,37 @@ const productToDraft = (product: ProductRow): ProductDraft => ({
   store_id: product.store_id,
 });
 
+const productDraftChanged = (product: ProductRow, draft: ProductDraft) => (
+  draft.category_code !== product.category_code
+  || draft.count_unit !== product.count_unit
+  || draft.name !== product.name
+  || draft.product_code !== (product.product_code ?? '')
+  || draft.sort_order !== product.sort_order
+  || draft.spec !== product.spec
+);
+
+const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const directProductPatch = (value: unknown, modifiedValue?: Json): Partial<ProductDraft> => {
+  const raw = asRecord(value);
+  const source = Object.keys(asRecord(raw.fields)).length ? asRecord(raw.fields) : Object.keys(asRecord(raw.product)).length ? asRecord(raw.product) : raw;
+  const patch: Partial<ProductDraft> = {};
+  (['category_code', 'count_unit', 'name', 'product_code', 'spec'] as const).forEach((key) => {
+    if (source[key] !== undefined && source[key] !== null) (patch as Record<string, unknown>)[key] = String(source[key]);
+  });
+  if (source.sort_order !== undefined && Number.isFinite(Number(source.sort_order))) patch.sort_order = Number(source.sort_order);
+  if (modifiedValue && typeof modifiedValue === 'object' && !Array.isArray(modifiedValue)) return { ...patch, ...directProductPatch(modifiedValue) };
+  if (modifiedValue !== undefined && (typeof modifiedValue !== 'object' || modifiedValue === null)) {
+    const keys = Object.keys(patch);
+    if (keys.length === 1) (patch as Record<string, unknown>)[keys[0]] = keys[0] === 'sort_order' ? Number(modifiedValue) : String(modifiedValue);
+  }
+  return patch;
+};
+
 export function AdminPage({ section }: { section: AdminSection }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const auth = useAuth();
+  const aiPilot = useAiPilotSettings();
   const [productTab, setProductTab] = useRememberedPageState<ProductTab>('product-tab', 'catalog');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
@@ -159,10 +191,80 @@ export function AdminPage({ section }: { section: AdminSection }) {
     }
   };
 
+  const locateExistingProduct = (
+    productId: string,
+    options: { cancelNewDraft?: boolean; sourceWorkflow?: 'product' | 'product_creation_request' } = {},
+  ) => {
+    const product = products.find((entry) => entry.id === productId);
+    if (!product) {
+      setMessage('AI 建议指向的已有货品不存在或不属于当前门店；当前草稿没有被修改。');
+      return false;
+    }
+    if (options.cancelNewDraft) setNewProduct(emptyProductDraft(selectedStoreId));
+    setProductTab(product.is_active ? 'catalog' : 'archived');
+    setProductSearch(product.name);
+    setProductCategory('');
+    setMessage(options.sourceWorkflow === 'product_creation_request'
+      ? `已定位已有货品“${product.name}”；新增货品申请仍处于待处理状态，请返回待办人工决定，系统没有创建或匹配货品。`
+      : options.cancelNewDraft
+        ? `已取消新增货品草稿并定位已有货品“${product.name}”；此 AI 建议尚未标记为已采纳。`
+        : `已定位已有货品“${product.name}”；当前货品草稿没有保存，也没有写入 product_id。`);
+    return true;
+  };
+
   useEffect(() => {
     void refresh('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (section !== 'products' || loading) return;
+    const routeState = location.state as {
+      aiCancelNewDraft?: boolean;
+      aiDraftPatch?: unknown;
+      aiEntityId?: string;
+      aiExistingProductId?: string;
+      aiModifiedValue?: Json;
+      aiSourceWorkflow?: 'product' | 'product_creation_request';
+      aiSuggestionId?: string;
+      aiStoreId?: string;
+    } | null;
+    if (!routeState?.aiSuggestionId || (!routeState.aiDraftPatch && !routeState.aiExistingProductId)) return;
+    if (routeState.aiStoreId && routeState.aiStoreId !== selectedStoreId) {
+      changeStore(routeState.aiStoreId);
+      return;
+    }
+    if (routeState.aiExistingProductId) {
+      locateExistingProduct(routeState.aiExistingProductId, {
+        cancelNewDraft: routeState.aiCancelNewDraft,
+        sourceWorkflow: routeState.aiSourceWorkflow,
+      });
+      navigate(location.pathname, { replace: true, state: null });
+      return;
+    }
+    const patch = directProductPatch(routeState.aiDraftPatch, routeState.aiModifiedValue);
+    if (Object.keys(patch).length === 0) {
+      setMessage('这条 AI 建议无法安全映射到货品编辑字段，请人工核对。');
+    } else if (routeState.aiEntityId) {
+      const product = products.find((entry) => entry.id === routeState.aiEntityId);
+      const draft = productDrafts[routeState.aiEntityId];
+      if (product && draft) {
+        setProductTab(product.is_active ? 'catalog' : 'archived');
+        setProductSearch('');
+        setProductCategory('');
+        setProductDrafts((current) => ({ ...current, [routeState.aiEntityId!]: { ...current[routeState.aiEntityId!], ...patch } }));
+        setMessage('AI 建议已填入对应货品草稿；请人工核对后点击“保存货品”。');
+      } else {
+        setMessage('AI 对应的货品已不存在或不属于当前门店，未创建新的货品草稿。');
+      }
+    } else {
+      setNewProduct((current) => ({ ...current, ...patch }));
+      setMessage('AI 建议已填入新增货品草稿；请人工核对后点击“创建货品”。');
+    }
+    navigate(location.pathname, { replace: true, state: null });
+    // changeStore and route-state consumption are intentionally coordinated here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, location.pathname, location.state, navigate, productDrafts, section, selectedStoreId]);
 
   const changeStore = (storeId: string) => {
     setSelectedStoreId(storeId);
@@ -510,6 +612,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const visibleArchivedProducts = archivedProducts.filter(matchesProductSearch);
   const visibleProductCount = productTab === 'archived' ? visibleArchivedProducts.length : visibleActiveProducts.length;
   const currentProductCount = productTab === 'archived' ? archivedProducts.length : activeProducts.length;
+  const aiPilotEnabled = isAiWorkflowEnabledForStore(aiPilot.settings, selectedStoreId, 'product', true);
 
   return (
     <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '货品管理' : '账号管理'} backTo="/app/workbench">
@@ -567,6 +670,14 @@ export function AdminPage({ section }: { section: AdminSection }) {
           <div className="rounded-lg bg-white p-3 shadow-sm">
             <h2 className="mb-2 text-base font-bold text-slate-900">新增货品</h2>
             <ProductDraftForm draft={newProduct} onChange={setNewProduct} />
+            <ProductAiDraftCheck
+              draft={newProduct}
+              enabled={aiPilotEnabled}
+              onApply={(patch) => setNewProduct((current) => ({ ...current, ...patch }))}
+              onSkipAndSave={() => void saveNewProduct()}
+              onUseExistingProduct={(productId) => locateExistingProduct(productId, { cancelNewDraft: true, sourceWorkflow: 'product' })}
+              storeId={selectedStoreId}
+            />
             <button className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-lg bg-brand-600 px-3 text-sm font-bold text-white" onClick={() => void saveNewProduct()} type="button">
               <PackagePlus className="h-4 w-4" aria-hidden="true" />
               创建货品
@@ -583,6 +694,15 @@ export function AdminPage({ section }: { section: AdminSection }) {
                 <ProductDraftForm
                   draft={productDrafts[product.id] ?? productToDraft(product)}
                   onChange={(draft) => setProductDrafts((current) => ({ ...current, [product.id]: draft }))}
+                />
+                <ProductAiDraftCheck
+                  draft={productDrafts[product.id] ?? productToDraft(product)}
+                  enabled={aiPilotEnabled && productDraftChanged(product, productDrafts[product.id] ?? productToDraft(product))}
+                  onApply={(patch) => setProductDrafts((current) => ({ ...current, [product.id]: { ...(current[product.id] ?? productToDraft(product)), ...patch } }))}
+                  onSkipAndSave={() => void saveProduct(product.id)}
+                  onUseExistingProduct={(productId) => locateExistingProduct(productId, { sourceWorkflow: 'product' })}
+                  productId={product.id}
+                  storeId={selectedStoreId}
                 />
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-800" onClick={() => void saveProduct(product.id)} type="button">

@@ -1,17 +1,20 @@
-import { BarChart3, Bell, BookOpenCheck, CalendarClock, CircleDollarSign, ClipboardList, FileText, History, Landmark, PackageCheck, PackagePlus, ScrollText, ShoppingBag, Users } from 'lucide-react';
+import { BarChart3, Bell, BookOpenCheck, Bot, CalendarClock, CircleDollarSign, ClipboardList, FileText, History, Landmark, PackageCheck, PackagePlus, ScrollText, ShoppingBag, Users } from 'lucide-react';
 import { PageShell } from '../components/layout/PageShell';
 import { FeatureCard } from '../components/ui/Surface';
 import { featureFlags } from '../config/featureFlags';
 import { canOperateV2Modules } from '../features/access/roleCapabilities';
+import { useAiPilotSettings } from '../features/ai-review/useAiPilotSettings';
 import { useAuth } from '../features/auth/AuthContext';
 
 export function AppMenuPage() {
   const auth = useAuth();
+  const aiPilot = useAiPilotSettings();
   const isAdmin = auth.profile?.role === 'admin';
   const isPartTime = auth.profile?.employment_type === 'part_time';
   const canUseV2 = canOperateV2Modules(auth.profile?.role);
   const canUseOperationReports = Boolean(auth.store?.name.includes('西直门'));
   const items = isAdmin ? [
+    ...(aiPilot.settings?.globalEnabled && aiPilot.settings.adminVisible ? [{ icon: Bot, label: 'AI 质检试点', note: '试点门店结构化数据辅助复核', to: '/app/admin/ai-review' }] : []),
     { icon: ClipboardList, label: '任务管理', note: '发布、模板、周期与审核', to: '/app/admin/tasks' },
     { icon: PackageCheck, label: '到货中心', note: '到货消息、记录和汇总', to: '/app/admin/arrivals' },
     { icon: Bell, label: '公告管理', note: '发布公告并查看员工已读情况', to: '/app/admin/announcements' },

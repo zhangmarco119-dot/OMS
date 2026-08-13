@@ -8,9 +8,16 @@ import {
   markAdminArrivalViewed,
   type AdminArrivalDetail,
 } from '../services/admin-arrivals.service';
+import { useAiPilotSettings } from '../features/ai-review/useAiPilotSettings';
+import { ensureAiReview } from '../services/ai-review.service';
 import { AdminArrivalDetailPage } from './AdminArrivalDetailPage';
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
+vi.mock('../features/ai-review/useAiPilotSettings', () => ({ useAiPilotSettings: vi.fn() }));
+vi.mock('../services/ai-review.service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/ai-review.service')>();
+  return { ...actual, ensureAiReview: vi.fn(), loadAiReview: vi.fn() };
+});
 vi.mock('../services/admin-arrivals.service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/admin-arrivals.service')>();
   return {
@@ -37,6 +44,7 @@ const detail = (status: 'submitted' | 'viewed'): AdminArrivalDetail => ({
     report_no: 'ARR-001',
     reporter_name_snapshot: '测试员工',
     status,
+    store_id: 'store-1',
     store_name_snapshot: '测试门店',
     submitted_at: '2026-07-19T02:31:00Z',
     tracking_no: null,
@@ -47,7 +55,10 @@ const detail = (status: 'submitted' | 'viewed'): AdminArrivalDetail => ({
 });
 
 describe('AdminArrivalDetailPage read state', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useAiPilotSettings).mockReturnValue({ error: null, loading: false, reload: vi.fn(), settings: null });
+  });
 
   it('marks a submitted arrival as read as soon as its detail is opened', async () => {
     vi.mocked(loadAdminArrivalDetail).mockResolvedValue(detail('submitted'));
@@ -107,5 +118,33 @@ describe('AdminArrivalDetailPage read state', () => {
       resolveUrls({ 'image-1': 'https://example.test/waybill.jpg' });
       await imageUrls;
     });
+  });
+
+  it('does not mount or call AI review for a store outside the pilot', async () => {
+    vi.mocked(useAiPilotSettings).mockReturnValue({
+      error: null,
+      loading: false,
+      reload: vi.fn(),
+      settings: {
+        adminApplyEnabled: true,
+        adminVisible: true,
+        autoRunEnabled: true,
+        globalEnabled: true,
+        pilotStores: [{ enabled: true, storeId: 'pilot-store', storeName: '试点门店', workflowFlags: {} }],
+        workflowFlags: {},
+      },
+    });
+    vi.mocked(loadAdminArrivalDetail).mockResolvedValue(detail('viewed'));
+    vi.mocked(loadAdminArrivalImageUrls).mockResolvedValue({});
+
+    render(
+      <MemoryRouter initialEntries={['/app/admin/arrivals/report-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<AdminArrivalDetailPage />} path="/app/admin/arrivals/:reportId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: '测试门店' })).toBeInTheDocument();
+    expect(screen.queryByTestId('ai-entity-review')).not.toBeInTheDocument();
+    expect(ensureAiReview).not.toHaveBeenCalled();
   });
 });

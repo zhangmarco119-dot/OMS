@@ -4,7 +4,9 @@ import { Link } from 'react-router-dom';
 
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
+import { FeedbackBanner } from '../components/ui/Feedback';
 import { SegmentedControl } from '../components/ui/FormField';
+import { clearAiFollowUpTaskDraft, readAiFollowUpTaskDraft } from '../features/ai-review/aiReviewDrafts';
 import { ArrivalPeriodFilter } from '../features/arrivals/ArrivalPeriodFilter';
 import { createDefaultArrivalPeriod, resolveArrivalPeriod, type ArrivalPeriodValue } from '../features/arrivals/arrivalPeriod';
 import { weeklyDeadlineOptions } from '../features/task-templates/recurrence';
@@ -226,6 +228,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [scheduleContentEditorOpen, setScheduleContentEditorOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [aiFollowUpDraft, setAiFollowUpDraft] = useState(() => publisherOnly ? readAiFollowUpTaskDraft() : null);
   const [taskView, setTaskView] = useRememberedPageState<'active' | 'completed'>('task-view', 'active');
   const [completedPeriod, setCompletedPeriod] = useRememberedPageState<ArrivalPeriodValue>('completed-period', {
     ...createDefaultArrivalPeriod(localDateValue()),
@@ -250,6 +253,14 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     } catch (error) { setMessage(error instanceof Error ? error.message : '加载任务失败'); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!publisherOnly || !aiFollowUpDraft || templates.length === 0) return;
+    setCreationMode('single');
+    setStoreIds([aiFollowUpDraft.storeId]);
+    const compatible = templates.filter((template) => template.storeIds.includes(aiFollowUpDraft.storeId));
+    const preferred = compatible.find((template) => /复核|整改|点货|订货/.test(template.name)) ?? compatible[0];
+    if (preferred) setTemplateId(preferred.id);
+  }, [aiFollowUpDraft, publisherOnly, templates]);
   const selectedTemplate = useMemo(() => templates.find((item) => item.id === templateId) ?? null, [templateId, templates]);
   const selectedRecipient = recipients.find((item) => item.id === selectedProfileId);
   const selectedRecipientAudience: TaskAudience | null = selectedRecipient ? recipientAudience(selectedRecipient) : null;
@@ -354,6 +365,10 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       const inventoryLink = { categoryCodes: inventoryCategoryCodes, enabled: inventoryLinkEnabled };
       if (creationMode === 'single') await publishV2Tasks(supabase, templateId, storeIds, new Date(due).toISOString(), effectivePublishAt.toISOString(), profileIds, audiences, fields.managerReviewEnabled, relatedContent, inventoryLink);
       else await createV2TaskSchedule(supabase, { ...fields, completionMode: recipientMode, inventoryLink, profileIds, publishImmediately, relatedContent, storeIds, targetAudiences: audiences, templateId });
+      if (aiFollowUpDraft) {
+        clearAiFollowUpTaskDraft();
+        setAiFollowUpDraft(null);
+      }
       setMessage(creationMode === 'single'
         ? singlePublishMode === 'scheduled' ? `单次任务已设为 ${effectivePublishAt.toLocaleString('zh-CN')} 发布。` : '单次任务已发布。'
         : publishImmediately ? '周期任务已创建，并已立即发布首条任务。' : '周期任务已创建，将在首次设定的发布时间自动发布。');
@@ -536,6 +551,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
   return <PageShell eyebrow="门店运营系统 · 管理员" title={publisherOnly ? '任务发布' : '任务管理'} backTo="/app/workbench">
     {!publisherOnly ? <section className="grid grid-cols-2 gap-2"><Link className="flex min-h-12 items-center justify-center rounded-lg bg-brand-600 px-3 text-center font-bold text-white" to="/app/admin/task-templates">管理任务模板</Link><Link className="flex min-h-12 items-center justify-center rounded-lg bg-brand-600 px-3 text-center font-bold text-white" to="/app/admin/tasks/publish">任务发布</Link></section> : null}
+    {publisherOnly && aiFollowUpDraft ? <FeedbackBanner title="AI 复核任务草稿" tone="warning"><p><b>{aiFollowUpDraft.storeName} · {aiFollowUpDraft.title}</b></p><p className="mt-1">{aiFollowUpDraft.rationale}</p><p className="mt-1 text-xs">建议值：{typeof aiFollowUpDraft.suggestedValue === 'string' ? aiFollowUpDraft.suggestedValue : JSON.stringify(aiFollowUpDraft.suggestedValue)}</p><p className="mt-1 text-xs">系统已预选适用门店和可用模板。发布前请人工核对模板、接收人和截止时间；原单据没有被修改。</p><button className="ui-button-secondary mt-2 min-h-9 px-3 text-xs" onClick={() => { clearAiFollowUpTaskDraft(); setAiFollowUpDraft(null); }} type="button">放弃此草稿</button></FeedbackBanner> : null}
     {publisherOnly ? <section className="ui-card p-4">
       <h2 className="font-bold">发布任务</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">

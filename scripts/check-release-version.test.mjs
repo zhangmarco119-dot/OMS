@@ -22,12 +22,15 @@ describe('release version policy', () => {
     expect(() => validateVersionMetadata(version, '2.1.36')).toThrow(/不一致/);
   });
 
-  it('accepts an explicit patch release or the next minor release', () => {
+  it('accepts an explicit patch, next minor, or next major release', () => {
     const previous = parseDisplayedVersion("version: 'StoreHub v2.1.36'");
     expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.1.37'"))).not.toThrow();
     expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.1.40'"))).not.toThrow();
     expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.2.0'"))).not.toThrow();
+    expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v3.0.0'"))).not.toThrow();
     expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.1.36'"))).toThrow(/提升版本号/);
     expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v2.2.1'"))).toThrow(/提升版本号/);
+    expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v3.0.1'"))).toThrow(/提升版本号/);
+    expect(() => validateProductionRelease(previous, parseDisplayedVersion("version: 'StoreHub v4.0.0'"))).toThrow(/提升版本号/);
   });
 });

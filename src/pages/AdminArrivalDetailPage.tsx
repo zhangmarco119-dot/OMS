@@ -1,11 +1,15 @@
 import { Download, FileDown, LoaderCircle, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { ConfirmDialog } from '../components/ui/Actions';
 import { ImageViewer } from '../components/ui/ImageViewer';
+import { AiEntityReviewPanel } from '../features/ai-review/AiEntityReviewPanel';
+import { buildAiArrivalDraftPatch } from '../features/ai-review/arrivalAiDraftPatch';
+import { isAiWorkflowEnabledForStore } from '../features/ai-review/pilot';
+import { useAiPilotSettings } from '../features/ai-review/useAiPilotSettings';
 import {
   arrivalStatusClass,
   arrivalStatusLabel,
@@ -31,6 +35,8 @@ const auditLabel: Record<string, string> = {
 };
 
 export function AdminArrivalDetailPage() {
+  const navigate = useNavigate();
+  const aiPilot = useAiPilotSettings();
   const { reportId = '' } = useParams();
   const [detail, setDetail] = useState<AdminArrivalDetail | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -125,6 +131,8 @@ export function AdminArrivalDetailPage() {
   };
 
   const viewerImages = (detail?.images ?? []).flatMap((image) => image.signedUrl ? [{ alt: image.file_name || '到货图片', url: image.signedUrl }] : []);
+  const aiReviewEnabled = Boolean(detail && isAiWorkflowEnabledForStore(aiPilot.settings, detail.report.store_id, 'arrival_report'));
+  const aiApplyEnabled = Boolean(detail && isAiWorkflowEnabledForStore(aiPilot.settings, detail.report.store_id, 'arrival_report', true));
   const openViewer = (url: string) => {
     const index = viewerImages.findIndex((image) => image.url === url);
     if (index >= 0) setViewerIndex(index);
@@ -151,6 +159,22 @@ export function AdminArrivalDetailPage() {
           {detail.report.note ? <div className="mt-4 border-t border-slate-100 pt-4"><p className="text-xs font-semibold text-slate-500">备注</p><p className="mt-1 text-sm leading-6 text-slate-800">{detail.report.note}</p></div> : null}
           {detail.report.void_reason ? <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">作废原因：{detail.report.void_reason}</p> : null}
         </section>
+
+        <AiEntityReviewPanel
+          applyLabel="带入更正草稿"
+          canAdopt={(suggestion) => buildAiArrivalDraftPatch(suggestion, suggestion.draftPatch) !== null}
+          enabled={aiReviewEnabled}
+          entityId={detail.report.id}
+          onAdopt={aiApplyEnabled ? (suggestion, result, modifiedValue) => navigate(`/app/arrivals/${detail.report.id}/correct`, {
+            state: {
+              aiDraftPatch: buildAiArrivalDraftPatch(suggestion, Object.keys(result.draftPatch).length ? result.draftPatch : suggestion.draftPatch),
+              aiModifiedValue: modifiedValue,
+              aiSuggestionId: suggestion.id,
+            },
+          }) : undefined}
+          storeId={detail.report.store_id}
+          workflow="arrival_report"
+        />
 
         <ImageGroup images={detail.images.filter((image) => image.image_type === 'waybill')} loading={imageUrlsLoading} onView={openViewer} title="面单照片" />
 

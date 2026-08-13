@@ -23,15 +23,17 @@ export const validateVersionMetadata = (displayedVersion, packageVersion) => {
 };
 
 export const validateProductionRelease = (previousVersion, currentVersion) => {
-  if (currentVersion.major !== previousVersion.major) {
-    throw new Error('正式合并不得在未明确调整发布策略时改变主版本号。');
-  }
-  const isPatchRelease = currentVersion.minor === previousVersion.minor
-    && currentVersion.patch > previousVersion.patch;
-  const isMinorRelease = currentVersion.minor === previousVersion.minor + 1
+  const isMajorRelease = currentVersion.major === previousVersion.major + 1
+    && currentVersion.minor === 0
     && currentVersion.patch === 0;
-  if (!isPatchRelease && !isMinorRelease) {
-    throw new Error(`正式合并必须提升版本号：可从 ${previousVersion.value} 提升补丁版本，或提升为 ${previousVersion.major}.${previousVersion.minor + 1}.0。`);
+  const isPatchRelease = currentVersion.minor === previousVersion.minor
+    && currentVersion.major === previousVersion.major
+    && currentVersion.patch > previousVersion.patch;
+  const isMinorRelease = currentVersion.major === previousVersion.major
+    && currentVersion.minor === previousVersion.minor + 1
+    && currentVersion.patch === 0;
+  if (!isPatchRelease && !isMinorRelease && !isMajorRelease) {
+    throw new Error(`正式合并必须提升版本号：可从 ${previousVersion.value} 提升补丁版本、提升为 ${previousVersion.major}.${previousVersion.minor + 1}.0，或在明确的大版本发布中提升为 ${previousVersion.major + 1}.0.0。`);
   }
 };
 

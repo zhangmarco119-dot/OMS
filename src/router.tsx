@@ -5,6 +5,7 @@ import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { AccountPage } from './pages/AccountPage';
 import { AboutSystemPage } from './pages/AboutSystemPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
+import { AdminAiReviewPage } from './pages/AdminAiReviewPage';
 import { AdminAttendanceDetailPage } from './pages/AdminAttendanceDetailPage';
 import { AdminAttendancePage } from './pages/AdminAttendancePage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
@@ -112,6 +113,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'admin/products', element: <ProtectedRoute requireAdmin><AdminProductsPage /></ProtectedRoute> },
+      { path: 'admin/ai-review', element: <ProtectedRoute requireAdmin><AdminAiReviewPage /></ProtectedRoute> },
       { path: 'admin/products/correction-task', element: <ProtectedRoute requireAdmin><AdminProductCorrectionTaskPage /></ProtectedRoute> },
       { path: 'admin/users', element: <ProtectedRoute requireAdmin><AdminUsersPage /></ProtectedRoute> },
       {

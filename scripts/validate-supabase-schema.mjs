@@ -121,6 +121,7 @@ const requiredTables = [
   'dingtalk_employee_directory', 'dingtalk_employee_bindings', 'attendance_daily_records', 'attendance_punch_records',
   'attendance_sync_jobs', 'attendance_sync_failures', 'attendance_audit_logs', 'attendance_sync_day_states',
   'pos_sales_integrations', 'pos_sales_sync_jobs', 'pos_sales_tickets', 'payroll_store_revenue_inputs',
+  'ai_pilot_stores', 'ai_review_runs', 'ai_review_queue', 'ai_suggestions', 'ai_suggestion_events',
 ];
 
 const storeScopedTables = [
@@ -136,6 +137,7 @@ const storeScopedTables = [
   'v2_task_images',
   'attendance_daily_records', 'attendance_punch_records', 'attendance_sync_day_states',
   'pos_sales_integrations', 'pos_sales_sync_jobs', 'pos_sales_tickets', 'payroll_store_revenue_inputs',
+  'ai_pilot_stores', 'ai_review_runs', 'ai_review_queue', 'ai_suggestions', 'ai_suggestion_events',
 ];
 
 const requiredPolicies = [
@@ -189,6 +191,8 @@ const requiredPolicies = [
   'attendance_sync_jobs_select_admin', 'attendance_sync_failures_select_admin', 'attendance_audit_logs_select_admin',
   'attendance_sync_day_states_admin_read',
   'pos_sales_integrations_admin_all', 'pos_sales_sync_jobs_admin_read', 'payroll_store_revenue_inputs_admin_all',
+  'ai_pilot_stores_admin_select', 'ai_review_runs_admin_select',
+  'ai_suggestions_admin_select', 'ai_suggestion_events_admin_select',
 ];
 
 const requiredFunctions = [
@@ -244,6 +248,12 @@ const requiredFunctions = [
   'acknowledge_v2_notice',
   'archive_v2_notice', 'delete_v2_notice', 'admin_v2_analytics',
   'configure_pos_sales_integration', 'replace_pos_sales_day', 'replace_pos_sales_range', 'save_payroll_store_revenue_input',
+  'ai_review_is_enabled', 'can_admin_access_ai_store', 'admin_get_ai_settings',
+  'admin_save_ai_settings', 'admin_save_ai_store_scope', 'configure_ai_review_automation',
+  'admin_ensure_ai_review', 'admin_rerun_ai_review', 'admin_ai_check_product_draft',
+  'admin_ai_list_reviews', 'admin_ai_get_review', 'admin_ai_skip_review',
+  'admin_ai_act_on_suggestion', 'admin_ai_backfill_pilot',
+  'claim_ai_review_jobs', 'claim_ai_review_run', 'complete_ai_review_run', 'fail_ai_review_run',
 ];
 
 const failures = [];

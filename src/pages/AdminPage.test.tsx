@@ -136,6 +136,52 @@ describe('AdminPage account management', () => {
     expect(await screen.findByRole('dialog', { name: '操作成功' })).toHaveTextContent('货品已创建');
   });
 
+  it('applies an AI center patch to the matching existing product draft', async () => {
+    const product = makeProduct();
+    vi.mocked(loadAdminProductsData).mockResolvedValue({ products: [product], selectedStoreId: store.id, stores: [store] });
+    render(<MemoryRouter initialEntries={[{
+      pathname: '/app/admin/products',
+      state: { aiDraftPatch: { name: '标准原味酸奶' }, aiEntityId: product.id, aiSuggestionId: 'suggestion-1', aiStoreId: store.id },
+    }]} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    expect(await screen.findByDisplayValue('标准原味酸奶')).toBeInTheDocument();
+    expect(screen.getByText(/AI 建议已填入对应货品草稿/)).toBeInTheDocument();
+  });
+
+  it('does not turn a missing AI target product into a new-product draft', async () => {
+    render(<MemoryRouter initialEntries={[{
+      pathname: '/app/admin/products',
+      state: { aiDraftPatch: { name: '不应新建的货品' }, aiEntityId: 'missing-product', aiSuggestionId: 'suggestion-1', aiStoreId: store.id },
+    }]} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    expect(await screen.findByText(/AI 对应的货品已不存在/)).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('不应新建的货品')).not.toBeInTheDocument();
+  });
+
+  it('locates an existing product suggestion without writing product_id into a product draft', async () => {
+    const current = makeProduct();
+    const existing = makeProduct({ id: '00000000-0000-4000-8000-000000000020', name: '已有标准酸奶', spec: '500g' });
+    vi.mocked(loadAdminProductsData).mockResolvedValue({ products: [current, existing], selectedStoreId: store.id, stores: [store] });
+
+    render(<MemoryRouter initialEntries={[{
+      pathname: '/app/admin/products',
+      state: {
+        aiEntityId: current.id,
+        aiExistingProductId: existing.id,
+        aiSourceWorkflow: 'product',
+        aiSuggestionId: 'suggestion-existing',
+        aiStoreId: store.id,
+      },
+    }]} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminPage section="products" /></MemoryRouter>);
+
+    expect(await screen.findByText(/已定位已有货品“已有标准酸奶”/)).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: '检索货品' })).toHaveValue('已有标准酸奶');
+    expect(screen.getAllByDisplayValue('已有标准酸奶')).toHaveLength(2);
+    expect(screen.queryByDisplayValue('原味酸奶')).not.toBeInTheDocument();
+    expect(screen.getByText(/没有写入 product_id/)).toBeInTheDocument();
+    expect(createProduct).not.toHaveBeenCalled();
+  });
+
   it('shows a detailed modal report after a mixed product import', async () => {
     vi.mocked(parseProductImportFile).mockResolvedValue([
       { category_code: 'other_food', count_unit: '杯', name: '成功货品', product_code: null, row_number: 2, sort_order: 1, spec: '100g' },

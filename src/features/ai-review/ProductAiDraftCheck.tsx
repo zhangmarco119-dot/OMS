@@ -72,6 +72,7 @@ const existingProductIdFromSuggestion = (suggestion: AiSuggestion) => (
 );
 
 export function ProductAiDraftCheck({
+  autoRunEnabled,
   draft,
   enabled,
   onApply,
@@ -80,6 +81,7 @@ export function ProductAiDraftCheck({
   productId = null,
   storeId,
 }: {
+  autoRunEnabled: boolean;
   draft: ProductDraft;
   enabled: boolean;
   onApply: (patch: Partial<ProductDraft>) => void;
@@ -106,7 +108,7 @@ export function ProductAiDraftCheck({
   const complete = Boolean(storeId && draft.name.trim() && draft.spec.trim() && draft.count_unit.trim());
 
   useEffect(() => {
-    if (auth.profile?.role !== 'admin' || !supabase || !enabled || !complete) {
+    if (auth.profile?.role !== 'admin' || !supabase || !enabled || !autoRunEnabled || !complete) {
       setState('idle');
       setDetail(null);
       reviewedFingerprint.current = null;
@@ -134,7 +136,7 @@ export function ProductAiDraftCheck({
       });
     }, 1000);
     return () => { window.clearTimeout(timer); generation.current += 1; };
-  }, [auth.profile?.role, complete, enabled, fingerprint, productId, storeId]);
+  }, [auth.profile?.role, autoRunEnabled, complete, enabled, fingerprint, productId, storeId]);
 
   useEffect(() => {
     if (auth.profile?.role !== 'admin' || !enabled || !detail || !supabase || !['queued', 'running'].includes(detail.run.status) || state === 'skipped') return undefined;
@@ -210,6 +212,7 @@ export function ProductAiDraftCheck({
 
   return <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/40 p-3" data-testid={`product-ai-check-${productId ?? 'new'}`}>
     <div className="flex items-center justify-between gap-2"><p className="flex items-center gap-2 text-sm font-bold text-violet-900"><Bot className="h-4 w-4" />AI 草稿检查</p><StatusBadge tone={state === 'failed' ? 'danger' : state === 'ready' && detail?.run.status === 'completed' ? 'success' : 'neutral'}>{state === 'waiting' || ['queued', 'running'].includes(detail?.run.status ?? '') ? '自动检查中' : state === 'skipped' ? '已跳过' : state === 'failed' ? '检查失败' : '检查完成'}</StatusBadge></div>
+    {enabled && !autoRunEnabled ? <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">AI 自动分析已关闭，可在 AI 质检中心重新开启。</p> : null}
     {message ? <FeedbackBanner className="mt-2" tone={state === 'failed' ? 'warning' : 'info'}>{message}</FeedbackBanner> : null}
     {(state === 'waiting' || ['queued', 'running'].includes(detail?.run.status ?? '')) && state !== 'skipped' ? <div className="mt-2"><p className="text-xs leading-5 text-slate-600">字段稳定 1 秒后已自动运行。AI 较慢时仍可直接保存。</p><button className="ui-button-secondary mt-2 min-h-9 px-3 text-xs" onClick={() => void skip()} type="button"><SkipForward className="h-4 w-4" />跳过本次检查并继续保存</button></div> : null}
     {state === 'skipped' ? <p className="mt-2 text-xs text-slate-600">{onSkipAndSave ? '已跳过本次 AI 检查，正在按原流程保存。' : '已跳过本次 AI 检查，原创建或保存按钮仍可正常使用。'}</p> : null}

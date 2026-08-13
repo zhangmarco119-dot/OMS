@@ -88,7 +88,7 @@ const dependencies = (
   return {
     dependencies: {
       anonClient: () => userClient as unknown as HandlerDependencies['serviceClient'],
-      deepSeekClient: () => modelClient(options.modelStatus),
+      deepSeekClient: async () => modelClient(options.modelStatus),
       serviceClient: serviceClient as unknown as HandlerDependencies['serviceClient'],
       workerSecret: 'worker-test-secret',
     } satisfies HandlerDependencies,

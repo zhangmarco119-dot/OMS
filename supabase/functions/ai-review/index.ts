@@ -19,16 +19,38 @@ const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false },
 });
 
+const loadProviderConfig = async () => {
+  try {
+    const { data, error } = await serviceClient.rpc('service_get_ai_provider_config');
+    if (error || !data) return null;
+    return data as {
+      provider?: string;
+      api_key?: string;
+      base_url?: string;
+      model?: string;
+    };
+  } catch {
+    return null;
+  }
+};
+
 const handler = createAiReviewHandler({
   anonClient: (authorization) => createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false },
   }),
-  deepSeekClient: () => new DeepSeekClient({
-    apiKey: requiredEnv('DEEPSEEK_API_KEY'),
-    baseUrl: optionalEnv('DEEPSEEK_API_BASE_URL'),
-    timeoutMs: Number(optionalEnv('DEEPSEEK_TIMEOUT_MS')) || undefined,
-  }),
+  deepSeekClient: async () => {
+    const config = await loadProviderConfig();
+    const apiKey = config?.api_key?.trim() || optionalEnv('DEEPSEEK_API_KEY');
+    if (!apiKey) throw new Error('Missing DEEPSEEK_API_KEY');
+    return new DeepSeekClient({
+      apiKey,
+      baseUrl: config?.base_url || optionalEnv('DEEPSEEK_API_BASE_URL'),
+      model: config?.model || undefined,
+      provider: config?.provider === 'openai' ? 'openai' : 'deepseek',
+      timeoutMs: Number(optionalEnv('DEEPSEEK_TIMEOUT_MS')) || undefined,
+    });
+  },
   serviceClient,
   workerSecret: optionalEnv('AI_REVIEW_WORKER_SECRET'),
 });

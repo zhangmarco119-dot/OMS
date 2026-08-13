@@ -671,6 +671,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
             <h2 className="mb-2 text-base font-bold text-slate-900">新增货品</h2>
             <ProductDraftForm draft={newProduct} onChange={setNewProduct} />
             <ProductAiDraftCheck
+              autoRunEnabled={Boolean(aiPilot.settings?.autoRunEnabled)}
               draft={newProduct}
               enabled={aiPilotEnabled}
               onApply={(patch) => setNewProduct((current) => ({ ...current, ...patch }))}
@@ -696,6 +697,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
                   onChange={(draft) => setProductDrafts((current) => ({ ...current, [product.id]: draft }))}
                 />
                 <ProductAiDraftCheck
+                  autoRunEnabled={Boolean(aiPilot.settings?.autoRunEnabled)}
                   draft={productDrafts[product.id] ?? productToDraft(product)}
                   enabled={aiPilotEnabled && productDraftChanged(product, productDrafts[product.id] ?? productToDraft(product))}
                   onApply={(patch) => setProductDrafts((current) => ({ ...current, [product.id]: { ...(current[product.id] ?? productToDraft(product)), ...patch } }))}

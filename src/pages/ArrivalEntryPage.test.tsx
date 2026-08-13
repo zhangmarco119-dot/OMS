@@ -102,7 +102,7 @@ describe('ArrivalEntryPage role boundary', () => {
     expect(screen.getByText(/草稿已更新为当前时间/)).toBeInTheDocument();
   });
 
-  it('keeps the submission confirmation above the bottom navigation', () => {
+  it('requires new-product creation for unmatched items instead of submit-only', () => {
     setRole('staff');
     setReadyDraft({
       form: {
@@ -122,13 +122,12 @@ describe('ArrivalEntryPage role boundary', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '提交上报' }));
 
-    expect(screen.getByRole('dialog', { name: '发现未匹配货品' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '仅提交上报' }));
-
-    const dialog = screen.getByRole('dialog', { name: '确认提交到货上报' });
+    const dialog = screen.getByRole('dialog', { name: '发现未匹配货品' });
+    expect(dialog).toBeInTheDocument();
     expect(dialog).toHaveClass('ui-dialog-overlay');
     expect(dialog.firstElementChild).toHaveClass('ui-dialog-panel');
-    expect(screen.getByRole('button', { name: '确认提交' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '仅提交上报' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '提交并申请新增' })).toBeInTheDocument();
   });
 
   it('shows missing request fields inside the dialog and submits once after completion', async () => {
@@ -184,6 +183,27 @@ describe('ArrivalEntryPage role boundary', () => {
 
     expect(screen.queryByRole('dialog', { name: '发现未匹配货品' })).not.toBeInTheDocument();
     expect(screen.getByText(/货品列表中已有货品“原味 酸奶”/)).toBeInTheDocument();
+  });
+
+  it('locks the unit to the matched product library unit', () => {
+    setRole('staff');
+    setReadyDraft({
+      form: {
+        arrivalDate: '2026-08-02',
+        arrivalTime: '12:42',
+        carrierName: '',
+        note: '',
+        trackingNo: '',
+        items: [{ id: '00000000-0000-4000-8000-000000000201', isUnmatchedProduct: false, note: '', productId: 'product-1', productName: '原味酸奶', quantity: '1', sortOrder: 0, spec: '120g', unit: '杯' }],
+      },
+      products: [{ category_code: 'other_food', count_unit: '杯', created_at: '', id: 'product-1', is_active: true, name: '原味酸奶', product_code: null, sort_order: 1, spec: '120g', store_id: '00000000-0000-4000-8000-000000000101', updated_at: '' }],
+      images: [],
+    });
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><ArrivalEntryPage /></MemoryRouter>);
+
+    const unitInput = screen.getByLabelText('单位');
+    expect(unitInput).toBeDisabled();
+    expect(unitInput).toHaveValue('杯');
   });
 
   it('keeps the administrator outside the store execution page', () => {

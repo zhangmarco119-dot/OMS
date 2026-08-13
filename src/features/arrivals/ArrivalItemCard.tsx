@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ProductRow } from '../../services/arrivals.service';
 import type { ArrivalImageType, ArrivalImageWithUrl } from '../../services/arrival-images.service';
 import { ArrivalImageSection } from './ArrivalImageSection';
-import { isProhibitedArrivalUnit, type ArrivalDraftItem } from './arrivalForm';
+import type { ArrivalDraftItem } from './arrivalForm';
 
 interface ArrivalItemCardProps {
   canRemove: boolean;
@@ -22,6 +22,8 @@ interface ArrivalItemCardProps {
   ) => Promise<unknown>;
   products: ProductRow[];
 }
+
+const normalizeArrivalName = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('zh-CN');
 
 const useDebouncedValue = (value: string, delay: number) => {
   const [debounced, setDebounced] = useState(value);
@@ -54,6 +56,8 @@ export function ArrivalItemCard({
     ).slice(0, 6);
   }, [products, query]);
 
+  const matchedProduct = item.productId ? products.find((product) => product.id === item.productId) : null;
+
   const selectProduct = (product: ProductRow) => {
     onChange({
       ...item,
@@ -61,19 +65,31 @@ export function ArrivalItemCard({
       productId: product.id,
       productName: product.name,
       spec: product.spec,
-      unit: isProhibitedArrivalUnit(product.count_unit) ? '' : product.count_unit,
+      unit: product.count_unit,
     });
     setSearchOpen(false);
   };
 
   const updateProductName = (productName: string) => {
-    onChange({
-      ...item,
-      isUnmatchedProduct: true,
-      productId: null,
-      productName,
-      spec: '',
-    });
+    const exactMatch = products.find((product) => normalizeArrivalName(product.name) === normalizeArrivalName(productName));
+    if (exactMatch) {
+      onChange({
+        ...item,
+        isUnmatchedProduct: false,
+        productId: exactMatch.id,
+        productName: exactMatch.name,
+        spec: exactMatch.spec,
+        unit: exactMatch.count_unit,
+      });
+    } else {
+      onChange({
+        ...item,
+        isUnmatchedProduct: true,
+        productId: null,
+        productName,
+        spec: '',
+      });
+    }
     setSearchOpen(true);
   };
 
@@ -136,7 +152,7 @@ export function ArrivalItemCard({
       {item.productId ? (
         <p className="mt-2 rounded-md bg-brand-50 px-3 py-1.5 text-sm text-brand-700">已匹配本店货品 · {item.spec || '无规格'}</p>
       ) : item.productName.trim() ? (
-        <p className="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800">未匹配正式货品，仅用于本次到货记录。</p>
+        <p className="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800">未匹配本店货品，提交前需申请新增货品。</p>
       ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -157,16 +173,21 @@ export function ArrivalItemCard({
           单位
           <input
             className="ui-input mt-1"
+            disabled={Boolean(matchedProduct)}
             onChange={(event) => onChange({ ...item, unit: event.target.value })}
             placeholder="瓶 / 袋 / 盒 / 个"
-            value={item.unit}
+            value={matchedProduct ? matchedProduct.count_unit : item.unit}
           />
         </label>
       </div>
 
-      <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium leading-5 text-amber-900">
-        请按货品最小单位计数，例如瓶、袋、盒、个、杯、克或毫升；禁止填写箱、整箱、件、整件。
-      </p>
+      {matchedProduct ? (
+        <p className="mt-2 rounded-md bg-brand-50 px-2.5 py-2 text-xs font-medium leading-5 text-brand-800">已按货品库计量单位“{matchedProduct.count_unit}”计数。</p>
+      ) : (
+        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium leading-5 text-amber-900">
+          请按货品最小单位计数，例如瓶、袋、盒、个、杯、克或毫升；禁止填写箱、整箱、件、整件。
+        </p>
+      )}
 
       <label className="mt-3 block text-sm font-semibold text-slate-700">
         产品备注（选填）

@@ -90,15 +90,12 @@ export interface AiPilotSettings {
   workflowFlags: Partial<Record<AiWorkflow, boolean>>;
 }
 
-export type AiProvider = 'deepseek' | 'openai';
-
 export interface AiProviderConfig {
   apiKeyConfigured: boolean;
   apiKeyLast4: string | null;
   baseUrl: string;
   configuredAt: string;
   model: string;
-  provider: AiProvider;
 }
 
 const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value)
@@ -168,19 +165,18 @@ export const loadAiProviderConfig = async (client: Client): Promise<AiProviderCo
     baseUrl: textValue(data.base_url),
     configuredAt: textValue(data.configured_at),
     model: textValue(data.model, 'deepseek-v4-pro'),
-    provider: data.provider === 'openai' ? 'openai' : 'deepseek',
   };
 };
 
 export const saveAiProviderConfig = async (
   client: Client,
-  input: { provider: AiProvider; model: string; apiKey?: string | null; clearApiKey?: boolean },
+  input: { baseUrl: string; model: string; apiKey?: string | null; clearApiKey?: boolean },
 ): Promise<AiProviderConfig> => {
   const data = asRecord(await callRpc(client, 'admin_save_ai_provider_config', {
     p_api_key: input.apiKey ?? null,
+    p_base_url: input.baseUrl,
     p_clear_api_key: input.clearApiKey === true,
     p_model: input.model,
-    p_provider: input.provider,
   }));
   return {
     apiKeyConfigured: data.api_key_configured === true,
@@ -188,8 +184,17 @@ export const saveAiProviderConfig = async (
     baseUrl: textValue(data.base_url),
     configuredAt: textValue(data.configured_at),
     model: textValue(data.model, 'deepseek-v4-pro'),
-    provider: data.provider === 'openai' ? 'openai' : 'deepseek',
   };
+};
+
+export const listAiProviderModels = async (client: Client): Promise<string[]> => {
+  const { data, error } = await client.functions.invoke('ai-review', {
+    body: { action: 'list-models' },
+  });
+  if (error) throw new Error(error.message);
+  const payload = asRecord(data);
+  return (Array.isArray(payload.models) ? payload.models : [])
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
 };
 
 export const saveAiSettings = async (

@@ -24,7 +24,6 @@ const loadProviderConfig = async () => {
     const { data, error } = await serviceClient.rpc('service_get_ai_provider_config');
     if (error || !data) return null;
     return data as {
-      provider?: string;
       api_key?: string;
       base_url?: string;
       model?: string;
@@ -47,7 +46,6 @@ const handler = createAiReviewHandler({
       apiKey,
       baseUrl: config?.base_url || optionalEnv('DEEPSEEK_API_BASE_URL'),
       model: config?.model || undefined,
-      provider: config?.provider === 'openai' ? 'openai' : 'deepseek',
       timeoutMs: Number(optionalEnv('DEEPSEEK_TIMEOUT_MS')) || undefined,
     });
   },

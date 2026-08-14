@@ -10,6 +10,15 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-08-14',
     highlights: [
+      '修复 AI 自动分析关闭后后台队列仍可能继续调用模型的问题，关闭后停止所有 AI 解析与 token 消耗。',
+      '模型配置改为按 API Key 所属服务动态获取可选模型，不再限定 DeepSeek 或 OpenAI 单一服务商。',
+    ],
+    title: '修复 AI 自动开关并支持按 Key 选择模型',
+    version: 'StoreHub v3.0.5',
+  },
+  {
+    date: '2026-08-14',
+    highlights: [
       'AI 质检中心新增自动分析总开关，关闭后不再自动调用模型 API，管理员仍可手动重新检查。',
       '新增模型与 API Key 配置入口，支持 DeepSeek 与 OpenAI 常用模型切换；API Key 仅保存在服务端，不会回显给浏览器。',
     ],

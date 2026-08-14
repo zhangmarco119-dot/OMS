@@ -12,6 +12,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
   actOnAiSuggestion,
+  listAiProviderModels,
   listAiReviews,
   loadAiProviderConfig,
   loadAiReview,
@@ -19,7 +20,6 @@ import {
   saveAiProviderConfig,
   saveAiSettings,
   skipAiReview,
-  type AiProvider,
   type AiProviderConfig,
   type AiReviewDetail,
   type AiReviewRun,
@@ -68,11 +68,6 @@ const existingProductIdFromSuggestion = (suggestion: AiSuggestion) => (
     : null
 );
 
-const modelOptions: Record<AiProvider, string[]> = {
-  deepseek: ['deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'],
-  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1'],
-};
-
 const canAdoptSuggestion = (workflow: AiWorkflow, suggestion: AiSuggestion) => {
   if (workflow === 'arrival_report') return buildAiArrivalDraftPatch(suggestion, suggestion.draftPatch) !== null;
   if (workflow === 'product' || workflow === 'product_creation_request') {
@@ -100,8 +95,10 @@ export function AdminAiReviewPage() {
   const [detailState, setDetailState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [busySuggestionId, setBusySuggestionId] = useState<string | null>(null);
   const [providerConfig, setProviderConfig] = useState<AiProviderConfig | null>(null);
-  const [providerForm, setProviderForm] = useState<{ apiKey: string; model: string; provider: AiProvider }>({ apiKey: '', model: 'deepseek-v4-pro', provider: 'deepseek' });
+  const [providerForm, setProviderForm] = useState<{ apiKey: string; baseUrl: string; model: string }>({ apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-pro' });
   const [providerMessage, setProviderMessage] = useState('');
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
   const [savingAuto, setSavingAuto] = useState(false);
   const [savingProvider, setSavingProvider] = useState(false);
 
@@ -129,7 +126,7 @@ export function AdminAiReviewPage() {
     void loadAiProviderConfig(supabase)
       .then((config) => {
         setProviderConfig(config);
-        setProviderForm((current) => ({ ...current, model: config.model, provider: config.provider }));
+        setProviderForm((current) => ({ ...current, baseUrl: config.baseUrl, model: config.model }));
       })
       .catch(() => undefined);
   }, [auth.profile?.role]);
@@ -163,8 +160,8 @@ export function AdminAiReviewPage() {
     try {
       const config = await saveAiProviderConfig(supabase, {
         apiKey: providerForm.apiKey.trim() || null,
+        baseUrl: providerForm.baseUrl.trim(),
         model: providerForm.model,
-        provider: providerForm.provider,
       });
       setProviderConfig(config);
       setProviderForm((current) => ({ ...current, apiKey: '' }));
@@ -182,9 +179,9 @@ export function AdminAiReviewPage() {
     setProviderMessage('');
     try {
       const config = await saveAiProviderConfig(supabase, {
+        baseUrl: providerForm.baseUrl.trim(),
         clearApiKey: true,
         model: providerForm.model,
-        provider: providerForm.provider,
       });
       setProviderConfig(config);
       setProviderMessage('API Key 已清除。');
@@ -192,6 +189,22 @@ export function AdminAiReviewPage() {
       setProviderMessage(error instanceof Error ? error.message : '清除 API Key 失败。');
     } finally {
       setSavingProvider(false);
+    }
+  };
+
+  const fetchModels = async () => {
+    if (!supabase) return;
+    setLoadingModels(true);
+    setProviderMessage('');
+    try {
+      const models = await listAiProviderModels(supabase);
+      setModelOptions(models);
+      setProviderForm((current) => ({ ...current, model: models.includes(current.model) ? current.model : (models[0] ?? current.model) }));
+      setProviderMessage(models.length > 0 ? '已获取模型列表，请选择要使用的模型后保存。' : '该 API Key 未返回可用模型。');
+    } catch (error) {
+      setProviderMessage(error instanceof Error ? error.message : '获取模型列表失败。');
+    } finally {
+      setLoadingModels(false);
     }
   };
 
@@ -335,32 +348,24 @@ export function AdminAiReviewPage() {
         >{aiPilot.settings?.autoRunEnabled ? '已开启' : '已关闭'}</button>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <label className="text-xs font-semibold text-slate-600">模型服务商
-          <select className="ui-input mt-1 min-h-10 text-sm" onChange={(event) => setProviderForm((current) => ({ ...current, provider: event.target.value as AiProvider, model: modelOptions[event.target.value as AiProvider][0] }))} value={providerForm.provider}>
-            <option value="deepseek">DeepSeek</option>
-            <option value="openai">OpenAI</option>
-          </select>
-        </label>
+      <label className="mt-3 block text-xs font-semibold text-slate-600">接口地址 Base URL
+        <input className="ui-input mt-1" onChange={(event) => setProviderForm((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.deepseek.com" value={providerForm.baseUrl} />
+      </label>
+
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <label className="text-xs font-semibold text-slate-600">模型
           <select className="ui-input mt-1 min-h-10 text-sm" onChange={(event) => setProviderForm((current) => ({ ...current, model: event.target.value }))} value={providerForm.model}>
-            {modelOptions[providerForm.provider].map((model) => <option key={model} value={model}>{model}</option>)}
+            {modelOptions.length === 0 ? <option value={providerForm.model}>{providerForm.model}</option> : modelOptions.map((model) => <option key={model} value={model}>{model}</option>)}
           </select>
+        </label>
+        <label className="text-xs font-semibold text-slate-600">API Key
+          <input className="ui-input mt-1" onChange={(event) => setProviderForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={providerConfig?.apiKeyConfigured ? `已配置，尾号 ${providerConfig.apiKeyLast4}` : '请输入 API Key'} type="password" value={providerForm.apiKey} />
         </label>
       </div>
 
-      <label className="mt-2 block text-xs font-semibold text-slate-600">API Key
-        <input
-          className="ui-input mt-1"
-          onChange={(event) => setProviderForm((current) => ({ ...current, apiKey: event.target.value }))}
-          placeholder={providerConfig?.apiKeyConfigured ? `已配置，尾号 ${providerConfig.apiKeyLast4}` : '请输入 sk- 开头的 API Key'}
-          type="password"
-          value={providerForm.apiKey}
-        />
-      </label>
-
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button className="ui-button-primary min-h-9 px-3 text-xs" disabled={savingProvider} onClick={() => void saveProvider()} type="button">保存模型与 Key</button>
+        <button className="ui-button-primary min-h-9 px-3 text-xs" disabled={savingProvider} onClick={() => void saveProvider()} type="button">保存 Key 与地址</button>
+        <button className="ui-button-secondary min-h-9 px-3 text-xs" disabled={savingProvider || loadingModels} onClick={() => void fetchModels()} type="button">{loadingModels ? '获取中…' : '获取模型列表'}</button>
         {providerConfig?.apiKeyConfigured ? <button className="ui-button-secondary min-h-9 px-3 text-xs" disabled={savingProvider} onClick={() => void clearApiKey()} type="button">清除 Key</button> : null}
         {providerMessage ? <span className="text-xs text-slate-500">{providerMessage}</span> : null}
       </div>

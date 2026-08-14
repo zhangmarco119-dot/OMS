@@ -196,6 +196,24 @@ const authorizeWorker = async (request: Request, dependencies: HandlerDependenci
   return !verification.error && verification.data === true;
 };
 
+const listProviderModels = async (dependencies: HandlerDependencies) => {
+  const config = await rpcData<{ base_url?: string; api_key?: string }>(
+    dependencies.serviceClient.rpc('service_get_ai_provider_config'),
+    'Unable to load AI provider configuration.',
+  );
+  const baseUrl = (config.base_url || 'https://api.deepseek.com').trim().replace(/\/+$/, '');
+  const apiKey = config.api_key?.trim();
+  if (!apiKey) throw new Error('尚未配置 API Key，无法获取模型列表。');
+  const response = await fetch(`${baseUrl}/models`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!response.ok) throw new Error(`列出模型失败：HTTP ${response.status}`);
+  const payload = (await response.json()) as { data?: Array<{ id?: string }> };
+  return (Array.isArray(payload.data) ? payload.data : [])
+    .map((entry) => entry.id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+};
+
 const draftToRpc = (draft: DraftProductInput) => ({
   categoryCode: draft.categoryCode,
   countUnit: draft.countUnit,
@@ -225,6 +243,11 @@ export const createAiReviewHandler = (dependencies: HandlerDependencies) => asyn
     }
 
     const { userClient } = await requireAdmin(request, dependencies);
+    if (action === 'list-models') {
+      assertExactObjectKeys(payload, ['action']);
+      const models = await listProviderModels(dependencies);
+      return json({ models });
+    }
     if (action === 'ensure') {
       assertExactObjectKeys(payload, ['action', 'storeId', 'workflow', 'entityId']);
       const workflow = parseWorkflow(payload.workflow);

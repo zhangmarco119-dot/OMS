@@ -29,6 +29,7 @@ const statusLabel = {
 
 export function AiEntityReviewPanel({
   applyLabel,
+  autoRunEnabled = true,
   canAdopt,
   enabled = true,
   entityId,
@@ -38,6 +39,7 @@ export function AiEntityReviewPanel({
   workflow,
 }: {
   applyLabel?: string;
+  autoRunEnabled?: boolean;
   canAdopt?: (suggestion: AiSuggestion) => boolean;
   enabled?: boolean;
   entityId: string;
@@ -61,7 +63,7 @@ export function AiEntityReviewPanel({
   }, []);
 
   const load = useCallback(async () => {
-    if (!enabled || !supabase || !entityId || !storeId) return;
+    if (!enabled || !autoRunEnabled || !supabase || !entityId || !storeId) return;
     const currentSequence = ++sequence.current;
     setPhase('loading');
     setMessage(null);
@@ -75,7 +77,7 @@ export function AiEntityReviewPanel({
       setPhase('error');
       setMessage(error instanceof Error ? error.message : 'AI 质检暂时不可用。');
     }
-  }, [enabled, entityId, refreshRun, storeId, workflow]);
+  }, [autoRunEnabled, enabled, entityId, refreshRun, storeId, workflow]);
 
   useEffect(() => { void load(); return () => { sequence.current += 1; }; }, [load]);
 
@@ -88,6 +90,13 @@ export function AiEntityReviewPanel({
   }, [detail, enabled, refreshRun]);
 
   if (!enabled) return null;
+
+  if (!autoRunEnabled) {
+    return <SectionCard className="p-4" data-testid="ai-entity-review">
+      <SectionHeader description="AI 只检查结构化字段，不会影响原业务记录。" icon={Bot} title={title} />
+      <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">AI 自动分析已关闭，本次打开不会发起 AI 检查。</p>
+    </SectionCard>;
+  }
 
   const act = async (suggestion: AiSuggestion, action: 'apply_to_draft' | 'ignore' | 'restore', modifiedValue?: Json) => {
     if (!supabase) return;

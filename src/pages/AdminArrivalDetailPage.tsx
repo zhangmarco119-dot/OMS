@@ -162,6 +162,7 @@ export function AdminArrivalDetailPage() {
 
         <AiEntityReviewPanel
           applyLabel="带入更正草稿"
+          autoRunEnabled={Boolean(aiPilot.settings?.autoRunEnabled)}
           canAdopt={(suggestion) => buildAiArrivalDraftPatch(suggestion, suggestion.draftPatch) !== null}
           enabled={aiReviewEnabled}
           entityId={detail.report.id}

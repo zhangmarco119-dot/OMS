@@ -4,7 +4,7 @@ import { PageShell } from '../components/layout/PageShell';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
-import { loadManagerStoreStaff, managerCreatePayrollPenalty } from '../services/payroll.service';
+import { loadManagerStoreStaff, managerCreatePayrollPenalty, uploadPayrollEvidence } from '../services/payroll.service';
 
 type PenaltyLevel = 'reminder' | 'warning' | 'formal_warning' | 'serious';
 
@@ -24,6 +24,7 @@ export function ManagerEmployeeManagementPage() {
   const [deduction, setDeduction] = useState('3');
   const [amount, setAmount] = useState('0');
   const [reason, setReason] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -51,7 +52,7 @@ export function ManagerEmployeeManagementPage() {
     setBusy(true);
     setMessage('');
     try {
-      await managerCreatePayrollPenalty(supabase, {
+      const penalty = await managerCreatePayrollPenalty(supabase, {
         profileId,
         eventDate: date,
         reason: reason.trim(),
@@ -59,8 +60,17 @@ export function ManagerEmployeeManagementPage() {
         eventLevel: level,
         performanceDeduction: Number(deduction) || 0,
       });
+      const failed: string[] = [];
+      for (const file of files) {
+        try {
+          await uploadPayrollEvidence(supabase, { file, ownerId: auth.profile.id, entityId: penalty.id });
+        } catch {
+          failed.push(file.name);
+        }
+      }
       setReason('');
-      setMessage('罚单已发布，已通知员工和管理员。');
+      setFiles([]);
+      setMessage(failed.length ? `罚单已发布，但 ${failed.length} 张说明图片上传失败。` : '罚单已发布，已通知员工和管理员。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '发布失败。');
     } finally {
@@ -94,6 +104,7 @@ export function ManagerEmployeeManagementPage() {
         <label className="text-sm font-semibold text-slate-700">罚款金额<input className="ui-input mt-1" inputMode="decimal" min="0" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
       </div>
       <label className="mt-2 block text-sm font-semibold text-slate-700">处罚原因<textarea className="ui-input mt-1 min-h-20 py-2" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="请填写具体原因" /></label>
+      <label className="mt-2 block text-sm font-semibold text-slate-700">说明图片<input className="mt-1" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
       <button className="mt-3 min-h-11 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void submit()} type="button">{busy ? '正在发布' : '发布罚单'}</button>
       {message ? <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{message}</p> : null}
     </SectionCard>

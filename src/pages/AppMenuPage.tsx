@@ -14,7 +14,6 @@ export function AppMenuPage() {
   const canUseV2 = canOperateV2Modules(auth.profile?.role);
   const canUseOperationReports = Boolean(auth.store?.name.includes('西直门'));
   const items = isAdmin ? [
-    ...(aiPilot.settings?.globalEnabled && aiPilot.settings.adminVisible ? [{ icon: Bot, label: 'AI 质检试点', note: '试点门店结构化数据辅助复核', to: '/app/admin/ai-review' }] : []),
     { icon: ClipboardList, label: '任务管理', note: '发布、模板、周期与审核', to: '/app/admin/tasks' },
     { icon: PackageCheck, label: '到货中心', note: '到货消息、记录和汇总', to: '/app/admin/arrivals' },
     { icon: Bell, label: '公告管理', note: '发布公告并查看员工已读情况', to: '/app/admin/announcements' },
@@ -41,13 +40,11 @@ export function AppMenuPage() {
     { icon: CalendarClock, label: '加班管理', note: '填报加班并查看记录与工资汇总', to: '/app/overtime' },
     { icon: History, label: '运营历史', note: '点货、订货、到货和任务记录', to: '/app/operations-history' },
   ];
-  if (auth.profile?.role === 'manager') {
-    items.unshift({ icon: Users, label: '员工管理', note: '给员工开罚单', to: '/app/manager/employees' });
-  }
-
   if (isAdmin || (!isPartTime && canUseOperationReports)) {
     items.push({ icon: FileText, label: '运营报告', note: isAdmin ? '配置日报模板并查看员工提交的图文报告' : '拉取当日数据、填报物料并生成日报', to: '/app/operation-reports' });
   }
   if (isAdmin) items.push({ icon: ScrollText, label: '操作日志', note: '查看所有账号的关键业务操作记录', to: '/app/admin/operation-logs' });
+  if (auth.profile?.role === 'manager') items.push({ icon: Users, label: '员工管理', note: '', to: '/app/manager/employees' });
+  if (isAdmin && aiPilot.settings?.globalEnabled && aiPilot.settings.adminVisible) items.push({ icon: Bot, label: 'AI 质检试点', note: '', to: '/app/admin/ai-review' });
   return <PageShell eyebrow="门店运营系统" title="工作台" contentGapClassName="gap-3"><section className="grid grid-cols-3 gap-2 sm:gap-3">{items.map((item) => <FeatureCard {...item} key={item.to} />)}</section></PageShell>;
 }

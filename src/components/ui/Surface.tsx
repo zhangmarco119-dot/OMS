@@ -28,14 +28,13 @@ export function SectionHeader({ action, description, icon: Icon, title }: {
   );
 }
 
-export function FeatureCard({ icon: Icon, label, note, to }: { icon: LucideIcon; label: string; note: string; to: string }) {
+export function FeatureCard({ icon: Icon, label, to }: { icon: LucideIcon; label: string; note?: string; to: string }) {
   return (
-    <Link className="ui-interactive ui-card group grid min-h-32 grid-rows-[2.5rem_1.25rem_2rem] content-start gap-y-2 p-3.5 hover:border-brand-200 hover:bg-brand-50/30" to={to}>
+    <Link className="ui-interactive ui-card group grid min-h-24 grid-rows-[2.5rem_1.25rem] content-start gap-y-2 p-3.5 hover:border-brand-200 hover:bg-brand-50/30" to={to}>
       <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-700 transition-colors group-hover:bg-brand-100">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
       <b className="line-clamp-1 block h-5 text-sm leading-5 text-slate-900">{label}</b>
-      <span className="line-clamp-2 block h-8 text-xs leading-4 text-slate-500">{note}</span>
     </Link>
   );
 }

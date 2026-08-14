@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-08-15',
+    highlights: [
+      '店长工作台新增员工管理入口，可为本店在职员工开罚单，并自动通知员工与管理员。',
+      '店长罚单与管理员罚单共用薪资处罚数据结构，权限限定为本店员工。',
+    ],
+    title: '新增店长员工管理与开罚单',
+    version: 'StoreHub v3.0.7',
+  },
+  {
     date: '2026-08-14',
     highlights: [
       'AI 自动分析关闭后，打开到货、点货、订货等业务详情不再发起任何 AI 检查。',

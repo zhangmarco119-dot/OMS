@@ -19,7 +19,6 @@ export interface DeepSeekClientOptions {
   baseUrl?: string;
   fetchImpl?: Fetch;
   model?: string;
-  provider?: 'deepseek' | 'openai';
   sleep?: (milliseconds: number) => Promise<void>;
   timeoutMs?: number;
 }
@@ -236,7 +235,7 @@ const finishReasonError = (value: unknown) => {
   return new DeepSeekReviewError('MODEL_INVALID_RESPONSE', 'The AI service returned an invalid completion status.', true);
 };
 
-const safeBaseUrl = (value: string | undefined, provider: 'deepseek' | 'openai') => {
+const safeBaseUrl = (value: string | undefined) => {
   const source = (value || DEFAULT_DEEPSEEK_BASE_URL).trim().replace(/\/+$/, '');
   let parsed: URL;
   try {
@@ -250,19 +249,6 @@ const safeBaseUrl = (value: string | undefined, provider: 'deepseek' | 'openai')
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new DeepSeekReviewError('MODEL_CONFIG_INVALID', 'The AI service endpoint must not include credentials or query parameters.', false);
   }
-  const hostname = parsed.hostname;
-  const pathname = parsed.pathname;
-  if (provider === 'deepseek') {
-    if (hostname !== 'api.deepseek.com' || (pathname !== '/' && pathname !== '/v1')) {
-      throw new DeepSeekReviewError('MODEL_CONFIG_INVALID', 'The DeepSeek API endpoint is invalid.', false);
-    }
-  } else if (provider === 'openai') {
-    if (hostname !== 'api.openai.com' || (pathname !== '/' && pathname !== '/v1')) {
-      throw new DeepSeekReviewError('MODEL_CONFIG_INVALID', 'The OpenAI API endpoint is invalid.', false);
-    }
-  } else {
-    throw new DeepSeekReviewError('MODEL_CONFIG_INVALID', 'The AI provider is unsupported.', false);
-  }
   return source;
 };
 
@@ -273,7 +259,6 @@ export class DeepSeekClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: Fetch;
   private readonly model: string;
-  private readonly provider: 'deepseek' | 'openai';
   private readonly sleep: (milliseconds: number) => Promise<void>;
   private readonly supportsThinking: boolean;
   private readonly timeoutMs: number;
@@ -281,10 +266,9 @@ export class DeepSeekClient {
   constructor(options: DeepSeekClientOptions) {
     this.apiKey = options.apiKey.trim();
     if (!this.apiKey) throw new DeepSeekReviewError('MODEL_NOT_CONFIGURED', 'The AI service is not configured.', false);
-    this.provider = options.provider ?? 'deepseek';
     this.model = options.model?.trim() || DEEPSEEK_MODEL;
-    this.baseUrl = safeBaseUrl(options.baseUrl, this.provider);
-    this.supportsThinking = this.provider !== 'openai';
+    this.baseUrl = safeBaseUrl(options.baseUrl);
+    this.supportsThinking = new URL(this.baseUrl).hostname === 'api.deepseek.com';
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.sleep = options.sleep ?? defaultSleep;
     this.timeoutMs = Math.max(5_000, Math.min(60_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS));

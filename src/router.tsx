@@ -34,6 +34,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { HistoryTaskDetailPage } from './pages/HistoryTaskDetailPage';
 import { LoginPage } from './pages/LoginPage';
+import { ManagerEmployeeManagementPage } from './pages/ManagerEmployeeManagementPage';
 import { MyAttendancePage } from './pages/MyAttendancePage';
 import { MyPayrollPage } from './pages/MyPayrollPage';
 import { ManagerPayrollConfirmationPage } from './pages/ManagerPayrollConfirmationPage';
@@ -102,6 +103,7 @@ export const router = createBrowserRouter([
       { path: 'account/about', element: <ProtectedRoute><AboutSystemPage /></ProtectedRoute> },
       { path: 'account/about/manual/:manualSlug', element: <ProtectedRoute><SystemManualPage /></ProtectedRoute> },
       { path: 'menu', element: <AppMenuPage /> },
+      { path: 'manager/employees', element: <ManagerEmployeeManagementPage /> },
       { path: 'workbench', element: <AppMenuPage /> },
       { path: 'todos', element: <TodoPage /> },
       {

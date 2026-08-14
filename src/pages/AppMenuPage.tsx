@@ -41,6 +41,10 @@ export function AppMenuPage() {
     { icon: CalendarClock, label: '加班管理', note: '填报加班并查看记录与工资汇总', to: '/app/overtime' },
     { icon: History, label: '运营历史', note: '点货、订货、到货和任务记录', to: '/app/operations-history' },
   ];
+  if (auth.profile?.role === 'manager') {
+    items.unshift({ icon: Users, label: '员工管理', note: '给员工开罚单', to: '/app/manager/employees' });
+  }
+
   if (isAdmin || (!isPartTime && canUseOperationReports)) {
     items.push({ icon: FileText, label: '运营报告', note: isAdmin ? '配置日报模板并查看员工提交的图文报告' : '拉取当日数据、填报物料并生成日报', to: '/app/operation-reports' });
   }

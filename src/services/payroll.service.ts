@@ -599,6 +599,27 @@ export async function uploadPayrollEvidence(client: Client, input: { file: File;
   if (metadata.error) { await client.storage.from(evidenceBucket).remove([objectPath]); throw new Error(metadata.error.message); }
 }
 
+export async function managerCreatePayrollPenalty(client: Client, input: { profileId: string; eventDate: string; reason: string; amount: number; eventLevel: PenaltyRow['event_level']; performanceDeduction: number }) {
+  const rpc = client.rpc as unknown as (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
+  const { data, error } = await rpc('manager_create_payroll_penalty', { p_fields: input });
+  if (error) throw new Error(error.message || '罚单保存失败。');
+  return data as unknown as PenaltyRow;
+}
+
+export async function loadManagerStoreStaff(client: Client, storeIds: string[]) {
+  if (!storeIds.length) return [];
+  const { data, error } = await client
+    .from('profiles')
+    .select('id, display_name, store_id, is_active')
+    .in('store_id', storeIds)
+    .eq('role', 'staff')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('display_name', { ascending: true });
+  if (error) throw new Error(error.message || '无法加载本店员工。');
+  return data ?? [];
+}
+
 export async function loadMyOvertimeRequests(client: Client, profileId: string) {
   const { data, error } = await client.from('payroll_overtime_requests').select('*').eq('profile_id', profileId).order('overtime_date', { ascending: false });
   if (error) throw new Error(error.message || '暂时无法加载工时申请。');

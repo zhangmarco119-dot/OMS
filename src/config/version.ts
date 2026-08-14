@@ -10,6 +10,15 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-08-14',
     highlights: [
+      'AI 自动分析关闭后，打开到货、点货、订货等业务详情不再发起任何 AI 检查。',
+      '自动开关现在同时拦截新任务入队、后台派发、任务领取和详情页主动补检，彻底停止 token 消耗。',
+    ],
+    title: '彻底关闭 AI 自动分析入口',
+    version: 'StoreHub v3.0.6',
+  },
+  {
+    date: '2026-08-14',
+    highlights: [
       '修复 AI 自动分析关闭后后台队列仍可能继续调用模型的问题，关闭后停止所有 AI 解析与 token 消耗。',
       '模型配置改为按 API Key 所属服务动态获取可选模型，不再限定 DeepSeek 或 OpenAI 单一服务商。',
     ],

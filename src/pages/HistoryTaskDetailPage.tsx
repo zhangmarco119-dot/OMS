@@ -93,6 +93,7 @@ export function HistoryTaskDetailPage() {
 
       <AiEntityReviewPanel
         applyLabel="创建复核任务草稿"
+        autoRunEnabled={Boolean(aiPilot.settings?.autoRunEnabled)}
         enabled={aiReviewEnabled}
         entityId={view.detail.task.id}
         onAdopt={aiApplyEnabled ? (suggestion, result, modifiedValue) => {

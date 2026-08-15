@@ -245,6 +245,8 @@ export const createAiReviewHandler = (dependencies: HandlerDependencies) => asyn
     const { userClient } = await requireAdmin(request, dependencies);
     if (action === 'list-models') {
       assertExactObjectKeys(payload, ['action']);
+      const settings = await rpcData<{ auto_run_enabled?: boolean }>(userClient.rpc('admin_get_ai_settings'), 'Unable to load AI settings.');
+      if (settings.auto_run_enabled !== true) return json({ models: [], disabled: true });
       const models = await listProviderModels(dependencies);
       return json({ models });
     }

@@ -10,6 +10,15 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-08-16',
     highlights: [
+      '移除 AI 后台自动分析队列，AI 仅在当前画面主动使用才触发。',
+      'AI 开关关闭时，包括模型列表查询在内的任何模型 API 调用都会被阻止。',
+    ],
+    title: '移除 AI 后台队列并收紧全局开关',
+    version: 'StoreHub v3.0.11',
+  },
+  {
+    date: '2026-08-16',
+    highlights: [
       '店长员工管理页面改为“罚单开具 / 任务发布”两个切换菜单。',
     ],
     title: '店长员工管理切换式布局',

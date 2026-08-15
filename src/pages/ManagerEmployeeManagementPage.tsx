@@ -46,6 +46,7 @@ export function ManagerEmployeeManagementPage() {
   const [dueAt, setDueAt] = useState('');
   const [ownTasks, setOwnTasks] = useState<Array<{ id: string; task_no: string; name: string; status: string; due_at: string }>>([]);
   const [taskMessage, setTaskMessage] = useState('');
+  const [activeTab, setActiveTab] = useState<'penalty' | 'task'>('penalty');
 
   const rpc = supabase?.rpc as unknown as (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
 
@@ -160,7 +161,11 @@ export function ManagerEmployeeManagementPage() {
   }
 
   return <PageShell eyebrow="门店运营系统 · 店长" title="员工管理" backTo="/app/workbench" contentGapClassName="gap-3">
-    <SectionCard>
+    <div className="grid grid-cols-2 gap-2">
+      <button className={activeTab === 'penalty' ? 'min-h-10 rounded-lg bg-brand-600 px-3 text-sm font-bold text-white' : 'min-h-10 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-600'} onClick={() => setActiveTab('penalty')} type="button">罚单开具</button>
+      <button className={activeTab === 'task' ? 'min-h-10 rounded-lg bg-brand-600 px-3 text-sm font-bold text-white' : 'min-h-10 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-600'} onClick={() => setActiveTab('task')} type="button">任务发布</button>
+    </div>
+    {activeTab === 'penalty' ? <SectionCard>
       <SectionHeader title="罚单开具" description="罚单会同步到员工薪资与管理员后台。" />
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <label className="text-sm font-semibold text-slate-700">员工
@@ -190,9 +195,9 @@ export function ManagerEmployeeManagementPage() {
       </label>
       <button className="mt-3 min-h-11 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void submitPenalty()} type="button">{busy ? '正在发布' : '发布罚单'}</button>
       {message ? <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{message}</p> : null}
-    </SectionCard>
+    </SectionCard> : null}
 
-    <SectionCard>
+    {activeTab === 'task' ? <SectionCard>
       <SectionHeader title="任务发布" description="创建模板并发布给本店员工，任务会同步到管理员任务清单。" />
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <label className="text-sm font-semibold text-slate-700">任务名称<input className="ui-input mt-1" value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="例如 周末收尾检查" /></label>
@@ -225,6 +230,6 @@ export function ManagerEmployeeManagementPage() {
         <p className="text-sm font-bold text-slate-900">我发布的任务</p>
         {ownTasks.length === 0 ? <p className="text-sm text-slate-500">暂无任务。</p> : ownTasks.map((task) => <div className="rounded-lg border border-slate-100 bg-slate-50 p-3" key={task.id}><b className="text-sm text-slate-900">{task.name}</b><p className="mt-1 text-xs text-slate-500">{task.task_no} · {task.status} · 截止 {task.due_at ? new Date(task.due_at).toLocaleString('zh-CN') : ''}</p></div>)}
       </div>
-    </SectionCard>
+    </SectionCard> : null}
   </PageShell>;
 }

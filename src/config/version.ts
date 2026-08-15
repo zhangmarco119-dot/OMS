@@ -8,6 +8,14 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-08-16',
+    highlights: [
+      '店长员工管理页面改为“罚单开具 / 任务发布”两个切换菜单。',
+    ],
+    title: '店长员工管理切换式布局',
+    version: 'StoreHub v3.0.10',
+  },
+  {
     date: '2026-08-15',
     highlights: [
       '店长员工管理新增任务发布：可创建模板、发布本店任务，并同步到管理员任务清单。',

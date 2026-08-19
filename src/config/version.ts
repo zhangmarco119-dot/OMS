@@ -10,6 +10,14 @@ export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-08-19',
     highlights: [
+      '修复店长开罚单调用数据库接口时客户端方法丢失绑定导致的报错。',
+    ],
+    title: '修复店长罚单发布报错',
+    version: 'StoreHub v3.0.13',
+  },
+  {
+    date: '2026-08-19',
+    highlights: [
       '修复店长开罚单上传说明图片时被权限拦截的问题。',
     ],
     title: '修复店长罚单证据上传',

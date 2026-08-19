@@ -600,7 +600,7 @@ export async function uploadPayrollEvidence(client: Client, input: { file: File;
 }
 
 export async function managerCreatePayrollPenalty(client: Client, input: { profileId: string; eventDate: string; reason: string; amount: number; eventLevel: PenaltyRow['event_level']; performanceDeduction: number }) {
-  const rpc = client.rpc as unknown as (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
+  const rpc = client.rpc.bind(client) as unknown as (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
   const { data, error } = await rpc('manager_create_payroll_penalty', { p_fields: input });
   if (error) throw new Error(error.message || '罚单保存失败。');
   return data as unknown as PenaltyRow;

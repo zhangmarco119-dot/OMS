@@ -8,6 +8,14 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-08-19',
+    highlights: [
+      '修复店长开罚单上传说明图片时被权限拦截的问题。',
+    ],
+    title: '修复店长罚单证据上传',
+    version: 'StoreHub v3.0.12',
+  },
+  {
     date: '2026-08-16',
     highlights: [
       '移除 AI 后台自动分析队列，AI 仅在当前画面主动使用才触发。',

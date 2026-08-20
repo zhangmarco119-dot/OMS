@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
+import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
 import { AdminPayrollPage } from './AdminPayrollPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -15,6 +15,7 @@ vi.mock('../services/payroll.service', async (original) => {
     loadAdminPayrollEstimates: vi.fn(),
     loadAdminPayrollPayslips: vi.fn(),
     loadPayrollAdminSetup: vi.fn(),
+    loadPayrollPenaltyAssetUrl: vi.fn(),
     loadPayrollPayslipScheduleSettings: vi.fn(),
     loadPayrollProfiles: vi.fn(),
     loadPayrollVisibilitySettings: vi.fn(),
@@ -63,6 +64,7 @@ describe('AdminPayrollPage update guidance', () => {
     vi.mocked(loadPayrollVisibilitySettings).mockResolvedValue({ historyAvailableUntilDay: 10, historyMonths: 3, historyOpenNow: true });
     vi.mocked(loadAdminPayrollPayslips).mockResolvedValue([]);
     vi.mocked(loadPosSalesSetup).mockResolvedValue({ integrations: [], jobs: [] });
+    vi.mocked(loadPayrollPenaltyAssetUrl).mockResolvedValue('blob:penalty-detail-default');
   });
 
   it('jumps from a revenue issue to the revenue maintenance tab', async () => {
@@ -95,6 +97,30 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.queryByRole('button',{ name:/立即发放/ })).not.toBeInTheDocument();
     expect(screen.getByText('工资单自动推送')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
+  });
+
+  it('opens a penalty detail immediately and loads its images in a secondary phase', async () => {
+    let resolveImage: (url: string) => void = () => undefined;
+    vi.mocked(loadPayrollPenaltyAssetUrl).mockReturnValue(new Promise((resolve) => { resolveImage = resolve; }));
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({
+      ...setup,
+      profiles: [{ display_name: '员工甲', employment_type: 'full_time', id: 'staff-1', role: 'staff' }],
+      penalties: [{ amount: 50, created_at: '2026-07-18T01:00:00Z', created_by: 'manager-1', event_date: '2026-07-18', event_level: 'warning', id: 'penalty-1', performance_deduction: 3, profile_id: 'staff-1', reason: '盘点差异，需承担对应损失。', revoke_reason: null, status: 'active', updated_at: '2026-07-18T01:00:00Z' }],
+      penaltyAssets: [{ bucket: 'payroll-evidence', created_at: '2026-07-18T01:00:01Z', file_name: '现场证据.png', id: 'asset-1', mime_type: 'image/png', object_path: 'manager/penalty/image.png', penalty_id: 'penalty-1', size_bytes: 1024, uploaded_by: 'manager-1' }],
+    } as never);
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=penalties']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: '查看 员工甲 的处罚详情' }));
+    expect(screen.getByRole('dialog', { name: '处罚记录详情' })).toBeInTheDocument();
+    expect(screen.getByText('盘点差异，需承担对应损失。')).toBeInTheDocument();
+    expect(screen.getByText('正在加载图片')).toBeInTheDocument();
+
+    await act(async () => resolveImage('blob:penalty-detail-image'));
+    const image = await screen.findByRole('img', { name: '现场证据.png' });
+    fireEvent.load(image);
+    await waitFor(() => expect(screen.queryByText('正在加载图片')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '查看处罚图片 现场证据.png' }));
+    expect(screen.getByRole('dialog', { name: '处罚详情图片预览' })).toBeInTheDocument();
   });
 
   it('adds comprehensive statistics and merges visibility into employee parameters', async () => {

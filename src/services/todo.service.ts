@@ -12,6 +12,7 @@ const payrollPayslipTodoQuery = (client: Client, profileId: string, isManager: b
 
 export interface TodoSummary {
   count: number;
+  managerPenalties: number;
   payrollConfirmations: number;
   noticeAcknowledgements: number;
   productCreationRequests: number;
@@ -25,13 +26,14 @@ export interface TodoSummary {
 
 export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean; isManager?: boolean; profileId: string; storeId?: string; storeIds?: string[] }): Promise<TodoSummary> => {
   if (input.isAdmin) {
-    const [tasks, feedback, productCreationRequests, overtime, arrivalCorrections, payrollConfirmations] = await Promise.all([
+    const [tasks, feedback, productCreationRequests, overtime, arrivalCorrections, payrollConfirmations, managerPenalties] = await Promise.all([
       client.from('v2_tasks').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'resubmitted']),
       client.from('product_feedback').select('id', { count: 'exact', head: true }).eq('status', 'open'),
       client.from('product_creation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       client.rpc('payroll_overtime_todo_count'),
       client.from('arrival_report_correction_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       client.from('notifications').select('id', { count: 'exact', head: true }).eq('recipient_user_id', input.profileId).eq('type', 'payroll_payslip_confirmed').eq('is_read', false),
+      client.from('notifications').select('id', { count: 'exact', head: true }).eq('recipient_role', 'admin').eq('type', 'manager_penalty_created').eq('is_read', false),
     ]);
     if (tasks.error) throw new Error(tasks.error.message);
     if (feedback.error) throw new Error(feedback.error.message);
@@ -39,8 +41,9 @@ export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean;
     if (overtime.error) throw new Error(overtime.error.message);
     if (arrivalCorrections.error) throw new Error(arrivalCorrections.error.message);
     if (payrollConfirmations.error) throw new Error(payrollConfirmations.error.message);
-    const taskCount = tasks.count ?? 0; const feedbackCount = feedback.count ?? 0; const creationRequestCount = productCreationRequests.count ?? 0; const overtimeCount = overtime.data ?? 0; const arrivalCorrectionCount = arrivalCorrections.count ?? 0; const payrollConfirmationCount = payrollConfirmations.count ?? 0;
-    return { count: taskCount + feedbackCount + creationRequestCount + overtimeCount + arrivalCorrectionCount + payrollConfirmationCount, payrollConfirmations: payrollConfirmationCount, noticeAcknowledgements: 0, productCreationRequests: creationRequestCount, productFeedback: feedbackCount, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: 0, arrivalCorrections: arrivalCorrectionCount, payrollPayslips: 0 };
+    if (managerPenalties.error) throw new Error(managerPenalties.error.message);
+    const taskCount = tasks.count ?? 0; const feedbackCount = feedback.count ?? 0; const creationRequestCount = productCreationRequests.count ?? 0; const overtimeCount = overtime.data ?? 0; const arrivalCorrectionCount = arrivalCorrections.count ?? 0; const payrollConfirmationCount = payrollConfirmations.count ?? 0; const managerPenaltyCount = managerPenalties.count ?? 0;
+    return { count: taskCount + feedbackCount + creationRequestCount + overtimeCount + arrivalCorrectionCount + payrollConfirmationCount + managerPenaltyCount, managerPenalties: managerPenaltyCount, payrollConfirmations: payrollConfirmationCount, noticeAcknowledgements: 0, productCreationRequests: creationRequestCount, productFeedback: feedbackCount, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: 0, arrivalCorrections: arrivalCorrectionCount, payrollPayslips: 0 };
   }
   const [tasks, managerReviews, acknowledgements, productCreationRequests, overtime, corrections, payslips, arrivalCorrections] = await Promise.all([
     input.storeId ? client.from('v2_tasks').select('id', { count: 'exact', head: true }).eq('store_id', input.storeId).in('status', ['pending', 'in_progress', 'rejected', 'overdue']).or(`reviewed_by.is.null,reviewed_by.neq.${input.profileId}`) : Promise.resolve({ count: 0, error: null }),
@@ -70,7 +73,22 @@ export const loadTodoSummary = async (client: Client, input: { isAdmin: boolean;
   const correctionCount = corrections.count ?? 0;
   const payslipCount = payslips.count ?? 0;
   const arrivalCorrectionCount = arrivalCorrections.count ?? 0;
-  return { count: taskCount + acknowledgementCount + creationRequestCount + overtimeCount + correctionCount + payslipCount + arrivalCorrectionCount, payrollConfirmations: 0, noticeAcknowledgements: acknowledgementCount, productCreationRequests: creationRequestCount, productFeedback: 0, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: correctionCount, arrivalCorrections: arrivalCorrectionCount, payrollPayslips: payslipCount };
+  return { count: taskCount + acknowledgementCount + creationRequestCount + overtimeCount + correctionCount + payslipCount + arrivalCorrectionCount, managerPenalties: 0, payrollConfirmations: 0, noticeAcknowledgements: acknowledgementCount, productCreationRequests: creationRequestCount, productFeedback: 0, tasks: taskCount, overtime: overtimeCount, attendanceCorrections: correctionCount, arrivalCorrections: arrivalCorrectionCount, payrollPayslips: payslipCount };
+};
+
+export const loadAdminManagerPenaltyTodos = async (client: Client) => {
+  const { data, error } = await client.from('notifications').select('*')
+    .eq('recipient_role', 'admin')
+    .eq('type', 'manager_penalty_created')
+    .eq('is_read', false)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message || '暂时无法加载店长罚单提醒。');
+  return data ?? [];
+};
+
+export const completeAdminManagerPenaltyTodo = async (client: Client, id: string) => {
+  const { error } = await client.from('notifications').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', id).eq('type', 'manager_penalty_created').eq('is_read', false);
+  if (error) throw new Error(error.message || '店长罚单提醒暂时无法标记为已读。');
 };
 
 export const loadAdminPayrollConfirmationTodos = async (client: Client, profileId: string) => {

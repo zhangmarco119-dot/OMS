@@ -5,13 +5,14 @@ import type { PayrollEstimate } from './model';
 import { PayrollDeductionRow } from './PayrollDeductionDetails';
 
 const mocks = vi.hoisted(() => ({
+  loadItems: vi.fn(),
   loadAssets: vi.fn(),
   loadAssetUrl: vi.fn(),
 }));
 
 vi.mock('../../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../../services/payroll.service', () => ({
-  loadPayrollDeductionItems: vi.fn(),
+  loadPayrollDeductionItems: mocks.loadItems,
   loadPayrollPenaltyAssets: mocks.loadAssets,
   loadPayrollPenaltyAssetUrl: mocks.loadAssetUrl,
 }));
@@ -81,5 +82,17 @@ describe('PayrollDeductionRow penalty evidence', () => {
     expect(screen.getByText('盘点差异处罚')).toBeInTheDocument();
     expect(await screen.findByText('图片预览加载失败')).toBeInTheDocument();
     expect(screen.getByText('盘点差异处罚')).toBeInTheDocument();
+  });
+
+  it('loads and displays a valid penalty record when its monetary amount is zero', async () => {
+    mocks.loadItems.mockResolvedValue([{ ...estimate.deductionItems[0], amount: 0, reason: '仅扣绩效分，不罚款' }]);
+    mocks.loadAssets.mockResolvedValue([]);
+    render(<PayrollDeductionRow estimate={{ ...estimate, deductionItems: [], fineTotal: 0 }} label="罚款合计" total={0} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /罚款合计/ }));
+
+    expect(await screen.findByText('仅扣绩效分，不罚款')).toBeInTheDocument();
+    expect(mocks.loadItems).toHaveBeenCalledWith(expect.anything(), 'staff-1', '2026-08-01', '2026-08-20');
+    expect(screen.queryByText('本期没有扣款记录。')).not.toBeInTheDocument();
   });
 });

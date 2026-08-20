@@ -63,7 +63,7 @@ export function PayrollDeductionRow({ detailsTitle = '扣款明细', emptyMessag
 
   const show = async () => {
     setOpen(true); setError('');
-    if (items.length || estimate.fineTotal <= 0 || !supabase) return;
+    if (items.length || !supabase) return;
     setLoading(true);
     try { setItems(await loadPayrollDeductionItems(supabase, estimate.profileId, estimate.monthStart, estimate.asOf || estimate.monthEnd)); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '暂时无法加载扣款明细。'); }

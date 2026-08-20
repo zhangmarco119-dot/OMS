@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmDelegatedPayrollPayslip, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, listPayrollConfirmationManagers, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, sendPayrollPayslipToManager, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
+import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmDelegatedPayrollPayslip, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, listPayrollConfirmationManagers, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPenaltyAssets, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, sendPayrollPayslipToManager, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -44,6 +44,15 @@ describe('payroll service', () => {
     const rpc = vi.fn().mockResolvedValue({ data: [{ id: 'late:1', date: '2026-07-10', type: 'late', title: '迟到罚款', reason: '迟到 5 分钟', amount: 20 }], error: null });
     await expect(loadPayrollDeductionItems({ rpc } as never, 'p1', '2026-07-01', '2026-07-31')).resolves.toMatchObject([{ type: 'late', amount: 20 }]);
     expect(rpc).toHaveBeenCalledWith('get_payroll_deduction_items', { p_profile_id: 'p1', p_from: '2026-07-01', p_to: '2026-07-31' });
+  });
+
+  it('loads image metadata only for the selected penalty records', async () => {
+    const rows = [{ id: 'asset-1', penalty_id: 'penalty-1', object_path: 'manager/penalty/image.png' }];
+    const chain: Record<string, unknown> = {};
+    for (const method of ['select', 'in', 'order']) chain[method] = vi.fn(() => chain);
+    chain.then = (resolve: (value: { data: typeof rows; error: null }) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve);
+    await expect(loadPayrollPenaltyAssets({ from: vi.fn(() => chain) } as never, ['penalty-1'])).resolves.toEqual(rows);
+    expect((chain.in as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('penalty_id', ['penalty-1']);
   });
 
   it('loads the administrator total and passes the selected store as a filter', async () => {

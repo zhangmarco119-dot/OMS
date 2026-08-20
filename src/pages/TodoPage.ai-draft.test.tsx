@@ -11,6 +11,7 @@ import {
 import { TodoPage } from './TodoPage';
 
 const mocks = vi.hoisted(() => ({
+  loadAdminManagerPenaltyTodos: vi.fn(),
   loadAdminPayrollConfirmationTodos: vi.fn(),
   loadAllOvertimeRequests: vi.fn(),
   loadManagerOvertimeRequests: vi.fn(),
@@ -43,8 +44,10 @@ vi.mock('../services/payroll.service', () => ({
   loadOvertimeProfiles: mocks.loadOvertimeProfiles,
 }));
 vi.mock('../services/todo.service', () => ({
+  completeAdminManagerPenaltyTodo: vi.fn(),
   completeAdminPayrollConfirmationTodo: vi.fn(),
   completeAttendanceCorrectionTodo: vi.fn(),
+  loadAdminManagerPenaltyTodos: mocks.loadAdminManagerPenaltyTodos,
   loadAdminPayrollConfirmationTodos: mocks.loadAdminPayrollConfirmationTodos,
   loadMyAttendanceCorrectionTodos: vi.fn(),
   loadMyPayrollPayslipTodos: vi.fn(),
@@ -106,6 +109,7 @@ describe('TodoPage AI product creation draft', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.loadV2Tasks.mockResolvedValue([]);
+    mocks.loadAdminManagerPenaltyTodos.mockResolvedValue([]);
     mocks.loadTodoSummary.mockResolvedValue({ productFeedback: 0 });
     mocks.loadProductFeedbackRecords.mockResolvedValue([]);
     mocks.loadAllOvertimeRequests.mockResolvedValue([]);
@@ -138,5 +142,18 @@ describe('TodoPage AI product creation draft', () => {
     expect(screen.queryByRole('dialog', { name: '编辑并审核新增货品' })).not.toBeInTheDocument();
     expect(screen.queryByText('已带入 AI 建议')).not.toBeInTheDocument();
     expect(reviewProductCreationRequest).not.toHaveBeenCalled();
+  });
+
+  it('shows manager-issued penalties as administrator todos', async () => {
+    mocks.loadAdminManagerPenaltyTodos.mockResolvedValue([{
+      body: '员工甲 · 2026-08-20 · 盘点差异处罚',
+      created_at: '2026-08-20T01:00:00Z',
+      id: 'penalty-notification-1',
+      title: '店长已给员工开罚单',
+    }]);
+    renderTodo('admin');
+    expect(await screen.findByText('店长罚单提醒')).toBeInTheDocument();
+    expect(screen.getByText('员工甲 · 2026-08-20 · 盘点差异处罚')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '查看处罚记录' })).toHaveAttribute('href', '/app/admin/payroll?tab=penalties');
   });
 });

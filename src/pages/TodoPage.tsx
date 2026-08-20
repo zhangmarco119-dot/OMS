@@ -14,7 +14,7 @@ import { TaskSubmissionTimeline } from '../features/v2-tasks/TaskSubmissionTimel
 import { supabase } from '../lib/supabase';
 import { isV2TaskExecutionTodoForProfile, loadV2TaskRecipients, loadV2TaskTimeline, loadV2Tasks, type V2TaskRow, type V2TaskTimelineEvent } from '../services/v2-tasks.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
-import { completeAdminPayrollConfirmationTodo, completeAttendanceCorrectionTodo, loadAdminPayrollConfirmationTodos, loadMyAttendanceCorrectionTodos, loadMyPayrollPayslipTodos, loadTodoSummary } from '../services/todo.service';
+import { completeAdminManagerPenaltyTodo, completeAdminPayrollConfirmationTodo, completeAttendanceCorrectionTodo, loadAdminManagerPenaltyTodos, loadAdminPayrollConfirmationTodos, loadMyAttendanceCorrectionTodos, loadMyPayrollPayslipTodos, loadTodoSummary } from '../services/todo.service';
 import { loadAllOvertimeRequests, loadManagerOvertimeRequests, loadOvertimeProfiles } from '../services/payroll.service';
 import type { Database } from '../types/database';
 import {
@@ -52,6 +52,7 @@ export function TodoPage() {
   const [corrections, setCorrections] = useState<Database['public']['Tables']['attendance_missing_punch_todos']['Row'][]>([]);
   const [payslips, setPayslips] = useState<Database['public']['Tables']['payroll_payslips']['Row'][]>([]);
   const [payrollConfirmations, setPayrollConfirmations] = useState<Database['public']['Tables']['notifications']['Row'][]>([]);
+  const [managerPenalties, setManagerPenalties] = useState<Database['public']['Tables']['notifications']['Row'][]>([]);
   const [completionMessage, setCompletionMessage] = useState('');
   const [feedbackBatchAction, setFeedbackBatchAction] = useState<'acknowledge' | 'confirm_delete' | null>(null);
   const [feedbackBatchBusy, setFeedbackBatchBusy] = useState(false);
@@ -65,7 +66,7 @@ export function TodoPage() {
     if (!supabase) return;
     setTodoDataLoaded(false);
     try {
-      const [nextTasks, summary, nextNotices, nextFeedback, nextOvertime, nextCorrections, nextPayslips, nextCreationRequests, nextTaskRecipients, nextTaskTimeline, nextArrivalCorrections, nextPayrollConfirmations] = await Promise.all([
+      const [nextTasks, summary, nextNotices, nextFeedback, nextOvertime, nextCorrections, nextPayslips, nextCreationRequests, nextTaskRecipients, nextTaskTimeline, nextArrivalCorrections, nextPayrollConfirmations, nextManagerPenalties] = await Promise.all([
         loadV2Tasks(supabase, isAdmin || isManager ? undefined : auth.store?.id),
         loadTodoSummary(supabase, { isAdmin, isManager, profileId: auth.profile?.id ?? '', storeId: auth.store?.id, storeIds: auth.availableStores.map((store) => store.id) }),
         isAdmin ? Promise.resolve([] as NoticeListItem[]) : loadNotices(supabase),
@@ -78,6 +79,7 @@ export function TodoPage() {
         isAdmin || isManager ? loadV2TaskTimeline(supabase) : Promise.resolve([]),
         isAdmin || isManager ? loadPendingArrivalCorrections(supabase) : Promise.resolve([] as ArrivalCorrectionListItem[]),
         isAdmin && auth.profile?.id ? loadAdminPayrollConfirmationTodos(supabase, auth.profile.id) : Promise.resolve([]),
+        isAdmin ? loadAdminManagerPenaltyTodos(supabase) : Promise.resolve([]),
       ]);
       const overtimeProfiles = await loadOvertimeProfiles(supabase, nextOvertime.map((item) => item.profile_id));
       const profileMap = Object.fromEntries(overtimeProfiles.map((profile) => [profile.id, profile]));
@@ -95,6 +97,7 @@ export function TodoPage() {
       setTaskTimeline(nextTaskTimeline);
       setArrivalCorrections(nextArrivalCorrections);
       setPayrollConfirmations(nextPayrollConfirmations);
+      setManagerPenalties(nextManagerPenalties);
       setTodoDataLoaded(true);
     } catch (error) { setMessage(error instanceof Error ? error.message : '加载待办失败。'); }
   }, [auth.availableStores, auth.profile?.id, auth.store?.id, isAdmin, isManager]);
@@ -141,6 +144,16 @@ export function TodoPage() {
       setCompletionMessage('员工工资单确认提醒已标记为已读。');
       window.dispatchEvent(new Event('storehub:todos-changed'));
     } catch (error) { setMessage(error instanceof Error ? error.message : '工资单确认提醒暂时无法完成。'); }
+  };
+  const completeManagerPenalty = async (id: string) => {
+    if (!supabase) return;
+    try {
+      await completeAdminManagerPenaltyTodo(supabase, id);
+      setManagerPenalties((current) => current.filter((item) => item.id !== id));
+      setCompletionMessage('店长罚单提醒已标记为已读。');
+      window.dispatchEvent(new Event('storehub:todos-changed'));
+      window.dispatchEvent(new Event('storehub:notifications-changed'));
+    } catch (error) { setMessage(error instanceof Error ? error.message : '店长罚单提醒暂时无法完成。'); }
   };
   const productCorrections = feedback.filter((item) => item.feedback.feedback_type === 'incorrect');
   const productDeletions = feedback.filter((item) => item.feedback.feedback_type === 'discontinued');
@@ -222,11 +235,12 @@ export function TodoPage() {
       {arrivalCorrections.map(({ report, request, requesterName }) => <Link className="ui-card ui-interactive block p-4" key={request.id} to={`/app/arrivals/corrections/${request.id}/review`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="block truncate">{report.report_no}</b><p className="mt-1 line-clamp-2 text-sm text-slate-600">{report.generated_summary}</p><p className="mt-1 text-xs text-slate-500">{requesterName} · {request.requester_role === 'manager' ? '店长提交，需管理员审核' : '员工提交'}</p></div><StatusBadge tone="warning">更正待审核</StatusBadge></div><p className="mt-2 text-xs text-slate-400">申请时间：{formatV2TaskDueAt(request.created_at)}</p></Link>)}
     </section> : null}
     {payrollConfirmations.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">员工工资单确认提醒</h2>{payrollConfirmations.map((item) => <article className="ui-card border-emerald-200 bg-emerald-50/40 p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="block truncate text-slate-900">{item.title}</b><p className="mt-1 text-sm leading-5 text-slate-600">{item.body}</p><p className="mt-1 text-xs text-slate-400">提醒时间：{formatV2TaskDueAt(item.created_at)}</p></div><StatusBadge tone="success">待阅读</StatusBadge></div><div className="mt-3 grid grid-cols-2 gap-2"><Link className="ui-button-secondary" to="/app/admin/payroll?tab=payslips">查看工资单</Link><button className="ui-button-primary" onClick={() => void completePayrollConfirmation(item.id)} type="button">我已阅读</button></div></article>)}</section> : null}
+    {managerPenalties.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">店长罚单提醒</h2>{managerPenalties.map((item) => <article className="ui-card border-rose-200 bg-rose-50/30 p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="block truncate text-slate-900">{item.title}</b><p className="mt-1 text-sm leading-5 text-slate-600">{item.body}</p><p className="mt-1 text-xs text-slate-400">开单时间：{formatV2TaskDueAt(item.created_at)}</p></div><StatusBadge tone="danger">待阅读</StatusBadge></div><div className="mt-3 grid grid-cols-2 gap-2"><Link className="ui-button-secondary" to="/app/admin/payroll?tab=penalties">查看处罚记录</Link><button className="ui-button-primary" onClick={() => void completeManagerPenalty(item.id)} type="button">我已阅读</button></div></article>)}</section> : null}
     {overtime.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工时审批</h2>{overtime.map((item) => <Link className="ui-card ui-interactive block p-4" key={item.id} to={isAdmin ? '/app/admin/payroll?tab=overtime' : '/app/overtime?tab=submit'}><div className="flex items-start justify-between gap-3"><b>{overtimeNames[item.profile_id] ?? '员工'} · {overtimeTerms[item.profile_id] ?? '加班'} · {item.overtime_date} · {item.hours} 小时</b><StatusBadge tone="warning">待审批</StatusBadge></div>{item.reason ? <p className="mt-2 text-sm text-slate-500">{item.reason}</p> : null}</Link>)}</section> : null}
     {corrections.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">补卡提醒</h2>{corrections.map((item) => { const overdue = new Date(item.due_at).getTime() <= deadlineNow; return <article className="ui-card p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{item.attendance_date} · {item.missing_punch === 'on' ? '缺上班卡' : item.missing_punch === 'off' ? '缺下班卡' : '上下班均缺卡'}</b><p className={`mt-1 text-xs font-semibold ${overdue ? 'text-red-700' : 'text-slate-600'}`}>截止时间：{formatV2TaskDueAt(item.due_at)} · 请在钉钉提交补卡</p>{overdue ? <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-800">已逾期 · 补卡提醒尚未完成</p> : null}{item.missing_punch === 'on' || item.missing_punch === 'both' ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">请按实际到岗时间补上班卡，切勿虚假填报！</p> : null}</div><StatusBadge tone="danger">{overdue ? '已逾期' : '待补卡'}</StatusBadge></div><label className="mt-3 flex min-h-11 cursor-pointer items-center rounded-lg bg-emerald-50 px-3 text-sm font-bold text-emerald-900"><input className="mr-2 h-4 w-4" onChange={() => void completeCorrection(item.id)} type="checkbox" />我已提交补卡，完成提醒</label></article>; })}</section> : null}
     {payslips.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工资单确认</h2>{payslips.map((item) => { const delegated = item.confirmation_target === 'manager'; const snapshot = item.estimate_snapshot && typeof item.estimate_snapshot === 'object' && !Array.isArray(item.estimate_snapshot) ? item.estimate_snapshot : {}; const employeeName = typeof snapshot.displayName === 'string' ? snapshot.displayName : '员工'; return <Link className="ui-card ui-interactive block border-brand-200 p-4" key={item.id} to={delegated ? `/app/payroll-confirmations/${item.id}` : `/app/payroll?tab=payslips&payslip=${item.id}`}><div className="flex items-start justify-between gap-3"><div><b>{delegated ? `${employeeName} · ` : ''}{item.payroll_month.slice(0, 4)}年{Number(item.payroll_month.slice(5, 7))}月工资单</b><p className="mt-1 text-sm text-slate-500">{delegated ? '请先在线下与员工核对全部明细，再由店长确认薪资。' : '请核对工资明细并确认工资单内容。'}</p></div><StatusBadge tone="warning">{delegated ? '待店长确认' : '待确认'}</StatusBadge></div></Link>; })}</section> : null}
     {tasks.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">任务待办</h2>{tasks.map((task) => { const reviewTask = isAdmin || (isManager && ['submitted', 'resubmitted'].includes(task.status)); const submitterName = task.submitted_by ? taskSubmitterNames[task.submitted_by] ?? '已提交账号' : ''; const displayStatus = getV2TaskDisplayStatus(task, deadlineNow); const overdue = isV2TaskOverdue(task, deadlineNow); const timeline = taskTimeline.filter((event) => event.task_id === task.id); return <Link className="ui-card ui-interactive block p-4" key={task.id} to={reviewTask ? `/app/admin/tasks/${task.id}` : `/app/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b className="min-w-0 line-clamp-2">{task.name}</b><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[displayStatus]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[displayStatus]}</span></div><p className={`mt-2 text-sm font-semibold ${overdue ? 'text-red-700' : 'text-slate-600'}`}>截止时间：{formatV2TaskDueAt(task.due_at)}</p>{overdue ? <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-800">已逾期 · 任务尚未提交</p> : null}{reviewTask && submitterName ? <p className="mt-1 text-xs text-slate-500">提交人：{submitterName}</p> : null}{reviewTask ? <TaskSubmissionTimeline events={timeline} fallbackSubmittedAt={task.submitted_at} /> : null}{reviewTask && isManager ? <p className="mt-1 text-xs font-semibold text-brand-700">员工提交 · 等待店长或管理员审核</p> : null}{task.status === 'rejected' ? <FeedbackBanner className="mt-2" title="需要整改" tone="danger">{task.review_note || '请打开任务查看整改项目。'}</FeedbackBanner> : null}</Link>; })}</section> : null}
-    {tasks.length === 0 && feedbackCount === 0 && productCreationRequests.length === 0 && arrivalCorrections.length === 0 && payrollConfirmations.length === 0 && notices.length === 0 && overtime.length === 0 && corrections.length === 0 && payslips.length === 0 ? <EmptyState description="新的任务审核、到货更正、货品申请、补卡提醒、员工工资单确认提醒、工时审批或需确认公告会显示在这里。" icon={CheckCircle2} title="当前没有待办" /> : null}
+    {tasks.length === 0 && feedbackCount === 0 && productCreationRequests.length === 0 && arrivalCorrections.length === 0 && payrollConfirmations.length === 0 && managerPenalties.length === 0 && notices.length === 0 && overtime.length === 0 && corrections.length === 0 && payslips.length === 0 ? <EmptyState description="新的任务审核、到货更正、货品申请、补卡提醒、店长罚单提醒、员工工资单确认提醒、工时审批或需确认公告会显示在这里。" icon={CheckCircle2} title="当前没有待办" /> : null}
     <ConfirmDialog confirmLabel={feedbackBatchAction === 'confirm_delete' ? '一键同意删除' : '一键标记已读'} danger={feedbackBatchAction === 'confirm_delete'} onCancel={() => setFeedbackBatchAction(null)} onConfirm={() => void runFeedbackBatch()} open={Boolean(feedbackBatchAction)} title={feedbackBatchAction === 'confirm_delete' ? '确认批量删除货品' : '确认批量已读'}>
       <p>{feedbackBatchAction === 'confirm_delete'
         ? `将同意当前 ${productDeletions.length} 条删除申请，并删除对应货品。此操作无法撤销。`

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { AdminPayrollSummary, PayrollDeductionItem, PayrollEstimate, PayrollStorePerformance } from '../features/payroll/model';
+import { loadStorageImageResource } from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
 
@@ -10,6 +11,7 @@ type PerformanceRuleRow = Database['public']['Tables']['payroll_performance_rule
 type RevenueRow = Database['public']['Tables']['payroll_store_revenues']['Row'];
 type PenaltyRow = Database['public']['Tables']['payroll_penalties']['Row'];
 type OvertimeRequestRow = Database['public']['Tables']['payroll_overtime_requests']['Row'];
+export type PayrollPenaltyAsset = Database['public']['Tables']['payroll_penalty_assets']['Row'];
 export type PayrollPayslipRow = Database['public']['Tables']['payroll_payslips']['Row'];
 export type PosSalesIntegration = Database['public']['Tables']['pos_sales_integrations']['Row'];
 export type PosSalesSyncJob = Database['public']['Tables']['pos_sales_sync_jobs']['Row'];
@@ -597,6 +599,20 @@ export async function uploadPayrollEvidence(client: Client, input: { file: File;
   const mimeType = input.file.type as 'image/jpeg' | 'image/png' | 'image/webp';
   const metadata = await client.from('payroll_penalty_assets').insert({ penalty_id: input.entityId, bucket: evidenceBucket, object_path: objectPath, file_name: input.file.name || `evidence.${extension}`, mime_type: mimeType, size_bytes: input.file.size, uploaded_by: input.ownerId });
   if (metadata.error) { await client.storage.from(evidenceBucket).remove([objectPath]); throw new Error(metadata.error.message); }
+}
+
+export async function loadPayrollPenaltyAssets(client: Client, penaltyIds: string[]) {
+  if (!penaltyIds.length) return [];
+  const { data, error } = await client.from('payroll_penalty_assets').select('*').in('penalty_id', penaltyIds).order('created_at', { ascending: true });
+  if (error) throw new Error(error.message || '暂时无法加载罚单图片。');
+  return data ?? [];
+}
+
+export async function loadPayrollPenaltyAssetUrl(client: Client, asset: PayrollPenaltyAsset) {
+  return loadStorageImageResource(client, asset.bucket, asset.object_path, {
+    scope: 'session',
+    version: asset.created_at,
+  });
 }
 
 export async function managerCreatePayrollPenalty(client: Client, input: { profileId: string; eventDate: string; reason: string; amount: number; eventLevel: PenaltyRow['event_level']; performanceDeduction: number }) {

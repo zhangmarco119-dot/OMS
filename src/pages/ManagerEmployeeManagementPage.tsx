@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
+import { ImageViewer } from '../components/ui/ImageViewer';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { loadManagerStoreStaff, managerCreatePayrollPenalty, uploadPayrollEvidence } from '../services/payroll.service';
@@ -33,6 +35,7 @@ export function ManagerEmployeeManagementPage() {
   const [amount, setAmount] = useState('0');
   const [reason, setReason] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -47,6 +50,9 @@ export function ManagerEmployeeManagementPage() {
   const [ownTasks, setOwnTasks] = useState<Array<{ id: string; task_no: string; name: string; status: string; due_at: string }>>([]);
   const [taskMessage, setTaskMessage] = useState('');
   const [activeTab, setActiveTab] = useState<'penalty' | 'task'>('penalty');
+
+  const previews = useMemo(() => files.map((file) => ({ file, url: URL.createObjectURL(file) })), [files]);
+  useEffect(() => () => previews.forEach((item) => URL.revokeObjectURL(item.url)), [previews]);
 
   const rpc = supabase?.rpc as unknown as (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
 
@@ -193,9 +199,15 @@ export function ManagerEmployeeManagementPage() {
           <input className="hidden" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
         </span>
       </label>
+      {previews.length ? <div className="mt-2 grid grid-cols-3 gap-2">{previews.map((item, index) => <div className="relative" key={`${item.file.name}-${item.file.lastModified}`}>
+        <button aria-label={`预览 ${item.file.name}`} className="block w-full" onClick={() => setActiveImageIndex(index)} type="button"><img alt={item.file.name} className="aspect-square w-full rounded-lg object-cover" src={item.url} /></button>
+        <button aria-label={`删除 ${item.file.name}`} className="absolute right-1 top-1 flex h-7 w-7 min-h-0 items-center justify-center rounded-full bg-black/70 text-white" onClick={() => setFiles((current) => current.filter((file) => file !== item.file))} type="button"><X className="h-4 w-4" /></button>
+      </div>)}</div> : null}
       <button className="mt-3 min-h-11 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void submitPenalty()} type="button">{busy ? '正在发布' : '发布罚单'}</button>
       {message ? <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{message}</p> : null}
     </SectionCard> : null}
+
+    {activeImageIndex !== null ? <ImageViewer activeIndex={activeImageIndex} images={previews.map((item) => ({ alt: item.file.name, url: item.url }))} label="罚单图片预览" onClose={() => setActiveImageIndex(null)} onIndexChange={setActiveImageIndex} /> : null}
 
     {activeTab === 'task' ? <SectionCard>
       <SectionHeader title="任务发布" description="创建模板并发布给本店员工，任务会同步到管理员任务清单。" />

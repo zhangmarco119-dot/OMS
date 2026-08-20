@@ -25,7 +25,7 @@ vi.mock('../services/payroll.service', async (original) => {
 });
 
 const setup = {
-  profiles: [], rules: [], commissionStores: [], performanceStores: [], departureMonths: [], attendanceAllocationRules: [], profileStoreAccess: [], performanceRules: [], revenues: [], revenueInputs: [], penalties: [], penaltyAssets: [], overtimeRates: [], overtimeRequests: [],
+  profiles: [], penaltyPublishers: [], rules: [], commissionStores: [], performanceStores: [], departureMonths: [], attendanceAllocationRules: [], profileStoreAccess: [], performanceRules: [], revenues: [], revenueInputs: [], penalties: [], penaltyAssets: [], overtimeRates: [], overtimeRequests: [],
 };
 
 const estimate = {
@@ -105,15 +105,21 @@ describe('AdminPayrollPage update guidance', () => {
     vi.mocked(loadPayrollAdminSetup).mockResolvedValue({
       ...setup,
       profiles: [{ display_name: '员工甲', employment_type: 'full_time', id: 'staff-1', role: 'staff' }],
+      penaltyPublishers: [{ display_name: '王店长', id: 'manager-1', role: 'manager' }],
       penalties: [{ amount: 50, created_at: '2026-07-18T01:00:00Z', created_by: 'manager-1', event_date: '2026-07-18', event_level: 'warning', id: 'penalty-1', performance_deduction: 3, profile_id: 'staff-1', reason: '盘点差异，需承担对应损失。', revoke_reason: null, status: 'active', updated_at: '2026-07-18T01:00:00Z' }],
       penaltyAssets: [{ bucket: 'payroll-evidence', created_at: '2026-07-18T01:00:01Z', file_name: '现场证据.png', id: 'asset-1', mime_type: 'image/png', object_path: 'manager/penalty/image.png', penalty_id: 'penalty-1', size_bytes: 1024, uploaded_by: 'manager-1' }],
     } as never);
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=penalties']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
 
-    fireEvent.click(await screen.findByRole('button', { name: '查看 员工甲 的处罚详情' }));
+    const penaltyCard = await screen.findByRole('button', { name: '查看 员工甲 的处罚详情' });
+    expect(penaltyCard).toHaveTextContent('发布人：王店长 · 店长');
+    expect(screen.queryByText('点击查看原因和图片')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '撤销此记录' })).not.toBeInTheDocument();
+    fireEvent.click(penaltyCard);
     expect(screen.getByRole('dialog', { name: '处罚记录详情' })).toBeInTheDocument();
     expect(screen.getByText('盘点差异，需承担对应损失。')).toBeInTheDocument();
     expect(screen.getByText('正在加载图片')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '撤销此记录' })).toBeInTheDocument();
 
     await act(async () => resolveImage('blob:penalty-detail-image'));
     const image = await screen.findByRole('img', { name: '现场证据.png' });
@@ -121,6 +127,10 @@ describe('AdminPayrollPage update guidance', () => {
     await waitFor(() => expect(screen.queryByText('正在加载图片')).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '查看处罚图片 现场证据.png' }));
     expect(screen.getByRole('dialog', { name: '处罚详情图片预览' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '关闭图片预览' }));
+    fireEvent.click(screen.getByRole('button', { name: '撤销此记录' }));
+    expect(screen.queryByRole('dialog', { name: '处罚记录详情' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '确认撤销处罚记录' })).toBeInTheDocument();
   });
 
   it('adds comprehensive statistics and merges visibility into employee parameters', async () => {

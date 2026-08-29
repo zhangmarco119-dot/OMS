@@ -29,6 +29,14 @@ describe('AppMenuPage administrator workbench', () => {
     expect(screen.queryByText('到货记录')).not.toBeInTheDocument();
   });
 
+  it('shows the AI review entry immediately while its database settings are still loading', () => {
+    vi.mocked(useAiPilotSettings).mockReturnValue({ error: null, loading: true, reload: vi.fn(), settings: null });
+
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AppMenuPage /></MemoryRouter>);
+
+    expect(screen.getByRole('link', { name: /AI 质检试点/ })).toHaveAttribute('href', '/app/admin/ai-review');
+  });
+
   it('gives a store employee a personal attendance entry without administrator access', () => {
     vi.mocked(useAuth).mockReturnValue({ profile: { role: 'staff' } } as ReturnType<typeof useAuth>);
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AppMenuPage /></MemoryRouter>);

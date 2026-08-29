@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupContiguousDates, selectIncrementalDates } from './incremental-plan';
+import { groupContiguousDates, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan';
 
 describe('attendance incremental plan', () => {
   it('only fetches missing dates, today, and a not-yet-finalized yesterday', () => {
@@ -42,5 +42,21 @@ describe('attendance incremental plan', () => {
         '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16', '2026-07-17', '2026-07-18',
         '2026-07-19',
       ]);
+  });
+
+  it('forces the requested range for a single employee so a new binding receives historical attendance', () => {
+    expect(shouldForceRequestedRange('sync', 'profile-1')).toBe(true);
+    expect(shouldForceRequestedRange('retry-job', null)).toBe(true);
+    expect(shouldForceRequestedRange('sync', null)).toBe(false);
+    expect(shouldForceRequestedRange('scheduled-sync', null)).toBe(false);
+  });
+
+  it('backfills dates that are covered for existing employees but missing for a newly bound employee', () => {
+    expect(selectUncoveredBindingDates('2026-08-01', '2026-08-03', ['existing', 'new'], [
+      { attendanceDate: '2026-08-01', profileId: 'existing' },
+      { attendanceDate: '2026-08-02', profileId: 'existing' },
+      { attendanceDate: '2026-08-03', profileId: 'existing' },
+      { attendanceDate: '2026-08-03', profileId: 'new' },
+    ])).toEqual(['2026-08-01', '2026-08-02']);
   });
 });

@@ -45,6 +45,7 @@ export function AppMenuPage() {
   }
   if (isAdmin) items.push({ icon: ScrollText, label: '操作日志', note: '查看所有账号的关键业务操作记录', to: '/app/admin/operation-logs' });
   if (auth.profile?.role === 'manager') items.push({ icon: Users, label: '员工管理', note: '', to: '/app/manager/employees' });
-  if (isAdmin && aiPilot.settings?.globalEnabled && aiPilot.settings.adminVisible) items.push({ icon: Bot, label: 'AI 质检试点', note: '', to: '/app/admin/ai-review' });
+  const aiReviewVisible = isAdmin && (aiPilot.settings === null || (aiPilot.settings.globalEnabled && aiPilot.settings.adminVisible));
+  if (aiReviewVisible) items.push({ icon: Bot, label: 'AI 质检试点', note: '', to: '/app/admin/ai-review' });
   return <PageShell eyebrow="门店运营系统" title="工作台" contentGapClassName="gap-3"><section className="grid grid-cols-3 gap-2 sm:gap-3">{items.map((item) => <FeatureCard {...item} key={item.to} />)}</section></PageShell>;
 }

@@ -18,6 +18,20 @@ export const eachDate = (startDate: string, endDate: string) => {
 
 export const previousDate = (date: string) => new Date(new Date(`${date}T00:00:00Z`).getTime() - DAY_MS).toISOString().slice(0, 10);
 
+export const shouldForceRequestedRange = (action: string, requestedProfileId: string | null) => (
+  action === 'retry-job' || Boolean(requestedProfileId)
+);
+
+export const selectUncoveredBindingDates = (
+  startDate: string,
+  endDate: string,
+  profileIds: string[],
+  coverage: Array<{ attendanceDate: string; profileId: string }>,
+) => {
+  const covered = new Set(coverage.map((row) => `${row.profileId}|${row.attendanceDate}`));
+  return eachDate(startDate, endDate).filter((date) => profileIds.some((profileId) => !covered.has(`${profileId}|${date}`)));
+};
+
 export const selectIncrementalDates = (
   startDate: string,
   endDate: string,

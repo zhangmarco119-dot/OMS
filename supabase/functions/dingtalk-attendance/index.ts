@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 import { normalizeAttendanceBundle, type AttendanceBindingInput } from './attendance-normalizer.ts';
 import { chunk, DingTalkApiError, DingTalkClient } from './dingtalk-client.ts';
 import { loadDingTalkEnterpriseConfigs } from './enterprise-config.ts';
-import { eachDate, selectIncrementalDates } from './incremental-plan.ts';
+import { eachDate, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan.ts';
 import { summarizeAttendanceSync } from './sync-result.ts';
 
 type AttendanceAction =
@@ -228,9 +228,15 @@ Deno.serve(async (request) => {
       .or('missing_punch.neq.none,daily_status.in.(missing,abnormal)')
     : { data: [], error: null };
   if (abnormalError) return json({ error: '无法读取需要复查的历史缺卡和异常记录。' }, 500);
-  // Manual organization, store, and employee syncs all use the same incremental
-  // date planner. Only an explicit failed-job retry may replay its full range.
-  const forceRequestedRange = payload.action === 'retry-job';
+  const { data: coverageRows, error: coverageError } = bindings.length
+    ? await adminClient.from('attendance_daily_records').select('profile_id,corp_id,store_id,attendance_date')
+      .in('profile_id', unique(bindings.map((binding) => binding.profileId)))
+      .gte('attendance_date', startDate).lte('attendance_date', endDate)
+    : { data: [], error: null };
+  if (coverageError) return json({ error: '无法检查新绑定员工的历史考勤覆盖范围。' }, 500);
+  // Organization and store syncs remain incremental, but a single-employee
+  // request replays the selected range so a newly bound profile gets history.
+  const forceRequestedRange = shouldForceRequestedRange(payload.action, requestedProfileId);
   const todayStart = new Date(`${today}T00:00:00+08:00`).getTime();
   const datesByScope = new Map<string, string[]>();
   for (const scopeKey of scopeKeys) {
@@ -242,7 +248,12 @@ Deno.serve(async (request) => {
       .filter((row) => row.corp_id === corpId && row.store_id === storeId)
       .map((row) => row.attendance_date))
       .filter((date) => !isScheduled || new Date(stateByDate.get(date) ?? 0).getTime() < todayStart);
-    datesByScope.set(scopeKey, forceRequestedRange ? eachDate(startDate, endDate) : selectIncrementalDates(startDate, endDate, today, states, recheckDates));
+    const scopedProfileIds = bindings.filter((binding) => binding.corpId === corpId && binding.storeId === storeId).map((binding) => binding.profileId);
+    const uncoveredDates = selectUncoveredBindingDates(startDate, endDate, scopedProfileIds, (coverageRows ?? [])
+      .filter((row) => row.corp_id === corpId && row.store_id === storeId)
+      .map((row) => ({ attendanceDate: row.attendance_date, profileId: row.profile_id })));
+    const incrementalDates = selectIncrementalDates(startDate, endDate, today, states, recheckDates);
+    datesByScope.set(scopeKey, forceRequestedRange ? eachDate(startDate, endDate) : unique([...incrementalDates, ...uncoveredDates]).sort());
   }
   const datesByCorp = new Map<string, string[]>();
   for (const binding of bindings) {

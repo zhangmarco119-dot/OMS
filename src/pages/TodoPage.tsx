@@ -12,7 +12,7 @@ import { formatV2TaskDueAt, getV2TaskDisplayStatus, isV2TaskOverdue, v2TaskStatu
 import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock';
 import { TaskSubmissionTimeline } from '../features/v2-tasks/TaskSubmissionTimeline';
 import { supabase } from '../lib/supabase';
-import { isV2TaskExecutionTodoForProfile, loadV2TaskRecipients, loadV2TaskTimeline, loadV2Tasks, type V2TaskRow, type V2TaskTimelineEvent } from '../services/v2-tasks.service';
+import { isV2TaskExecutionTodoForProfile, loadV2TaskRecipients, loadV2TaskTimeline, loadV2Tasks, type V2TaskListRow, type V2TaskTimelineEvent } from '../services/v2-tasks.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { completeAdminManagerPenaltyTodo, completeAdminPayrollConfirmationTodo, completeAttendanceCorrectionTodo, loadAdminManagerPenaltyTodos, loadAdminPayrollConfirmationTodos, loadMyAttendanceCorrectionTodos, loadMyPayrollPayslipTodos, loadTodoSummary } from '../services/todo.service';
 import { loadAllOvertimeRequests, loadManagerOvertimeRequests, loadOvertimeProfiles } from '../services/payroll.service';
@@ -48,7 +48,7 @@ export function TodoPage() {
   const auth = useAuth(); const isAdmin = auth.profile?.role === 'admin'; const isManager = auth.profile?.role === 'manager';
   const location = useLocation(); const navigate = useNavigate();
   const deadlineNow = useTaskDeadlineClock();
-  const [tasks, setTasks] = useState<V2TaskRow[]>([]); const [feedbackCount, setFeedbackCount] = useState(0); const [feedback, setFeedback] = useState<ProductFeedbackRecord[]>([]); const [notices, setNotices] = useState<NoticeListItem[]>([]); const [overtime, setOvertime] = useState<Database['public']['Tables']['payroll_overtime_requests']['Row'][]>([]); const [overtimeNames, setOvertimeNames] = useState<Record<string, string>>({}); const [overtimeTerms, setOvertimeTerms] = useState<Record<string, string>>({}); const [message, setMessage] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<V2TaskListRow[]>([]); const [feedbackCount, setFeedbackCount] = useState(0); const [feedback, setFeedback] = useState<ProductFeedbackRecord[]>([]); const [notices, setNotices] = useState<NoticeListItem[]>([]); const [overtime, setOvertime] = useState<Database['public']['Tables']['payroll_overtime_requests']['Row'][]>([]); const [overtimeNames, setOvertimeNames] = useState<Record<string, string>>({}); const [overtimeTerms, setOvertimeTerms] = useState<Record<string, string>>({}); const [message, setMessage] = useState<string | null>(null);
   const [corrections, setCorrections] = useState<Database['public']['Tables']['attendance_missing_punch_todos']['Row'][]>([]);
   const [payslips, setPayslips] = useState<Database['public']['Tables']['payroll_payslips']['Row'][]>([]);
   const [payrollConfirmations, setPayrollConfirmations] = useState<Database['public']['Tables']['notifications']['Row'][]>([]);

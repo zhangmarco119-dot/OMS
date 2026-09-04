@@ -1,10 +1,10 @@
 import { PauseCircle, Pencil, Rocket, Search, Undo2, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
 import { PageShell } from '../components/layout/PageShell';
-import { FeedbackBanner } from '../components/ui/Feedback';
+import { ErrorState, FeedbackBanner, LoadingState } from '../components/ui/Feedback';
 import { SegmentedControl } from '../components/ui/FormField';
 import { clearAiFollowUpTaskDraft, readAiFollowUpTaskDraft } from '../features/ai-review/aiReviewDrafts';
 import { ArrivalPeriodFilter } from '../features/arrivals/ArrivalPeriodFilter';
@@ -24,6 +24,7 @@ import {
   createV2TaskSchedule,
   deleteV2TaskReferenceImages,
   loadV2TaskContentReferenceImageUrls,
+  loadV2TaskContent,
   loadV2TaskRelatedContentOptions,
   loadV2TaskScheduleContent,
   loadV2TaskRecipients,
@@ -41,6 +42,7 @@ import {
   type TaskAudience,
   type V2TaskRecipient,
   type V2TaskCompletionMode,
+  type V2TaskListRow,
   type V2TaskRelatedContentOption,
   type V2TaskRelatedContentType,
   type V2TaskRow,
@@ -58,8 +60,8 @@ const localDateValue = (value: Date | string = new Date()) => {
   const date = value instanceof Date ? value : new Date(value);
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
-const completedAt = (task: V2TaskRow) => task.reviewed_at ?? task.submitted_at ?? task.updated_at;
-const isWaitingForScheduledPublication = (task: V2TaskRow) => task.publish_notified_at === null;
+const completedAt = (task: V2TaskListRow) => task.reviewed_at ?? task.submitted_at ?? task.updated_at;
+const isWaitingForScheduledPublication = (task: V2TaskListRow) => task.publish_notified_at === null;
 const toDatetimeLocalValue = (iso: string) => {
   const date = new Date(iso);
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -190,7 +192,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const deadlineNow = useTaskDeadlineClock();
   const [templates, setTemplates] = useState<TaskTemplateListItem[]>([]);
   const [categories, setCategories] = useState<TaskCategoryRow[]>([]);
-  const [tasks, setTasks] = useState<V2TaskRow[]>([]);
+  const [tasks, setTasks] = useState<V2TaskListRow[]>([]);
   const [taskTimeline, setTaskTimeline] = useState<V2TaskTimelineEvent[]>([]);
   const [schedules, setSchedules] = useState<V2TaskScheduleRow[]>([]);
   const [recipients, setRecipients] = useState<V2TaskRecipient[]>([]);
@@ -227,7 +229,11 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [editingProfileIds, setEditingProfileIds] = useState<string[]>([]);
   const [scheduleContentEditorOpen, setScheduleContentEditorOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
+  const [taskLoadStatus, setTaskLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [scheduleLoadStatus, setScheduleLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [busy, setBusy] = useState(false);
+  const loadRequestIdRef = useRef(0);
   const [aiFollowUpDraft, setAiFollowUpDraft] = useState(() => publisherOnly ? readAiFollowUpTaskDraft() : null);
   const [taskView, setTaskView] = useRememberedPageState<'active' | 'completed'>('task-view', 'active');
   const [completedPeriod, setCompletedPeriod] = useRememberedPageState<ArrivalPeriodValue>('completed-period', {
@@ -241,17 +247,39 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    try {
-      const [nextTemplates, nextCategories, nextTasks, nextSchedules, nextRecipients, nextRelatedContent, nextTimeline] = await Promise.all([loadTaskTemplates(supabase), loadTaskCategories(supabase), loadV2Tasks(supabase), loadV2TaskSchedules(supabase), loadV2TaskRecipients(supabase), loadV2TaskRelatedContentOptions(supabase), loadV2TaskTimeline(supabase)]);
-      setTemplates(nextTemplates.filter((item) => item.status === 'published'));
-      setCategories(nextCategories);
-      setTasks(nextTasks);
-      setSchedules(nextSchedules);
-      setRecipients(nextRecipients);
-      setRelatedContentOptions(nextRelatedContent);
-      setTaskTimeline(nextTimeline);
-    } catch (error) { setMessage(error instanceof Error ? error.message : '加载任务失败'); }
-  }, []);
+    const requestId = ++loadRequestIdRef.current;
+    setLoadWarning(null);
+    if (!publisherOnly) {
+      setTaskLoadStatus('loading');
+      setScheduleLoadStatus('loading');
+    }
+
+    async function loadPart<T>(label: string, request: Promise<T>, onSuccess: (value: T) => void, onError?: () => void) {
+      try {
+        const value = await request;
+        if (requestId === loadRequestIdRef.current) onSuccess(value);
+        return null;
+      } catch {
+        if (requestId === loadRequestIdRef.current) onError?.();
+        return label;
+      }
+    }
+
+    const coreLoads = publisherOnly ? [] : [
+      loadPart('任务清单', loadV2Tasks(supabase), (value) => { setTasks(value); setTaskLoadStatus('ready'); }, () => setTaskLoadStatus('error')),
+      loadPart('周期任务', loadV2TaskSchedules(supabase), (value) => { setSchedules(value); setScheduleLoadStatus('ready'); }, () => setScheduleLoadStatus('error')),
+    ];
+    const failedSections = (await Promise.all([
+      ...coreLoads,
+      loadPart('任务模板', loadTaskTemplates(supabase), (value) => setTemplates(value.filter((item) => item.status === 'published'))),
+      loadPart('任务分类', loadTaskCategories(supabase), setCategories),
+      loadPart('接收人员', loadV2TaskRecipients(supabase), setRecipients),
+      loadPart('关联资料', loadV2TaskRelatedContentOptions(supabase), setRelatedContentOptions),
+      ...(publisherOnly ? [] : [loadPart('提交时间线', loadV2TaskTimeline(supabase), setTaskTimeline)]),
+    ])).filter((label): label is string => Boolean(label));
+    if (requestId !== loadRequestIdRef.current) return;
+    setLoadWarning(failedSections.length ? `${failedSections.join('、')}暂时加载失败，其他已成功的数据仍会正常显示。` : null);
+  }, [publisherOnly]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!publisherOnly || !aiFollowUpDraft || templates.length === 0) return;
@@ -393,7 +421,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     setBusy(true);
     try {
       const currentTask = tasks.find((task) => task.schedule_id === row.id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status));
-      const content = currentTask ? { name: currentTask.name, snapshot: currentTask.snapshot } : await loadV2TaskScheduleContent(supabase, row.id);
+      const content = currentTask ? await loadV2TaskContent(supabase, currentTask.id) : await loadV2TaskScheduleContent(supabase, row.id);
       const referenceUrls = await loadV2TaskContentReferenceImageUrls(supabase, content.snapshot);
       const nextDraft = taskContentFromSnapshot(content.name, content.snapshot, referenceUrls);
       setFields(scheduleFieldsFromRow(row));
@@ -415,26 +443,28 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     } catch (error) { setMessage(error instanceof Error ? error.message : '周期任务内容加载失败'); }
     finally { setBusy(false); }
   };
-  const startTaskEdit = async (task: V2TaskRow) => {
+  const startTaskEdit = async (task: V2TaskListRow) => {
     if (!supabase) return;
     setBusy(true);
     try {
-      const referenceUrls = await loadV2TaskContentReferenceImageUrls(supabase, task.snapshot);
-      const nextDraft = taskContentFromSnapshot(task.name, task.snapshot, referenceUrls);
-      setEditingTask(task);
-      setEditingDue(toDatetimeLocalValue(task.due_at));
-      setFields((current) => ({ ...current, managerReviewEnabled: task.manager_review_enabled }));
+      const content = await loadV2TaskContent(supabase, task.id);
+      const fullTask: V2TaskRow = { ...task, snapshot: content.snapshot };
+      const referenceUrls = await loadV2TaskContentReferenceImageUrls(supabase, content.snapshot);
+      const nextDraft = taskContentFromSnapshot(content.name, content.snapshot, referenceUrls);
+      setEditingTask(fullTask);
+      setEditingDue(toDatetimeLocalValue(fullTask.due_at));
+      setFields((current) => ({ ...current, managerReviewEnabled: fullTask.manager_review_enabled }));
       setContentDraft(nextDraft);
       setOriginalReferencePaths(taskContentReferencePaths(nextDraft));
       setPendingReferencePaths([]);
-      setEditingRelatedContentType(relatedContentTypeFromIds(task.related_sop_id, task.related_notice_id));
-      setEditingRelatedContentId(task.related_sop_id ?? task.related_notice_id ?? '');
-      setEditingInventoryLinkEnabled(task.requires_inventory);
-      setEditingInventoryCategoryCodes(task.inventory_category_codes as ProductCategoryCode[]);
-      setEditingCompletionMode(task.assigned_profile_id ? 'single' : 'shared');
-      setEditingTargetAudiences((task.target_audiences ?? ['staff', 'manager']) as TaskAudience[]);
-      setEditingProfileId(task.assigned_profile_id ?? '');
-      setEditingProfileIds(task.assigned_profile_id ? [task.assigned_profile_id] : []);
+      setEditingRelatedContentType(relatedContentTypeFromIds(fullTask.related_sop_id, fullTask.related_notice_id));
+      setEditingRelatedContentId(fullTask.related_sop_id ?? fullTask.related_notice_id ?? '');
+      setEditingInventoryLinkEnabled(fullTask.requires_inventory);
+      setEditingInventoryCategoryCodes(fullTask.inventory_category_codes as ProductCategoryCode[]);
+      setEditingCompletionMode(fullTask.assigned_profile_id ? 'single' : 'shared');
+      setEditingTargetAudiences((fullTask.target_audiences ?? ['staff', 'manager']) as TaskAudience[]);
+      setEditingProfileId(fullTask.assigned_profile_id ?? '');
+      setEditingProfileIds(fullTask.assigned_profile_id ? [fullTask.assigned_profile_id] : []);
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务内容加载失败'); }
     finally { setBusy(false); }
   };
@@ -551,6 +581,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
 
   return <PageShell eyebrow="门店运营系统 · 管理员" title={publisherOnly ? '任务发布' : '任务管理'} backTo="/app/workbench">
     {!publisherOnly ? <section className="grid grid-cols-2 gap-2"><Link className="flex min-h-12 items-center justify-center rounded-lg bg-brand-600 px-3 text-center font-bold text-white" to="/app/admin/task-templates">管理任务模板</Link><Link className="flex min-h-12 items-center justify-center rounded-lg bg-brand-600 px-3 text-center font-bold text-white" to="/app/admin/tasks/publish">任务发布</Link></section> : null}
+    {loadWarning ? <FeedbackBanner title="部分内容未加载" tone="danger"><p>{loadWarning}</p><button className="ui-button-secondary mt-2 min-h-9 px-3 text-xs" onClick={() => void load()} type="button">重新加载</button></FeedbackBanner> : null}
     {publisherOnly && aiFollowUpDraft ? <FeedbackBanner title="AI 复核任务草稿" tone="warning"><p><b>{aiFollowUpDraft.storeName} · {aiFollowUpDraft.title}</b></p><p className="mt-1">{aiFollowUpDraft.rationale}</p><p className="mt-1 text-xs">建议值：{typeof aiFollowUpDraft.suggestedValue === 'string' ? aiFollowUpDraft.suggestedValue : JSON.stringify(aiFollowUpDraft.suggestedValue)}</p><p className="mt-1 text-xs">系统已预选适用门店和可用模板。发布前请人工核对模板、接收人和截止时间；原单据没有被修改。</p><button className="ui-button-secondary mt-2 min-h-9 px-3 text-xs" onClick={() => { clearAiFollowUpTaskDraft(); setAiFollowUpDraft(null); }} type="button">放弃此草稿</button></FeedbackBanner> : null}
     {publisherOnly ? <section className="ui-card p-4">
       <h2 className="font-bold">发布任务</h2>
@@ -588,7 +619,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
         { active: taskView === 'completed', label: `已完成任务 ${completedTasks.length}`, onClick: () => setTaskView('completed') },
       ]} />
 
-      {taskView === 'active' ? <section className="space-y-3"><h2 className="font-bold">周期任务</h2>{schedules.length ? schedules.map((row) => <article className="ui-card p-4" key={row.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{row.content_name ?? templates.find((item) => item.id === row.template_id)?.name ?? '已归档模板的周期任务'}</b><p className="mt-1 text-sm text-slate-600">{auth.availableStores.find((store) => store.id === row.store_id)?.name}{row.assigned_profile_id ? ` · ${recipients.find((item) => item.id === row.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'}</p><p className="mt-1 text-xs leading-5 text-slate-500">{scheduleText(row)}<br />下次发布：{new Date(row.next_due_at).toLocaleString('zh-CN')}</p></div><div className="flex shrink-0 flex-wrap justify-end gap-1.5"><span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-bold text-violet-800">定时发布</span><span className={`rounded-full px-2 py-1 text-xs font-bold ${row.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{row.is_active ? '运行中' : '已暂停'}</span></div></div><div className="mt-3 grid grid-cols-3 gap-2"><button className="ui-button-secondary px-2" disabled={busy} onClick={() => void startScheduleEdit(row)} type="button"><Pencil className="h-4 w-4" />编辑</button><button className="ui-button-secondary border-red-200 px-2 text-red-700" disabled={busy} onClick={() => void withdraw(row)} type="button"><Undo2 className="h-4 w-4" />撤回周期</button>{row.is_active ? <button className="ui-button-secondary px-2" disabled={busy} onClick={() => void pause(row)} type="button"><PauseCircle className="h-4 w-4" />暂停</button> : <button className="ui-button-primary px-2" disabled={busy} onClick={() => void resume(row)} type="button">继续</button>}</div></article>) : <p className="ui-card p-4 text-sm text-slate-500">暂无周期任务计划。</p>}</section> : null}
+      {taskView === 'active' ? <section className="space-y-3"><h2 className="font-bold">周期任务</h2>{schedules.length ? schedules.map((row) => <article className="ui-card p-4" key={row.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{row.content_name ?? templates.find((item) => item.id === row.template_id)?.name ?? '已归档模板的周期任务'}</b><p className="mt-1 text-sm text-slate-600">{auth.availableStores.find((store) => store.id === row.store_id)?.name}{row.assigned_profile_id ? ` · ${recipients.find((item) => item.id === row.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'}</p><p className="mt-1 text-xs leading-5 text-slate-500">{scheduleText(row)}<br />下次发布：{new Date(row.next_due_at).toLocaleString('zh-CN')}</p></div><div className="flex shrink-0 flex-wrap justify-end gap-1.5"><span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-bold text-violet-800">定时发布</span><span className={`rounded-full px-2 py-1 text-xs font-bold ${row.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{row.is_active ? '运行中' : '已暂停'}</span></div></div><div className="mt-3 grid grid-cols-3 gap-2"><button className="ui-button-secondary px-2" disabled={busy} onClick={() => void startScheduleEdit(row)} type="button"><Pencil className="h-4 w-4" />编辑</button><button className="ui-button-secondary border-red-200 px-2 text-red-700" disabled={busy} onClick={() => void withdraw(row)} type="button"><Undo2 className="h-4 w-4" />撤回周期</button>{row.is_active ? <button className="ui-button-secondary px-2" disabled={busy} onClick={() => void pause(row)} type="button"><PauseCircle className="h-4 w-4" />暂停</button> : <button className="ui-button-primary px-2" disabled={busy} onClick={() => void resume(row)} type="button">继续</button>}</div></article>) : scheduleLoadStatus === 'loading' ? <LoadingState label="正在加载周期任务" /> : scheduleLoadStatus === 'error' ? <ErrorState message="周期任务暂时无法读取，任务清单不受影响。" onRetry={() => void load()} /> : <p className="ui-card p-4 text-sm text-slate-500">暂无周期任务计划。</p>}</section> : null}
 
       {taskView === 'completed' ? <section className="ui-card p-3">
         <div className="flex items-center justify-between gap-3">
@@ -619,7 +650,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
           const timeline = taskTimeline.filter((event) => event.task_id === task.id);
           return <article className="ui-card p-4" key={task.id}><Link className="ui-interactive block" to={`/app/admin/tasks/${task.id}`}><div className="flex items-start justify-between gap-3"><b>{task.name}</b><div className="flex max-w-[62%] flex-wrap justify-end gap-1.5">{waitingForPublication ? <><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900">待发布</span><span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-800">定时发布</span></> : <><span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800">已发布</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[task.status]}`}>{task.status === 'resubmitted' ? '已重新提交 · 待审核' : v2TaskStatusLabel[task.status]}</span>{overdue && task.status !== 'overdue' ? <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass.overdue}`}>{v2TaskStatusLabel.overdue}</span> : null}</>}</div></div><p className="mt-2 text-sm text-slate-500">{task.task_no} · {auth.availableStores.find((store) => store.id === task.store_id)?.name}{task.assigned_profile_id ? ` · ${recipients.find((item) => item.id === task.assigned_profile_id)?.display_name ?? '指定人员'}` : ' · 门店全体'} · {task.status === 'approved' ? `完成 ${new Date(completedAt(task)).toLocaleString('zh-CN')}` : waitingForPublication ? `定时发布 ${new Date(task.publish_at).toLocaleString('zh-CN')} · 截止 ${new Date(task.due_at).toLocaleString('zh-CN')}` : `截止 ${new Date(task.due_at).toLocaleString('zh-CN')}`}{task.schedule_id ? ' · 周期任务' : ''}</p>{submitterName && ['submitted', 'resubmitted'].includes(task.status) ? <p className="mt-1 text-xs text-slate-500">提交人：{submitterName}</p> : null}<TaskSubmissionTimeline events={timeline} fallbackSubmittedAt={task.submitted_at} /></Link>{!task.schedule_id && ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status) ? <button className="ui-button-secondary mt-3 w-full" disabled={busy} onClick={() => void startTaskEdit(task)} type="button"><Pencil className="h-4 w-4" />编辑完整任务</button> : null}</article>;
         })}
-        {(taskView === 'active' ? activeTasks : filteredCompletedTasks).length === 0 ? <p className="ui-card p-4 text-sm text-slate-500">{taskView === 'active' ? '当前没有进行中的任务。' : '当前筛选条件下没有已完成任务。'}</p> : null}
+        {(taskView === 'active' ? activeTasks : filteredCompletedTasks).length === 0 ? taskLoadStatus === 'loading' ? <LoadingState label="正在加载任务清单" /> : taskLoadStatus === 'error' ? <ErrorState message="任务清单暂时无法读取，周期任务不受影响。" onRetry={() => void load()} /> : <p className="ui-card p-4 text-sm text-slate-500">{taskView === 'active' ? '当前没有进行中的任务。' : '当前筛选条件下没有已完成任务。'}</p> : null}
       </section>
     </> : null}
 

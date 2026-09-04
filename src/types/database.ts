@@ -1251,6 +1251,7 @@ export type Database = {
       update_payroll_overtime_request: { Args: { p_hours: number; p_overtime_date: string; p_reason?: string; p_request_id: string; p_store_id: string }; Returns: Json };
       get_v2_sop_detail: { Args: { p_sop_id: string }; Returns: Json };
       list_v2_sop_cards: { Args: { p_archived?: boolean; p_category?: string; p_favorites_only?: boolean; p_limit?: number; p_offset?: number; p_search?: string }; Returns: Json };
+      list_publishable_v2_task_templates: { Args: Record<PropertyKey, never>; Returns: Json };
       attach_v2_task_template_reference_image: { Args: { p_item_id: string; p_path: string; p_template_id: string }; Returns: string[] };
       admin_set_product_permissions: { Args: { p_can_request_discontinued: boolean; p_can_request_incorrect: boolean; p_can_request_new: boolean; p_profile_id: string }; Returns: Json };
       acknowledge_v2_notice: { Args: { p_notice_id: string }; Returns: Json };

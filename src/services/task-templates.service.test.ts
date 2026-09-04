@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createEmptyTaskTemplate } from '../features/task-templates/templateForm';
 import type { Database } from '../types/database';
-import { loadPublishableTaskTemplates, publishTaskTemplate, retractTaskTemplate, saveTaskTemplate, uploadTaskTemplateReferenceImage } from './task-templates.service';
+import { loadPublishableTaskTemplates, publishTaskTemplate, renameTaskTemplate, retractTaskTemplate, saveTaskTemplate, uploadTaskTemplateReferenceImage } from './task-templates.service';
 
 vi.mock('./arrival-images.service', () => ({
   compressArrivalImage: vi.fn().mockResolvedValue({
@@ -63,6 +63,16 @@ describe('task templates service', () => {
     const client = { rpc } as unknown as SupabaseClient<Database>;
     await retractTaskTemplate(client, '00000000-0000-4000-8000-000000000099');
     expect(rpc).toHaveBeenCalledWith('retract_v2_task_template', {
+      p_template_id: '00000000-0000-4000-8000-000000000099',
+    });
+  });
+
+  it('renames a template without saving the complete draft', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { name: '设备尺寸采集' }, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await renameTaskTemplate(client, '00000000-0000-4000-8000-000000000099', ' 设备尺寸采集 ');
+    expect(rpc).toHaveBeenCalledWith('rename_v2_task_template', {
+      p_name: '设备尺寸采集',
       p_template_id: '00000000-0000-4000-8000-000000000099',
     });
   });

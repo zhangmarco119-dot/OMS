@@ -8,6 +8,7 @@ import {
   loadTaskTemplateDraft,
   loadTaskCategories,
   loadTaskTemplates,
+  renameTaskTemplate,
   retractTaskTemplate,
   saveTaskTemplate,
   uploadTaskTemplateReferenceImage,
@@ -23,6 +24,7 @@ vi.mock('../services/task-templates.service', async (importOriginal) => {
     loadTaskTemplateDraft: vi.fn(),
     loadTaskCategories: vi.fn(),
     loadTaskTemplates: vi.fn(),
+    renameTaskTemplate: vi.fn(),
     retractTaskTemplate: vi.fn(),
     saveTaskTemplate: vi.fn(),
     uploadTaskTemplateReferenceImage: vi.fn(),
@@ -42,6 +44,7 @@ describe('AdminTaskTemplatesPage reference images', () => {
       { code: 'weekly_clean', label: '周清', is_system: true, created_by: null, created_at: '2026-07-01T00:00:00Z' },
     ]);
     vi.mocked(saveTaskTemplate).mockResolvedValue({ id: '00000000-0000-4000-8000-000000000003', status: 'draft' });
+    vi.mocked(renameTaskTemplate).mockResolvedValue({ name: '新模板名称' });
     vi.mocked(uploadTaskTemplateReferenceImage).mockResolvedValue({
       path: '00000000-0000-4000-8000-000000000003/item/reference.jpg',
       previewUrl: 'https://signed.example/reference.jpg',
@@ -112,7 +115,7 @@ describe('AdminTaskTemplatesPage reference images', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+    fireEvent.click(await screen.findByRole('button', { name: '编辑内容' }));
     await screen.findByDisplayValue('新增项目');
     const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
     fireEvent.change(fileInput!, {
@@ -148,9 +151,43 @@ describe('AdminTaskTemplatesPage reference images', () => {
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminTaskTemplatesPage /></MemoryRouter>);
 
     const archiveButton = await screen.findByRole('button', { name: '归档每周清洁' });
+    expect(screen.getByRole('button', { name: '重命名' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '撤回' })).toBeInTheDocument();
     expect(archiveButton).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: '撤回' }));
     await waitFor(() => expect(retractTaskTemplate).toHaveBeenCalledWith(expect.anything(), '00000000-0000-4000-8000-000000000030'));
+  });
+
+  it('renames a published template without retracting or saving its full contents', async () => {
+    const templateId = '00000000-0000-4000-8000-000000000030';
+    vi.mocked(loadTaskTemplates).mockResolvedValue([{
+      allow_overdue: false,
+      category: 'weekly_clean',
+      created_at: '2026-07-13T00:00:00Z',
+      created_by: '00000000-0000-4000-8000-000000000002',
+      current_version: 2,
+      description: '',
+      due_time: null,
+      id: templateId,
+      name: '旧模板名称',
+      recurrence: 'none',
+      recurrence_day: null,
+      requires_review: true,
+      status: 'published',
+      storeIds: ['00000000-0000-4000-8000-000000000001'],
+      updated_at: '2026-07-13T00:00:00Z',
+    }]);
+
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminTaskTemplatesPage /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: '重命名' }));
+    const dialog = screen.getByRole('dialog', { name: '重命名任务模板' });
+    const nameInput = within(dialog).getByRole('textbox', { name: '新的模板名称' });
+    fireEvent.change(nameInput, { target: { value: '设备尺寸采集' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存名称' }));
+
+    await waitFor(() => expect(renameTaskTemplate).toHaveBeenCalledWith(expect.anything(), templateId, '设备尺寸采集'));
+    expect(retractTaskTemplate).not.toHaveBeenCalled();
+    expect(saveTaskTemplate).not.toHaveBeenCalled();
   });
 });

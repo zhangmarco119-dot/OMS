@@ -265,6 +265,17 @@ export const retractTaskTemplate = async (client: Client, templateId: string) =>
   return data;
 };
 
+export const renameTaskTemplate = async (client: Client, templateId: string, name: string) => {
+  const trimmedName = name.trim();
+  if (!trimmedName) throw new Error('请填写模板名称。');
+  const { data, error } = await client.rpc('rename_v2_task_template', {
+    p_name: trimmedName,
+    p_template_id: templateId,
+  });
+  throwIfError(error);
+  return data;
+};
+
 export const archiveTaskTemplate = async (client: Client, templateId: string) => {
   const { data, error } = await client.rpc('archive_v2_task_template', { p_template_id: templateId });
   throwIfError(error);

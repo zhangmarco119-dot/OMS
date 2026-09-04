@@ -39,6 +39,13 @@ export const loadTaskTemplates = async (client: Client): Promise<TaskTemplateLis
   return (templates.data ?? []).map((template) => ({ ...template, storeIds: storesByTemplate.get(template.id) ?? [] }));
 };
 
+export const loadPublishableTaskTemplates = async (client: Client): Promise<TaskTemplateListItem[]> => {
+  const { data, error } = await client.rpc('list_publishable_v2_task_templates');
+  throwIfError(error);
+  if (!Array.isArray(data)) throw new Error('已发布任务模板加载失败。');
+  return data as unknown as TaskTemplateListItem[];
+};
+
 export const loadTaskCategories = async (client: Client): Promise<TaskCategoryRow[]> => {
   const { data, error } = await client.from('v2_task_categories').select('*').order('is_system', { ascending: false }).order('created_at');
   throwIfError(error);

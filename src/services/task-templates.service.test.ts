@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createEmptyTaskTemplate } from '../features/task-templates/templateForm';
 import type { Database } from '../types/database';
-import { publishTaskTemplate, retractTaskTemplate, saveTaskTemplate, uploadTaskTemplateReferenceImage } from './task-templates.service';
+import { loadPublishableTaskTemplates, publishTaskTemplate, retractTaskTemplate, saveTaskTemplate, uploadTaskTemplateReferenceImage } from './task-templates.service';
 
 vi.mock('./arrival-images.service', () => ({
   compressArrivalImage: vi.fn().mockResolvedValue({
@@ -17,6 +17,14 @@ vi.mock('./arrival-images.service', () => ({
 const storeId = '00000000-0000-4000-8000-000000000001';
 
 describe('task templates service', () => {
+  it('loads published templates and store scopes in one request', async () => {
+    const rows = [{ id: 'template-1', name: '门店检查', status: 'published', storeIds: [storeId] }];
+    const rpc = vi.fn().mockResolvedValue({ data: rows, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+
+    await expect(loadPublishableTaskTemplates(client)).resolves.toEqual(rows);
+    expect(rpc).toHaveBeenCalledWith('list_publishable_v2_task_templates');
+  });
   it('serializes grouped items through the protected save RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { id: 'template-1' }, error: null });
     const client = { rpc } as unknown as SupabaseClient<Database>;

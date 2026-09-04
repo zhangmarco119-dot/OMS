@@ -19,7 +19,7 @@ vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../features/auth/AuthContext', () => ({
   useAuth: () => ({ availableStores: [{ id: 'store-1', name: '测试门店' }, { id: 'store-2', name: '第二门店' }] }),
 }));
-vi.mock('../services/task-templates.service', () => ({ loadTaskCategories: mocks.loadCategories, loadTaskTemplates: mocks.loadTemplates }));
+vi.mock('../services/task-templates.service', () => ({ loadPublishableTaskTemplates: mocks.loadTemplates, loadTaskCategories: mocks.loadCategories, loadTaskTemplates: mocks.loadTemplates }));
 vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
   return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskRelatedContentOptions: mocks.loadRelatedContent, loadV2TaskScheduleContent: mocks.loadScheduleContent, loadV2TaskSchedules: mocks.loadSchedules, loadV2TaskTimeline: mocks.loadTimeline, loadV2Tasks: mocks.loadTasks };
@@ -168,6 +168,39 @@ describe('AdminV2TasksPage navigation', () => {
     fireEvent.change(screen.getByLabelText('发布方式'), { target: { value: 'recurring' } });
     expect(screen.getByLabelText('首次 / 下次发布时间')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: '创建周期任务时立即发布一次' })).not.toBeChecked();
+  });
+
+  it('shows an explicit template loading state before enabling published choices', async () => {
+    let finishTemplateLoad: ((value: Array<{ id: string; name: string; status: string; storeIds: string[] }>) => void) | undefined;
+    mocks.loadTemplates.mockReturnValue(new Promise((resolve) => { finishTemplateLoad = resolve; }));
+
+    render(<MemoryRouter><AdminV2TaskPublishPage /></MemoryRouter>);
+
+    const selector = await screen.findByLabelText('任务模板');
+    expect(selector).toBeDisabled();
+    expect(screen.getByRole('button', { name: '确认发布' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: '正在加载任务模板…' })).toBeInTheDocument();
+    expect(screen.getByText('模板读取完成后即可选择。')).toBeInTheDocument();
+
+    await act(async () => {
+      finishTemplateLoad?.([{ id: 'template-1', name: '门店设备采集', status: 'published', storeIds: ['store-1'] }]);
+    });
+
+    expect(selector).toBeEnabled();
+    expect(screen.getByRole('button', { name: '确认发布' })).toBeEnabled();
+    expect(screen.getByRole('option', { name: '门店设备采集' })).toBeInTheDocument();
+  });
+
+  it('shows a template retry immediately even if another auxiliary request is still pending', async () => {
+    let finishRelatedContentLoad: ((value: never[]) => void) | undefined;
+    mocks.loadTemplates.mockRejectedValue(new Error('template request failed'));
+    mocks.loadRelatedContent.mockReturnValue(new Promise<never[]>((resolve) => { finishRelatedContentLoad = resolve; }));
+
+    render(<MemoryRouter><AdminV2TaskPublishPage /></MemoryRouter>);
+
+    expect(await screen.findByRole('button', { name: '模板加载失败，点击重试' })).toBeInTheDocument();
+    expect(screen.getByLabelText('任务模板')).toBeDisabled();
+    await act(async () => { finishRelatedContentLoad?.([]); });
   });
 
   it('disables stores outside the selected template and explains how to enable them', async () => {

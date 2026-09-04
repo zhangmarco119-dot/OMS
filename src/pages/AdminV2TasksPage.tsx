@@ -19,7 +19,7 @@ import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock'
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { PRODUCT_CATEGORIES, type ProductCategoryCode } from '../features/products/productCategories';
-import { loadTaskCategories, loadTaskTemplates, type TaskCategoryRow, type TaskTemplateListItem } from '../services/task-templates.service';
+import { loadPublishableTaskTemplates, loadTaskCategories, loadTaskTemplates, type TaskCategoryRow, type TaskTemplateListItem } from '../services/task-templates.service';
 import {
   createV2TaskSchedule,
   deleteV2TaskReferenceImages,
@@ -230,6 +230,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [scheduleContentEditorOpen, setScheduleContentEditorOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
+  const [templateLoadStatus, setTemplateLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [taskLoadStatus, setTaskLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [scheduleLoadStatus, setScheduleLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [busy, setBusy] = useState(false);
@@ -249,6 +250,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     if (!supabase) return;
     const requestId = ++loadRequestIdRef.current;
     setLoadWarning(null);
+    setTemplateLoadStatus('loading');
     if (!publisherOnly) {
       setTaskLoadStatus('loading');
       setScheduleLoadStatus('loading');
@@ -271,7 +273,12 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     ];
     const failedSections = (await Promise.all([
       ...coreLoads,
-      loadPart('任务模板', loadTaskTemplates(supabase), (value) => setTemplates(value.filter((item) => item.status === 'published'))),
+      loadPart(
+        '任务模板',
+        publisherOnly ? loadPublishableTaskTemplates(supabase) : loadTaskTemplates(supabase),
+        (value) => { setTemplates(value.filter((item) => item.status === 'published')); setTemplateLoadStatus('ready'); },
+        () => setTemplateLoadStatus('error'),
+      ),
       loadPart('任务分类', loadTaskCategories(supabase), setCategories),
       loadPart('接收人员', loadV2TaskRecipients(supabase), setRecipients),
       loadPart('关联资料', loadV2TaskRelatedContentOptions(supabase), setRelatedContentOptions),
@@ -586,7 +593,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
     {publisherOnly ? <section className="ui-card p-4">
       <h2 className="font-bold">发布任务</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm font-semibold">任务模板<select className="ui-input mt-1" onChange={(event) => { const id = event.target.value; setTemplateId(id); setStoreIds(templates.find((item) => item.id === id)?.storeIds ?? []); }} value={templateId}><option value="">请选择模板</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label className="text-sm font-semibold">任务模板<select aria-label="任务模板" className="ui-input mt-1" disabled={templateLoadStatus !== 'ready' || templates.length === 0} onChange={(event) => { const id = event.target.value; setTemplateId(id); setStoreIds(templates.find((item) => item.id === id)?.storeIds ?? []); }} value={templateId}><option value="">{templateLoadStatus === 'loading' ? '正在加载任务模板…' : templateLoadStatus === 'error' ? '任务模板加载失败' : templates.length ? '请选择模板' : '暂无已发布模板'}</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{templateLoadStatus === 'loading' ? <span className="mt-1 block text-xs font-normal text-slate-500">模板读取完成后即可选择。</span> : templateLoadStatus === 'error' ? <button className="mt-1 block text-xs font-bold text-red-700" onClick={() => void load()} type="button">模板加载失败，点击重试</button> : templateLoadStatus === 'ready' && templates.length === 0 ? <span className="mt-1 block text-xs font-normal text-amber-700">当前没有可发布的任务模板，请先到模板管理中发布模板。</span> : null}</label>
         <label className="text-sm font-semibold">发布方式<select className="ui-input mt-1" onChange={(event) => setCreationMode(event.target.value as 'single' | 'recurring')} value={creationMode}><option value="single">单次任务</option><option value="recurring">周期任务</option></select></label>
         <label className="text-sm font-semibold">完成方式<select className="ui-input mt-1" onChange={(event) => setRecipientMode(event.target.value as V2TaskCompletionMode)} value={recipientMode}><option value="shared">所选范围共同完成一次</option><option value="individual">所选范围每人分别完成一次</option><option value="single">单独指定一人完成</option><option value="selected">指定多人分别完成一次</option></select></label>
         {recipientMode === 'single' ? <label className="text-sm font-semibold">接收人<select className="ui-input mt-1" onChange={(event) => { const id = event.target.value; setSelectedProfileId(id); const recipient = recipients.find((item) => item.id === id); if (recipient?.store_id) setStoreIds([recipient.store_id]); }} value={selectedProfileId}><option value="">请选择人员</option>{recipients.map((item) => <option key={item.id} value={item.id}>{item.display_name} · {item.employment_type === 'part_time' ? '兼职' : item.role === 'manager' ? '店长' : '员工'}</option>)}</select></label> : null}
@@ -610,7 +617,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
         </div>
       </details>
       {creationMode === 'single' ? <section className="mt-3 rounded-lg bg-slate-50 p-3"><p className="font-semibold">发布时间</p><div className="mt-2 grid grid-cols-2 gap-2"><label className="rounded-lg border bg-white p-2 text-sm"><input checked={singlePublishMode === 'immediate'} onChange={() => setSinglePublishMode('immediate')} type="radio" /> 立即发布</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={singlePublishMode === 'scheduled'} onChange={() => setSinglePublishMode('scheduled')} type="radio" /> 定时发布</label></div>{singlePublishMode === 'scheduled' ? <label className="mt-2 block text-sm font-semibold">定时发布时间<input className="ui-input mt-1" min={toDatetimeLocalValue(new Date().toISOString())} onChange={(event) => setSinglePublishAt(event.target.value)} type="datetime-local" value={singlePublishAt} /></label> : null}<label className="mt-3 block text-sm font-semibold">验收截止时间<input className="ui-input mt-1" onChange={(event) => setDue(event.target.value)} type="datetime-local" value={due} /></label></section> : <><ScheduleRuleEditor fields={fields} onChange={setFields} /><label className="mt-3 flex items-center rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={publishImmediately} className="mr-2" onChange={(event) => setPublishImmediately(event.target.checked)} type="checkbox" />创建周期任务时立即发布一次</label><p className="mt-1 text-xs leading-5 text-slate-500">勾选后会立即生成一条任务，后续仍从“首次定时发布时间”开始按周期发布。</p></>}
-      <button className="ui-button-primary mt-4 w-full" disabled={busy} onClick={() => void publish()} type="button"><Rocket className="h-4 w-4" />{busy ? '正在发布' : '确认发布'}</button>
+      <button className="ui-button-primary mt-4 w-full" disabled={busy || templateLoadStatus !== 'ready' || templates.length === 0} onClick={() => void publish()} type="button"><Rocket className="h-4 w-4" />{busy ? '正在发布' : '确认发布'}</button>
     </section> : null}
 
     {!publisherOnly ? <>

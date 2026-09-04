@@ -10,11 +10,11 @@ import { useAuth } from '../features/auth/AuthContext';
 import { formatV2TaskDueAt, getV2TaskDisplayStatus, isV2TaskOverdue, v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock';
 import { supabase } from '../lib/supabase';
-import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
+import { loadV2Tasks, type V2TaskListRow } from '../services/v2-tasks.service';
 
 export function V2TaskCenterPage() {
   const auth = useAuth();
-  const [tasks, setTasks] = useState<V2TaskRow[]>([]);
+  const [tasks, setTasks] = useState<V2TaskListRow[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [searchParams] = useSearchParams();

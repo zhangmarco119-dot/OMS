@@ -15,7 +15,7 @@ import { loadAdminPayrollEstimates, loadMyPayrollEstimate } from '../services/pa
 import type { PayrollEstimate } from '../features/payroll/model';
 import { loadTodoSummary, type TodoSummary } from '../services/todo.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
-import { loadV2Tasks, type V2TaskRow } from '../services/v2-tasks.service';
+import { loadV2Tasks, type V2TaskListRow } from '../services/v2-tasks.service';
 
 const notificationLink = (notification: UserNotification) => {
   if (notification.entity_type === 'v2_notice') return `/app/notices/${notification.entity_id}`;
@@ -39,7 +39,7 @@ function StaffDashboard() {
   const navigate = useNavigate();
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
-  const [tasks, setTasks] = useState<V2TaskRow[]>([]);
+  const [tasks, setTasks] = useState<V2TaskListRow[]>([]);
   const [summary, setSummary] = useState<TodoSummary | null>(null);
   const [partTimePayroll, setPartTimePayroll] = useState<PayrollEstimate | null>(null);
   const [message, setMessage] = useState<string | null>(null);

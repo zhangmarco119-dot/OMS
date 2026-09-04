@@ -14,6 +14,7 @@ import type { ProductCategoryCode } from '../features/products/productCategories
 
 type Client = SupabaseClient<Database>;
 export type V2TaskRow = Database['public']['Tables']['v2_tasks']['Row'];
+export type V2TaskListRow = Omit<V2TaskRow, 'snapshot'>;
 export type V2TaskAnswerRow = Database['public']['Tables']['v2_task_answers']['Row'];
 export type V2TaskReviewRow = Database['public']['Tables']['v2_task_reviews']['Row'];
 export type V2TaskTimelineEvent = Pick<V2TaskReviewRow, 'created_at' | 'id' | 'task_id'> & {
@@ -117,12 +118,14 @@ export const orderV2TaskAnswers = (snapshot: Json, answers: V2TaskAnswerRow[]) =
   });
 };
 
-export const loadV2Tasks = async (client: Client, storeId?: string) => {
-  let query = client.from('v2_tasks').select('*').neq('status', 'cancelled').order('due_at', { ascending: true });
+const v2TaskListColumns = 'allow_overdue,assigned_profile_id,category,correction_item_ids,created_at,created_by,due_at,id,inventory_category_codes,manager_review_enabled,name,publish_at,publish_notified_at,related_content_title,related_notice_id,related_sop_id,requires_inventory,requires_review,review_note,reviewed_at,reviewed_by,schedule_id,started_at,started_by,status,store_id,submission_key,submitted_at,submitted_by,submitted_by_role,target_audiences,task_no,template_id,template_version_id,updated_at,version';
+
+export const loadV2Tasks = async (client: Client, storeId?: string): Promise<V2TaskListRow[]> => {
+  let query = client.from('v2_tasks').select(v2TaskListColumns).neq('status', 'cancelled').order('due_at', { ascending: true });
   if (storeId) query = query.eq('store_id', storeId);
-  const { data, error } = await query; fail(error); return data ?? [];
+  const { data, error } = await query; fail(error); return (data ?? []) as V2TaskListRow[];
 };
-export const isV2TaskExecutionTodoForProfile = (task: V2TaskRow, profileId: string) => (
+export const isV2TaskExecutionTodoForProfile = (task: Pick<V2TaskRow, 'reviewed_by' | 'status'>, profileId: string) => (
   ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status)
   && !(task.status === 'rejected' && task.reviewed_by === profileId)
 );
@@ -271,6 +274,12 @@ export const loadV2TaskScheduleContent = async (client: Client, scheduleId: stri
   const value = data as unknown as { name?: unknown; snapshot?: unknown } | null;
   if (!value || typeof value.name !== 'string' || value.snapshot === undefined) throw new Error('周期任务内容加载失败。');
   return { name: value.name, snapshot: value.snapshot as Json };
+};
+export const loadV2TaskContent = async (client: Client, taskId: string): Promise<V2TaskScheduleContent> => {
+  const { data, error } = await client.from('v2_tasks').select('name,snapshot').eq('id', taskId).single();
+  fail(error);
+  if (!data) throw new Error('任务内容加载失败。');
+  return { name: data.name, snapshot: data.snapshot };
 };
 export const updateV2TaskContent = async (client: Client, taskId: string, name: string, snapshot: Json, dueAt: string, managerReviewEnabled = false, relatedContent: V2TaskRelatedContentSelection | null = null, inventoryLink: V2TaskInventoryLinkSettings = { categoryCodes: [], enabled: false }) => {
   const { data, error } = await client.rpc('update_v2_task_content_v4', {

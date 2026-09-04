@@ -2,11 +2,22 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import { compressArrivalImage } from './arrival-images.service';
 import type { Database } from '../types/database';
-import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, isV2TaskExecutionTodoForProfile, loadSubmittedLinkedInventoryTask, loadV2TaskTimeline, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
+import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, isV2TaskExecutionTodoForProfile, loadSubmittedLinkedInventoryTask, loadV2TaskTimeline, loadV2Tasks, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
 
 vi.mock('./arrival-images.service', () => ({ compressArrivalImage: vi.fn() }));
 
 describe('V2 task workflow service', () => {
+  it('keeps list requests lightweight by excluding full task snapshots', async () => {
+    const order = vi.fn().mockResolvedValue({ data: [], error: null });
+    const neq = vi.fn(() => ({ order }));
+    const select = vi.fn(() => ({ neq }));
+    const client = { from: vi.fn(() => ({ select })) } as unknown as SupabaseClient<Database>;
+
+    await loadV2Tasks(client);
+
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('name'));
+    expect(select).not.toHaveBeenCalledWith(expect.stringContaining('snapshot'));
+  });
   it('hands a manager-rejected shared task to other recipients without returning it to the rejecting manager', () => {
     const task = { reviewed_by: 'manager-1', status: 'rejected' } as V2TaskRow;
     expect(isV2TaskExecutionTodoForProfile(task, 'manager-1')).toBe(false);

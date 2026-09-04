@@ -1,4 +1,4 @@
-import { Archive, ClipboardPlus, Plus, RefreshCw, Rocket, Save, Trash2, Undo2, X } from 'lucide-react';
+import { Archive, ClipboardPlus, Pencil, Plus, RefreshCw, Rocket, Save, Trash2, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -33,6 +33,7 @@ import {
   loadTaskCategories,
   loadTaskTemplates,
   publishTaskTemplate,
+  renameTaskTemplate,
   retractTaskTemplate,
   saveTaskTemplate,
   uploadTaskTemplateReferenceImage,
@@ -109,6 +110,8 @@ export function AdminTaskTemplatesPage() {
   const [busy, setBusy] = useState(false);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [renamingTemplate, setRenamingTemplate] = useState<TaskTemplateListItem | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const draftRef = useRef<TaskTemplateDraft | null>(null);
   const draftStorageKey = auth.profile ? `storehub:v2-task-template-draft:${auth.profile.id}` : null;
 
@@ -255,6 +258,27 @@ export function AdminTaskTemplatesPage() {
     finally { setBusy(false); }
   };
 
+  const openRename = (template: TaskTemplateListItem) => {
+    setMessage(null);
+    setRenamingTemplate(template);
+    setRenameValue(template.name);
+  };
+
+  const rename = async () => {
+    if (!supabase || !renamingTemplate) return;
+    if (!renameValue.trim()) { setMessage('请填写模板名称。'); return; }
+    setBusy(true);
+    try {
+      await renameTaskTemplate(supabase, renamingTemplate.id, renameValue);
+      await refresh();
+      setRenamingTemplate(null);
+      setRenameValue('');
+      setMessage(null);
+      setSuccessMessage('模板名称已修改，发布状态和历史任务不受影响。');
+    } catch (error) { setMessage(error instanceof Error ? error.message : '修改模板名称失败。'); }
+    finally { setBusy(false); }
+  };
+
   const deleteArchived = async (template: TaskTemplateListItem) => {
     if (!supabase || !window.confirm(`确认永久删除已归档模板“${template.name}”？没有任务历史的模板将被删除。`)) return;
     setBusy(true);
@@ -305,9 +329,10 @@ export function AdminTaskTemplatesPage() {
     {status === 'error' && message ? <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{message}</p> : null}
     {status === 'loading' ? <p className="rounded-lg bg-white p-5 font-semibold text-slate-600 shadow-sm">正在加载任务模板</p> : null}
     {status === 'ready' && visibleTemplates.length === 0 ? <p className="rounded-lg bg-white p-8 text-center text-slate-500 shadow-sm">{scope === 'archived' ? '暂无已归档模板。' : '当前分类还没有模板。'}</p> : null}
-    {status === 'ready' ? <div className="grid gap-3 md:grid-cols-2">{visibleTemplates.map((template) => <article className="rounded-lg bg-white p-4 shadow-sm" key={template.id}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{categoryName(template.category)} · v{template.current_version}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{template.name}</h2></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass[template.status]}`}>{statusLabel[template.status]}</span></div><p className="mt-2 line-clamp-2 text-sm text-slate-600">{template.description || '无额外说明'}</p><p className="mt-3 text-xs text-slate-500">适用：{template.storeIds.map(storeName).join('、') || '未配置门店'} · {template.requires_review ? '需要审核' : '无需审核'}</p>{template.status !== 'archived' ? <div className="mt-4 grid grid-cols-3 gap-2"><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" disabled={busy} onClick={() => void editTemplate(template)} type="button">编辑</button>{template.status === 'published' ? <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 text-sm font-bold text-amber-800" disabled={busy} onClick={() => void retract(template)} type="button"><Undo2 className="h-4 w-4" />撤回</button> : <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-brand-600 text-sm font-bold text-white" disabled={busy} onClick={() => void publish(template)} type="button"><Rocket className="h-4 w-4" />发布</button>}<button aria-label={`归档${template.name}`} className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border text-sm font-bold ${template.status === 'published' ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 text-slate-600'}`} disabled={busy || template.status === 'published'} onClick={() => void archive(template)} type="button"><Archive className="h-4 w-4" />归档</button></div> : <button className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-200 text-sm font-bold text-red-700" disabled={busy} onClick={() => void deleteArchived(template)} type="button"><Trash2 className="h-4 w-4" />删除模板</button>}</article>)}</div> : null}
+    {status === 'ready' ? <div className="grid gap-3 md:grid-cols-2">{visibleTemplates.map((template) => <article className="rounded-lg bg-white p-4 shadow-sm" key={template.id}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">{categoryName(template.category)} · v{template.current_version}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{template.name}</h2></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass[template.status]}`}>{statusLabel[template.status]}</span></div><p className="mt-2 line-clamp-2 text-sm text-slate-600">{template.description || '无额外说明'}</p><p className="mt-3 text-xs text-slate-500">适用：{template.storeIds.map(storeName).join('、') || '未配置门店'} · {template.requires_review ? '需要审核' : '无需审核'}</p>{template.status !== 'archived' ? <div className="mt-4 grid grid-cols-2 gap-2"><button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-brand-200 text-sm font-bold text-brand-700" disabled={busy} onClick={() => openRename(template)} type="button"><Pencil className="h-4 w-4" />重命名</button><button className="min-h-10 rounded-lg border border-slate-200 text-sm font-bold" disabled={busy} onClick={() => void editTemplate(template)} type="button">编辑内容</button>{template.status === 'published' ? <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-amber-200 text-sm font-bold text-amber-800" disabled={busy} onClick={() => void retract(template)} type="button"><Undo2 className="h-4 w-4" />撤回</button> : <button className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-brand-600 text-sm font-bold text-white" disabled={busy} onClick={() => void publish(template)} type="button"><Rocket className="h-4 w-4" />发布</button>}<button aria-label={`归档${template.name}`} className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border text-sm font-bold ${template.status === 'published' ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 text-slate-600'}`} disabled={busy || template.status === 'published'} onClick={() => void archive(template)} type="button"><Archive className="h-4 w-4" />归档</button></div> : <button className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-200 text-sm font-bold text-red-700" disabled={busy} onClick={() => void deleteArchived(template)} type="button"><Trash2 className="h-4 w-4" />删除模板</button>}</article>)}</div> : null}
 
     {draft ? <TemplateEditor busy={busy} categories={categories} draft={draft} errorMessage={message} onCancel={() => { setDraft(null); setMessage(null); }} onChange={setDraft} onDeleteReferenceImage={deleteReferenceImage} onPublishSave={() => void save(true)} onSave={() => void save()} onUploadReferenceImage={uploadReferenceImage} stores={auth.availableStores} /> : null}
+    {renamingTemplate ? <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby="rename-template-title"><form className="mx-auto mt-24 max-w-md rounded-xl bg-white p-4 shadow-xl" onSubmit={(event) => { event.preventDefault(); void rename(); }}><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold" id="rename-template-title">重命名任务模板</h2><button aria-label="关闭重命名" className="ui-icon-button" disabled={busy} onClick={() => { setRenamingTemplate(null); setRenameValue(''); setMessage(null); }} type="button"><X className="h-5 w-5" /></button></div><label className="mt-4 block text-sm font-semibold">新的模板名称<input aria-label="新的模板名称" autoFocus className="ui-input mt-1.5" maxLength={100} onChange={(event) => setRenameValue(event.target.value)} value={renameValue} /></label><p className="mt-2 text-xs leading-5 text-slate-500">只修改模板名称，不会改变发布状态，也不会改动已经发布的历史任务。</p><div className="mt-5 grid grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={busy} onClick={() => { setRenamingTemplate(null); setRenameValue(''); setMessage(null); }} type="button">取消</button><button className="ui-button-primary" disabled={busy || !renameValue.trim() || renameValue.trim() === renamingTemplate.name} type="submit">保存名称</button></div></form></div> : null}
     {categoryManagerOpen ? <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4"><section className="mx-auto mt-10 max-w-lg rounded-xl bg-white p-4"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">任务分类管理</h2><button className="ui-icon-button" onClick={() => setCategoryManagerOpen(false)} type="button"><X className="h-5 w-5" /></button></div><div className="mt-3 flex gap-2"><input className="ui-input" onChange={(event) => setNewCategoryName(event.target.value)} placeholder="输入新分类名称" value={newCategoryName} /><button className="ui-button-primary shrink-0" disabled={busy} onClick={() => void addCategory()} type="button">新建</button></div><div className="mt-4 space-y-2">{categories.map((category) => <div className="flex min-h-11 items-center justify-between rounded-lg bg-slate-50 px-3" key={category.code}><b className="text-sm">{category.label}</b>{category.is_system ? <span className="text-xs text-slate-400">系统分类</span> : <button className="text-sm font-bold text-red-600" disabled={busy} onClick={() => void removeCategory(category)} type="button">删除</button>}</div>)}</div></section></div> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={status !== 'error' && Boolean(message)} title="操作未完成" tone="warning" />
     <SuccessToast message={successMessage} onClose={() => setSuccessMessage(null)} />

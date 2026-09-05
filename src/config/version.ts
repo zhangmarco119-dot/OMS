@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-09-05',
+    highlights: [
+      '任务发布页新增发布前预览，可按员工实际执行页面查看任务标题、分组、填写项、图片要求和关联内容。',
+      '预览先显示任务内容，参考图片独立加载，图片延迟或失败不会阻塞整个预览页面。',
+    ],
+    title: '新增任务发布前员工视角预览',
+    version: 'StoreHub v3.0.22',
+  },
+  {
     date: '2026-09-04',
     highlights: [
       '任务模板卡片新增独立重命名入口，可直接修改模板名称。',

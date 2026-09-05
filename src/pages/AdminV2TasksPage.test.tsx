@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { TaskTemplateDraft } from '../features/task-templates/templateForm';
 import { AdminV2TaskPublishPage, AdminV2TasksPage } from './AdminV2TasksPage';
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   loadRelatedContent: vi.fn(),
   loadScheduleContent: vi.fn(),
   loadSchedules: vi.fn(),
+  loadTemplateDraft: vi.fn(),
+  loadTemplateDraftImages: vi.fn(),
   loadTasks: vi.fn(),
   loadTimeline: vi.fn(),
   loadTemplates: vi.fn(),
@@ -19,7 +22,7 @@ vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../features/auth/AuthContext', () => ({
   useAuth: () => ({ availableStores: [{ id: 'store-1', name: '测试门店' }, { id: 'store-2', name: '第二门店' }] }),
 }));
-vi.mock('../services/task-templates.service', () => ({ loadPublishableTaskTemplates: mocks.loadTemplates, loadTaskCategories: mocks.loadCategories, loadTaskTemplates: mocks.loadTemplates }));
+vi.mock('../services/task-templates.service', () => ({ loadPublishableTaskTemplates: mocks.loadTemplates, loadTaskCategories: mocks.loadCategories, loadTaskTemplateDraft: mocks.loadTemplateDraft, loadTaskTemplateDraftImageUrls: mocks.loadTemplateDraftImages, loadTaskTemplates: mocks.loadTemplates }));
 vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
   return { ...original, loadV2TaskRecipients: mocks.loadRecipients, loadV2TaskRelatedContentOptions: mocks.loadRelatedContent, loadV2TaskScheduleContent: mocks.loadScheduleContent, loadV2TaskSchedules: mocks.loadSchedules, loadV2TaskTimeline: mocks.loadTimeline, loadV2Tasks: mocks.loadTasks };
@@ -33,6 +36,8 @@ describe('AdminV2TasksPage navigation', () => {
     mocks.loadTasks.mockResolvedValue([]);
     mocks.loadTimeline.mockResolvedValue([]);
     mocks.loadSchedules.mockResolvedValue([]);
+    mocks.loadTemplateDraft.mockResolvedValue(null);
+    mocks.loadTemplateDraftImages.mockResolvedValue(null);
     mocks.loadRecipients.mockResolvedValue([]);
     mocks.loadRelatedContent.mockResolvedValue([]);
     mocks.loadScheduleContent.mockResolvedValue({ name: '周期检查', snapshot: { groups: [], template: { category: 'closing', description: '说明' } } });
@@ -217,6 +222,62 @@ describe('AdminV2TasksPage navigation', () => {
     expect(screen.getByRole('checkbox', { name: '测试门店' })).toBeEnabled();
     expect(screen.getByRole('checkbox', { name: '第二门店' })).toBeDisabled();
     expect(screen.getByText(/灰色门店请先到“任务模板”中增加后再发布/)).toBeInTheDocument();
+  });
+
+  it('previews the employee task page before publishing and does not wait for reference images', async () => {
+    const template = { id: 'template-1', name: '设备参数采集', status: 'published', storeIds: ['store-1'] };
+    const metadataDraft: TaskTemplateDraft = {
+      allowOverdue: false,
+      category: 'inspection',
+      description: '登记设备尺寸和电气参数',
+      dueTime: '',
+      groups: [{
+        description: '逐台核对铭牌',
+        id: 'group-1',
+        items: [{
+          fieldType: 'short_text',
+          guidance: '填写长宽高',
+          id: 'item-1',
+          imageRequirement: 'single',
+          isRequired: true,
+          label: '操作台冰箱1',
+          minimumImageCount: 2,
+          optionsText: '',
+          referenceImagePath: 'template-1/item-1/reference.jpg',
+          referenceImagePaths: ['template-1/item-1/reference.jpg'],
+          referenceImageUrl: null,
+          referenceImageUrls: [],
+        }],
+        title: '设备信息',
+      }],
+      id: 'template-1',
+      name: '设备参数采集',
+      recurrence: 'none',
+      recurrenceDay: null,
+      requiresReview: true,
+      storeIds: ['store-1'],
+    };
+    let finishImages: ((draft: TaskTemplateDraft) => void) | undefined;
+    mocks.loadTemplates.mockResolvedValue([template]);
+    mocks.loadTemplateDraft.mockResolvedValue(metadataDraft);
+    mocks.loadTemplateDraftImages.mockReturnValue(new Promise((resolve) => { finishImages = resolve; }));
+
+    render(<MemoryRouter><AdminV2TaskPublishPage /></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText('任务模板'), { target: { value: 'template-1' } });
+    fireEvent.click(screen.getByRole('button', { name: '预览任务' }));
+
+    const preview = await screen.findByRole('dialog', { name: '任务员工页面预览' });
+    expect(preview).toHaveTextContent('设备参数采集');
+    expect(preview).toHaveTextContent('设备信息');
+    expect(preview).toHaveTextContent('操作台冰箱1');
+    expect(preview).toHaveTextContent('填写长宽高');
+    expect(preview).toHaveTextContent('图片要求：至少上传 1 张');
+    expect(preview).toHaveTextContent('正在加载图片');
+
+    await act(async () => { finishImages?.({ ...metadataDraft, groups: metadataDraft.groups.map((group) => ({ ...group, items: group.items.map((item) => ({ ...item, referenceImageUrl: 'https://signed.example/reference.jpg', referenceImageUrls: ['https://signed.example/reference.jpg'] })) })) }); });
+    expect(screen.getByAltText('参考图片 1')).toHaveAttribute('src', 'https://signed.example/reference.jpg');
+    fireEvent.click(screen.getByRole('button', { name: '关闭任务预览' }));
+    expect(screen.queryByRole('dialog', { name: '任务员工页面预览' })).not.toBeInTheDocument();
   });
 
   it('lets administrators explicitly select multiple people for independent completion', async () => {

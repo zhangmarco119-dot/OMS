@@ -1,4 +1,4 @@
-import { PauseCircle, Pencil, Rocket, Search, Undo2, X } from 'lucide-react';
+import { Eye, PauseCircle, Pencil, Rocket, Search, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -12,6 +12,7 @@ import { createDefaultArrivalPeriod, resolveArrivalPeriod, type ArrivalPeriodVal
 import { weeklyDeadlineOptions } from '../features/task-templates/recurrence';
 import { useAuth } from '../features/auth/AuthContext';
 import { TaskContentEditor } from '../features/v2-tasks/TaskContentEditor';
+import { TaskExecutionPreview } from '../features/v2-tasks/TaskExecutionPreview';
 import { TaskSubmissionTimeline } from '../features/v2-tasks/TaskSubmissionTimeline';
 import { taskContentFromSnapshot, taskContentReferencePaths, taskContentToSnapshot, validateTaskContent, type TaskContentDraft } from '../features/v2-tasks/taskContent';
 import { isV2TaskOverdue, v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
@@ -19,7 +20,8 @@ import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock'
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { PRODUCT_CATEGORIES, type ProductCategoryCode } from '../features/products/productCategories';
-import { loadPublishableTaskTemplates, loadTaskCategories, loadTaskTemplates, type TaskCategoryRow, type TaskTemplateListItem } from '../services/task-templates.service';
+import { loadPublishableTaskTemplates, loadTaskCategories, loadTaskTemplateDraft, loadTaskTemplateDraftImageUrls, loadTaskTemplates, type TaskCategoryRow, type TaskTemplateListItem } from '../services/task-templates.service';
+import type { TaskTemplateDraft } from '../features/task-templates/templateForm';
 import {
   createV2TaskSchedule,
   deleteV2TaskReferenceImages,
@@ -228,6 +230,8 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
   const [editingProfileId, setEditingProfileId] = useState('');
   const [editingProfileIds, setEditingProfileIds] = useState<string[]>([]);
   const [scheduleContentEditorOpen, setScheduleContentEditorOpen] = useState(false);
+  const [previewDraft, setPreviewDraft] = useState<TaskTemplateDraft | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
   const [templateLoadStatus, setTemplateLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -410,6 +414,20 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : '任务发布失败'); }
     finally { setBusy(false); }
+  };
+
+  const openPublishPreview = async () => {
+    if (!supabase || !selectedTemplate) { setMessage('请先选择已发布的任务模板。'); return; }
+    setPreviewLoading(true);
+    setMessage(null);
+    try {
+      const metadataDraft = await loadTaskTemplateDraft(supabase, selectedTemplate);
+      setPreviewDraft(metadataDraft);
+      void loadTaskTemplateDraftImageUrls(supabase, metadataDraft).then((loadedDraft) => {
+        setPreviewDraft((current) => current?.id === loadedDraft.id ? loadedDraft : current);
+      }).catch(() => undefined);
+    } catch (error) { setMessage(error instanceof Error ? error.message : '任务预览加载失败。'); }
+    finally { setPreviewLoading(false); }
   };
   const pause = async (row: V2TaskScheduleRow) => {
     if (!supabase || !window.confirm('暂停后会撤回当前未完成任务，并停止后续自动发布，确认暂停吗？')) return;
@@ -617,7 +635,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
         </div>
       </details>
       {creationMode === 'single' ? <section className="mt-3 rounded-lg bg-slate-50 p-3"><p className="font-semibold">发布时间</p><div className="mt-2 grid grid-cols-2 gap-2"><label className="rounded-lg border bg-white p-2 text-sm"><input checked={singlePublishMode === 'immediate'} onChange={() => setSinglePublishMode('immediate')} type="radio" /> 立即发布</label><label className="rounded-lg border bg-white p-2 text-sm"><input checked={singlePublishMode === 'scheduled'} onChange={() => setSinglePublishMode('scheduled')} type="radio" /> 定时发布</label></div>{singlePublishMode === 'scheduled' ? <label className="mt-2 block text-sm font-semibold">定时发布时间<input className="ui-input mt-1" min={toDatetimeLocalValue(new Date().toISOString())} onChange={(event) => setSinglePublishAt(event.target.value)} type="datetime-local" value={singlePublishAt} /></label> : null}<label className="mt-3 block text-sm font-semibold">验收截止时间<input className="ui-input mt-1" onChange={(event) => setDue(event.target.value)} type="datetime-local" value={due} /></label></section> : <><ScheduleRuleEditor fields={fields} onChange={setFields} /><label className="mt-3 flex items-center rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><input checked={publishImmediately} className="mr-2" onChange={(event) => setPublishImmediately(event.target.checked)} type="checkbox" />创建周期任务时立即发布一次</label><p className="mt-1 text-xs leading-5 text-slate-500">勾选后会立即生成一条任务，后续仍从“首次定时发布时间”开始按周期发布。</p></>}
-      <button className="ui-button-primary mt-4 w-full" disabled={busy || templateLoadStatus !== 'ready' || templates.length === 0} onClick={() => void publish()} type="button"><Rocket className="h-4 w-4" />{busy ? '正在发布' : '确认发布'}</button>
+      <div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={busy || previewLoading || !selectedTemplate} onClick={() => void openPublishPreview()} type="button"><Eye className="h-4 w-4" />{previewLoading ? '正在加载预览' : '预览任务'}</button><button className="ui-button-primary" disabled={busy || templateLoadStatus !== 'ready' || templates.length === 0} onClick={() => void publish()} type="button"><Rocket className="h-4 w-4" />{busy ? '正在发布' : '确认发布'}</button></div>
     </section> : null}
 
     {!publisherOnly ? <>
@@ -677,6 +695,7 @@ export function AdminV2TasksPage({ publisherOnly = false }: { publisherOnly?: bo
       <div><p className="mb-2 text-sm font-bold">高级选项</p><RelatedContentSettings contentId={editingRelatedContentId} contentType={editingRelatedContentType} onContentIdChange={setEditingRelatedContentId} onContentTypeChange={(type) => { setEditingRelatedContentType(type); setEditingRelatedContentId(''); }} options={editingRelatedContentOptions} /><InventoryLinkSettings categoryCodes={editingInventoryCategoryCodes} enabled={editingInventoryLinkEnabled} onCategoryCodesChange={setEditingInventoryCategoryCodes} onEnabledChange={setEditingInventoryLinkEnabled} /></div>
     </div>} busy={busy} categories={categories} draft={contentDraft} dueAt={editingDue} managerReviewEnabled={fields.managerReviewEnabled} onCancel={() => { cleanupCancelledAssets(); setEditingTask(null); setContentDraft(null); setEditingRelatedContentType('none'); setEditingRelatedContentId(''); }} onChange={setContentDraft} onDueAtChange={setEditingDue} onManagerReviewEnabledChange={(enabled) => setFields((current) => ({ ...current, managerReviewEnabled: enabled }))} onRemoveReferenceImage={removeReferenceImage} onSave={() => void saveTaskContent()} onUploadReferenceImage={uploadReferenceImage} /> : null}
     {editingSchedule && scheduleContentEditorOpen && contentDraft ? <TaskContentEditor busy={busy} categories={categories} draft={contentDraft} onCancel={() => setScheduleContentEditorOpen(false)} onChange={setContentDraft} onRemoveReferenceImage={removeReferenceImage} onSave={() => { const issue = validateTaskContent(contentDraft); if (issue) setMessage(issue); else setScheduleContentEditorOpen(false); }} onUploadReferenceImage={uploadReferenceImage} title="编辑周期任务完整内容" /> : null}
+    {previewDraft ? <TaskExecutionPreview draft={previewDraft} dueLabel={(() => { const value = creationMode === 'single' ? new Date(due) : acceptanceDueAt(new Date(fields.nextPublishAt), fields); return Number.isNaN(value.getTime()) ? '尚未设置' : value.toLocaleString('zh-CN'); })()} inventoryCategoryCodes={inventoryCategoryCodes} inventoryLinkEnabled={inventoryLinkEnabled} onClose={() => setPreviewDraft(null)} relatedContent={relatedContentType === 'none' ? null : (() => { const content = compatibleRelatedContentOptions.find((item) => item.id === relatedContentId); return content ? { title: content.title, type: content.type } : null; })()} /> : null}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(message)} title="操作提示" tone={message?.includes('失败') || message?.includes('必须') || message?.includes('请选择') || message?.includes('不适用') || message?.includes('无权') || message?.includes('denied') ? 'warning' : 'success'} />
   </PageShell>;
 }

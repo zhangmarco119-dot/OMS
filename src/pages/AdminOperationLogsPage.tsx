@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, ClipboardCheck as ClipboardClock, RefreshCw, RotateCcw, Search } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
@@ -87,21 +87,31 @@ export function AdminOperationLogsPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loadingMore, setLoadingMore] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const loadGenerationRef = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const rawOffsetRef = useRef(0);
+  const hasLoadedMoreRef = useRef(false);
   const filters = useMemo(() => ({ actorId, endDate, excludeActorId, keyOnly, module, operation, search, startDate, storeId }), [actorId, endDate, excludeActorId, keyOnly, module, operation, search, startDate, storeId]);
   const hasFilters = Boolean(actorId || endDate || excludeActorId || keyOnly || module || operation || search || startDate || storeId);
 
-  const load = useCallback(async (showLoading = true) => {
+  const load = useCallback(async (showLoading = true, resetPagination = true) => {
     if (!supabase) { setStatus('error'); return; }
+    if (!resetPagination && hasLoadedMoreRef.current) return;
+    const generation = loadGenerationRef.current + 1;
+    loadGenerationRef.current = generation;
     if (showLoading) setStatus('loading');
     try {
       const result = await loadOperationLogs(supabase, filters);
+      if (generation !== loadGenerationRef.current) return;
+      rawOffsetRef.current = result.rawCount;
+      hasLoadedMoreRef.current = false;
       setItems(result.items); setRawOffset(result.rawCount); setTotal(result.total); setStatus('ready'); setLastUpdatedAt(new Date());
     } catch { if (showLoading) setStatus('error'); }
   }, [filters]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => { if (!supabase) return; void loadOperationLogActors(supabase).then(setActors).catch(() => setActors([])); }, []);
   useEffect(() => {
-    const refresh = () => { if (!document.hidden) void load(false); };
+    const refresh = () => { if (!document.hidden) void load(false, false); };
     const timer = window.setInterval(refresh, 15_000);
     window.addEventListener('focus', refresh);
     window.addEventListener(OPERATION_LOGS_CHANGED_EVENT, refresh);
@@ -113,12 +123,20 @@ export function AdminOperationLogsPage() {
   };
 
   const more = async () => {
-    if (!supabase) return;
+    if (!supabase || loadingMoreRef.current) return;
+    const offset = rawOffsetRef.current;
+    const generation = loadGenerationRef.current;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
-      const result = await loadOperationLogs(supabase, filters, rawOffset);
-      setItems((current) => compactConsecutiveOperationLogs([...current, ...result.items])); setRawOffset((current) => current + result.rawCount); setTotal(result.total);
-    } finally { setLoadingMore(false); }
+      const result = await loadOperationLogs(supabase, filters, offset);
+      if (generation !== loadGenerationRef.current) return;
+      const nextOffset = offset + result.rawCount;
+      rawOffsetRef.current = nextOffset;
+      hasLoadedMoreRef.current = true;
+      setItems((current) => compactConsecutiveOperationLogs([...current, ...result.items.filter((row) => !current.some((existing) => existing.id === row.id))]));
+      setRawOffset(nextOffset); setTotal(result.total);
+    } finally { loadingMoreRef.current = false; setLoadingMore(false); }
   };
 
   return <PageShell backTo="/app/workbench" contentGapClassName="gap-3" eyebrow="门店运营系统 · 管理员" title="操作日志">
@@ -158,7 +176,7 @@ export function AdminOperationLogsPage() {
           </div> : null}
         </SectionCard>;
       })}</div>
-      {rawOffset < total ? <button className="ui-button-secondary w-full" disabled={loadingMore} onClick={() => void more()} type="button">{loadingMore ? '正在加载' : '加载更多'}</button> : null}
+      {rawOffset < total ? <button className="ui-button-secondary w-full" disabled={loadingMore} onClick={(event) => { event.currentTarget.blur(); void more(); }} type="button">{loadingMore ? '正在加载' : '加载更多'}</button> : null}
     </>}
   </PageShell>;
 }

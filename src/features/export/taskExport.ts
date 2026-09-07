@@ -60,7 +60,7 @@ const feedbackSummary = (feedback: ProductFeedbackRow[] | undefined, itemId: str
   }
   return rows
     .map((row) => {
-      const label = row.feedback_type === 'discontinued' ? '不再使用' : row.feedback_type === 'incorrect' ? '信息有误' : '新增货品';
+      const label = row.feedback_type === 'discontinued' ? '不再使用' : row.feedback_type === 'archived' ? '申请归档' : row.feedback_type === 'incorrect' ? '信息有误' : '新增货品';
       return row.note ? `${label}: ${row.note}` : label;
     })
     .join('；');

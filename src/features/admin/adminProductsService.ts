@@ -658,7 +658,7 @@ export const updateFeedbackStatus = async (
   }
 };
 
-export type AdminFeedbackAction = 'acknowledge' | 'confirm_delete' | 'ignore' | 'resolve' | 'revert';
+export type AdminFeedbackAction = 'acknowledge' | 'confirm_archive' | 'confirm_delete' | 'ignore' | 'resolve' | 'revert';
 
 export const handleProductFeedbackAction = async (
   feedbackId: string,
@@ -685,7 +685,7 @@ export interface ProductFeedbackBatchResult {
   total: number;
 }
 
-export type ProductFeedbackBatchAction = Extract<AdminFeedbackAction, 'acknowledge' | 'confirm_delete' | 'resolve'>;
+export type ProductFeedbackBatchAction = Extract<AdminFeedbackAction, 'acknowledge' | 'confirm_archive' | 'confirm_delete' | 'resolve'>;
 
 export interface ProductFeedbackBatchRequest {
   action: ProductFeedbackBatchAction;

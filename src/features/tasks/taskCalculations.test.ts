@@ -5,7 +5,7 @@ import { findNextPendingIndex, getCompletionStats, normalizeQuantityInput } from
 const item = (
   quantity: number | null,
   status: 'pending' | 'completed' | 'no_order_needed' = 'pending',
-  productActionStatus: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | null = null,
+  productActionStatus: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | 'archive_requested' | 'archive_approved' | 'archive_ignored' | null = null,
 ) => ({
   product_action_status: productActionStatus,
   quantity,
@@ -23,7 +23,7 @@ describe('task calculations', () => {
     expect(() => normalizeQuantityInput('1.234')).toThrow('两位小数');
   });
 
-  it('counts explicit zero, completed items, and deletion operations as processed', () => {
+  it('counts explicit zero, completed items, and product lifecycle operations as processed', () => {
     expect(getCompletionStats([
       item(null),
       item(0),
@@ -32,16 +32,27 @@ describe('task calculations', () => {
       item(null, 'completed'),
       item(null, 'pending', 'deletion_requested'),
       item(null, 'pending', 'deletion_approved'),
+      item(null, 'pending', 'archive_requested'),
+      item(null, 'pending', 'archive_approved'),
     ])).toEqual({
-      total: 7,
-      processed: 6,
+      total: 9,
+      processed: 8,
       pending: 1,
-      percent: 86,
+      percent: 89,
     });
   });
 
   it('keeps a rejected deletion request pending until a quantity is entered', () => {
     expect(getCompletionStats([item(null, 'pending', 'deletion_ignored')])).toEqual({
+      total: 1,
+      processed: 0,
+      pending: 1,
+      percent: 0,
+    });
+  });
+
+  it('keeps a rejected archive request pending until a quantity is entered', () => {
+    expect(getCompletionStats([item(null, 'pending', 'archive_ignored')])).toEqual({
       total: 1,
       processed: 0,
       pending: 1,

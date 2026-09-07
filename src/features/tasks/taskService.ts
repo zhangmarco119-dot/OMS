@@ -560,6 +560,27 @@ export const managerRequestProductDeletion = async (
   return { feedbackId: data, item: updatedItem };
 };
 
+export const managerRequestProductArchive = async (
+  client: Client,
+  item: TaskItemRow,
+  note?: string,
+) => {
+  const { data, error } = await client.rpc('manager_request_product_archive', {
+    p_task_item_id: item.id,
+    p_note: note || null,
+  });
+
+  if (error) throw new Error(error.message);
+
+  const { data: updatedItem, error: itemError } = await client
+    .from('task_items')
+    .select('*')
+    .eq('id', item.id)
+    .single();
+  if (itemError) throw new Error(itemError.message);
+  return { feedbackId: data, item: updatedItem };
+};
+
 export const loadInventoryTemplates = async (client: Client, limit = 30) => {
   const { data, error } = await client.rpc('list_store_inventory_templates', { p_limit: limit });
 

@@ -509,7 +509,7 @@ export type Database = {
         Row: {
           created_at: string;
           created_by: string;
-          feedback_type: 'discontinued' | 'incorrect' | 'new';
+          feedback_type: 'discontinued' | 'archived' | 'incorrect' | 'new';
           handled_at: string | null;
           handled_by: string | null;
           id: string;
@@ -525,7 +525,7 @@ export type Database = {
         Insert: {
           created_at?: string;
           created_by: string;
-          feedback_type: 'discontinued' | 'incorrect' | 'new';
+          feedback_type: 'discontinued' | 'archived' | 'incorrect' | 'new';
           handled_at?: string | null;
           handled_by?: string | null;
           id?: string;
@@ -961,7 +961,7 @@ export type Database = {
           created_at: string;
           id: string;
           is_extra_item: boolean;
-          product_action_status: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | null;
+          product_action_status: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | 'archive_requested' | 'archive_approved' | 'archive_ignored' | null;
           product_id: string | null;
           product_snapshot: Json;
           quantity: number | null;
@@ -976,7 +976,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           is_extra_item?: boolean;
-          product_action_status?: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | null;
+          product_action_status?: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | 'archive_requested' | 'archive_approved' | 'archive_ignored' | null;
           product_id?: string | null;
           product_snapshot: Json;
           quantity?: number | null;
@@ -991,7 +991,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           is_extra_item?: boolean;
-          product_action_status?: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | null;
+          product_action_status?: 'deletion_requested' | 'deletion_approved' | 'deletion_ignored' | 'archive_requested' | 'archive_approved' | 'archive_ignored' | null;
           product_id?: string | null;
           product_snapshot?: Json;
           quantity?: number | null;
@@ -1448,6 +1448,13 @@ export type Database = {
         Returns: Json;
       };
       manager_request_product_deletion: {
+        Args: {
+          p_task_item_id: string;
+          p_note?: string | null;
+        };
+        Returns: string;
+      };
+      manager_request_product_archive: {
         Args: {
           p_task_item_id: string;
           p_note?: string | null;

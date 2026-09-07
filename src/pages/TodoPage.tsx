@@ -19,6 +19,7 @@ import { loadAllOvertimeRequests, loadManagerOvertimeRequests, loadOvertimeProfi
 import type { Database } from '../types/database';
 import {
   feedbackProductText,
+  handleProductFeedbackAction,
   handleProductFeedbackBatchActions,
   loadProductCreationRequests,
   loadProductFeedbackRecords,
@@ -56,6 +57,8 @@ export function TodoPage() {
   const [completionMessage, setCompletionMessage] = useState('');
   const [feedbackBatchAction, setFeedbackBatchAction] = useState<'acknowledge' | 'confirm_delete' | null>(null);
   const [feedbackBatchBusy, setFeedbackBatchBusy] = useState(false);
+  const [lifecycleReview, setLifecycleReview] = useState<{ action: 'confirm_archive' | 'confirm_delete' | 'ignore'; item: ProductFeedbackRecord } | null>(null);
+  const [lifecycleReviewBusy, setLifecycleReviewBusy] = useState(false);
   const [productCreationRequests, setProductCreationRequests] = useState<ProductCreationRequestRecord[]>([]);
   const [arrivalCorrections, setArrivalCorrections] = useState<ArrivalCorrectionListItem[]>([]);
   const [taskSubmitterNames, setTaskSubmitterNames] = useState<Record<string, string>>({});
@@ -189,6 +192,26 @@ export function TodoPage() {
       setFeedbackBatchBusy(false);
     }
   };
+  const reviewLifecycleRequest = async () => {
+    if (!lifecycleReview) return;
+    setLifecycleReviewBusy(true);
+    try {
+      await handleProductFeedbackAction(lifecycleReview.item.feedback.id, lifecycleReview.action);
+      const message = lifecycleReview.action === 'confirm_archive'
+        ? `“${feedbackProductText(lifecycleReview.item.feedback)}”已归档，可在货品库恢复。`
+        : lifecycleReview.action === 'confirm_delete'
+          ? `“${feedbackProductText(lifecycleReview.item.feedback)}”已删除。`
+          : `“${feedbackProductText(lifecycleReview.item.feedback)}”的申请已拒绝。`;
+      setLifecycleReview(null);
+      window.dispatchEvent(new Event('storehub:todos-changed'));
+      await load();
+      setCompletionMessage(message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '处理货品申请失败。');
+    } finally {
+      setLifecycleReviewBusy(false);
+    }
+  };
   const reviewCreationRequest = async () => {
     if (!creationReview) return;
     if (creationReview.approve && (!creationReview.draft.name.trim() || !creationReview.draft.spec.trim() || !creationReview.draft.count_unit.trim())) {
@@ -213,11 +236,17 @@ export function TodoPage() {
       <h2 className="text-sm font-bold text-slate-700">货品新增、修改、归档与删除审核</h2>
       <article className="ui-card p-4">
         <div className="flex items-start justify-between gap-3"><div><b>待处理申请</b><p className="mt-1 text-xs text-slate-500">新增 {newProductRequests.length} 条 · 修改 {productCorrections.length} 条 · 归档 {productArchives.length} 条 · 删除 {productDeletions.length} 条</p></div><StatusBadge tone="warning">{productReadRequests.length + productLifecycleRequests.length} 条</StatusBadge></div>
-        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
-          {[...productReadRequests, ...productLifecycleRequests].map((item) => <Link className="block rounded-lg bg-slate-50 px-3 py-2 text-sm" key={item.feedback.id} to={`/app/history?view=feedback&feedback=${item.feedback.id}`}>
-            <span className="flex items-center justify-between gap-2"><b className="min-w-0 truncate">{item.feedback.feedback_type === 'new' ? '新增' : item.feedback.feedback_type === 'incorrect' ? '修改' : item.feedback.feedback_type === 'archived' ? '归档' : '删除'} · {feedbackProductText(item.feedback)}</b><span className="shrink-0 text-xs text-brand-700">查看</span></span>
-            <span className="mt-0.5 block text-xs text-slate-500">{item.storeName} · {item.creatorName}</span>
-          </Link>)}
+        <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+          {[...productReadRequests, ...productLifecycleRequests].map((item) => {
+            const lifecycleRequest = item.feedback.feedback_type === 'discontinued' || item.feedback.feedback_type === 'archived';
+            return <article className="rounded-lg bg-slate-50 px-3 py-2 text-sm" key={item.feedback.id}>
+              <Link className="block" to={`/app/history?view=feedback&feedback=${item.feedback.id}`}>
+                <span className="flex items-center justify-between gap-2"><b className="min-w-0 truncate">{item.feedback.feedback_type === 'new' ? '新增' : item.feedback.feedback_type === 'incorrect' ? '修改' : item.feedback.feedback_type === 'archived' ? '归档' : '删除'} · {feedbackProductText(item.feedback)}</b><span className="shrink-0 text-xs text-brand-700">查看详情</span></span>
+                <span className="mt-0.5 block text-xs text-slate-500">{item.storeName} · {item.creatorName}</span>
+              </Link>
+              {lifecycleRequest ? <div className="mt-2 grid grid-cols-3 gap-2"><button className="min-h-9 rounded-lg border border-slate-200 bg-white text-xs font-bold" disabled={lifecycleReviewBusy} onClick={() => setLifecycleReview({ action: 'ignore', item })} type="button">拒绝</button><button className="min-h-9 rounded-lg bg-amber-600 text-xs font-bold text-white" disabled={lifecycleReviewBusy} onClick={() => setLifecycleReview({ action: 'confirm_archive', item })} type="button">归档</button><button className="min-h-9 rounded-lg bg-red-700 text-xs font-bold text-white" disabled={lifecycleReviewBusy} onClick={() => setLifecycleReview({ action: 'confirm_delete', item })} type="button">删除</button></div> : null}
+            </article>;
+          })}
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button className="ui-button-secondary px-2 text-sm" disabled={feedbackBatchBusy || productReadRequests.length === 0} onClick={() => setFeedbackBatchAction('acknowledge')} type="button">一键已读新增/修改</button>
@@ -247,6 +276,13 @@ export function TodoPage() {
       <p>{feedbackBatchAction === 'confirm_delete'
         ? `将同意当前 ${productDeletions.length} 条删除申请，并删除对应货品。此操作无法撤销。`
         : `将当前 ${newProductRequests.length} 条新增和 ${productCorrections.length} 条已生效修改申请全部标记为已读。`}</p>
+    </ConfirmDialog>
+    <ConfirmDialog confirmLabel={lifecycleReview?.action === 'confirm_archive' ? '确认归档' : lifecycleReview?.action === 'confirm_delete' ? '确认删除' : '确认拒绝'} danger={lifecycleReview?.action === 'confirm_delete'} onCancel={() => setLifecycleReview(null)} onConfirm={() => void reviewLifecycleRequest()} open={Boolean(lifecycleReview)} title={lifecycleReview?.action === 'confirm_archive' ? '确认归档货品' : lifecycleReview?.action === 'confirm_delete' ? '确认删除货品' : '确认拒绝申请'}>
+      {lifecycleReview?.action === 'confirm_archive'
+        ? <p>将“{feedbackProductText(lifecycleReview.item.feedback)}”归档。它会从当前货品清单隐藏，但仍保存在货品库中，之后可以恢复使用。</p>
+        : lifecycleReview?.action === 'confirm_delete'
+          ? <p>将永久删除“{feedbackProductText(lifecycleReview.item.feedback)}”。此操作无法撤销。</p>
+          : <p>将拒绝“{lifecycleReview ? feedbackProductText(lifecycleReview.item.feedback) : '该货品'}”的申请，货品会继续保留在当前清单中。</p>}
     </ConfirmDialog>
     <ConfirmDialog confirmLabel={creationReview?.approve ? '按以上内容同意新增' : '确认拒绝'} danger={!creationReview?.approve} onCancel={() => setCreationReview(null)} onConfirm={() => void reviewCreationRequest()} open={Boolean(creationReview)} title={creationReview?.approve ? '编辑并审核新增货品' : '确认拒绝新增货品'}>
       {creationReview?.approve ? <div className="space-y-3">{creationReview.aiSuggestionId ? <FeedbackBanner title="已带入 AI 建议" tone="info">建议仅填入当前审核草稿，尚未同意申请或创建货品。请逐项核对后再确认。</FeedbackBanner> : null}<p className="text-sm leading-6 text-slate-600">请先核对或修改详细内容；通过后将按下列内容加入货品库，并回填本次到货记录。</p><label className="block text-sm font-semibold">货品名称<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, name: event.target.value } } : current)} value={creationReview.draft.name} /></label><label className="block text-sm font-semibold">规格<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, spec: event.target.value } } : current)} value={creationReview.draft.spec} /></label><label className="block text-sm font-semibold">单位<input className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, count_unit: event.target.value } } : current)} value={creationReview.draft.count_unit} /></label><label className="block text-sm font-semibold">分类<select className="ui-input mt-1" onChange={(event) => setCreationReview((current) => current ? { ...current, draft: { ...current.draft, category_code: event.target.value as ProductCreationReviewDraft['category_code'] } } : current)} value={creationReview.draft.category_code}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label><label className="block text-sm font-semibold">审核备注（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setCreationReview((current) => current ? { ...current, note: event.target.value } : current)} value={creationReview.note} /></label></div> : <div><p>拒绝后不会创建货品，本次到货记录仍会保留。</p><label className="mt-3 block text-sm font-semibold">拒绝原因（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setCreationReview((current) => current ? { ...current, note: event.target.value } : current)} value={creationReview?.note ?? ''} /></label></div>}

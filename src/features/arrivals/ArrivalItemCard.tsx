@@ -139,7 +139,7 @@ export function ArrivalItemCard({
                   <span className="block truncate font-semibold text-slate-900">{product.name}</span>
                   <span className="block truncate text-xs text-slate-500">{product.spec || '无规格'} · {product.count_unit}</span>
                 </span>
-                <span className="shrink-0 text-xs font-semibold text-brand-700">选择</span>
+                <span className={`shrink-0 text-xs font-semibold ${product.is_active ? 'text-brand-700' : 'text-amber-700'}`}>{product.is_active ? '选择' : '已归档 · 提交后恢复'}</span>
               </button>
             )) : (
               <p className="p-3 text-sm leading-6 text-slate-600">本店货品中没有匹配项，将按手工产品保存。</p>
@@ -150,7 +150,7 @@ export function ArrivalItemCard({
       </div>
 
       {item.productId ? (
-        <p className="mt-2 rounded-md bg-brand-50 px-3 py-1.5 text-sm text-brand-700">已匹配本店货品 · {item.spec || '无规格'}</p>
+        <p className={`mt-2 rounded-md px-3 py-1.5 text-sm ${matchedProduct?.is_active === false ? 'bg-amber-50 text-amber-800' : 'bg-brand-50 text-brand-700'}`}>{matchedProduct?.is_active === false ? '已匹配已归档货品 · 提交上报后会自动恢复到货品清单' : `已匹配本店货品 · ${item.spec || '无规格'}`}</p>
       ) : item.productName.trim() ? (
         <p className="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800">未匹配本店货品，提交前需申请新增货品。</p>
       ) : null}

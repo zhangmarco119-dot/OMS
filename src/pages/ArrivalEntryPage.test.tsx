@@ -206,6 +206,29 @@ describe('ArrivalEntryPage role boundary', () => {
     expect(unitInput).toHaveValue('杯');
   });
 
+  it('finds an archived product and marks it for automatic restoration after arrival submission', async () => {
+    setRole('staff');
+    const updateItem = vi.fn();
+    setReadyDraft({
+      form: {
+        arrivalDate: '2026-08-02', arrivalTime: '12:42', carrierName: '', note: '', trackingNo: '',
+        items: [{ id: '00000000-0000-4000-8000-000000000201', isUnmatchedProduct: true, note: '', productId: null, productName: '归档酸奶', quantity: '', sortOrder: 0, spec: '', unit: '' }],
+      },
+      products: [{ category_code: 'other_food', count_unit: '杯', created_at: '', id: 'archived-product-1', is_active: false, name: '归档酸奶', product_code: null, sort_order: 1, spec: '120g', store_id: '00000000-0000-4000-8000-000000000101', updated_at: '' }],
+      updateItem,
+    });
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><ArrivalEntryPage /></MemoryRouter>);
+
+    fireEvent.focus(screen.getByLabelText('产品名称'));
+
+    expect(await screen.findByText('已归档 · 提交后恢复')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('已归档 · 提交后恢复'));
+    expect(updateItem).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000201', expect.any(Function));
+    expect(updateItem.mock.calls[0][1]({
+      id: '00000000-0000-4000-8000-000000000201', isUnmatchedProduct: true, note: '', productId: null, productName: '归档酸奶', quantity: '', sortOrder: 0, spec: '', unit: '',
+    })).toMatchObject({ isUnmatchedProduct: false, productId: 'archived-product-1', productName: '归档酸奶', spec: '120g', unit: '杯' });
+  });
+
   it('keeps the administrator outside the store execution page', () => {
     setRole('admin');
     render(

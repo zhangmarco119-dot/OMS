@@ -40,6 +40,7 @@ import {
   type CreateUserInput,
   type StoreRow,
 } from '../features/admin/adminUsersService';
+import { EmployeeInformationManager } from '../features/admin/EmployeeInformationManager';
 import { useAuth } from '../features/auth/AuthContext';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { DEFAULT_PRODUCT_CATEGORY, PRODUCT_CATEGORIES, productCategoryLabel, type ProductCategoryCode } from '../features/products/productCategories';
@@ -53,6 +54,7 @@ export type AdminSection = 'products' | 'users';
 type ProductTab = 'catalog' | 'batch' | 'archived';
 type ProductSortMode = 'manual' | 'recent' | 'last_inventory' | 'initial';
 type AccountType = 'staff' | 'manager' | 'part_time' | 'admin';
+type EmployeeManagementTab = 'accounts' | 'information';
 
 const accountTypeOf = (role: CreateUserInput['role'], employmentType: CreateUserInput['employmentType']): AccountType =>
   role === 'staff' && employmentType === 'part_time' ? 'part_time' : role;
@@ -114,6 +116,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const auth = useAuth();
   const aiPilot = useAiPilotSettings();
   const [productTab, setProductTab] = useRememberedPageState<ProductTab>('product-tab', 'catalog');
+  const [employeeManagementTab, setEmployeeManagementTab] = useRememberedPageState<EmployeeManagementTab>('employee-management-tab', 'accounts');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -615,7 +618,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
   const aiPilotEnabled = isAiWorkflowEnabledForStore(aiPilot.settings, selectedStoreId, 'product', true);
 
   return (
-    <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '货品管理' : '账号管理'} backTo="/app/workbench">
+    <PageShell eyebrow="门店运营系统 · 管理员" title={section === 'products' ? '货品管理' : '员工管理'} backTo="/app/workbench">
       {section === 'products' ? (
         <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-3">
@@ -837,6 +840,12 @@ export function AdminPage({ section }: { section: AdminSection }) {
 
       {section === 'users' ? (
         <section className="space-y-3">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="tablist">
+            <button aria-selected={employeeManagementTab === 'accounts'} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${employeeManagementTab === 'accounts' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setEmployeeManagementTab('accounts')} role="tab" type="button">账号管理</button>
+            <button aria-selected={employeeManagementTab === 'information'} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${employeeManagementTab === 'information' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600'}`} onClick={() => setEmployeeManagementTab('information')} role="tab" type="button">员工信息管理</button>
+          </div>
+          {employeeManagementTab === 'accounts' ? <>
+          <section className="space-y-3">
           <div className="rounded-lg bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -921,6 +930,8 @@ export function AdminPage({ section }: { section: AdminSection }) {
               </div>
             ))}
           </div>
+          </section>
+          </> : <EmployeeInformationManager stores={stores} users={users} />}
         </section>
       ) : null}
       {savedAccountName ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="account-save-success-title"><section className="ui-dialog-panel max-w-sm border border-emerald-100 p-5"><div className="flex items-start justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 className="h-7 w-7" aria-hidden="true" /></div><button aria-label="关闭保存成功提示" className="ui-icon-button" onClick={() => setSavedAccountName(null)} type="button"><X className="h-5 w-5" /></button></div><h2 className="mt-4 text-xl font-bold text-slate-900" id="account-save-success-title">账号修改已保存</h2><p className="mt-2 text-sm leading-6 text-slate-600">“{savedAccountName}”的账号资料已更新并生效。</p><button className="ui-button-primary mt-5 w-full" onClick={() => setSavedAccountName(null)} type="button">我知道了</button></section></div> : null}

@@ -49,8 +49,8 @@ export function AdminPayrollPage() {
   const [params, setParams] = useSearchParams();
   const tab = (tabs.some((item) => item.key === params.get('tab')) ? params.get('tab') : 'overview') as Tab;
   const changeTab = (nextTab: Tab) => { const next = new URLSearchParams(params); next.set('tab', nextTab); ['employee', 'profile', 'payslip', 'editPayslip', 'statisticsEmployee', 'statisticsPeriod'].forEach((key) => next.delete(key)); setParams(next, { replace: true }); };
-  return <PageShell eyebrow="门店运营系统 · 管理员" title="实时薪资" backTo="/app/workbench" contentGapClassName="gap-3">
-    <nav className="ui-card grid grid-cols-4 gap-1 p-1.5 sm:grid-cols-8" aria-label="实时薪资功能">{tabs.map((item) => <button className={`min-h-10 rounded-lg px-1 text-[11px] font-bold ${tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600'}`} key={item.key} onClick={() => changeTab(item.key)} type="button">{item.label}</button>)}</nav>
+  return <PageShell eyebrow="门店运营系统 · 管理员" title="薪资管理" backTo="/app/workbench" contentGapClassName="gap-3">
+    <nav className="ui-card grid grid-cols-4 gap-1 p-1.5 sm:grid-cols-8" aria-label="薪资管理功能">{tabs.map((item) => <button className={`min-h-10 rounded-lg px-1 text-[11px] font-bold ${tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600'}`} key={item.key} onClick={() => changeTab(item.key)} type="button">{item.label}</button>)}</nav>
     {tab === 'overview' ? <PayrollOverview /> : null}
     {tab === 'statistics' ? <AdminPayrollStatistics /> : null}
     {tab === 'payslips' ? <PayrollPayslipManager /> : null}

@@ -150,8 +150,8 @@ export const markSubmittedTasksRead = async (
 };
 
 export const orderSubmittedInventoryItems = (items: TaskWithItems['items']) => [
-  ...items.filter((item) => item.product_action_status !== 'deletion_approved'),
-  ...items.filter((item) => item.product_action_status === 'deletion_approved'),
+  ...items.filter((item) => item.product_action_status !== 'deletion_approved' && item.product_action_status !== 'archive_approved'),
+  ...items.filter((item) => item.product_action_status === 'deletion_approved' || item.product_action_status === 'archive_approved'),
 ];
 
 export const loadSubmittedTaskDetail = async (client: Client, taskId: string) => {

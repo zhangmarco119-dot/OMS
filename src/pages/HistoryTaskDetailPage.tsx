@@ -61,8 +61,8 @@ export function HistoryTaskDetailPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const deletedItemCount = view?.detail.task.task_type === 'inventory'
-    ? view.detail.items.filter((item) => item.product_action_status === 'deletion_approved').length
+  const lifecycleItemCount = view?.detail.task.task_type === 'inventory'
+    ? view.detail.items.filter((item) => item.product_action_status === 'deletion_approved' || item.product_action_status === 'archive_approved').length
     : 0;
   const aiReviewEnabled = Boolean(view && auth.profile?.role === 'admin'
     && isAiWorkflowEnabledForStore(aiPilot.settings, view.detail.task.store_id, view.detail.task.task_type));
@@ -122,13 +122,13 @@ export function HistoryTaskDetailPage() {
         <div className="space-y-2">
           {view.detail.items.map((item, index) => {
             const snapshot = asProductSnapshot(item.product_snapshot);
-            const isConfirmedDeletion = item.product_action_status === 'deletion_approved';
-            const startsDeletedSection = isConfirmedDeletion && (index === 0 || view.detail.items[index - 1]?.product_action_status !== 'deletion_approved');
-            const actionStatus = item.product_action_status === 'deletion_requested' ? '申请删除' : isConfirmedDeletion ? '已确认删除' : item.product_action_status === 'deletion_ignored' ? '删除已忽略' : '';
+            const isResolvedLifecycle = item.product_action_status === 'deletion_approved' || item.product_action_status === 'archive_approved';
+            const startsResolvedSection = isResolvedLifecycle && (index === 0 || (view.detail.items[index - 1]?.product_action_status !== 'deletion_approved' && view.detail.items[index - 1]?.product_action_status !== 'archive_approved'));
+            const actionStatus = item.product_action_status === 'deletion_requested' ? '申请删除' : item.product_action_status === 'archive_requested' ? '申请归档' : item.product_action_status === 'deletion_approved' ? '已确认删除' : item.product_action_status === 'archive_approved' ? '已确认归档' : item.product_action_status === 'deletion_ignored' ? '删除已拒绝' : item.product_action_status === 'archive_ignored' ? '归档已拒绝' : '';
             const quantity = item.status === 'no_order_needed' ? '-' : `${item.quantity ?? '-'}${item.quantity === null ? '' : ` ${snapshot.count_unit}`}`;
             return <div key={item.id}>
-              {startsDeletedSection ? <div className="mb-2 mt-3 rounded-lg bg-slate-200/80 px-3 py-2 text-xs font-bold text-slate-700">以下为本次点货中已确认删除的货品（{deletedItemCount}）</div> : null}
-              <article className={`rounded-xl border p-3 ${isConfirmedDeletion ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
+              {startsResolvedSection ? <div className="mb-2 mt-3 rounded-lg bg-slate-200/80 px-3 py-2 text-xs font-bold text-slate-700">以下为本次点货中已确认归档或删除的货品（{lifecycleItemCount}）</div> : null}
+              <article className={`rounded-xl border p-3 ${isResolvedLifecycle ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5"><b className="text-slate-900">{index + 1}. {snapshot.name}</b>{item.is_extra_item ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">本次新增</span> : null}</div><p className="mt-1 text-xs text-slate-500">{snapshot.spec || '无规格'}</p></div>
                   <strong className="shrink-0 text-base text-slate-900">{quantity}</strong>

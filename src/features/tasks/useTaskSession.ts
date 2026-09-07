@@ -20,6 +20,7 @@ import {
   loadInventoryTemplates,
   loadDraftTask,
   managerAddProductFromTask,
+  managerRequestProductArchive,
   managerRequestProductDeletion,
   managerUpdateProductFromTask,
   markTaskItemNoOrderNeeded,
@@ -161,7 +162,9 @@ export const useTaskSession = (taskType: TaskType, options: { linkedV2TaskId?: s
     const timeout = window.setTimeout(() => {
       if (
         (item.product_action_status === 'deletion_requested'
-          || item.product_action_status === 'deletion_approved')
+          || item.product_action_status === 'deletion_approved'
+          || item.product_action_status === 'archive_requested'
+          || item.product_action_status === 'archive_approved')
         && quantityInput.trim() === ''
       ) {
         setSaveStatus('saved');
@@ -288,6 +291,16 @@ export const useTaskSession = (taskType: TaskType, options: { linkedV2TaskId?: s
     return result.feedbackId;
   }, [currentItem, replaceItem]);
 
+  const requestCurrentProductArchive = useCallback(async (note?: string) => {
+    const client = supabase;
+    if (!client || !currentItem) throw new Error('需要先登录并选择货品');
+    const result = await managerRequestProductArchive(client, currentItem, note);
+    replaceItem(result.item);
+    setQuantityInput('');
+    setMessage('已提交归档此货品的申请，等待管理员确认。');
+    return result.feedbackId;
+  }, [currentItem, replaceItem]);
+
   const getInventoryTemplates = useCallback(async (): Promise<InventoryTemplate[]> => {
     const client = supabase;
     if (!client || taskType !== 'inventory') {
@@ -341,7 +354,9 @@ export const useTaskSession = (taskType: TaskType, options: { linkedV2TaskId?: s
 
     if (
       (currentItem.product_action_status === 'deletion_requested'
-        || currentItem.product_action_status === 'deletion_approved')
+        || currentItem.product_action_status === 'deletion_approved'
+        || currentItem.product_action_status === 'archive_requested'
+        || currentItem.product_action_status === 'archive_approved')
       && quantityInput.trim() === ''
     ) {
       return currentItem;
@@ -413,6 +428,7 @@ export const useTaskSession = (taskType: TaskType, options: { linkedV2TaskId?: s
     stats,
     status,
     reportFeedback,
+    requestCurrentProductArchive,
     requestCurrentProductDeletion,
     setInventoryCategories,
     importFromInventoryTask,

@@ -157,8 +157,10 @@ export function TodoPage() {
   };
   const productCorrections = feedback.filter((item) => item.feedback.feedback_type === 'incorrect');
   const productDeletions = feedback.filter((item) => item.feedback.feedback_type === 'discontinued');
+  const productArchives = feedback.filter((item) => item.feedback.feedback_type === 'archived');
   const newProductRequests = feedback.filter((item) => item.feedback.feedback_type === 'new');
   const productReadRequests = [...newProductRequests, ...productCorrections];
+  const productLifecycleRequests = [...productDeletions, ...productArchives];
   const runFeedbackBatch = async () => {
     if (!feedbackBatchAction) return;
     const targets = feedbackBatchAction === 'acknowledge'
@@ -207,13 +209,13 @@ export function TodoPage() {
     <SectionCard><SectionHeader action={<IconButton aria-label="刷新待办" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description="这里只显示需要实际处理的事项，普通历史通知不会计入。" title="需要处理" /></SectionCard>
     {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
     {notices.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">待确认公告</h2>{notices.map((notice) => <Link className="ui-card ui-interactive block border-brand-200 bg-brand-50/30 p-4" key={notice.id} to={`/app/notices/${notice.id}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="line-clamp-2 text-slate-900">{notice.title}</b><p className="mt-1 text-sm leading-5 text-slate-600">阅读公告后点击“确认已阅读”。</p></div><StatusBadge tone="success">待确认</StatusBadge></div></Link>)}</section> : null}
-    {productReadRequests.length + productDeletions.length > 0 ? <section className="space-y-2">
-      <h2 className="text-sm font-bold text-slate-700">货品新增、修改与删除审核</h2>
+    {productReadRequests.length + productLifecycleRequests.length > 0 ? <section className="space-y-2">
+      <h2 className="text-sm font-bold text-slate-700">货品新增、修改、归档与删除审核</h2>
       <article className="ui-card p-4">
-        <div className="flex items-start justify-between gap-3"><div><b>待处理申请</b><p className="mt-1 text-xs text-slate-500">新增 {newProductRequests.length} 条 · 修改 {productCorrections.length} 条 · 删除 {productDeletions.length} 条</p></div><StatusBadge tone="warning">{productReadRequests.length + productDeletions.length} 条</StatusBadge></div>
+        <div className="flex items-start justify-between gap-3"><div><b>待处理申请</b><p className="mt-1 text-xs text-slate-500">新增 {newProductRequests.length} 条 · 修改 {productCorrections.length} 条 · 归档 {productArchives.length} 条 · 删除 {productDeletions.length} 条</p></div><StatusBadge tone="warning">{productReadRequests.length + productLifecycleRequests.length} 条</StatusBadge></div>
         <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
-          {[...productReadRequests, ...productDeletions].map((item) => <Link className="block rounded-lg bg-slate-50 px-3 py-2 text-sm" key={item.feedback.id} to={`/app/history?view=feedback&feedback=${item.feedback.id}`}>
-            <span className="flex items-center justify-between gap-2"><b className="min-w-0 truncate">{item.feedback.feedback_type === 'new' ? '新增' : item.feedback.feedback_type === 'incorrect' ? '修改' : '删除'} · {feedbackProductText(item.feedback)}</b><span className="shrink-0 text-xs text-brand-700">查看</span></span>
+          {[...productReadRequests, ...productLifecycleRequests].map((item) => <Link className="block rounded-lg bg-slate-50 px-3 py-2 text-sm" key={item.feedback.id} to={`/app/history?view=feedback&feedback=${item.feedback.id}`}>
+            <span className="flex items-center justify-between gap-2"><b className="min-w-0 truncate">{item.feedback.feedback_type === 'new' ? '新增' : item.feedback.feedback_type === 'incorrect' ? '修改' : item.feedback.feedback_type === 'archived' ? '归档' : '删除'} · {feedbackProductText(item.feedback)}</b><span className="shrink-0 text-xs text-brand-700">查看</span></span>
             <span className="mt-0.5 block text-xs text-slate-500">{item.storeName} · {item.creatorName}</span>
           </Link>)}
         </div>

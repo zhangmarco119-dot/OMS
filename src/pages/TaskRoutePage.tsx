@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, FileDown, ListChecks, PackagePlus, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
+import { Archive, ArrowLeft, ArrowRight, Ban, CheckCircle2, ChevronDown, ChevronUp, Clock3, FileDown, ListChecks, PackagePlus, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -109,6 +109,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [showDeletionConfirm, setShowDeletionConfirm] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [correctionForm, setCorrectionForm] = useState({ name: '', spec: '', countUnit: '' });
   const [extraFormMessage, setExtraFormMessage] = useState<string | null>(null);
   const [extraFormBusy, setExtraFormBusy] = useState(false);
@@ -130,8 +131,11 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
   const canGoPrevious = task.currentIndex > 0;
   const canGoNext = task.currentIndex < task.items.length - 1;
   const deletionRequested = task.currentItem?.product_action_status === 'deletion_requested';
-  const deletionActionLocked = deletionRequested
+  const archiveRequested = task.currentItem?.product_action_status === 'archive_requested';
+  const lifecycleActionLocked = deletionRequested
+    || archiveRequested
     || task.currentItem?.product_action_status === 'deletion_approved'
+    || task.currentItem?.product_action_status === 'archive_approved'
     || (!task.currentItem?.product_id && Boolean(snapshot?.product_id));
   const inventoryCategories = task.sessionData?.task.inventory_category_codes ?? PRODUCT_CATEGORIES.map((category) => category.code);
   const changeInventoryScope = async (code: ProductCategoryCode) => {
@@ -151,6 +155,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
     setFeedbackActionMessage(null);
     setShowCorrectionForm(false);
     setShowDeletionConfirm(false);
+    setShowArchiveConfirm(false);
   }, [task.currentItem?.id]);
 
   useEffect(() => {
@@ -255,6 +260,22 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
       setFeedbackActionMessage('已提交删除此货品，等待管理员确认。');
     } catch (error) {
       setFeedbackActionMessage(error instanceof Error ? error.message : '提交删除申请失败');
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+
+  const confirmManagerArchiveRequest = async () => {
+    if (!task.currentItem) return;
+    setFeedbackBusy(true);
+    setFeedbackActionMessage(null);
+    try {
+      await task.requestCurrentProductArchive(feedbackNote || undefined);
+      setFeedbackNote('');
+      setShowArchiveConfirm(false);
+      setFeedbackActionMessage('已提交归档此货品的申请，等待管理员确认。');
+    } catch (error) {
+      setFeedbackActionMessage(error instanceof Error ? error.message : '提交归档申请失败');
     } finally {
       setFeedbackBusy(false);
     }
@@ -439,13 +460,15 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   {task.currentItem?.product_action_status === 'deletion_approved' ? (
                     <span className="mt-4 inline-flex rounded-full bg-slate-900 px-3 py-1 text-sm font-semibold text-white">已确认删除</span>
                   ) : null}
+                  {task.currentItem?.product_action_status === 'archive_requested' ? <span className="mt-4 inline-flex rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">申请归档</span> : null}
+                  {task.currentItem?.product_action_status === 'archive_approved' ? <span className="mt-4 inline-flex rounded-full bg-amber-700 px-3 py-1 text-sm font-semibold text-white">已确认归档</span> : null}
                 </div>
 
                 <div className={`${compact ? 'mt-2.5 gap-2' : 'mt-5 gap-3'} flex items-center justify-center`}>
                   <button
                     aria-label="减少数量"
                     className={`flex items-center justify-center rounded-2xl bg-slate-100 text-slate-700 active:scale-95 disabled:text-slate-300 ${compact ? 'h-12 w-12' : 'h-14 w-14'}`}
-                    disabled={deletionActionLocked}
+                    disabled={lifecycleActionLocked}
                     onClick={() => updateQuantity(-1)}
                     type="button"
                   >
@@ -455,7 +478,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                     <span className="sr-only">{text.quantityLabel}</span>
                     <input
                       className={`${compact ? 'h-16 text-4xl' : 'h-24 text-5xl'} w-full rounded-2xl border-2 border-slate-200 bg-slate-50 text-center font-bold text-slate-900 outline-none transition focus:border-brand-500 focus:bg-white`}
-                      disabled={deletionActionLocked}
+                      disabled={lifecycleActionLocked}
                       inputMode="decimal"
                       min="0"
                       onChange={(event) => task.setQuantityInput(event.target.value)}
@@ -467,7 +490,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   <button
                     aria-label="增加数量"
                     className={`flex items-center justify-center rounded-2xl bg-slate-100 text-slate-700 active:scale-95 disabled:text-slate-300 ${compact ? 'h-12 w-12' : 'h-14 w-14'}`}
-                    disabled={deletionActionLocked}
+                    disabled={lifecycleActionLocked}
                     onClick={() => updateQuantity(1)}
                     type="button"
                   >
@@ -519,15 +542,25 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                         已提交删除此货品，等待管理员确认。
                       </p>
                     ) : null}
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                    {archiveRequested ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-800">已提交归档此货品的申请，等待管理员确认。</p> : null}
+                    <div className="mt-2 grid grid-cols-3 gap-2">
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
-                        disabled={feedbackBusy || deletionActionLocked}
+                        disabled={feedbackBusy || lifecycleActionLocked}
                         onClick={() => { if (!canRequestProductDeletion) { setFeedbackActionMessage('当前账号没有货品删除权限，请联系管理员授权。'); return; } setShowDeletionConfirm(true); }}
                         type="button"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                         不再使用
+                      </button>
+                      <button
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
+                        disabled={feedbackBusy || lifecycleActionLocked}
+                        onClick={() => { if (!canRequestProductDeletion) { setFeedbackActionMessage('当前账号没有货品归档权限，请联系管理员授权。'); return; } setShowArchiveConfirm(true); }}
+                        type="button"
+                      >
+                        <Archive className="h-4 w-4" aria-hidden="true" />
+                        归档
                       </button>
                       <button
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 disabled:text-slate-300"
@@ -725,6 +758,16 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                 {feedbackBusy ? '正在提交' : '确认提交申请'}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+      {showArchiveConfirm && snapshot ? (
+        <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="product-archive-title">
+          <div className="ui-dialog-panel max-w-sm p-4">
+            <div className="flex items-center gap-3"><div className="rounded-full bg-amber-50 p-3 text-amber-700"><Archive className="h-5 w-5" aria-hidden="true" /></div><div><h2 className="text-lg font-semibold text-slate-900" id="product-archive-title">确认提交归档申请？</h2><p className="mt-1 text-sm text-slate-600">{snapshot.name} · {snapshot.spec}</p></div></div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">归档不会删除货品。管理员确认后，它会从当前点货和订货清单隐藏，但仍保留在货品库中，管理员可随时恢复。</p>
+            <label className="mt-4 block text-sm font-semibold text-slate-700">备注（选填）<textarea className="ui-input mt-1 min-h-20 py-2" onChange={(event) => setFeedbackNote(event.target.value)} placeholder="例如：季节性暂不使用" value={feedbackNote} /></label>
+            <div className="mt-4 grid grid-cols-2 gap-2"><button className="ui-button-secondary" disabled={feedbackBusy} onClick={() => setShowArchiveConfirm(false)} type="button">取消</button><button className="ui-button-primary" disabled={feedbackBusy} onClick={() => void confirmManagerArchiveRequest()} type="button">{feedbackBusy ? '正在提交' : '提交归档申请'}</button></div>
           </div>
         </div>
       ) : null}

@@ -28,12 +28,13 @@ describe('submitted inventory item ordering', () => {
     productActionStatus: TaskWithItems['items'][number]['product_action_status'] = null,
   ) => ({ id, product_action_status: productActionStatus } as TaskWithItems['items'][number]);
 
-  it('keeps active and newly added products first, then moves confirmed deletions to the bottom', () => {
+  it('keeps active and newly added products first, then moves confirmed archives and deletions to the bottom', () => {
     const items = [
       inventoryItem('active-1'),
       inventoryItem('deleted-1', 'deletion_approved'),
       { ...inventoryItem('new-1'), is_extra_item: true },
       inventoryItem('active-2'),
+      inventoryItem('archived-1', 'archive_approved'),
       inventoryItem('deleted-2', 'deletion_approved'),
     ];
 
@@ -42,6 +43,7 @@ describe('submitted inventory item ordering', () => {
       'new-1',
       'active-2',
       'deleted-1',
+      'archived-1',
       'deleted-2',
     ]);
     expect(items.map((item) => item.id)).toEqual([
@@ -49,6 +51,7 @@ describe('submitted inventory item ordering', () => {
       'deleted-1',
       'new-1',
       'active-2',
+      'archived-1',
       'deleted-2',
     ]);
   });

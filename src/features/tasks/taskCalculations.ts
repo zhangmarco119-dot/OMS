@@ -46,6 +46,8 @@ type TaskItemCompletionState = Pick<TaskItemRow, 'status' | 'quantity' | 'produc
 export const isItemProcessed = (item: TaskItemCompletionState) =>
   item.product_action_status === 'deletion_requested'
   || item.product_action_status === 'deletion_approved'
+  || item.product_action_status === 'archive_requested'
+  || item.product_action_status === 'archive_approved'
   || item.status !== 'pending'
   || item.quantity !== null;
 

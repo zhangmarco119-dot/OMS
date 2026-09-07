@@ -883,36 +883,48 @@ export type Database = {
       };
       tax_reporting_people: {
         Row: {
+          bank_card_number: string | null;
+          bank_name: string | null;
+          contact_address: string | null;
           created_at: string;
           created_by: string;
           full_name: string;
           id: string;
-          id_number: string;
+          id_card_image_path: string | null;
+          id_number: string | null;
           is_active: boolean;
-          phone: string;
+          phone: string | null;
           profile_id: string | null;
           reporting_store_id: string | null;
           updated_at: string;
           updated_by: string;
         };
         Insert: {
+          bank_card_number?: string | null;
+          bank_name?: string | null;
+          contact_address?: string | null;
           created_at?: string;
           created_by?: string;
           full_name: string;
           id?: string;
-          id_number: string;
+          id_card_image_path?: string | null;
+          id_number?: string | null;
           is_active?: boolean;
-          phone: string;
+          phone?: string | null;
           profile_id?: string | null;
           reporting_store_id?: string | null;
           updated_at?: string;
           updated_by?: string;
         };
         Update: {
+          bank_card_number?: string | null;
+          bank_name?: string | null;
+          contact_address?: string | null;
           full_name?: string;
-          id_number?: string;
+          id_card_image_path?: string | null;
+          id_number?: string | null;
           is_active?: boolean;
-          phone?: string;
+          phone?: string | null;
           profile_id?: string | null;
           reporting_store_id?: string | null;
           updated_at?: string;

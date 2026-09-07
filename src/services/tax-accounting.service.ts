@@ -66,7 +66,7 @@ export function createTaxReports(
   const estimateByProfile = new Map(estimates.map((row) => [row.profileId, row]));
   return stores.map((store) => {
     const rows = people
-      .filter((person) => person.is_active && person.reporting_store_id === store.id)
+      .filter((person) => person.is_active && person.reporting_store_id === store.id && person.id_number && person.phone)
       .map((person): TaxReportRow => {
         const monthly = salaryByPerson.get(person.id);
         const estimate = person.profile_id ? estimateByProfile.get(person.profile_id) : undefined;
@@ -75,9 +75,9 @@ export function createTaxReports(
         return {
           amount,
           fullName: person.full_name,
-          idNumber: person.id_number,
+          idNumber: person.id_number!,
           personId: person.id,
-          phone: person.phone,
+          phone: person.phone!,
           salarySource: manualAmount != null ? 'manual' : person.profile_id ? 'system' : 'missing',
         };
       })
@@ -174,21 +174,31 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
 }
 
 export interface SaveTaxPersonInput {
+  bankCardNumber?: string;
+  bankName?: string;
+  contactAddress?: string;
   fullName: string;
   id?: string;
-  idNumber: string;
+  idCardImagePath?: string | null;
+  idNumber?: string;
   isActive: boolean;
-  phone: string;
+  phone?: string;
   profileId: string | null;
   reportingStoreId: string | null;
 }
 
+const nullableText = (value: string | null | undefined) => value?.trim() || null;
+
 export async function saveTaxPerson(client: Client, actorId: string, input: SaveTaxPersonInput) {
   const values = {
+    bank_card_number: nullableText(input.bankCardNumber),
+    bank_name: nullableText(input.bankName),
+    contact_address: nullableText(input.contactAddress),
     full_name: input.fullName.trim(),
-    id_number: input.idNumber.trim().toUpperCase(),
+    id_card_image_path: input.idCardImagePath ?? null,
+    id_number: nullableText(input.idNumber)?.toUpperCase() ?? null,
     is_active: input.isActive,
-    phone: input.phone.trim(),
+    phone: nullableText(input.phone),
     profile_id: input.profileId,
     reporting_store_id: input.reportingStoreId,
     updated_by: actorId,
@@ -198,6 +208,30 @@ export async function saveTaxPerson(client: Client, actorId: string, input: Save
     : await client.from('tax_reporting_people').insert({ ...values, created_by: actorId }).select('*').single();
   if (error) throw new Error(error.message || '报税人员资料保存失败。');
   return data;
+}
+
+export async function uploadEmployeeIdCard(
+  client: Client,
+  personId: string,
+  file: File,
+) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    throw new Error('身份证照片仅支持 JPG、PNG 或 WEBP 格式。');
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('身份证照片不能超过 10MB。');
+  }
+  const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  const path = `id-cards/${personId}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await client.storage.from('employee-documents').upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error(error.message || '身份证照片上传失败。');
+  return path;
+}
+
+export async function getEmployeeIdCardUrl(client: Client, path: string) {
+  const { data, error } = await client.storage.from('employee-documents').createSignedUrl(path, 60 * 15);
+  if (error || !data?.signedUrl) throw new Error(error?.message || '身份证照片地址生成失败。');
+  return data.signedUrl;
 }
 
 export async function deleteTaxPerson(client: Client, personId: string) {

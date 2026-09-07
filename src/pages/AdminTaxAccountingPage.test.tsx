@@ -12,10 +12,12 @@ vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../services/payroll.service', () => ({ savePayrollIndividualTaxes: vi.fn() }));
 vi.mock('../services/tax-accounting.service', () => ({
   deleteTaxPerson: vi.fn(),
+  getEmployeeIdCardUrl: vi.fn(),
   loadTaxAccountingData: vi.fn(),
   saveTaxMonthlySalary: vi.fn(),
   saveTaxPerson: vi.fn(),
   saveTaxStoreCompanyName: vi.fn(),
+  uploadEmployeeIdCard: vi.fn(),
 }));
 
 const data = {

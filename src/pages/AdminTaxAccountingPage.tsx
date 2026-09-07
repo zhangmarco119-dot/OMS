@@ -1,4 +1,4 @@
-import { Banknote, Building2, Download, Edit3, Plus, ReceiptText, RefreshCw, Save, Search, Trash2, Users, X } from 'lucide-react';
+import { Banknote, Building2, Download, Edit3, Plus, ReceiptText, RefreshCw, Save, Search, Trash2, Upload, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
@@ -7,6 +7,7 @@ import { PageShell } from '../components/layout/PageShell';
 import { ConfirmDialog } from '../components/ui/Actions';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/ui/Feedback';
 import { FormField, SegmentedControl } from '../components/ui/FormField';
+import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { downloadTaxCardImage } from '../features/tax-accounting/taxCardImage';
@@ -19,6 +20,8 @@ import {
   saveTaxMonthlySalary,
   saveTaxPerson,
   saveTaxStoreCompanyName,
+  getEmployeeIdCardUrl,
+  uploadEmployeeIdCard,
   type SaveTaxPersonInput,
   type TaxAccountingData,
   type TaxPerson,
@@ -27,8 +30,14 @@ import {
 type Tab = 'reports' | 'people' | 'taxes' | 'accounting';
 type Feedback = { message: string; title: string; tone: ActionFeedbackTone };
 type SalaryMode = 'system' | 'manual';
-type PersonEditor = SaveTaxPersonInput & {
+type PersonEditor = Omit<SaveTaxPersonInput, 'bankCardNumber' | 'bankName' | 'contactAddress' | 'idCardImagePath' | 'idNumber' | 'phone'> & {
+  bankCardNumber: string;
+  bankName: string;
+  contactAddress: string;
+  idCardImagePath: string | null;
+  idNumber: string;
   manualSalary: string;
+  phone: string;
   salaryMode: SalaryMode;
 };
 
@@ -46,7 +55,11 @@ const realTimeSalaryAmount = (data: TaxAccountingData | null, profileId: string 
   return estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable ?? null;
 };
 const emptyEditor = (): PersonEditor => ({
+  bankCardNumber: '',
+  bankName: '',
+  contactAddress: '',
   fullName: '',
+  idCardImagePath: null,
   idNumber: '',
   isActive: true,
   manualSalary: '',
@@ -69,6 +82,8 @@ export function AdminTaxAccountingPage() {
   const [deleteTarget, setDeleteTarget] = useState<TaxPerson | null>(null);
   const [taxInputs, setTaxInputs] = useState<Record<string, string>>({});
   const [taxSearch, setTaxSearch] = useState('');
+  const [selectedIdCardFile, setSelectedIdCardFile] = useState<File | null>(null);
+  const [idCardPreview, setIdCardPreview] = useState<{ loading: boolean; src: string | null }>({ loading: false, src: null });
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -89,6 +104,19 @@ export function AdminTaxAccountingPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!editor?.idCardImagePath || !supabase) {
+      setIdCardPreview({ loading: false, src: null });
+      return undefined;
+    }
+    setIdCardPreview({ loading: true, src: null });
+    void getEmployeeIdCardUrl(supabase, editor.idCardImagePath)
+      .then((src) => { if (!cancelled) setIdCardPreview({ loading: false, src }); })
+      .catch(() => { if (!cancelled) setIdCardPreview({ loading: false, src: null }); });
+    return () => { cancelled = true; };
+  }, [editor?.idCardImagePath]);
+
   const profileById = useMemo(() => new Map(data?.profiles.map((item) => [item.id, item]) ?? []), [data]);
   const storeById = useMemo(() => new Map(data?.stores.map((item) => [item.id, item]) ?? []), [data]);
   const estimateByProfile = useMemo(() => new Map(data?.estimates.map((item) => [item.profileId, item]) ?? []), [data]);
@@ -100,14 +128,19 @@ export function AdminTaxAccountingPage() {
     setEditor({
       fullName: person.full_name,
       id: person.id,
-      idNumber: person.id_number,
+      bankCardNumber: person.bank_card_number ?? '',
+      bankName: person.bank_name ?? '',
+      contactAddress: person.contact_address ?? '',
+      idCardImagePath: person.id_card_image_path,
+      idNumber: person.id_number ?? '',
       isActive: person.is_active,
       manualSalary: manual == null ? '' : String(manual),
-      phone: person.phone,
+      phone: person.phone ?? '',
       profileId: person.profile_id,
       reportingStoreId: person.reporting_store_id,
       salaryMode: manual == null && systemAmount != null ? 'system' : 'manual',
     });
+    setSelectedIdCardFile(null);
   };
 
   const submitPerson = async () => {
@@ -132,6 +165,10 @@ export function AdminTaxAccountingPage() {
     setBusy('person');
     try {
       const savedPerson = await saveTaxPerson(supabase, auth.profile.id, editor);
+      if (selectedIdCardFile) {
+        const idCardImagePath = await uploadEmployeeIdCard(supabase, savedPerson.id, selectedIdCardFile);
+        await saveTaxPerson(supabase, auth.profile.id, { ...editor, id: savedPerson.id, idCardImagePath });
+      }
       await saveTaxMonthlySalary(
         supabase,
         auth.profile.id,
@@ -140,6 +177,7 @@ export function AdminTaxAccountingPage() {
         editor.salaryMode === 'manual' ? manualAmount : null,
       );
       setEditor(null);
+      setSelectedIdCardFile(null);
       await load();
       setFeedback({ title: '人员资料已保存', message: '报税归属、身份资料和本月薪资来源已更新。', tone: 'success' });
     } catch (error) {
@@ -360,6 +398,16 @@ export function AdminTaxAccountingPage() {
                 <FormField label="手机号" required><input className="ui-input" inputMode="tel" maxLength={11} onChange={(event) => setEditor((current) => current ? { ...current, phone: event.target.value.replace(/\D/g, '') } : current)} value={editor.phone} /></FormField>
                 <FormField label="身份证号" required><input className="ui-input uppercase" maxLength={18} onChange={(event) => setEditor((current) => current ? { ...current, idNumber: event.target.value.replace(/[^0-9xX]/g, '') } : current)} value={editor.idNumber} /></FormField>
                 <FormField label="人员状态"><select className="ui-input" onChange={(event) => setEditor((current) => current ? { ...current, isActive: event.target.value === 'active' } : current)} value={editor.isActive ? 'active' : 'inactive'}><option value="active">正常使用</option><option value="inactive">停用并保留历史</option></select></FormField>
+                <div className="sm:col-span-2"><FormField label="联系地址"><textarea className="ui-input min-h-20" maxLength={300} onChange={(event) => setEditor((current) => current ? { ...current, contactAddress: event.target.value } : current)} value={editor.contactAddress} /></FormField></div>
+                <FormField label="银行卡号"><input className="ui-input" inputMode="numeric" maxLength={30} onChange={(event) => setEditor((current) => current ? { ...current, bankCardNumber: event.target.value.replace(/\D/g, '') } : current)} value={editor.bankCardNumber} /></FormField>
+                <FormField label="开户行"><input className="ui-input" maxLength={200} onChange={(event) => setEditor((current) => current ? { ...current, bankName: event.target.value } : current)} value={editor.bankName} /></FormField>
+              </div>
+            </SectionCard>
+            <SectionCard>
+              <SectionHeader icon={Upload} title="身份证照片" description="与员工管理共用，支持 JPG、PNG、WEBP，最大 10MB。" />
+              <div className="mt-4 space-y-3">
+                {editor.idCardImagePath ? <ProgressiveImage alt={`${editor.fullName}的身份证照片`} className="h-auto w-full object-contain" containerClassName="min-h-40 rounded-xl border border-slate-200" resourceLoading={idCardPreview.loading} src={idCardPreview.src} /> : <p className="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">尚未上传身份证照片</p>}
+                <label className="ui-button-secondary w-full cursor-pointer"><Upload className="h-4 w-4" />{selectedIdCardFile ? `已选择：${selectedIdCardFile.name}` : '选择身份证照片'}<input accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => setSelectedIdCardFile(event.target.files?.[0] ?? null)} type="file" /></label>
               </div>
             </SectionCard>
             <SectionCard>

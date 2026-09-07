@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-09-08',
+    highlights: [
+      '管理员可直接在待办中逐条处理已有删除或归档申请，按实际情况选择归档、永久删除或拒绝。',
+      '原有待审批删除申请同样支持直接归档，不必由员工重新提交申请。',
+    ],
+    title: '待审批货品支持直接归档',
+    version: 'StoreHub v3.0.25',
+  },
+  {
     date: '2026-09-07',
     highlights: [
       '员工点货和订货时可提交归档申请；管理员可按每条申请选择归档、永久删除或拒绝。',

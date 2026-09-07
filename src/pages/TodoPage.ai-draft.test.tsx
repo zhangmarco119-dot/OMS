@@ -1,12 +1,14 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
 import {
   loadProductCreationRequests,
+  handleProductFeedbackAction,
   reviewProductCreationRequest,
   type ProductCreationRequestRecord,
+  type ProductFeedbackRecord,
 } from '../features/admin/adminProductsService';
 import { TodoPage } from './TodoPage';
 
@@ -31,6 +33,7 @@ vi.mock('../features/admin/adminProductsService', async (importOriginal) => {
   const original = await importOriginal<typeof import('../features/admin/adminProductsService')>();
   return {
     ...original,
+    handleProductFeedbackAction: vi.fn(),
     handleProductFeedbackBatchActions: vi.fn(),
     loadProductCreationRequests: vi.fn(),
     loadProductFeedbackRecords: mocks.loadProductFeedbackRecords,
@@ -78,6 +81,18 @@ const requestRecord = {
   storeName: '五道口店',
 } as unknown as ProductCreationRequestRecord;
 
+const deletionFeedback = {
+  creatorName: '门店员工',
+  feedback: {
+    created_at: '2026-09-08T02:00:00.000Z',
+    feedback_type: 'discontinued',
+    id: 'deletion-feedback-1',
+    product_id: 'product-1',
+    status: 'open',
+  },
+  storeName: '五道口店',
+} as unknown as ProductFeedbackRecord;
+
 const renderTodo = (role: 'admin' | 'manager') => {
   vi.mocked(useAuth).mockReturnValue({
     availableStores: [{ id: 'store-1', name: '五道口店' }],
@@ -112,6 +127,7 @@ describe('TodoPage AI product creation draft', () => {
     mocks.loadAdminManagerPenaltyTodos.mockResolvedValue([]);
     mocks.loadTodoSummary.mockResolvedValue({ productFeedback: 0 });
     mocks.loadProductFeedbackRecords.mockResolvedValue([]);
+    vi.mocked(handleProductFeedbackAction).mockResolvedValue('ok');
     mocks.loadAllOvertimeRequests.mockResolvedValue([]);
     mocks.loadManagerOvertimeRequests.mockResolvedValue([]);
     mocks.loadOvertimeProfiles.mockResolvedValue([]);
@@ -155,5 +171,17 @@ describe('TodoPage AI product creation draft', () => {
     expect(await screen.findByText('店长罚单提醒')).toBeInTheDocument();
     expect(screen.getByText('员工甲 · 2026-08-20 · 盘点差异处罚')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '查看处罚记录' })).toHaveAttribute('href', '/app/admin/payroll?tab=penalties');
+  });
+
+  it('lets an existing pending deletion be archived directly from the todo list', async () => {
+    mocks.loadTodoSummary.mockResolvedValue({ productFeedback: 1 });
+    mocks.loadProductFeedbackRecords.mockResolvedValue([deletionFeedback]);
+    renderTodo('admin');
+
+    expect(await screen.findByText(/删除 ·/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '归档' }));
+    expect(screen.getByText('确认归档货品')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认归档' }));
+    await waitFor(() => expect(handleProductFeedbackAction).toHaveBeenCalledWith('deletion-feedback-1', 'confirm_archive'));
   });
 });

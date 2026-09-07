@@ -220,7 +220,6 @@ export const loadOrCreateArrivalDraft = async (
       .from('products')
       .select('*')
       .eq('store_id', storeId)
-      .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true }),
   ]);

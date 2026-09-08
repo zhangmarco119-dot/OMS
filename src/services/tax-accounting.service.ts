@@ -262,22 +262,6 @@ export async function saveTaxMonthlySalary(
   if (error) throw new Error(error.message || '本月报税薪资保存失败。');
 }
 
-export async function loadTaxMonthlySalary(
-  client: Client,
-  personId: string,
-  month: string,
-) {
-  const payrollMonth = `${month.slice(0, 7)}-01`;
-  const { data, error } = await client
-    .from('tax_reporting_monthly_salaries')
-    .select('manual_amount')
-    .eq('person_id', personId)
-    .eq('payroll_month', payrollMonth)
-    .maybeSingle();
-  if (error) throw new Error(error.message || '报税薪资读取失败。');
-  return data?.manual_amount ?? null;
-}
-
 export async function saveTaxStoreCompanyName(
   client: Client,
   actorId: string,

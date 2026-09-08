@@ -16,7 +16,6 @@ import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { savePayrollIndividualTaxes } from '../services/payroll.service';
 import {
   loadTaxAccountingData,
-  loadTaxMonthlySalary,
   deleteTaxPerson,
   saveTaxMonthlySalary,
   saveTaxPerson,
@@ -39,9 +38,9 @@ type PersonEditor = Omit<SaveTaxPersonInput, 'bankCardNumber' | 'bankName' | 'co
   idNumber: string;
   manualSalary: string;
   phone: string;
+  salaryMonth: string;
   salaryMode: SalaryMode;
 };
-type SalaryEntry = { amount: string; month: string; person: TaxPerson };
 
 const currentMonth = () => new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'Asia/Shanghai',
@@ -56,7 +55,7 @@ const realTimeSalaryAmount = (data: TaxAccountingData | null, profileId: string 
     : null;
   return estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable ?? null;
 };
-const emptyEditor = (): PersonEditor => ({
+const emptyEditor = (salaryMonth: string): PersonEditor => ({
   bankCardNumber: '',
   bankName: '',
   contactAddress: '',
@@ -68,6 +67,7 @@ const emptyEditor = (): PersonEditor => ({
   phone: '',
   profileId: null,
   reportingStoreId: null,
+  salaryMonth,
   salaryMode: 'manual',
 });
 
@@ -86,10 +86,6 @@ export function AdminTaxAccountingPage() {
   const [taxSearch, setTaxSearch] = useState('');
   const [selectedIdCardFile, setSelectedIdCardFile] = useState<File | null>(null);
   const [idCardPreview, setIdCardPreview] = useState<{ loading: boolean; src: string | null }>({ loading: false, src: null });
-  const [salaryEntry, setSalaryEntry] = useState<SalaryEntry | null>(null);
-  const [salaryEntryLoading, setSalaryEntryLoading] = useState(false);
-  const salaryEntryPersonId = salaryEntry?.person.id;
-  const salaryEntryMonth = salaryEntry?.month;
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -123,21 +119,6 @@ export function AdminTaxAccountingPage() {
     return () => { cancelled = true; };
   }, [editor?.idCardImagePath]);
 
-  useEffect(() => {
-    if (!salaryEntryPersonId || !salaryEntryMonth || !supabase) return undefined;
-    let cancelled = false;
-    setSalaryEntryLoading(true);
-    void loadTaxMonthlySalary(supabase, salaryEntryPersonId, salaryEntryMonth)
-      .then((amount) => {
-        if (!cancelled) setSalaryEntry((current) => current && current.person.id === salaryEntryPersonId && current.month === salaryEntryMonth ? { ...current, amount: amount == null ? '' : String(amount) } : current);
-      })
-      .catch((error) => {
-        if (!cancelled) setFeedback({ title: '薪资读取失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
-    })
-      .finally(() => { if (!cancelled) setSalaryEntryLoading(false); });
-    return () => { cancelled = true; };
-  }, [salaryEntryMonth, salaryEntryPersonId]);
-
   const profileById = useMemo(() => new Map(data?.profiles.map((item) => [item.id, item]) ?? []), [data]);
   const storeById = useMemo(() => new Map(data?.stores.map((item) => [item.id, item]) ?? []), [data]);
   const estimateByProfile = useMemo(() => new Map(data?.estimates.map((item) => [item.profileId, item]) ?? []), [data]);
@@ -159,6 +140,7 @@ export function AdminTaxAccountingPage() {
       phone: person.phone ?? '',
       profileId: person.profile_id,
       reportingStoreId: person.reporting_store_id,
+      salaryMonth: month,
       salaryMode: manual == null && systemAmount != null ? 'system' : 'manual',
     });
     setSelectedIdCardFile(null);
@@ -194,13 +176,13 @@ export function AdminTaxAccountingPage() {
         supabase,
         auth.profile.id,
         savedPerson.id,
-        month,
+        editor.salaryMonth,
         editor.salaryMode === 'manual' ? manualAmount : null,
       );
       setEditor(null);
       setSelectedIdCardFile(null);
       await load();
-      setFeedback({ title: '人员资料已保存', message: '报税归属、身份资料和本月薪资来源已更新。', tone: 'success' });
+      setFeedback({ title: '人员资料已保存', message: `报税归属、身份资料和${editor.salaryMonth.replace('-', '年')}月薪资来源已更新。`, tone: 'success' });
     } catch (error) {
       setFeedback({ title: '保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
     } finally {
@@ -233,33 +215,6 @@ export function AdminTaxAccountingPage() {
       setFeedback({ title: '报税人员已删除', message: `${current.full_name} 已从人员登记中删除，对应的手工薪资记录也已清除。`, tone: 'success' });
     } catch (error) {
       setFeedback({ title: '删除失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
-    } finally {
-      setBusy('');
-    }
-  };
-
-  const openSalaryEntry = (person: TaxPerson) => {
-    const amount = manualByPerson.get(person.id)?.manual_amount;
-    setSalaryEntry({ amount: amount == null ? '' : String(amount), month, person });
-  };
-
-  const saveSalaryEntry = async () => {
-    if (!supabase || !auth.profile || !salaryEntry) return;
-    const amount = Number(salaryEntry.amount);
-    if (!salaryEntry.amount.trim() || !Number.isFinite(amount) || amount < 0) {
-      setFeedback({ title: '请填写有效薪资', message: '申报薪资应为大于或等于0的数字。', tone: 'warning' });
-      return;
-    }
-    setBusy(`salary:${salaryEntry.person.id}`);
-    try {
-      await saveTaxMonthlySalary(supabase, auth.profile.id, salaryEntry.person.id, salaryEntry.month, amount);
-      const savedMonth = salaryEntry.month;
-      const savedName = salaryEntry.person.full_name;
-      setSalaryEntry(null);
-      await load();
-      setFeedback({ title: '报税薪资已保存', message: `已补录 ${savedName} ${savedMonth.replace('-', '年')}月的手动申报薪资。`, tone: 'success' });
-    } catch (error) {
-      setFeedback({ title: '薪资保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
     } finally {
       setBusy('');
     }
@@ -301,6 +256,12 @@ export function AdminTaxAccountingPage() {
     }
   };
 
+  const selectMonth = (nextMonth: string) => {
+    if (nextMonth === month) return;
+    setStatus('loading');
+    setMonth(nextMonth);
+  };
+
   const download = async (reportIndex: number) => {
     const report = data?.taxReports[reportIndex];
     if (!report) return;
@@ -325,7 +286,7 @@ export function AdminTaxAccountingPage() {
       ]} />
       <SectionCard className="p-3">
         <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-          <MonthPicker label="统计月份" onChange={setMonth} value={month} />
+          <MonthPicker disabled={Boolean(editor)} label="统计月份" onChange={selectMonth} value={month} />
           <button aria-label="刷新统计" className="ui-icon-button mb-0.5" disabled={status === 'loading'} onClick={() => void load()} type="button">
             <RefreshCw className={`h-5 w-5 ${status === 'loading' ? 'animate-spin' : ''}`} />
           </button>
@@ -363,13 +324,13 @@ export function AdminTaxAccountingPage() {
 
       {status === 'ready' && data && tab === 'people' ? (
         <section className="space-y-3">
-          <button className="ui-button-primary w-full" onClick={() => setEditor(emptyEditor())} type="button"><Plus className="h-4 w-4" />新增报税人员</button>
+          <button className="ui-button-primary w-full" onClick={() => setEditor(emptyEditor(month))} type="button"><Plus className="h-4 w-4" />新增报税人员</button>
           {data.people.map((person) => {
             const profile = person.profile_id ? profileById.get(person.profile_id) : null;
             const estimate = person.profile_id ? estimateByProfile.get(person.profile_id) : null;
             const monthly = manualByPerson.get(person.id);
             return <SectionCard className={!person.is_active ? 'opacity-60' : ''} key={person.id}>
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{person.full_name}</b><p className="mt-1 text-xs text-slate-500">{profile ? `已关联：${profile.display_name} · ${roleLabel(profile.role, profile.employment_type)}` : '未关联系统账号'} · {person.reporting_store_id ? storeById.get(person.reporting_store_id)?.name ?? '未知门店' : '不计入报税'}</p><p className="mt-1 text-xs text-slate-500">{month.replace('-', '年')}月薪资：{monthly?.manual_amount != null ? `手动 ${money(monthly.manual_amount)}` : person.profile_id ? `系统实时工资 ${money(estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable)}` : '待填写'}</p></div><div className="grid shrink-0 grid-cols-2 gap-1.5"><button className="col-span-2 ui-button-primary min-h-8 px-2 py-1 text-xs" disabled={busy === `salary:${person.id}`} onClick={() => openSalaryEntry(person)} type="button"><Banknote className="h-3.5 w-3.5" />填写/补录薪资</button><button className="ui-button-secondary min-h-8 px-2 py-1 text-xs" onClick={() => editPerson(person)} type="button"><Edit3 className="h-3.5 w-3.5" />编辑</button><button className="ui-button-danger min-h-8 px-2 py-1 text-xs" disabled={busy === `delete:${person.id}`} onClick={() => setDeleteTarget(person)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button></div></div>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><b>{person.full_name}</b><p className="mt-1 text-xs text-slate-500">{profile ? `已关联：${profile.display_name} · ${roleLabel(profile.role, profile.employment_type)}` : '未关联系统账号'} · {person.reporting_store_id ? storeById.get(person.reporting_store_id)?.name ?? '未知门店' : '不计入报税'}</p><p className="mt-1 text-xs text-slate-500">{month.replace('-', '年')}月薪资：{monthly?.manual_amount != null ? `手动 ${money(monthly.manual_amount)}` : person.profile_id ? `系统实时工资 ${money(estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable)}` : '待填写'}</p></div><div className="grid shrink-0 grid-cols-2 gap-1.5"><button className="ui-button-secondary min-h-8 px-2 py-1 text-xs" onClick={() => editPerson(person)} type="button"><Edit3 className="h-3.5 w-3.5" />编辑</button><button className="ui-button-danger min-h-8 px-2 py-1 text-xs" disabled={busy === `delete:${person.id}`} onClick={() => setDeleteTarget(person)} type="button"><Trash2 className="h-3.5 w-3.5" />删除</button></div></div>
             </SectionCard>;
           })}
         </section>
@@ -459,12 +420,12 @@ export function AdminTaxAccountingPage() {
               </div>
             </SectionCard>
             <SectionCard>
-              <SectionHeader icon={ReceiptText} title={`${month.replace('-', '年')}月薪资来源`} description="选择系统工资后，金额会按当前所选月份的实时工资自动计算；没有关联账号时只能手动填写。" />
+              <SectionHeader icon={ReceiptText} title={`${editor.salaryMonth.replace('-', '年')}月薪资来源`} description="薪资会保存到页面顶部所选的统计月份；选择系统工资后，金额会按该月份的实时工资自动计算；没有关联账号时只能手动填写。" />
               <SegmentedControl className="mt-4 grid-cols-2" items={[
                 { active: editor.salaryMode === 'system', disabled: !editor.profileId, label: `系统工资${editor.profileId ? '' : '（不可用）'}`, onClick: () => setEditor((current) => current ? { ...current, salaryMode: 'system' } : current) },
                 { active: editor.salaryMode === 'manual', label: '手动填写', onClick: () => setEditor((current) => current ? { ...current, salaryMode: 'manual' } : current) },
               ]} />
-              {editor.salaryMode === 'system' ? <div className="mt-3 rounded-xl bg-brand-50 p-4"><p className="text-xs font-bold text-brand-700">所选月份实时工资</p><p className="mt-1 text-xl font-bold text-brand-900">{money(realTimeSalaryAmount(data, editor.profileId))}</p></div> : <FormField label="本月申报薪资" required><input className="ui-input" inputMode="decimal" min="0" onChange={(event) => setEditor((current) => current ? { ...current, manualSalary: event.target.value } : current)} placeholder="请输入本月薪资" type="number" value={editor.manualSalary} /></FormField>}
+              {editor.salaryMode === 'system' ? <div className="mt-3 rounded-xl bg-brand-50 p-4"><p className="text-xs font-bold text-brand-700">所选月份实时工资</p><p className="mt-1 text-xl font-bold text-brand-900">{money(realTimeSalaryAmount(data, editor.profileId))}</p></div> : <FormField label={`${editor.salaryMonth.replace('-', '年')}月申报薪资`} required><input className="ui-input" inputMode="decimal" min="0" onChange={(event) => setEditor((current) => current ? { ...current, manualSalary: event.target.value } : current)} placeholder="请输入该月薪资" type="number" value={editor.manualSalary} /></FormField>}
             </SectionCard>
             <div className="grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => setEditor(null)} type="button">取消</button><button className="ui-button-primary" disabled={busy === 'person'} onClick={() => void submitPerson()} type="button"><Save className="h-4 w-4" />{busy === 'person' ? '正在保存' : '保存资料'}</button></div>
           </div>
@@ -473,10 +434,6 @@ export function AdminTaxAccountingPage() {
 
       <ConfirmDialog confirmLabel="确认删除" danger onCancel={() => setDeleteTarget(null)} onConfirm={() => void removePerson()} open={Boolean(deleteTarget)} title="删除报税人员">
         <p>确认删除“{deleteTarget?.full_name}”吗？该人员的报税登记和已有手工薪资记录会一并删除，系统账号本身不会受到影响。</p>
-      </ConfirmDialog>
-      <ConfirmDialog confirmLabel={busy === `salary:${salaryEntry?.person.id}` ? '正在保存' : '保存薪资'} onCancel={() => setSalaryEntry(null)} onConfirm={() => void saveSalaryEntry()} open={Boolean(salaryEntry)} title={`${salaryEntry?.person.full_name ?? '人员'} · 填写/补录薪资`}>
-        <p>此入口适合未关联系统账号的人员补录历史报税薪资；不会修改人员资料或账号绑定关系。</p>
-        {salaryEntry ? <div className="mt-3 space-y-3"><MonthPicker disabled={salaryEntryLoading} label="薪资所属月份" maxMonth={currentMonth()} onChange={(nextMonth) => setSalaryEntry((current) => current ? { ...current, month: nextMonth } : current)} value={salaryEntry.month} /><FormField label="申报薪资" required><input aria-label="申报薪资" className="ui-input" disabled={salaryEntryLoading} inputMode="decimal" min="0" onChange={(event) => setSalaryEntry((current) => current ? { ...current, amount: event.target.value } : current)} placeholder={salaryEntryLoading ? '正在读取已有薪资' : '请输入薪资金额'} type="number" value={salaryEntry.amount} /></FormField></div> : null}
       </ConfirmDialog>
       <ActionFeedbackDialog message={feedback?.message ?? ''} onClose={() => setFeedback(null)} open={Boolean(feedback)} title={feedback?.title ?? ''} tone={feedback?.tone} />
     </PageShell>

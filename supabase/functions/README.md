@@ -60,6 +60,7 @@ supabase functions deploy dingtalk-attendance --no-verify-jwt
 - 网关 JWT 预校验关闭；手动更新仍会在函数内部验证用户 JWT、管理员角色和门店权限。
 - 自动更新请求必须携带数据库私有 Cron Token，普通匿名请求无法触发。
 - `POSPAL_INTEGRATIONS_BASE64` 只存在于 Supabase Edge Function Secret，内容是按门店配置的 Base64 JSON 数组；严禁写入前端或 Git。
+- `QMAI_INTEGRATIONS_BASE64` 只存在于 Supabase Edge Function Secret，内容是企迈开放平台凭证的 Base64 JSON 数组；严禁写入前端或 Git。格式为 `[{"credentialId":"brand-main","openId":"...","grantCode":"...","openKey":"..."}]`。管理员在“营业收入”页读取授权门店并完成 StoreHub 门店映射，映射只保存 credentialId、企迈门店编码和门店 ID，不保存密钥。
 - 同步表只保留核算所需的单号、时间、类型、有效状态和金额，不保存顾客资料或完整银豹响应。
 
 ```bash

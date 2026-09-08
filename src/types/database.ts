@@ -770,9 +770,9 @@ export type Database = {
         Relationships: [];
       };
       pos_sales_integrations: {
-        Row: { configured_at: string; configured_by: string; created_at: string; display_name: string; enabled: boolean; external_account: string; id: string; last_error: string | null; last_success_at: string | null; last_sync_at: string | null; next_sync_at: string | null; provider: 'pospal' | 'qmai'; store_id: string; sync_end_hour: number; sync_interval_minutes: number; sync_start_hour: number; updated_at: string };
-        Insert: { configured_at?: string; configured_by: string; created_at?: string; display_name: string; enabled?: boolean; external_account?: string; id?: string; last_error?: string | null; last_success_at?: string | null; last_sync_at?: string | null; next_sync_at?: string | null; provider: 'pospal' | 'qmai'; store_id: string; sync_end_hour?: number; sync_interval_minutes?: number; sync_start_hour?: number; updated_at?: string };
-        Update: { configured_at?: string; configured_by?: string; display_name?: string; enabled?: boolean; external_account?: string; id?: string; last_error?: string | null; last_success_at?: string | null; last_sync_at?: string | null; next_sync_at?: string | null; provider?: 'pospal' | 'qmai'; store_id?: string; sync_end_hour?: number; sync_interval_minutes?: number; sync_start_hour?: number; updated_at?: string };
+        Row: { configured_at: string; configured_by: string; created_at: string; display_name: string; enabled: boolean; external_account: string; external_credential_id: string | null; external_store_id: string | null; id: string; last_error: string | null; last_success_at: string | null; last_sync_at: string | null; next_sync_at: string | null; provider: 'pospal' | 'qmai'; store_id: string; sync_end_hour: number; sync_interval_minutes: number; sync_start_hour: number; updated_at: string };
+        Insert: { configured_at?: string; configured_by: string; created_at?: string; display_name: string; enabled?: boolean; external_account?: string; external_credential_id?: string | null; external_store_id?: string | null; id?: string; last_error?: string | null; last_success_at?: string | null; last_sync_at?: string | null; next_sync_at?: string | null; provider: 'pospal' | 'qmai'; store_id: string; sync_end_hour?: number; sync_interval_minutes?: number; sync_start_hour?: number; updated_at?: string };
+        Update: { configured_at?: string; configured_by?: string; display_name?: string; enabled?: boolean; external_account?: string; external_credential_id?: string | null; external_store_id?: string | null; id?: string; last_error?: string | null; last_success_at?: string | null; last_sync_at?: string | null; next_sync_at?: string | null; provider?: 'pospal' | 'qmai'; store_id?: string; sync_end_hour?: number; sync_interval_minutes?: number; sync_start_hour?: number; updated_at?: string };
         Relationships: [];
       };
       pos_sales_sync_jobs: {
@@ -1250,7 +1250,10 @@ export type Database = {
       get_attendance_automation_settings: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_save_attendance_automation_settings: { Args: { p_enabled: boolean; p_end_time: string; p_interval_minutes: number; p_start_time: string }; Returns: Json };
       configure_pos_sales_integration: { Args: { p_enabled: boolean; p_end_hour: number; p_integration_id: string; p_interval_minutes: number; p_start_hour: number }; Returns: Json };
+      bind_qmai_sales_integration: { Args: { p_credential_id: string; p_shop_code: string; p_shop_id: string; p_shop_name: string; p_store_id: string }; Returns: Json };
+      configure_qmai_sales_integration: { Args: { p_enabled: boolean; p_end_hour: number; p_integration_id: string; p_interval_minutes: number; p_start_hour: number }; Returns: Json };
       replace_pos_sales_range: { Args: { p_api_call_count: number; p_end_date: string; p_integration_id: string; p_start_date: string; p_sync_job_id: string; p_tickets: Json }; Returns: Json };
+      replace_qmai_sales_range: { Args: { p_api_call_count: number; p_end_date: string; p_integration_id: string; p_start_date: string; p_sync_job_id: string; p_tickets: Json }; Returns: Json };
       save_payroll_store_revenue_input: { Args: { p_as_of_date: string; p_input_mode: string; p_manual_cumulative_amount?: number | null; p_note?: string; p_store_id: string }; Returns: Json };
       get_attendance_month_detail: { Args: { p_month: string; p_profile_id: string; p_store_id?: string | null }; Returns: Json };
       get_payroll_estimate: { Args: { p_as_of?: string; p_profile_id: string }; Returns: Json };

@@ -15,6 +15,7 @@ export type PayrollPenaltyAsset = Database['public']['Tables']['payroll_penalty_
 export type PayrollPayslipRow = Database['public']['Tables']['payroll_payslips']['Row'];
 export type PosSalesIntegration = Database['public']['Tables']['pos_sales_integrations']['Row'];
 export type PosSalesSyncJob = Database['public']['Tables']['pos_sales_sync_jobs']['Row'];
+export type QmaiStoreCandidate = { address: string; credentialId: string; id: string; name: string; shopCode: string };
 
 const objectAt = (value: Json | null | undefined): Record<string, Json | undefined> => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const numberAt = (value: Json | undefined) => typeof value === 'number' ? value : typeof value === 'string' && value !== '' ? Number(value) : 0;
@@ -574,6 +575,56 @@ export async function invokePospalMonthlySalesSync(client: Client, integrationId
   const first = result?.results?.[0];
   if (!first || first.status !== 'succeeded') throw new Error('银豹本月累计营业收入同步未返回成功结果。');
   return first;
+}
+
+export async function listQmaiStoreCandidates(client: Client): Promise<QmaiStoreCandidate[]> {
+  const { data, error } = await client.functions.invoke('qmai-sales', { body: { action: 'list-stores' } });
+  if (error) throw error;
+  if (data?.error) throw new Error(String(data.error));
+  const stores: unknown[] = Array.isArray(data?.stores) ? data.stores as unknown[] : [];
+  return stores.flatMap((value): QmaiStoreCandidate[] => {
+    if (!value || typeof value !== 'object') return [];
+    const item = value as Record<string, unknown>;
+    const shopCode = typeof item.shopCode === 'string' ? item.shopCode : '';
+    const name = typeof item.name === 'string' ? item.name : '';
+    const credentialId = typeof item.credentialId === 'string' ? item.credentialId : '';
+    return shopCode && name && credentialId ? [{ address: typeof item.address === 'string' ? item.address : '', credentialId, id: typeof item.id === 'string' ? item.id : '', name, shopCode }] : [];
+  });
+}
+
+export async function bindQmaiSalesIntegration(client: Client, input: { credentialId: string; shopCode: string; shopId: string; shopName: string; storeId: string }) {
+  const { data, error } = await client.rpc('bind_qmai_sales_integration', {
+    p_credential_id: input.credentialId,
+    p_shop_code: input.shopCode,
+    p_shop_id: input.shopId,
+    p_shop_name: input.shopName,
+    p_store_id: input.storeId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function configureQmaiSalesIntegration(client: Client, input: { enabled: boolean; endHour: number; id: string; intervalMinutes: number; startHour: number }) {
+  const { data, error } = await client.rpc('configure_qmai_sales_integration', {
+    p_enabled: input.enabled, p_end_hour: input.endHour, p_integration_id: input.id,
+    p_interval_minutes: input.intervalMinutes, p_start_hour: input.startHour,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function invokeQmaiSalesSync(client: Client, integrationId: string, date: string) {
+  const { data, error } = await client.functions.invoke('qmai-sales', { body: { action: 'manual-sync', integrationId, date } });
+  if (error) throw error;
+  if (data?.error) throw new Error(String(data.error));
+  return (Array.isArray(data?.results) ? data.results[0] : data) as Record<string, unknown>;
+}
+
+export async function invokeQmaiMonthlySalesSync(client: Client, integrationId: string, endDate: string) {
+  const { data, error } = await client.functions.invoke('qmai-sales', { body: { action: 'manual-sync-month', integrationId, endDate } });
+  if (error) throw error;
+  if (data?.error) throw new Error(String(data.error));
+  return (Array.isArray(data?.results) ? data.results[0] : data) as Record<string, unknown>;
 }
 
 export async function addPayrollPenalty(client: Client, input: { profileId: string; eventDate: string; reason: string; amount: number; eventLevel: PenaltyRow['event_level']; performanceDeduction: number }) {

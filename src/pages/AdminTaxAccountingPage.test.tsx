@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
 import { savePayrollIndividualTaxes } from '../services/payroll.service';
-import { loadTaxAccountingData } from '../services/tax-accounting.service';
+import { loadTaxAccountingData, loadTaxMonthlySalary, saveTaxMonthlySalary } from '../services/tax-accounting.service';
 import { AdminTaxAccountingPage } from './AdminTaxAccountingPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -14,6 +14,7 @@ vi.mock('../services/tax-accounting.service', () => ({
   deleteTaxPerson: vi.fn(),
   getEmployeeIdCardUrl: vi.fn(),
   loadTaxAccountingData: vi.fn(),
+  loadTaxMonthlySalary: vi.fn(),
   saveTaxMonthlySalary: vi.fn(),
   saveTaxPerson: vi.fn(),
   saveTaxStoreCompanyName: vi.fn(),
@@ -31,6 +32,7 @@ describe('AdminTaxAccountingPage individual tax register', () => {
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ profile: { id: 'admin-1', role: 'admin' } } as never);
     vi.mocked(loadTaxAccountingData).mockResolvedValue(data as never);
+    vi.mocked(loadTaxMonthlySalary).mockResolvedValue(null);
     vi.mocked(savePayrollIndividualTaxes).mockResolvedValue({ month: '2026-08-01', reconfirmationCount: 0, savedCount: 1, syncedPayslipCount: 1 });
   });
 
@@ -42,5 +44,24 @@ describe('AdminTaxAccountingPage individual tax register', () => {
     fireEvent.change(screen.getByLabelText('测试员工实际个税'), { target: { value: '88.50' } });
     fireEvent.click(screen.getByRole('button', { name: '保存已填写个税' }));
     await waitFor(() => expect(savePayrollIndividualTaxes).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^\d{4}-\d{2}$/), [{ amount: 88.5, profileId: 'profile-1' }]));
+  });
+
+  it('lets an unlinked person fill a historical manual salary without editing their identity record', async () => {
+    vi.mocked(loadTaxAccountingData).mockResolvedValue({
+      ...data,
+      people: [{
+        bank_card_number: null, bank_name: null, contact_address: null, created_at: '', created_by: 'admin-1', full_name: '未绑定人员', id: 'person-1', id_card_image_path: null, id_number: '110101199001011234', is_active: true, phone: '13800138000', profile_id: null, reporting_store_id: null, updated_at: '', updated_by: 'admin-1',
+      }],
+    } as never);
+    vi.mocked(saveTaxMonthlySalary).mockResolvedValue(undefined);
+    render(<MemoryRouter><AdminTaxAccountingPage /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('tab', { name: '人员登记' }));
+    fireEvent.click(screen.getByRole('button', { name: '填写/补录薪资' }));
+    expect(screen.getByRole('dialog', { name: '未绑定人员 · 填写/补录薪资' })).toHaveTextContent('不会修改人员资料或账号绑定关系');
+    fireEvent.change(screen.getByLabelText('申报薪资'), { target: { value: '4800' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存薪资' }));
+
+    await waitFor(() => expect(saveTaxMonthlySalary).toHaveBeenCalledWith(expect.anything(), 'admin-1', 'person-1', expect.stringMatching(/^\d{4}-\d{2}$/), 4800));
   });
 });

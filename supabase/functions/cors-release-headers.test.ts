@@ -8,6 +8,7 @@ const functionEntrypoints = [
   'task-template-images/index.ts',
   'dingtalk-attendance/index.ts',
   'pospal-sales/index.ts',
+  'qmai-sales/index.ts',
 ];
 
 describe('Edge Function CORS headers', () => {

@@ -21,11 +21,11 @@ import { supabase } from '../lib/supabase';
 import { useBusinessBack } from '../lib/useBusinessBack';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
-  addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, loadAdminPayrollEstimates,
+  addPayrollPenalty, adminRecordOvertime, bindQmaiSalesIntegration, configurePosSalesIntegration, configureQmaiSalesIntegration, invokePospalMonthlySalesSync, invokePospalSalesSync, invokeQmaiMonthlySalesSync, invokeQmaiSalesSync, listQmaiStoreCandidates, loadAdminPayrollEstimates,
   generatePayrollPayslips, listPayrollConfirmationManagers, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollMonthlyPerformance, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, revokePayrollPenalty, reviewOvertimeRequest, saveOvertimeRate, sendPayrollPayslip, sendPayrollPayslips, sendPayrollPayslipToManager, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips,
   loadPayrollPenaltyAssetUrl, savePayrollAttendanceAllocationRule, savePayrollEmployeeRule, savePayrollPerformanceRule, savePayrollRevenueInput, uploadPayrollEvidence,
   savePayrollMonthlyPerformance, savePayrollPayslipScheduleSettings, savePayrollVisibilitySettings,
-  type PayrollEmployeeRule, type PayrollMonthlyStoreSetting, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob,
+  type PayrollEmployeeRule, type PayrollMonthlyStoreSetting, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob, type QmaiStoreCandidate,
 } from '../services/payroll.service';
 import { recordSystemActivity } from '../services/operation-logs.service';
 
@@ -546,6 +546,8 @@ function RevenueManager() {
   const [note, setNote] = useState('');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busyAction, setBusyAction] = useState('');
+  const [qmaiStores, setQmaiStores] = useState<QmaiStoreCandidate[]>([]);
+  const [selectedQmaiStore, setSelectedQmaiStore] = useState('');
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -567,11 +569,11 @@ function RevenueManager() {
     ? Number(savedInput.manual_cumulative_amount ?? 0)
     : dailyMonthTotal;
   useEffect(() => {
-    const nextMode = savedInput?.input_mode ?? (integration?.provider === 'pospal' ? 'pos_sync' : 'manual');
+    const nextMode = savedInput?.input_mode ?? (integration ? 'pos_sync' : 'manual');
     setInputMode(nextMode);
     setAmount(savedInput?.input_mode === 'manual' ? String(savedInput.manual_cumulative_amount ?? '') : '');
     setNote(savedInput?.note ?? '');
-  }, [date, integration?.provider, savedInput, storeId]);
+  }, [date, integration, savedInput, storeId]);
 
   const saveManual = async () => {
     if (!supabase || !auth.profile || !storeId || amount === '') {
@@ -589,17 +591,19 @@ function RevenueManager() {
   };
 
   const syncMonth = async () => {
-    if (!supabase || !integration || integration.provider !== 'pospal') {
-      setFeedback({ title: '当前门店未接入收银系统', message: '请选择已经接入银豹的西直门店，或改为手动填写营业额。', tone: 'warning' });
+    if (!supabase || !integration) {
+      setFeedback({ title: '当前门店未接入收银系统', message: '请先完成企迈或银豹门店绑定，或改为手动填写营业额。', tone: 'warning' });
       return;
     }
     setBusyAction(`sync-month:${integration.id}`);
     try {
-      const result = await invokePospalMonthlySalesSync(supabase, integration.id, date);
+      const result = integration.provider === 'qmai'
+        ? await invokeQmaiMonthlySalesSync(supabase, integration.id, date)
+        : await invokePospalMonthlySalesSync(supabase, integration.id, date);
       await savePayrollRevenueInput(supabase, { asOfDate: date, mode: 'pos_sync', storeId });
       setFeedback({
         title: '本月累计营业额已同步',
-        message: `${date.slice(0, 7)}-01 至 ${date} 共读取 ${result.ticketCount ?? 0} 张单据，累计营业额为 ${formatMoney(result.revenueAmount ?? 0)}，使用 ${result.apiCallCount ?? 0} 次接口调用。`,
+        message: `${date.slice(0, 7)}-01 至 ${date} 已同步 ${integration.provider === 'qmai' ? '企迈每日经营汇总' : `${result.ticketCount ?? 0} 张单据`}，累计营业额为 ${formatMoney(Number(result.revenueAmount ?? 0))}，使用 ${result.apiCallCount ?? 0} 次接口调用。`,
         tone: 'success',
       });
       await load();
@@ -613,10 +617,12 @@ function RevenueManager() {
     if (!supabase) return;
     setBusyAction(`sync:${integration.id}`);
     try {
-      const result = await invokePospalSalesSync(supabase, integration.id, date);
+      const result = integration.provider === 'qmai'
+        ? await invokeQmaiSalesSync(supabase, integration.id, date)
+        : await invokePospalSalesSync(supabase, integration.id, date);
       setFeedback({
-        title: '银豹营业收入已更新',
-        message: `${date} 共读取 ${result.ticketCount ?? 0} 张单据，营业收入为 ${formatMoney(result.revenueAmount ?? 0)}，使用 ${result.apiCallCount ?? 0} 次接口调用。`,
+        title: `${integration.provider === 'qmai' ? '企迈' : '银豹'}营业收入已更新`,
+        message: `${date} ${integration.provider === 'qmai' ? '已读取经营汇总' : `共读取 ${result.ticketCount ?? 0} 张单据`}，营业收入为 ${formatMoney(Number(result.revenueAmount ?? 0))}，使用 ${result.apiCallCount ?? 0} 次接口调用。`,
         tone: 'success',
       });
       await load();
@@ -634,17 +640,45 @@ function RevenueManager() {
     }
     setBusyAction(`settings:${integration.id}`);
     try {
-      await configurePosSalesIntegration(supabase, { id: integration.id, ...settings });
-      setFeedback({ title: '自动同步设置已保存', message: settings.enabled ? `每天 ${settings.startHour}:00–${settings.endHour}:00，每 ${settings.intervalMinutes} 分钟检查一次银豹营业收入。` : '该门店的自动同步已暂停，仍可手动更新。', tone: 'success' });
+      if (integration.provider === 'qmai') await configureQmaiSalesIntegration(supabase, { id: integration.id, ...settings });
+      else await configurePosSalesIntegration(supabase, { id: integration.id, ...settings });
+      setFeedback({ title: '自动同步设置已保存', message: settings.enabled ? `每天 ${settings.startHour}:00–${settings.endHour}:00，每 ${settings.intervalMinutes} 分钟检查一次${integration.provider === 'qmai' ? '企迈' : '银豹'}营业收入。` : '该门店的自动同步已暂停，仍可手动更新。', tone: 'success' });
       await load();
     } catch (error) {
       setFeedback({ title: '设置未保存', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
     } finally { setBusyAction(''); }
   };
 
+  const loadQmaiStores = async () => {
+    if (!supabase) return;
+    setBusyAction('qmai-stores');
+    try {
+      const stores = await listQmaiStoreCandidates(supabase);
+      setQmaiStores(stores);
+      setSelectedQmaiStore((current) => current || (stores[0] ? `${stores[0].credentialId}:${stores[0].shopCode}` : ''));
+      setFeedback({ title: '企迈门店已读取', message: stores.length ? `已读取 ${stores.length} 家已授权企迈门店，请选择与当前 StoreHub 门店对应的一家。` : '当前凭证未返回可绑定门店，请核对企迈开放平台授权范围。', tone: stores.length ? 'success' : 'warning' });
+    } catch (error) {
+      setFeedback({ title: '读取企迈门店失败', message: error instanceof Error ? error.message : '请检查服务端企迈密钥配置和接口权限。', tone: 'danger' });
+    } finally { setBusyAction(''); }
+  };
+
+  const bindQmaiStore = async () => {
+    if (!supabase || !storeId) return;
+    const candidate = qmaiStores.find((item) => `${item.credentialId}:${item.shopCode}` === selectedQmaiStore);
+    if (!candidate) { setFeedback({ title: '请选择企迈门店', message: '请先读取已授权的企迈门店，然后选择与当前系统门店对应的一项。', tone: 'warning' }); return; }
+    setBusyAction('qmai-bind');
+    try {
+      await bindQmaiSalesIntegration(supabase, { credentialId: candidate.credentialId, shopCode: candidate.shopCode, shopId: candidate.id, shopName: candidate.name, storeId });
+      setFeedback({ title: '企迈门店已绑定', message: `${auth.availableStores.find((store) => store.id === storeId)?.name ?? '当前系统门店'} 已绑定企迈“${candidate.name}”（${candidate.shopCode}）。请按需开启自动同步。`, tone: 'success' });
+      await load();
+    } catch (error) {
+      setFeedback({ title: '企迈门店绑定未完成', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+    } finally { setBusyAction(''); }
+  };
+
   return <>
     <SectionCard>
-      <SectionHeader icon={RefreshCw} title="收银系统自动同步" description="西直门店使用银豹；五道口店将单独使用企迈，两个门店的数据不会混用。" />
+      <SectionHeader icon={RefreshCw} title="收银系统自动同步" description="门店先完成企迈或银豹绑定，再按已确认的外部门店编码同步；不同门店的数据不会混用。" />
       <div className="mt-3 space-y-3">
         {posSetup?.integrations.map((integration) => <PosSalesIntegrationCard
           busyAction={busyAction}
@@ -657,6 +691,15 @@ function RevenueManager() {
         />)}
         {posSetup && !posSetup.integrations.length ? <EmptyState title="尚未配置收银系统连接" /> : null}
       </div>
+      <div className="mt-3 rounded-xl border border-brand-100 bg-brand-50/50 p-3">
+        <p className="text-sm font-semibold text-slate-800">绑定企迈门店</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600">先从服务端已授权的企迈应用读取门店，再将当前 StoreHub 门店与一项企迈门店编码确认绑定。密钥不会发送到浏览器。</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <select className="ui-input" onChange={(event) => setStoreId(event.target.value)} value={storeId}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select>
+          <button className="ui-button-secondary min-h-10 text-xs" disabled={Boolean(busyAction)} onClick={() => void loadQmaiStores()} type="button"><RefreshCw className={`h-3.5 w-3.5 ${busyAction === 'qmai-stores' ? 'animate-spin' : ''}`} />{busyAction === 'qmai-stores' ? '正在读取' : '读取企迈门店'}</button>
+        </div>
+        {qmaiStores.length ? <><select className="ui-input mt-2" onChange={(event) => setSelectedQmaiStore(event.target.value)} value={selectedQmaiStore}>{qmaiStores.map((store) => <option key={`${store.credentialId}:${store.shopCode}`} value={`${store.credentialId}:${store.shopCode}`}>{store.name} · {store.shopCode}{store.address ? ` · ${store.address}` : ''}</option>)}</select><button className="ui-button-primary mt-2 w-full" disabled={Boolean(busyAction)} onClick={() => void bindQmaiStore()} type="button">{busyAction === 'qmai-bind' ? '正在绑定' : '确认绑定企迈门店'}</button></> : null}
+      </div>
     </SectionCard>
 
     <SectionCard>
@@ -667,10 +710,10 @@ function RevenueManager() {
       </div>
       <div className="mt-3 rounded-xl bg-brand-50 p-3 text-center"><p className="text-xs font-semibold text-brand-700">{date.slice(0, 7)}-01 至 {date} 累计营业额</p><p className="mt-1 text-2xl font-bold tabular-nums text-brand-900">{formatMoney(cumulativeRevenue)}</p></div>
       <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="营业额更新方式">
-        <button className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${inputMode === 'pos_sync' ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} disabled={!integration || integration.provider !== 'pospal'} onClick={() => setInputMode('pos_sync')} type="button">收银系统同步</button>
+        <button className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${inputMode === 'pos_sync' ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} disabled={!integration} onClick={() => setInputMode('pos_sync')} type="button">收银系统同步</button>
         <button className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${inputMode === 'manual' ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`} onClick={() => setInputMode('manual')} type="button">手动填写营业额</button>
       </div>
-      {inputMode === 'pos_sync' ? <div className="mt-3 rounded-xl border border-brand-100 bg-emerald-50/60 p-3"><p className="text-sm font-semibold text-slate-800">从银豹同步本月累计营业额</p><p className="mt-1 text-xs leading-5 text-slate-600">银豹接口每次最多查询 1 天；系统会分小批读取本月全部有效销售与退货单，完成后统一更新每日明细。</p><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void syncMonth()} type="button">{busyAction.startsWith('sync-month:') ? '正在同步本月数据' : '同步本月累计营业额'}</button></div> : <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3"><p className="text-xs leading-5 text-amber-800">未自动更新时可填写本月累计营业额，系统会同步用于综合统计和员工提成；以后切回收银系统同步即可恢复使用自动数据。</p><Field label={`本月累计营业额（截至 ${date}）`} value={amount} onChange={setAmount} /><label className="mt-3 block text-sm font-semibold">备注（选填）<input className="ui-input mt-1" onChange={(event) => setNote(event.target.value)} value={note} /></label><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void saveManual()} type="button">{busyAction === 'manual-cumulative' ? '正在保存' : '保存手动营业额'}</button></div>}
+      {inputMode === 'pos_sync' ? <div className="mt-3 rounded-xl border border-brand-100 bg-emerald-50/60 p-3"><p className="text-sm font-semibold text-slate-800">从{integration?.provider === 'qmai' ? '企迈' : '银豹'}同步本月累计营业额</p><p className="mt-1 text-xs leading-5 text-slate-600">{integration?.provider === 'qmai' ? '企迈按门店读取每日经营汇总；退款后的最新营业额会覆盖对应日期的旧汇总。' : '银豹接口每次最多查询 1 天；系统会分小批读取本月全部有效销售与退货单，完成后统一更新每日明细。'}</p><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void syncMonth()} type="button">{busyAction.startsWith('sync-month:') ? '正在同步本月数据' : '同步本月累计营业额'}</button></div> : <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3"><p className="text-xs leading-5 text-amber-800">未自动更新时可填写本月累计营业额，系统会同步用于综合统计和员工提成；以后切回收银系统同步即可恢复使用自动数据。</p><Field label={`本月累计营业额（截至 ${date}）`} value={amount} onChange={setAmount} /><label className="mt-3 block text-sm font-semibold">备注（选填）<input className="ui-input mt-1" onChange={(event) => setNote(event.target.value)} value={note} /></label><button className="ui-button-primary mt-3 w-full" disabled={Boolean(busyAction)} onClick={() => void saveManual()} type="button">{busyAction === 'manual-cumulative' ? '正在保存' : '保存手动营业额'}</button></div>}
     </SectionCard>
 
     <section className="space-y-2"><h3 className="px-1 text-sm font-bold text-slate-700">每日营业额明细</h3>{setup?.revenues.slice(0, 30).map((row) => <SectionCard className="p-3" key={row.id}><div className="flex items-start justify-between gap-3"><span><b>{auth.availableStores.find((store) => store.id === row.store_id)?.short_name ?? '门店'}</b><small className="mt-0.5 block text-slate-500">{row.revenue_date}</small><StatusBadge tone={row.source === 'pospal' ? 'success' : row.source === 'qmai' ? 'info' : 'warning'}>{row.source === 'pospal' ? '银豹同步' : row.source === 'qmai' ? '企迈同步' : '历史手动明细'}</StatusBadge></span><b>{formatMoney(row.confirmed_amount)}</b></div></SectionCard>)}</section>
@@ -698,7 +741,7 @@ function PosSalesIntegrationCard({ busyAction, integration, job, onSave, onSync,
   const hours = Array.from({ length: 24 }, (_, index) => index);
   return <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
     <div className="flex items-start justify-between gap-3">
-      <div><b>{integration.display_name}</b><p className="mt-0.5 text-xs text-slate-500">银豹账号：{integration.external_account || '已安全配置'}</p></div>
+      <div><b>{integration.display_name}</b><p className="mt-0.5 text-xs text-slate-500">{integration.provider === 'qmai' ? '企迈门店编码' : '银豹账号'}：{integration.external_account || '已安全配置'}</p></div>
       <StatusBadge tone={integration.last_error ? 'danger' : integration.last_success_at ? 'success' : 'warning'}>{integration.last_error ? '同步异常' : integration.last_success_at ? '连接正常' : '等待首次同步'}</StatusBadge>
     </div>
     {integration.last_error ? <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-2 text-xs text-red-700">{integration.last_error}</p> : null}

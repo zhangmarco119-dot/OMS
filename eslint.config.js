@@ -14,6 +14,7 @@ export default tseslint.config(
       'coverage',
       'node_modules',
       'reference',
+      'qmai-cli-main',
     ],
   },
   js.configs.recommended,

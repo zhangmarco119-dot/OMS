@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, adminRecordOvertime, configurePosSalesIntegration, confirmDelegatedPayrollPayslip, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, listPayrollConfirmationManagers, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPenaltyAssets, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, sendPayrollPayslipToManager, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
+import { addPayrollPenalty, adminRecordOvertime, bindQmaiSalesIntegration, configurePosSalesIntegration, configureQmaiSalesIntegration, confirmDelegatedPayrollPayslip, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, invokeQmaiMonthlySalesSync, invokeQmaiSalesSync, listPayrollConfirmationManagers, listQmaiStoreCandidates, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPenaltyAssets, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, sendPayrollPayslipToManager, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
@@ -206,5 +206,22 @@ describe('payroll service', () => {
     expect(rpc).toHaveBeenCalledWith('save_payroll_store_revenue_input', {
       p_as_of_date: '2026-07-17', p_input_mode: 'manual', p_manual_cumulative_amount: 11800, p_note: '人工核对', p_store_id: 's1',
     });
+  });
+
+  it('lists authorized Qmai stores, persists the selected code, and syncs its business summary', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ data: { stores: [{ credentialId: 'brand-main', id: '101', name: '五道口店', shopCode: 'QMAI-WDK', address: '成府路' }] }, error: null })
+      .mockResolvedValueOnce({ data: { results: [{ status: 'succeeded', revenueAmount: 888.8, apiCallCount: 1 }] }, error: null })
+      .mockResolvedValueOnce({ data: { results: [{ status: 'succeeded', revenueAmount: 12000, apiCallCount: 1 }] }, error: null });
+    const rpc = vi.fn().mockResolvedValue({ data: { id: 'qmai-1', provider: 'qmai' }, error: null });
+    await expect(listQmaiStoreCandidates({ functions: { invoke } } as never)).resolves.toEqual([{ credentialId: 'brand-main', id: '101', name: '五道口店', shopCode: 'QMAI-WDK', address: '成府路' }]);
+    await bindQmaiSalesIntegration({ rpc } as never, { credentialId: 'brand-main', shopCode: 'QMAI-WDK', shopId: '101', shopName: '五道口店', storeId: 's2' });
+    await configureQmaiSalesIntegration({ rpc } as never, { id: 'qmai-1', enabled: true, startHour: 10, endHour: 22, intervalMinutes: 15 });
+    await expect(invokeQmaiSalesSync({ functions: { invoke } } as never, 'qmai-1', '2026-07-17')).resolves.toMatchObject({ revenueAmount: 888.8 });
+    await expect(invokeQmaiMonthlySalesSync({ functions: { invoke } } as never, 'qmai-1', '2026-07-17')).resolves.toMatchObject({ revenueAmount: 12000 });
+    expect(rpc).toHaveBeenNthCalledWith(1, 'bind_qmai_sales_integration', { p_credential_id: 'brand-main', p_shop_code: 'QMAI-WDK', p_shop_id: '101', p_shop_name: '五道口店', p_store_id: 's2' });
+    expect(rpc).toHaveBeenNthCalledWith(2, 'configure_qmai_sales_integration', { p_enabled: true, p_end_hour: 22, p_integration_id: 'qmai-1', p_interval_minutes: 15, p_start_hour: 10 });
+    expect(invoke).toHaveBeenNthCalledWith(2, 'qmai-sales', { body: { action: 'manual-sync', integrationId: 'qmai-1', date: '2026-07-17' } });
+    expect(invoke).toHaveBeenNthCalledWith(3, 'qmai-sales', { body: { action: 'manual-sync-month', integrationId: 'qmai-1', endDate: '2026-07-17' } });
   });
 });

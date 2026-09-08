@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
 import { savePayrollIndividualTaxes } from '../services/payroll.service';
-import { loadTaxAccountingData, loadTaxMonthlySalary, saveTaxMonthlySalary } from '../services/tax-accounting.service';
+import { loadTaxAccountingData, saveTaxMonthlySalary, saveTaxPerson } from '../services/tax-accounting.service';
 import { AdminTaxAccountingPage } from './AdminTaxAccountingPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -14,7 +14,6 @@ vi.mock('../services/tax-accounting.service', () => ({
   deleteTaxPerson: vi.fn(),
   getEmployeeIdCardUrl: vi.fn(),
   loadTaxAccountingData: vi.fn(),
-  loadTaxMonthlySalary: vi.fn(),
   saveTaxMonthlySalary: vi.fn(),
   saveTaxPerson: vi.fn(),
   saveTaxStoreCompanyName: vi.fn(),
@@ -32,8 +31,8 @@ describe('AdminTaxAccountingPage individual tax register', () => {
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ profile: { id: 'admin-1', role: 'admin' } } as never);
     vi.mocked(loadTaxAccountingData).mockResolvedValue(data as never);
-    vi.mocked(loadTaxMonthlySalary).mockResolvedValue(null);
     vi.mocked(savePayrollIndividualTaxes).mockResolvedValue({ month: '2026-08-01', reconfirmationCount: 0, savedCount: 1, syncedPayslipCount: 1 });
+    vi.mocked(saveTaxPerson).mockImplementation(async (_client, _actor, input) => ({ id: input.id ?? 'new-person' }) as never);
   });
 
   it('registers actual monthly tax and explains payslip synchronization', async () => {
@@ -46,7 +45,7 @@ describe('AdminTaxAccountingPage individual tax register', () => {
     await waitFor(() => expect(savePayrollIndividualTaxes).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^\d{4}-\d{2}$/), [{ amount: 88.5, profileId: 'profile-1' }]));
   });
 
-  it('lets an unlinked person fill a historical manual salary without editing their identity record', async () => {
+  it('saves an unlinked person salary to the selected statistics month through the person editor', async () => {
     vi.mocked(loadTaxAccountingData).mockResolvedValue({
       ...data,
       people: [{
@@ -56,12 +55,16 @@ describe('AdminTaxAccountingPage individual tax register', () => {
     vi.mocked(saveTaxMonthlySalary).mockResolvedValue(undefined);
     render(<MemoryRouter><AdminTaxAccountingPage /></MemoryRouter>);
 
-    fireEvent.click(await screen.findByRole('tab', { name: '人员登记' }));
-    fireEvent.click(screen.getByRole('button', { name: '填写/补录薪资' }));
-    expect(screen.getByRole('dialog', { name: '未绑定人员 · 填写/补录薪资' })).toHaveTextContent('不会修改人员资料或账号绑定关系');
-    fireEvent.change(screen.getByLabelText('申报薪资'), { target: { value: '4800' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存薪资' }));
+    fireEvent.click(await screen.findByRole('button', { name: '2026年09月' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: '统计月份选择器' })).getByRole('button', { name: '8 月' }));
+    await waitFor(() => expect(loadTaxAccountingData).toHaveBeenLastCalledWith(expect.anything(), '2026-08'));
 
-    await waitFor(() => expect(saveTaxMonthlySalary).toHaveBeenCalledWith(expect.anything(), 'admin-1', 'person-1', expect.stringMatching(/^\d{4}-\d{2}$/), 4800));
+    fireEvent.click(screen.getByRole('tab', { name: '人员登记' }));
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+    expect(screen.getByRole('dialog', { name: '编辑人员资料' })).toHaveTextContent('2026年08月薪资来源');
+    fireEvent.change(screen.getByPlaceholderText('请输入该月薪资'), { target: { value: '4800' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存资料' }));
+
+    await waitFor(() => expect(saveTaxMonthlySalary).toHaveBeenCalledWith(expect.anything(), 'admin-1', 'person-1', '2026-08', 4800));
   });
 });

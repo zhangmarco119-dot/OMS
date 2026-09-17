@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import { compressArrivalImage } from './arrival-images.service';
 import type { Database } from '../types/database';
-import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, isV2TaskExecutionTodoForProfile, loadSubmittedLinkedInventoryTask, loadV2TaskTimeline, loadV2Tasks, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
+import { createV2TaskSchedule, deleteV2TaskImage, getV2TaskAnswerPositions, hasSubmittedLinkedInventoryTask, isV2TaskExecutionTodoForProfile, loadSubmittedLinkedInventoryTask, loadV2TaskTimeline, loadV2Tasks, orderV2TaskAnswers, publishV2Tasks, reviewV2Task, reviewV2TaskItems, reviewV2TaskItemsWithInventory, submitV2TaskWithAnswers, updateV2TaskContent, updateV2TaskRecipients, updateV2TaskScheduleAll, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskImageRow, type V2TaskRow } from './v2-tasks.service';
 
 vi.mock('./arrival-images.service', () => ({ compressArrivalImage: vi.fn() }));
 
@@ -41,13 +41,32 @@ describe('V2 task workflow service', () => {
     const typeEq = vi.fn(() => ({ eq: statusEq }));
     const linkedEq = vi.fn(() => ({ eq: typeEq }));
     const select = vi.fn(() => ({ eq: linkedEq }));
-    const client = { from: vi.fn(() => ({ select })) } as unknown as SupabaseClient<Database>;
+    const itemOrder = vi.fn().mockResolvedValue({ data: [{ id: 'item-1', sort_order: 10 }], error: null });
+    const itemEq = vi.fn(() => ({ order: itemOrder }));
+    const itemSelect = vi.fn(() => ({ eq: itemEq }));
+    const client = { from: vi.fn((table: string) => table === 'tasks' ? { select } : { select: itemSelect }) } as unknown as SupabaseClient<Database>;
 
-    await expect(loadSubmittedLinkedInventoryTask(client, 'task-1')).resolves.toEqual({ id: 'inventory-1', submitted_at: '2026-08-09T10:00:00Z' });
+    await expect(loadSubmittedLinkedInventoryTask(client, 'task-1')).resolves.toEqual({ id: 'inventory-1', items: [{ id: 'item-1', sort_order: 10 }], submitted_at: '2026-08-09T10:00:00Z' });
     expect(linkedEq).toHaveBeenCalledWith('linked_v2_task_id', 'task-1');
     expect(typeEq).toHaveBeenCalledWith('task_type', 'inventory');
     expect(statusEq).toHaveBeenCalledWith('status', 'submitted');
     expect(order).toHaveBeenCalledWith('submitted_at', { ascending: false });
+    expect(itemEq).toHaveBeenCalledWith('task_id', 'inventory-1');
+  });
+  it('requires the exact focused recount sheet before a rejected task can be resubmitted', async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { id: 'recount-1' }, error: null });
+    const limit = vi.fn(() => ({ maybeSingle }));
+    const statusEq = vi.fn(() => ({ limit }));
+    const idEq = vi.fn(() => ({ eq: statusEq }));
+    const typeEq = vi.fn(() => ({ eq: idEq }));
+    const creatorEq = vi.fn(() => ({ eq: typeEq }));
+    const linkedEq = vi.fn(() => ({ eq: creatorEq }));
+    const select = vi.fn(() => ({ eq: linkedEq }));
+    const client = { from: vi.fn(() => ({ select })) } as unknown as SupabaseClient<Database>;
+
+    await expect(hasSubmittedLinkedInventoryTask(client, 'task-1', 'profile-1', 'recount-1')).resolves.toBe(true);
+    expect(idEq).toHaveBeenCalledWith('id', 'recount-1');
+    expect(statusEq).toHaveBeenCalledWith('status', 'submitted');
   });
   it('automatically retries a timed-out task image upload and completes its metadata', async () => {
     const processedBlob = new Blob(['image'], { type: 'image/jpeg' });
@@ -171,6 +190,20 @@ describe('V2 task workflow service', () => {
         { decision: 'rejected', item_id: 'item-2', note: '' },
       ],
       p_note: '第二项需要整改',
+      p_task_id: 'task-1',
+    });
+  });
+  it('submits linked inventory row rejections through the atomic focused recount RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {}, error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await reviewV2TaskItemsWithInventory(client, 'task-1', [
+      { decision: 'approved', itemId: 'form-item-1' },
+    ], '数量异常', 'inventory-1', ['inventory-item-2']);
+    expect(rpc).toHaveBeenCalledWith('review_v2_task_items_with_inventory', {
+      p_decisions: [{ decision: 'approved', item_id: 'form-item-1', note: '' }],
+      p_inventory_rejected_item_ids: ['inventory-item-2'],
+      p_inventory_task_id: 'inventory-1',
+      p_note: '数量异常',
       p_task_id: 'task-1',
     });
   });

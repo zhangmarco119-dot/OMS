@@ -13,6 +13,7 @@ const task: TaskRow = {
   export_meta: {},
   id: 'task-1',
   inventory_category_codes: ['fruit', 'frozen', 'other_food', 'packaging', 'consumable', 'non_consumable'],
+  inventory_recount_only: false,
   linked_v2_task_id: null,
   started_at: '2026-07-11T00:00:00.000Z',
   status: 'submitted',

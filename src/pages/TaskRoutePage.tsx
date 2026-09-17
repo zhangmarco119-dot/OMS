@@ -138,6 +138,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
     || task.currentItem?.product_action_status === 'archive_approved'
     || (!task.currentItem?.product_id && Boolean(snapshot?.product_id));
   const inventoryCategories = task.sessionData?.task.inventory_category_codes ?? PRODUCT_CATEGORIES.map((category) => category.code);
+  const inventoryRecountOnly = task.sessionData?.task.inventory_recount_only ?? false;
   const changeInventoryScope = async (code: ProductCategoryCode) => {
     if (linkedV2TaskId || scopeBusy) return;
     const next = inventoryCategories.includes(code)
@@ -363,14 +364,15 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
           </div>
           <div className={`${compact ? 'mt-2' : 'mt-3'} flex items-center justify-between text-xs text-slate-500`}>
             <span>{text.modeLabel}进度 {task.stats.percent}%</span>
-            {mode === 'inventory' ? (
+            {mode === 'inventory' && !inventoryRecountOnly ? (
               <button className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700" onClick={() => void openInventoryImport()} type="button">
                 <FileDown className="h-4 w-4" aria-hidden="true" />
                 导入历史盘点单
               </button>
             ) : null}
           </div>
-          {mode === 'inventory' ? <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50"><button aria-expanded={showInventoryScope} className="flex min-h-9 w-full items-center gap-2 px-3 py-1.5 text-left" onClick={() => setShowInventoryScope((current) => !current)} type="button"><b className="shrink-0 text-xs text-slate-700">点货范围</b><span className="min-w-0 flex-1 truncate text-xs text-slate-500">{inventoryCategories.map(productCategoryLabel).join('、')}</span>{linkedV2TaskId ? <span className="shrink-0 text-[11px] font-semibold text-brand-700">任务锁定</span> : null}{showInventoryScope ? <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />}</button>{showInventoryScope ? <div className="border-t border-slate-200 px-3 py-2"><p className="mb-2 text-[11px] text-slate-500">{linkedV2TaskId ? '范围由关联任务设定，不能在点货中修改。' : '勾选本次需要点货的分类。'}</p><div className="flex flex-wrap gap-1.5">{PRODUCT_CATEGORIES.map((category) => <button className={`rounded-full px-2.5 py-1 text-xs font-bold ${inventoryCategories.includes(category.code) ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`} disabled={Boolean(linkedV2TaskId) || scopeBusy} key={category.code} onClick={() => void changeInventoryScope(category.code)} type="button">{category.label}</button>)}</div></div> : null}</div> : null}
+          {mode === 'inventory' && inventoryRecountOnly ? <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">本轮只需重新点货管理员驳回的 {task.items.length} 项，提交后返回原任务重新提交审核。</div> : null}
+          {mode === 'inventory' && !inventoryRecountOnly ? <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50"><button aria-expanded={showInventoryScope} className="flex min-h-9 w-full items-center gap-2 px-3 py-1.5 text-left" onClick={() => setShowInventoryScope((current) => !current)} type="button"><b className="shrink-0 text-xs text-slate-700">点货范围</b><span className="min-w-0 flex-1 truncate text-xs text-slate-500">{inventoryCategories.map(productCategoryLabel).join('、')}</span>{linkedV2TaskId ? <span className="shrink-0 text-[11px] font-semibold text-brand-700">任务锁定</span> : null}{showInventoryScope ? <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />}</button>{showInventoryScope ? <div className="border-t border-slate-200 px-3 py-2"><p className="mb-2 text-[11px] text-slate-500">{linkedV2TaskId ? '范围由关联任务设定，不能在点货中修改。' : '勾选本次需要点货的分类。'}</p><div className="flex flex-wrap gap-1.5">{PRODUCT_CATEGORIES.map((category) => <button className={`rounded-full px-2.5 py-1 text-xs font-bold ${inventoryCategories.includes(category.code) ? 'bg-brand-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`} disabled={Boolean(linkedV2TaskId) || scopeBusy} key={category.code} onClick={() => void changeInventoryScope(category.code)} type="button">{category.label}</button>)}</div></div> : null}</div> : null}
         </header>
 
         {task.status === 'loading' ? (
@@ -405,13 +407,13 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
               <SummaryStat label={mode === 'inventory' ? '已盘点' : '已处理'} value={task.stats.processed} />
               <SummaryStat label={mode === 'inventory' ? '未盘点' : '未处理'} value={task.stats.pending} />
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className={`mt-6 grid gap-3 ${inventoryRecountOnly ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
               <button className="min-h-12 rounded-xl border border-slate-200 px-4 font-semibold" onClick={() => setShowSummary(false)} type="button">
                 返回修改
               </button>
-              <button className="min-h-12 rounded-xl border border-slate-200 px-4 font-semibold" onClick={() => setShowExtraForm(true)} type="button">
+              {!inventoryRecountOnly ? <button className="min-h-12 rounded-xl border border-slate-200 px-4 font-semibold" onClick={() => setShowExtraForm(true)} type="button">
                 继续新增货品
-              </button>
+              </button> : null}
               <button className="min-h-12 rounded-xl bg-brand-600 px-4 font-semibold text-white disabled:bg-slate-300" disabled={isSubmitting} onClick={() => void submitTaskOnly()} type="button">
                 {isSubmitting ? '正在提交' : `提交本次${text.modeLabel}`}
               </button>
@@ -531,7 +533,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   </button>
                 ) : null}
 
-                {task.currentItem?.product_id ? (
+                {task.currentItem?.product_id && !inventoryRecountOnly ? (
                   <div className={`${compact ? 'mt-3 p-3' : 'mt-5 p-4'} rounded-2xl bg-slate-50`}>
                     {isManager && mode === 'inventory' ? <label className="mb-2 block text-xs font-bold text-slate-600">货品分类<select className="ui-input mt-1 min-h-10 bg-white text-sm" onChange={(event) => void task.changeCurrentProductCategory(event.target.value as ProductCategoryCode)} value={(snapshot?.category_code as ProductCategoryCode | undefined) ?? 'other_food'}>{PRODUCT_CATEGORIES.map((category) => <option key={category.code} value={category.code}>{category.label}</option>)}</select></label> : snapshot?.category_code ? <p className="mb-2 text-xs font-semibold text-brand-700">{productCategoryLabel(snapshot.category_code)}</p> : null}
                     {feedbackActionMessage ? (
@@ -579,7 +581,7 @@ function StaffTaskRoutePage({ mode }: TaskRoutePageProps) {
                   <button className={`${compact ? 'min-h-12 text-base' : 'min-h-16 text-lg'} rounded-xl bg-brand-600 px-5 font-bold text-white shadow-lg shadow-brand-100 active:scale-[0.99]`} onClick={finishTask} type="button">
                     {text.complete}
                   </button>
-                  {isManager || productPermissions.new ? <button
+                  {!inventoryRecountOnly && (isManager || productPermissions.new) ? <button
                     className={`inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-800 ${compact ? 'min-h-12 text-sm' : 'min-h-16'}`}
                     onClick={() => {
                       setExtraFormMessage(null);

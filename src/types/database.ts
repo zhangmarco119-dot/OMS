@@ -1023,9 +1023,9 @@ export type Database = {
         Relationships: [];
       };
       v2_task_reviews: {
-        Row: { action: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id: string; correction_item_ids: string[]; created_at: string; id: string; note: string; task_id: string };
-        Insert: { action: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id: string; correction_item_ids?: string[]; created_at?: string; id?: string; note?: string; task_id: string };
-        Update: { action?: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id?: string; correction_item_ids?: string[]; created_at?: string; id?: string; note?: string; task_id?: string };
+        Row: { action: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id: string; correction_item_ids: string[]; created_at: string; id: string; inventory_correction_item_ids: string[]; note: string; task_id: string };
+        Insert: { action: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id: string; correction_item_ids?: string[]; created_at?: string; id?: string; inventory_correction_item_ids?: string[]; note?: string; task_id: string };
+        Update: { action?: 'submitted' | 'approved' | 'rejected' | 'resubmitted'; actor_id?: string; correction_item_ids?: string[]; created_at?: string; id?: string; inventory_correction_item_ids?: string[]; note?: string; task_id?: string };
         Relationships: [];
       };
       v2_task_categories: {
@@ -1041,8 +1041,8 @@ export type Database = {
         Relationships: [];
       };
       v2_tasks: {
-        Row: { allow_overdue: boolean; assigned_profile_id: string | null; category: string; correction_item_ids: string[]; created_at: string; created_by: string; due_at: string; id: string; inventory_category_codes: ('fruit' | 'frozen' | 'other_food' | 'packaging' | 'consumable' | 'non_consumable')[]; manager_review_enabled: boolean; name: string; publish_at: string; publish_notified_at: string | null; related_content_title: string | null; related_notice_id: string | null; related_sop_id: string | null; requires_inventory: boolean; requires_review: boolean; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; schedule_id: string | null; snapshot: Json; started_at: string | null; started_by: string | null; status: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key: string | null; submitted_at: string | null; submitted_by: string | null; submitted_by_role: 'staff' | 'manager' | 'admin' | null; target_audiences: ('staff' | 'manager' | 'part_time')[]; task_no: string; template_id: string; template_version_id: string; updated_at: string; version: number };
-        Insert: { allow_overdue?: boolean; assigned_profile_id?: string | null; category: string; correction_item_ids?: string[]; created_at?: string; created_by: string; due_at: string; id?: string; inventory_category_codes?: ('fruit' | 'frozen' | 'other_food' | 'packaging' | 'consumable' | 'non_consumable')[]; manager_review_enabled?: boolean; name: string; publish_at?: string; publish_notified_at?: string | null; related_content_title?: string | null; related_notice_id?: string | null; related_sop_id?: string | null; requires_inventory?: boolean; requires_review?: boolean; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; schedule_id?: string | null; snapshot: Json; started_at?: string | null; started_by?: string | null; status?: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key?: string | null; submitted_at?: string | null; submitted_by?: string | null; submitted_by_role?: 'staff' | 'manager' | 'admin' | null; target_audiences?: ('staff' | 'manager' | 'part_time')[]; task_no?: string; template_id: string; template_version_id: string; updated_at?: string; version?: number };
+        Row: { allow_overdue: boolean; assigned_profile_id: string | null; category: string; correction_item_ids: string[]; created_at: string; created_by: string; due_at: string; id: string; inventory_category_codes: ('fruit' | 'frozen' | 'other_food' | 'packaging' | 'consumable' | 'non_consumable')[]; inventory_correction_item_ids: string[]; inventory_correction_task_id: string | null; manager_review_enabled: boolean; name: string; publish_at: string; publish_notified_at: string | null; related_content_title: string | null; related_notice_id: string | null; related_sop_id: string | null; requires_inventory: boolean; requires_review: boolean; review_note: string | null; reviewed_at: string | null; reviewed_by: string | null; schedule_id: string | null; snapshot: Json; started_at: string | null; started_by: string | null; status: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key: string | null; submitted_at: string | null; submitted_by: string | null; submitted_by_role: 'staff' | 'manager' | 'admin' | null; target_audiences: ('staff' | 'manager' | 'part_time')[]; task_no: string; template_id: string; template_version_id: string; updated_at: string; version: number };
+        Insert: { allow_overdue?: boolean; assigned_profile_id?: string | null; category: string; correction_item_ids?: string[]; created_at?: string; created_by: string; due_at: string; id?: string; inventory_category_codes?: ('fruit' | 'frozen' | 'other_food' | 'packaging' | 'consumable' | 'non_consumable')[]; inventory_correction_item_ids?: string[]; inventory_correction_task_id?: string | null; manager_review_enabled?: boolean; name: string; publish_at?: string; publish_notified_at?: string | null; related_content_title?: string | null; related_notice_id?: string | null; related_sop_id?: string | null; requires_inventory?: boolean; requires_review?: boolean; review_note?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; schedule_id?: string | null; snapshot: Json; started_at?: string | null; started_by?: string | null; status?: 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'resubmitted' | 'overdue' | 'cancelled'; store_id: string; submission_key?: string | null; submitted_at?: string | null; submitted_by?: string | null; submitted_by_role?: 'staff' | 'manager' | 'admin' | null; target_audiences?: ('staff' | 'manager' | 'part_time')[]; task_no?: string; template_id: string; template_version_id: string; updated_at?: string; version?: number };
         Update: Partial<Database['public']['Tables']['v2_tasks']['Insert']>;
         Relationships: [];
       };
@@ -1113,6 +1113,7 @@ export type Database = {
           export_meta: Json;
           id: string;
           inventory_category_codes: ('fruit' | 'frozen' | 'other_food' | 'packaging' | 'consumable' | 'non_consumable')[];
+          inventory_recount_only: boolean;
           linked_v2_task_id: string | null;
           started_at: string;
           status: 'draft' | 'review' | 'submitted' | 'cancelled';
@@ -1127,6 +1128,7 @@ export type Database = {
           export_meta?: Json;
           id?: string;
           inventory_category_codes?: ('fruit' | 'frozen' | 'other_food' | 'packaging' | 'consumable' | 'non_consumable')[];
+          inventory_recount_only?: boolean;
           linked_v2_task_id?: string | null;
           started_at?: string;
           status?: 'draft' | 'review' | 'submitted' | 'cancelled';
@@ -1141,6 +1143,7 @@ export type Database = {
           export_meta?: Json;
           id?: string;
           inventory_category_codes?: ('fruit' | 'frozen' | 'other_food' | 'packaging' | 'consumable' | 'non_consumable')[];
+          inventory_recount_only?: boolean;
           linked_v2_task_id?: string | null;
           started_at?: string;
           status?: 'draft' | 'review' | 'submitted' | 'cancelled';
@@ -1337,6 +1340,7 @@ export type Database = {
       rename_v2_sop_category: { Args: { p_category_id: string; p_new_name: string }; Returns: Json };
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
       review_v2_task_items: { Args: { p_decisions: Json; p_note: string; p_task_id: string }; Returns: Json };
+      review_v2_task_items_with_inventory: { Args: { p_decisions: Json; p_inventory_rejected_item_ids?: string[]; p_inventory_task_id: string; p_note: string; p_task_id: string }; Returns: Json };
       withdraw_v2_task: { Args: { p_task_id: string }; Returns: Json };
       retract_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       retract_v2_task_template: { Args: { p_template_id: string }; Returns: Json };

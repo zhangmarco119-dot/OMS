@@ -15,7 +15,7 @@ import { formatV2TaskDueAt, getV2TaskDisplayStatus, isV2TaskOverdue, v2TaskStatu
 import { useTaskDeadlineClock } from '../features/v2-tasks/useTaskDeadlineClock';
 import { supabase } from '../lib/supabase';
 import type { Json } from '../types/database';
-import { asTaskItemSnapshot, deleteV2TaskImage, getV2TaskAnswerPositions, loadV2TaskDetail, loadV2TaskImageUrls, loadV2TaskReferenceImageUrls, saveV2TaskProgress, submitV2TaskWithAnswers, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskDetail, type V2TaskImageRow, type V2TaskRow } from '../services/v2-tasks.service';
+import { asTaskItemSnapshot, deleteV2TaskImage, getV2TaskAnswerPositions, hasSubmittedLinkedInventoryTask, loadV2TaskDetail, loadV2TaskImageUrls, loadV2TaskReferenceImageUrls, saveV2TaskProgress, submitV2TaskWithAnswers, uploadV2TaskImage, type V2TaskAnswerRow, type V2TaskDetail, type V2TaskImageRow, type V2TaskRow } from '../services/v2-tasks.service';
 
 export function V2TaskExecutionPage() {
   const { taskId = '' } = useParams();
@@ -42,17 +42,13 @@ export function V2TaskExecutionPage() {
 
   const taskContentSignature = (task: Pick<V2TaskDetail['task'], 'due_at' | 'inventory_category_codes' | 'name' | 'related_content_title' | 'related_notice_id' | 'related_sop_id' | 'requires_inventory' | 'snapshot'>) => JSON.stringify([task.name, task.due_at, task.related_sop_id, task.related_notice_id, task.related_content_title, task.requires_inventory, task.inventory_category_codes, task.snapshot]);
 
-  const loadInventoryStatus = useCallback(async () => {
+  const loadInventoryStatus = useCallback(async (correctionTaskId?: string | null) => {
     if (!supabase || !taskId || !auth.profile) return;
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('id')
-      .eq('linked_v2_task_id', taskId)
-      .eq('created_by', auth.profile.id)
-      .eq('status', 'submitted')
-      .limit(1)
-      .maybeSingle();
-    if (!error) setInventorySubmitted(Boolean(data));
+    try {
+      setInventorySubmitted(await hasSubmittedLinkedInventoryTask(supabase, taskId, auth.profile.id, correctionTaskId));
+    } catch {
+      setInventorySubmitted(false);
+    }
   }, [auth.profile, taskId]);
 
   const load = useCallback(async () => {
@@ -67,7 +63,7 @@ export function V2TaskExecutionPage() {
       setReferenceImageUrlsLoading(next.answers.length > 0);
       void loadV2TaskImageUrls(supabase, next.images).then(setImageUrls).catch(() => undefined).finally(() => setImageUrlsLoading(false));
       void loadV2TaskReferenceImageUrls(supabase, next.answers).then(setReferenceImageUrls).catch(() => undefined).finally(() => setReferenceImageUrlsLoading(false));
-      if (next.task.requires_inventory) await loadInventoryStatus();
+      if (next.task.requires_inventory) await loadInventoryStatus(next.task.inventory_correction_task_id);
       setMessage(null);
     } catch (error) {
       setImageUrlsLoading(false);
@@ -76,14 +72,14 @@ export function V2TaskExecutionPage() {
   }, [loadInventoryStatus, taskId]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    const refresh = () => { if (document.visibilityState === 'visible') void loadInventoryStatus(); };
+    const refresh = () => { if (document.visibilityState === 'visible') void loadInventoryStatus(detail?.task.inventory_correction_task_id); };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [loadInventoryStatus]);
+  }, [detail?.task.inventory_correction_task_id, loadInventoryStatus]);
   useEffect(() => {
     if (!supabase || !taskId) return;
     const client = supabase;
@@ -136,20 +132,16 @@ export function V2TaskExecutionPage() {
   const submit = async () => {
     if (!supabase || !detail) return;
     if (detail.task.requires_inventory) {
-      await loadInventoryStatus();
-      const { data } = await supabase
-        .from('tasks')
-        .select('id')
-        .eq('linked_v2_task_id', detail.task.id)
-        .eq('created_by', auth.profile?.id ?? '')
-        .eq('status', 'submitted')
-        .limit(1)
-        .maybeSingle();
-      if (!data) {
-        setMessage('本任务已关联点货，请先进入点货页面并提交点货单，再提交检查。');
+      const submitted = auth.profile
+        ? await hasSubmittedLinkedInventoryTask(supabase, detail.task.id, auth.profile.id, detail.task.inventory_correction_task_id)
+        : false;
+      setInventorySubmitted(submitted);
+      if (!submitted) {
+        setMessage(detail.task.inventory_correction_task_id
+          ? '请先完成并提交本轮被驳回货品的重新点货单，再重新提交任务。'
+          : '本任务已关联点货，请先进入点货页面并提交点货单，再提交检查。');
         return;
       }
-      setInventorySubmitted(true);
     }
     setBusy(true);
     if (activeUploads.current.size > 0) {

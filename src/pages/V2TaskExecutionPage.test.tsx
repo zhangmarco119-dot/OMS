@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
 import {
+  hasSubmittedLinkedInventoryTask,
   loadV2TaskDetail,
   loadV2TaskImageUrls,
   loadV2TaskReferenceImageUrls,
@@ -21,6 +22,7 @@ vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
   return {
     ...original,
+    hasSubmittedLinkedInventoryTask: vi.fn(),
     loadV2TaskDetail: vi.fn(),
     loadV2TaskImageUrls: vi.fn(),
     loadV2TaskReferenceImageUrls: vi.fn(),
@@ -56,6 +58,7 @@ describe('V2TaskExecutionPage required submission state', () => {
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ profile: { id: 'profile-1' } } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [requiredConfirmation], images: [], reviews: [], task } as V2TaskDetail);
+    vi.mocked(hasSubmittedLinkedInventoryTask).mockResolvedValue(true);
     vi.mocked(loadV2TaskImageUrls).mockResolvedValue({});
     vi.mocked(loadV2TaskReferenceImageUrls).mockResolvedValue({});
     vi.mocked(saveV2TaskProgress).mockResolvedValue(task);
@@ -209,5 +212,30 @@ describe('V2TaskExecutionPage required submission state', () => {
     fireEvent.click(await screen.findByRole('button', { name: '重新提交审核' }));
     await waitFor(() => expect(submitV2TaskWithAnswers).toHaveBeenCalledWith(expect.anything(), 'task-1', 4, expect.arrayContaining([expect.objectContaining({ item_id: 'item-1' })])));
     expect(await screen.findByText('整改任务已重新提交，等待审核')).toBeInTheDocument();
+  });
+
+  it('requires the focused recount sheet instead of accepting the original submitted inventory sheet', async () => {
+    const inventoryRejectedTask = {
+      ...task,
+      correction_item_ids: [],
+      inventory_category_codes: ['fruit'],
+      inventory_correction_task_id: 'recount-1',
+      requires_inventory: true,
+      status: 'rejected',
+      version: 4,
+    } as V2TaskRow;
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({ answers: [requiredConfirmation], images: [], reviews: [], task: inventoryRejectedTask } as V2TaskDetail);
+    vi.mocked(hasSubmittedLinkedInventoryTask).mockResolvedValue(false);
+
+    render(
+      <MemoryRouter initialEntries={['/app/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<V2TaskExecutionPage />} path="/app/tasks/:taskId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '重新提交审核' }));
+    expect(await screen.findByText('请先完成并提交本轮被驳回货品的重新点货单，再重新提交任务。')).toBeInTheDocument();
+    expect(hasSubmittedLinkedInventoryTask).toHaveBeenCalledWith({}, 'task-1', 'profile-1', 'recount-1');
+    expect(submitV2TaskWithAnswers).not.toHaveBeenCalled();
   });
 });

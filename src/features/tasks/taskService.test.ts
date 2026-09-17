@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../../types/database';
-import { addExtraTaskItem, findMissingDraftProductIds, findStaleDraftItemIds, submitTask } from './taskService';
+import { addExtraTaskItem, findMissingDraftProductIds, findStaleDraftItemIds, shouldSyncDraftTaskProducts, submitTask } from './taskService';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 
@@ -11,6 +11,7 @@ const draftTask: TaskRow = {
   export_meta: { existing: 'kept' },
   id: 'task-1',
   inventory_category_codes: ['fruit', 'frozen', 'other_food', 'packaging', 'consumable', 'non_consumable'],
+  inventory_recount_only: false,
   linked_v2_task_id: null,
   started_at: '2026-07-31T05:00:00.000Z',
   status: 'draft',
@@ -21,6 +22,10 @@ const draftTask: TaskRow = {
 };
 
 describe('taskService draft product synchronization', () => {
+  it('keeps a focused recount limited to the rows rejected by the reviewer', () => {
+    expect(shouldSyncDraftTaskProducts({ inventory_recount_only: true })).toBe(false);
+    expect(shouldSyncDraftTaskProducts({ inventory_recount_only: false })).toBe(true);
+  });
   it('finds active products that were added after a draft was created', () => {
     expect(findMissingDraftProductIds(
       ['product-1', 'product-2', 'product-3'],

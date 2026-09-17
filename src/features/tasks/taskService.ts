@@ -55,6 +55,8 @@ export const findStaleDraftItemIds = (
     .map((item) => item.id);
 };
 
+export const shouldSyncDraftTaskProducts = (task: Pick<TaskRow, 'inventory_recount_only'>) => !task.inventory_recount_only;
+
 export const loadTaskItems = async (client: Client, taskId: string) => {
   const { data, error } = await client
     .from('task_items')
@@ -136,7 +138,7 @@ export const loadDraftTask = async (
   const items = await loadTaskItems(client, task.id);
   return {
     task,
-    items: await syncDraftTaskProducts(client, task, items),
+    items: shouldSyncDraftTaskProducts(task) ? await syncDraftTaskProducts(client, task, items) : items,
   };
 };
 

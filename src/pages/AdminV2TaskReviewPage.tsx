@@ -11,6 +11,7 @@ import { TaskReferenceImagePreview } from '../features/v2-tasks/TaskReferenceIma
 import { v2TaskStatusClass, v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { useAuth } from '../features/auth/AuthContext';
 import { productCategoryLabel } from '../features/products/productCategories';
+import { asProductSnapshot } from '../features/tasks/taskCalculations';
 import { supabase } from '../lib/supabase';
 import {
   asTaskItemSnapshot,
@@ -22,9 +23,11 @@ import {
   loadV2TaskReferenceImageUrls,
   loadSubmittedLinkedInventoryTask,
   reviewV2TaskItems,
+  reviewV2TaskItemsWithInventory,
   withdrawV2Task,
   type V2TaskDetail,
   type V2TaskItemDecision,
+  type LinkedInventorySubmission,
 } from '../services/v2-tasks.service';
 
 type ReviewDecision = V2TaskItemDecision['decision'];
@@ -34,7 +37,7 @@ export function AdminV2TaskReviewPage() {
   const location = useLocation();
   const { taskId = '' } = useParams();
   const [detail, setDetail] = useState<V2TaskDetail | null>(null);
-  const [linkedInventoryTaskId, setLinkedInventoryTaskId] = useState<string | null>(null);
+  const [linkedInventory, setLinkedInventory] = useState<LinkedInventorySubmission | null>(null);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [imageUrlsLoading, setImageUrlsLoading] = useState(false);
   const [referenceImageUrls, setReferenceImageUrls] = useState<Record<string, string[]>>({});
@@ -43,6 +46,8 @@ export function AdminV2TaskReviewPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [decisions, setDecisions] = useState<Record<string, ReviewDecision>>({});
   const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
+  const [selectedInventoryIds, setSelectedInventoryIds] = useState<string[]>([]);
+  const [rejectedInventoryIds, setRejectedInventoryIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
@@ -51,14 +56,16 @@ export function AdminV2TaskReviewPage() {
   const load = useCallback(async () => {
     if (!supabase) return;
     try {
-      const [next, allowed, linkedInventoryTask] = await Promise.all([
-        loadV2TaskDetail(supabase, taskId),
+      const next = await loadV2TaskDetail(supabase, taskId);
+      const [allowed, linkedInventoryTask] = await Promise.all([
         canReviewV2Task(supabase, taskId),
-        loadSubmittedLinkedInventoryTask(supabase, taskId),
+        next.task.requires_inventory
+          ? loadSubmittedLinkedInventoryTask(supabase, taskId, next.task.inventory_correction_task_id)
+          : Promise.resolve(null),
       ]);
       setDetail(next);
       setReviewAllowed(allowed);
-      setLinkedInventoryTaskId(linkedInventoryTask?.id ?? null);
+      setLinkedInventory(linkedInventoryTask);
       setImageUrlsLoading(next.images.length > 0);
       setReferenceImageUrlsLoading(next.answers.length > 0);
       void loadV2TaskImageUrls(supabase, next.images).then(setImageUrls).catch(() => undefined).finally(() => setImageUrlsLoading(false));
@@ -66,6 +73,8 @@ export function AdminV2TaskReviewPage() {
       setSelectedIds([]);
       setDecisions({});
       setItemNotes({});
+      setSelectedInventoryIds([]);
+      setRejectedInventoryIds([]);
       setMessage(null);
     } catch (error) {
       setImageUrlsLoading(false);
@@ -85,6 +94,7 @@ export function AdminV2TaskReviewPage() {
   );
   const rejectedCount = reviewableAnswers.filter((answer) => decisions[answer.item_id] === 'rejected').length;
   const approvedCount = reviewableAnswers.length - rejectedCount;
+  const inventoryRejectedCount = rejectedInventoryIds.length;
 
   const toggleSelected = (itemId: string) => setSelectedIds((current) => current.includes(itemId)
     ? current.filter((id) => id !== itemId)
@@ -95,29 +105,44 @@ export function AdminV2TaskReviewPage() {
     setSelectedIds([]);
     setMessage(null);
   };
+  const rejectSelectedInventoryItems = () => {
+    if (selectedInventoryIds.length === 0) { setMessage('请先勾选需要重新点货的条目。'); return; }
+    setRejectedInventoryIds((current) => [...new Set([...current, ...selectedInventoryIds])]);
+    setSelectedInventoryIds([]);
+    setMessage(null);
+  };
 
   const approveAllItems = () => {
     setDecisions({});
     setItemNotes({});
     setSelectedIds([]);
+    setSelectedInventoryIds([]);
+    setRejectedInventoryIds([]);
     setMessage(null);
   };
 
   const submitReview = async () => {
     if (!supabase || !detail || busy) return;
-    const hasRejection = reviewableAnswers.some((answer) => decisions[answer.item_id] === 'rejected');
-    if (hasRejection && !isProductSpecCorrection && !note.trim()) {
+    const hasFormRejection = reviewableAnswers.some((answer) => decisions[answer.item_id] === 'rejected');
+    const hasRejection = hasFormRejection || rejectedInventoryIds.length > 0;
+    if ((rejectedInventoryIds.length > 0 || (hasFormRejection && !isProductSpecCorrection)) && !note.trim()) {
       setMessage('包含驳回项目时，请填写具体的整改原因。');
       return;
     }
     setBusy(true);
     try {
-      await reviewV2TaskItems(supabase, taskId, reviewableAnswers.map((answer) => {
+      const itemDecisions = reviewableAnswers.map((answer) => {
         const decision = decisions[answer.item_id] === 'rejected' ? 'rejected' as const : 'approved' as const;
         return isProductSpecCorrection
           ? { decision, itemId: answer.item_id, note: decision === 'rejected' ? itemNotes[answer.item_id]?.trim() : '' }
           : { decision, itemId: answer.item_id };
-      }), note.trim());
+      });
+      if (detail.task.requires_inventory) {
+        if (!linkedInventory) { setMessage('关联点货单尚未提交，暂时不能完成审核。'); setBusy(false); return; }
+        await reviewV2TaskItemsWithInventory(supabase, taskId, itemDecisions, note.trim(), linkedInventory.id, rejectedInventoryIds);
+      } else {
+        await reviewV2TaskItems(supabase, taskId, itemDecisions, note.trim());
+      }
       window.dispatchEvent(new Event('storehub:todos-changed'));
       await load();
       setMessage(hasRejection ? '审核已提交，驳回项目已退回员工整改。' : '审核已提交，任务全部通过。');
@@ -147,7 +172,7 @@ export function AdminV2TaskReviewPage() {
       <section className="ui-card p-4">
         <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-700">{detail.task.task_no}</p><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${v2TaskStatusClass[detail.task.status]}`}>{v2TaskStatusLabel[detail.task.status]}</span></div>
         <p className="mt-2 text-sm text-slate-500">截止 {new Date(detail.task.due_at).toLocaleString('zh-CN')}{detail.submitterName ? ` · 提交人：${detail.submitterName}` : ''}</p>
-        {linkedInventoryTaskId ? <Link className="ui-button-primary mt-3 w-full sm:w-auto" state={{ backTo: location.pathname }} to={`/app/history/${linkedInventoryTaskId}`}>
+        {linkedInventory ? <Link className="ui-button-primary mt-3 w-full sm:w-auto" state={{ backTo: location.pathname }} to={`/app/history/${linkedInventory.id}`}>
           <ClipboardCheck className="h-5 w-5" />打开关联点货单
         </Link> : null}
         {detail.task.status === 'resubmitted' ? <FeedbackBanner className="mt-3" title="整改内容已重新提交" tone="info">本轮只需复审标有“重新提交”的项目，其他项目保留原审核结果。</FeedbackBanner> : null}
@@ -155,6 +180,22 @@ export function AdminV2TaskReviewPage() {
         {!isReviewable && ['submitted', 'resubmitted'].includes(detail.task.status) ? <FeedbackBanner className="mt-3" title="等待管理员审核" tone="info">该任务由店长提交，或发布时未开放店长审核，当前账号只能查看。</FeedbackBanner> : null}
         {isAdmin && !['approved', 'cancelled'].includes(detail.task.status) ? <button className="ui-button-secondary mt-3 border-red-200 text-red-700 hover:bg-red-50" onClick={() => setShowWithdrawConfirm(true)} type="button">撤回任务</button> : null}
       </section>
+
+      {detail.task.requires_inventory ? <section className="ui-card p-4">
+        <div className="flex items-start justify-between gap-3"><div><h2 className="font-bold text-slate-900">{detail.task.inventory_correction_task_id ? '本轮重新点货结果' : '关联点货清单'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">勾选数量有误、需要员工重新点货的条目，再选择“部分驳回”。未驳回条目自动通过。</p></div>{linkedInventory ? <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{linkedInventory.items.length} 项</span> : null}</div>
+        {!linkedInventory ? <FeedbackBanner className="mt-3" title="点货单尚未提交" tone="warning">员工提交关联点货单后，才可以逐项审核点货数量。</FeedbackBanner> : <div className="mt-3 space-y-2">{linkedInventory.items.map((inventoryItem) => {
+          const product = asProductSnapshot(inventoryItem.product_snapshot);
+          const selected = selectedInventoryIds.includes(inventoryItem.id);
+          const rejected = rejectedInventoryIds.includes(inventoryItem.id);
+          return <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${rejected ? 'border-red-300 bg-red-50' : selected ? 'border-brand-400 bg-brand-50' : 'border-slate-200 bg-white'}`} key={inventoryItem.id}>
+            {isReviewable ? <input aria-label={`选择重新点货：${product.name}`} checked={selected} className="mt-1 h-5 w-5" onChange={() => setSelectedInventoryIds((current) => current.includes(inventoryItem.id) ? current.filter((id) => id !== inventoryItem.id) : [...current, inventoryItem.id])} type="checkbox" /> : null}
+            <span className="min-w-0 flex-1"><b className="block text-slate-900">{product.name}</b><span className="mt-1 block text-xs text-slate-500">{product.spec || '无规格'} · {product.count_unit || '单位'}</span></span>
+            <span className="shrink-0 text-right"><b className="block text-lg tabular-nums text-brand-800">{inventoryItem.quantity == null ? '未填写' : inventoryItem.quantity}</b><span className="text-xs text-slate-500">{product.count_unit || ''}</span>{rejected ? <span className="mt-1 block text-xs font-bold text-red-700">本轮驳回</span> : null}</span>
+          </label>;
+        })}</div>}
+        {isReviewable && linkedInventory ? <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary border-red-200 text-red-700" onClick={rejectSelectedInventoryItems} type="button">部分驳回所选项</button><button className="ui-button-secondary" onClick={() => { setSelectedInventoryIds([]); setRejectedInventoryIds([]); }} type="button">点货项全部通过</button></div> : null}
+        {isReviewable && linkedInventory ? <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">点货审核：通过 {linkedInventory.items.length - inventoryRejectedCount} 项，部分驳回 {inventoryRejectedCount} 项</p> : null}
+      </section> : null}
 
       <div className="space-y-3">{detail.answers.map((answer, index) => {
         const item = asTaskItemSnapshot(answer.item_snapshot);
@@ -187,10 +228,10 @@ export function AdminV2TaskReviewPage() {
       {isReviewable ? <section className="ui-card space-y-3 p-4">
         <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-slate-900">逐项审核</h2><p className="mt-1 text-xs leading-5 text-slate-500">勾选需要整改的项目；未标记项目提交时自动通过</p></div><button className="shrink-0 text-sm font-bold text-brand-700" onClick={() => setSelectedIds(selectedIds.length === reviewableAnswers.length ? [] : reviewableAnswers.map((answer) => answer.item_id))} type="button">{selectedIds.length === reviewableAnswers.length ? '取消全选' : '全选待审项'}</button></div>
         <div className="grid grid-cols-2 gap-2"><button className="ui-button-secondary border-red-200 text-red-700" onClick={() => rejectSelectedItems(selectedIds)} type="button">所选项驳回</button><button className="ui-button-primary" onClick={approveAllItems} type="button">一键全部通过</button></div>
-        <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">审核结果：通过 {approvedCount} 项，驳回 {rejectedCount} 项</div>
+        <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">任务表单：通过 {approvedCount} 项，驳回 {rejectedCount} 项{detail.task.requires_inventory ? `；点货条目：通过 ${(linkedInventory?.items.length ?? 0) - inventoryRejectedCount} 项，部分驳回 ${inventoryRejectedCount} 项` : ''}</div>
         <textarea className="ui-input min-h-24 py-3" onChange={(event) => setNote(event.target.value)} placeholder={isProductSpecCorrection ? '整体审核意见（选填）' : '审核意见；有驳回项目时请填写整改原因'} value={note} />
         <p className="text-xs leading-5 text-slate-500">重新提交时，已通过项目仅供查看，不会重复审核；本轮未勾选驳回的项目会自动通过。</p>
-        <MobileActionBar><button className="ui-button-primary w-full" disabled={busy} onClick={() => void submitReview()} type="button">{busy ? '正在提交审核…' : `提交审核结果（通过 ${approvedCount} 项，驳回 ${rejectedCount} 项）`}</button></MobileActionBar>
+        <MobileActionBar><button className="ui-button-primary w-full" disabled={busy || (detail.task.requires_inventory && !linkedInventory)} onClick={() => void submitReview()} type="button">{busy ? '正在提交审核…' : `提交审核结果（共驳回 ${rejectedCount + inventoryRejectedCount} 项）`}</button></MobileActionBar>
       </section> : null}
     </> : message ? <FeedbackBanner title="任务加载失败" tone="danger">{message}</FeedbackBanner> : <LoadingState label="正在加载任务" />}
     <ActionFeedbackDialog message={message ?? ''} onClose={() => setMessage(null)} open={Boolean(detail && message)} title={message?.includes('审核已提交') || message?.includes('任务已撤回') ? '操作成功' : message?.includes('失败') ? '操作失败' : '请完善审核信息'} tone={message?.includes('审核已提交') || message?.includes('任务已撤回') ? 'success' : message?.includes('失败') ? 'danger' : 'warning'} />

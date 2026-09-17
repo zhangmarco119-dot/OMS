@@ -9,6 +9,7 @@ import {
   loadV2TaskReferenceImageUrls,
   loadSubmittedLinkedInventoryTask,
   reviewV2TaskItems,
+  reviewV2TaskItemsWithInventory,
   type V2TaskAnswerRow,
   type V2TaskDetail,
   type V2TaskRow,
@@ -27,6 +28,7 @@ vi.mock('../services/v2-tasks.service', async (importOriginal) => {
     loadV2TaskReferenceImageUrls: vi.fn(),
     loadSubmittedLinkedInventoryTask: vi.fn(),
     reviewV2TaskItems: vi.fn(),
+    reviewV2TaskItemsWithInventory: vi.fn(),
   };
 });
 
@@ -72,6 +74,7 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
     vi.mocked(loadV2TaskReferenceImageUrls).mockResolvedValue({});
     vi.mocked(loadSubmittedLinkedInventoryTask).mockResolvedValue(null);
     vi.mocked(reviewV2TaskItems).mockResolvedValue({});
+    vi.mocked(reviewV2TaskItemsWithInventory).mockResolvedValue({});
   });
 
   it('treats every unmarked review item as approved', async () => {
@@ -99,12 +102,51 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
       submitterName: '刘成跃',
       task: { ...task, requires_inventory: true },
     } as V2TaskDetail);
-    vi.mocked(loadSubmittedLinkedInventoryTask).mockResolvedValue({ id: 'inventory-1', submitted_at: '2026-07-20T10:00:00Z' });
+    vi.mocked(loadSubmittedLinkedInventoryTask).mockResolvedValue({ id: 'inventory-1', items: [], submitted_at: '2026-07-20T10:00:00Z' });
 
     render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
 
     const link = await screen.findByRole('link', { name: '打开关联点货单' });
     expect(link).toHaveAttribute('href', '/app/history/inventory-1');
+  });
+
+  it('partially rejects selected linked inventory rows and submits their ids for a focused recount', async () => {
+    const inventoryItem = {
+      id: 'inventory-item-1',
+      product_snapshot: { count_unit: '盒', name: '原味酸奶', product_id: 'product-1', spec: '12杯/盒' },
+      quantity: 18,
+      sort_order: 10,
+    };
+    vi.mocked(loadV2TaskDetail).mockResolvedValue({
+      answers: [resubmittedAnswer],
+      images: [],
+      reviews: [],
+      submitterName: '刘成跃',
+      task: { ...task, inventory_correction_task_id: null, requires_inventory: true },
+    } as V2TaskDetail);
+    vi.mocked(loadSubmittedLinkedInventoryTask).mockResolvedValue({
+      id: 'inventory-1',
+      items: [inventoryItem],
+      submitted_at: '2026-07-20T10:00:00Z',
+    } as never);
+
+    render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: '选择重新点货：原味酸奶' }));
+    fireEvent.click(screen.getByRole('button', { name: '部分驳回所选项' }));
+    expect(screen.getByText('本轮驳回')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/有驳回项目时请填写整改原因/), { target: { value: '数量异常，请重新点货。' } });
+    fireEvent.click(screen.getByRole('button', { name: /提交审核结果/ }));
+
+    await waitFor(() => expect(reviewV2TaskItemsWithInventory).toHaveBeenCalledWith(
+      {},
+      'task-1',
+      [{ decision: 'approved', itemId: resubmittedAnswer.item_id }],
+      '数量异常，请重新点货。',
+      'inventory-1',
+      ['inventory-item-1'],
+    ));
+    expect(reviewV2TaskItems).not.toHaveBeenCalled();
   });
 
   it('shows image loading instead of failure while preview URLs are still resolving', async () => {

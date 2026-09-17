@@ -21,6 +21,7 @@ export type V2TaskTimelineEvent = Pick<V2TaskReviewRow, 'created_at' | 'id' | 't
   action: 'submitted' | 'rejected' | 'resubmitted';
 };
 export type V2TaskImageRow = Database['public']['Tables']['v2_task_images']['Row'];
+export type LinkedInventoryItemRow = Database['public']['Tables']['task_items']['Row'];
 export type V2TaskScheduleRow = Database['public']['Tables']['v2_task_schedules']['Row'];
 export type V2TaskReleaseType = 'interval_days' | 'weekly' | 'monthly';
 export type V2TaskAcceptanceType = 'daily' | 'weekly' | 'monthly';
@@ -63,6 +64,11 @@ export interface V2TaskDetail { answers: V2TaskAnswerRow[]; images: V2TaskImageR
 export interface UploadedV2TaskImage { image: V2TaskImageRow; previewUrl: string }
 export interface V2TaskAnswerPosition { groupNumber: number; groupTitle: string; itemNumber: number; number: string }
 export type V2TaskItemDecision = { decision: 'approved' | 'rejected'; itemId: string; note?: string };
+export interface LinkedInventorySubmission {
+  id: string;
+  items: LinkedInventoryItemRow[];
+  submitted_at: string | null;
+}
 
 const friendlyTaskError = (message: string) => {
   if (message.includes('template store access denied')) return '所选任务模板不适用于目标门店，请先在任务模板中增加该门店后再发布。';
@@ -118,7 +124,7 @@ export const orderV2TaskAnswers = (snapshot: Json, answers: V2TaskAnswerRow[]) =
   });
 };
 
-const v2TaskListColumns = 'allow_overdue,assigned_profile_id,category,correction_item_ids,created_at,created_by,due_at,id,inventory_category_codes,manager_review_enabled,name,publish_at,publish_notified_at,related_content_title,related_notice_id,related_sop_id,requires_inventory,requires_review,review_note,reviewed_at,reviewed_by,schedule_id,started_at,started_by,status,store_id,submission_key,submitted_at,submitted_by,submitted_by_role,target_audiences,task_no,template_id,template_version_id,updated_at,version';
+const v2TaskListColumns = 'allow_overdue,assigned_profile_id,category,correction_item_ids,created_at,created_by,due_at,id,inventory_category_codes,inventory_correction_item_ids,inventory_correction_task_id,manager_review_enabled,name,publish_at,publish_notified_at,related_content_title,related_notice_id,related_sop_id,requires_inventory,requires_review,review_note,reviewed_at,reviewed_by,schedule_id,started_at,started_by,status,store_id,submission_key,submitted_at,submitted_by,submitted_by_role,target_audiences,task_no,template_id,template_version_id,updated_at,version';
 
 export const loadV2Tasks = async (client: Client, storeId?: string): Promise<V2TaskListRow[]> => {
   let query = client.from('v2_tasks').select(v2TaskListColumns).neq('status', 'cancelled').order('due_at', { ascending: true });
@@ -155,18 +161,39 @@ export const loadV2TaskDetail = async (client: Client, taskId: string): Promise<
   }
   return { answers: orderV2TaskAnswers(task.data.snapshot, answers.data ?? []), images: images.data ?? [], reviews: reviews.data ?? [], submitterName, task: task.data };
 };
-export const loadSubmittedLinkedInventoryTask = async (client: Client, v2TaskId: string) => {
-  const { data, error } = await client
+export const loadSubmittedLinkedInventoryTask = async (client: Client, v2TaskId: string, correctionTaskId?: string | null): Promise<LinkedInventorySubmission | null> => {
+  let query = client
     .from('tasks')
     .select('id,submitted_at')
     .eq('linked_v2_task_id', v2TaskId)
-    .eq('task_type', 'inventory')
+    .eq('task_type', 'inventory');
+  if (correctionTaskId) query = query.eq('id', correctionTaskId);
+  const { data, error } = await query
     .eq('status', 'submitted')
     .order('submitted_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   fail(error);
-  return data;
+  if (!data) return null;
+  const items = await client
+    .from('task_items')
+    .select('*')
+    .eq('task_id', data.id)
+    .order('sort_order', { ascending: true });
+  fail(items.error);
+  return { ...data, items: items.data ?? [] };
+};
+export const hasSubmittedLinkedInventoryTask = async (client: Client, v2TaskId: string, profileId: string, correctionTaskId?: string | null) => {
+  let query = client
+    .from('tasks')
+    .select('id')
+    .eq('linked_v2_task_id', v2TaskId)
+    .eq('created_by', profileId)
+    .eq('task_type', 'inventory');
+  if (correctionTaskId) query = query.eq('id', correctionTaskId);
+  const { data, error } = await query.eq('status', 'submitted').limit(1).maybeSingle();
+  fail(error);
+  return Boolean(data);
 };
 export const canReviewV2Task = async (client: Client, taskId: string) => {
   const { data, error } = await client.rpc('can_review_v2_task', { p_task_id: taskId });
@@ -470,6 +497,17 @@ export const reviewV2Task = async (client: Client, taskId: string, action: 'appr
 export const reviewV2TaskItems = async (client: Client, taskId: string, decisions: V2TaskItemDecision[], note: string) => {
   const { data, error } = await client.rpc('review_v2_task_items', {
     p_decisions: decisions.map((decision) => ({ decision: decision.decision, item_id: decision.itemId, note: decision.note?.trim() ?? '' })),
+    p_note: note,
+    p_task_id: taskId,
+  });
+  fail(error);
+  return data;
+};
+export const reviewV2TaskItemsWithInventory = async (client: Client, taskId: string, decisions: V2TaskItemDecision[], note: string, inventoryTaskId: string, rejectedInventoryItemIds: string[]) => {
+  const { data, error } = await client.rpc('review_v2_task_items_with_inventory', {
+    p_decisions: decisions.map((decision) => ({ decision: decision.decision, item_id: decision.itemId, note: decision.note?.trim() ?? '' })),
+    p_inventory_rejected_item_ids: rejectedInventoryItemIds,
+    p_inventory_task_id: inventoryTaskId,
     p_note: note,
     p_task_id: taskId,
   });

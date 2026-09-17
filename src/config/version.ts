@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-09-17',
+    highlights: [
+      '管理员审核关联点货任务时，可直接查看点货清单并勾选数量有误的条目进行部分驳回。',
+      '员工收到整改任务后只需重新点被驳回的货品；再次提交时，管理员看到对应条目的最新点货数量。',
+    ],
+    title: '关联点货任务支持逐项驳回重做',
+    version: 'StoreHub v3.0.30',
+  },
+  {
     date: '2026-09-08',
     highlights: [
       '营业收入管理支持从企迈开放平台读取已授权门店，并由管理员确认 StoreHub 门店与企迈门店编码的绑定。',

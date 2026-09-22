@@ -1,4 +1,4 @@
-import { CalendarDays, RefreshCw, Search, X } from 'lucide-react';
+import { CalendarDays, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -10,6 +10,7 @@ import {
   formatArrivalDateTime,
 } from '../features/arrivals/adminArrivalFormat';
 import { ArrivalPeriodFilter } from '../features/arrivals/ArrivalPeriodFilter';
+import { ArrivalProductSearch } from '../features/arrivals/ArrivalProductSearch';
 import { createDefaultArrivalPeriod, resolveArrivalPeriod } from '../features/arrivals/arrivalPeriod';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -139,12 +140,7 @@ function ArrivalFilters({ className, filters, onChange, onPeriodChange, period, 
   const update = (patch: Partial<AdminArrivalListFilters>) => onChange({ ...filters, ...patch, page: 1 });
   return <div className={className}>
     <ArrivalPeriodFilter compact onChange={onPeriodChange} value={period} />
-    <label className="relative mt-2 block">
-      <span className="sr-only">检索到货产品</span>
-      <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
-      <input aria-label="检索到货产品" className="ui-input min-h-10 pl-9 pr-10 text-sm" onChange={(event) => update({ productSearch: event.target.value })} placeholder="输入产品名称，检索到货记录" type="search" value={filters.productSearch ?? ''} />
-      {filters.productSearch ? <button aria-label="清空产品检索" className="absolute right-2 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500" onClick={() => update({ productSearch: '' })} type="button"><X className="h-3.5 w-3.5" aria-hidden="true" /></button> : null}
-    </label>
+    <ArrivalProductSearch ariaLabel="检索到货产品" className="mt-2" clearAriaLabel="清空产品检索" onChange={(value) => update({ productSearch: value })} placeholder="输入产品名称，检索到货记录" value={filters.productSearch ?? ''} />
     <div className="mt-2 grid grid-cols-2 gap-2">
       <label className="text-xs font-semibold text-slate-600">门店<select className="ui-input mt-0.5 min-h-9 py-1 text-sm" onChange={(event) => update({ storeId: event.target.value })} value={filters.storeId}><option value="">全部门店</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
       <label className="text-xs font-semibold text-slate-600">状态<select className="ui-input mt-0.5 min-h-9 py-1 text-sm" onChange={(event) => update({ status: event.target.value as AdminArrivalListFilters['status'] })} value={filters.status}><option value="all">有效到货</option><option value="submitted">未读</option><option value="viewed">已读</option><option value="voided">已作废</option></select></label>

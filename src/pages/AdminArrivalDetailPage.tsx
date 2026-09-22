@@ -1,6 +1,6 @@
 import { Download, FileDown, LoaderCircle, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -38,6 +38,8 @@ export function AdminArrivalDetailPage() {
   const navigate = useNavigate();
   const aiPilot = useAiPilotSettings();
   const { reportId = '' } = useParams();
+  const [searchParams] = useSearchParams();
+  const focusedItemId = searchParams.get('item');
   const [detail, setDetail] = useState<AdminArrivalDetail | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
@@ -97,6 +99,11 @@ export function AdminArrivalDetailPage() {
   }, [reportId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (status !== 'ready' || !focusedItemId) return;
+    document.getElementById(`arrival-item-${focusedItemId}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [focusedItemId, status]);
 
   const confirmVoid = async () => {
     if (!supabase || !detail) return;
@@ -184,7 +191,8 @@ export function AdminArrivalDetailPage() {
           <div className="mt-3 space-y-3">
             {detail.items.map((item, index) => {
               const itemImages = detail.images.filter((image) => image.image_type === 'goods' && image.arrival_item_id === item.id);
-              return <article className="rounded-lg border border-slate-200 p-3" key={item.id}>
+              const focused = item.id === focusedItemId;
+              return <article aria-current={focused ? 'true' : undefined} className={`rounded-lg border p-3 transition ${focused ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200' : 'border-slate-200'}`} data-arrival-item-id={item.id} id={`arrival-item-${item.id}`} key={item.id}>
                 <div className="flex items-start justify-between gap-4">
                   <div><p className="font-semibold text-slate-900">{index + 1}. {item.product_name_snapshot}</p>{item.note ? <p className="mt-1 text-xs text-slate-500">{item.note}</p> : null}{item.is_unmatched_product ? <span className="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">未匹配货品</span> : null}</div>
                   <p className="shrink-0 font-bold text-brand-700">{item.quantity} {item.unit}</p>

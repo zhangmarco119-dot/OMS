@@ -147,4 +147,26 @@ describe('AdminArrivalDetailPage read state', () => {
     expect(screen.queryByTestId('ai-entity-review')).not.toBeInTheDocument();
     expect(ensureAiReview).not.toHaveBeenCalled();
   });
+
+  it('scrolls to and highlights the product selected from the arrival summary', async () => {
+    const focusedDetail = detail('viewed');
+    focusedDetail.items = [{
+      created_at: '2026-07-19T02:30:00Z', id: 'item-cream', is_unmatched_product: false, note: null, product_id: 'product-cream', product_name_snapshot: '淡奶油', quantity: 3, report_id: 'report-1', sort_order: 1, unit: '盒', updated_at: '2026-07-19T02:30:00Z',
+    }];
+    vi.mocked(loadAdminArrivalDetail).mockResolvedValue(focusedDetail);
+    vi.mocked(loadAdminArrivalImageUrls).mockResolvedValue({});
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    render(
+      <MemoryRouter initialEntries={['/app/admin/arrivals/report-1?item=item-cream']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <Routes><Route element={<AdminArrivalDetailPage />} path="/app/admin/arrivals/:reportId" /></Routes>
+      </MemoryRouter>,
+    );
+
+    const item = await screen.findByText('1. 淡奶油');
+    expect(item.closest('article')).toHaveAttribute('aria-current', 'true');
+    expect(item.closest('article')).toHaveClass('border-brand-500', 'bg-brand-50');
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+  });
 });

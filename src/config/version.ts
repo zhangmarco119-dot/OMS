@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-09-22',
+    highlights: [
+      '到货中心和到货汇总新增产品名称检索，可按时间、门店与产品组合查看到货情况。',
+      '到货汇总的明细卡片可直接进入对应到货单，并自动定位和高亮所选产品。',
+    ],
+    title: '到货中心支持产品检索与明细定位',
+    version: 'StoreHub v3.0.31',
+  },
+  {
     date: '2026-09-17',
     highlights: [
       '管理员审核关联点货任务时，可直接查看点货清单并勾选数量有误的条目进行部分驳回。',

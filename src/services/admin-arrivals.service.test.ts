@@ -23,16 +23,18 @@ describe('admin arrivals service mutations', () => {
       dateFrom: '2026-07-01',
       dateTo: '2026-07-31',
       page: 1,
+      productSearch: ' 淡奶油 ',
       status: 'all',
       storeId: '',
     });
 
     expect(rpc).toHaveBeenCalledTimes(1);
-    expect(rpc).toHaveBeenCalledWith('list_admin_arrivals_v1', {
+    expect(rpc).toHaveBeenCalledWith('list_admin_arrivals_v2', {
       p_date_from: '2026-07-01',
       p_date_to: '2026-07-31',
       p_page: 1,
       p_page_size: 20,
+      p_product_search: '淡奶油',
       p_status: 'all',
       p_store_id: null,
     });

@@ -1,4 +1,4 @@
-import { FileDown, Search, X } from 'lucide-react';
+import { FileDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/ui/Feedback'
 import { SegmentedControl } from '../components/ui/FormField';
 import { SectionCard } from '../components/ui/Surface';
 import { ArrivalPeriodFilter } from '../features/arrivals/ArrivalPeriodFilter';
+import { ArrivalProductSearch } from '../features/arrivals/ArrivalProductSearch';
 import { arrivalPeriodLabel, createDefaultArrivalPeriod, resolveArrivalPeriod } from '../features/arrivals/arrivalPeriod';
 import { createArrivalSummaryExport, downloadArrivalExport } from '../features/export/arrivalExport';
 import { useAuth } from '../features/auth/AuthContext';
@@ -56,7 +57,7 @@ export function AdminArrivalSummaryPage() {
 
   const exportLabel = arrivalPeriodLabel(period);
   return <PageShell eyebrow="门店运营系统 · 管理员" title="到货中心" backTo="/app/admin/arrivals">
-    <SectionCard><ArrivalPeriodFilter onChange={setPeriod} value={period} /><div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]"><label className="text-sm font-semibold text-slate-700">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}><option value="">全部门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label><button className="ui-button-primary mt-auto" disabled={status !== 'ready' || filteredSummary.details.length === 0} onClick={() => downloadArrivalExport(createArrivalSummaryExport(filteredSummary, exportLabel))} type="button"><FileDown className="h-5 w-5" />导出 Excel</button></div><label className="relative mt-3 block"><span className="sr-only">检索汇总产品</span><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" /><input aria-label="检索汇总产品" className="ui-input pl-9 pr-10" onChange={(event) => setProductSearch(event.target.value)} placeholder="输入产品名称，查看其到货情况" type="search" value={productSearch} />{productSearch ? <button aria-label="清空汇总产品检索" className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500" onClick={() => setProductSearch('')} type="button"><X className="h-3.5 w-3.5" aria-hidden="true" /></button> : null}</label></SectionCard>
+    <SectionCard><ArrivalPeriodFilter onChange={setPeriod} value={period} /><div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]"><label className="text-sm font-semibold text-slate-700">门店<select className="ui-input mt-1" onChange={(event) => setStoreId(event.target.value)} value={storeId}><option value="">全部门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label><button className="ui-button-primary mt-auto" disabled={status !== 'ready' || filteredSummary.details.length === 0} onClick={() => downloadArrivalExport(createArrivalSummaryExport(filteredSummary, exportLabel))} type="button"><FileDown className="h-5 w-5" />导出 Excel</button></div><ArrivalProductSearch ariaLabel="检索汇总产品" className="mt-3" clearAriaLabel="清空汇总产品检索" onChange={setProductSearch} placeholder="输入产品名称，查看其到货情况" value={productSearch} /></SectionCard>
     {message ? <ErrorState message={message} onRetry={() => void load()} /> : null}
     {status === 'loading' ? <LoadingState label="正在汇总到货数据" /> : null}
     {status === 'ready' ? <>

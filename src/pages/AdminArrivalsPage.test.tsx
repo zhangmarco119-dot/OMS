@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -34,6 +34,18 @@ describe('AdminArrivalsPage filters', () => {
     expect(screen.queryByRole('button', { name: '筛选' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '到货汇总' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '刷新到货记录' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: '检索到货产品' })).toBeVisible();
+  });
+
+  it('searches product names across the paginated Arrival Center', async () => {
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminArrivalsPage /></MemoryRouter>);
+
+    fireEvent.change(await screen.findByRole('searchbox', { name: '检索到货产品' }), { target: { value: '淡奶油' } });
+
+    await waitFor(() => expect(loadAdminArrivalList).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({
+      page: 1,
+      productSearch: '淡奶油',
+    }), expect.anything()));
   });
 
   it('shows record text without waiting for its thumbnail download', async () => {

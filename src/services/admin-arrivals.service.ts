@@ -34,6 +34,7 @@ export interface AdminArrivalListFilters {
   dateTo: string;
   page: number;
   pageSize?: number;
+  productSearch: string;
   status: 'all' | AdminArrivalReport['status'];
   storeId: string;
 }
@@ -194,11 +195,12 @@ export const loadAdminArrivalList = async (
   filters: AdminArrivalListFilters,
   options: { signal?: AbortSignal } = {},
 ) => {
-  const request = client.rpc('list_admin_arrivals_v1', {
+  const request = client.rpc('list_admin_arrivals_v2', {
     p_date_from: filters.dateFrom || null,
     p_date_to: filters.dateTo || null,
     p_page: filters.page,
     p_page_size: filters.pageSize ?? 20,
+    p_product_search: filters.productSearch.trim() || null,
     p_status: filters.status,
     p_store_id: filters.storeId || null,
   });

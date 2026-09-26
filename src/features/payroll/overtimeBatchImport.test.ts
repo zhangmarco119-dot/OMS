@@ -30,12 +30,12 @@ describe('employee overtime batch import', () => {
     });
     const workbook = XLSX.read(buffer, { type: 'array' });
 
-    expect(workbook.SheetNames).toEqual(['加班工时导入', '员工参考', '门店参考', '填写说明']);
-    expect(XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets['加班工时导入'], { header: 1 })[0]).toEqual(['员工账号', '员工姓名', '门店', '加班日期', '加班工时', '登记说明']);
+    expect(workbook.SheetNames).toEqual(['自主延时工作登记', '员工参考', '门店参考', '填写说明']);
+    expect(XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets['自主延时工作登记'], { header: 1 })[0]).toEqual(['员工账号', '员工姓名', '门店', '登记日期', '登记时长', '登记说明']);
     expect(XLSX.utils.sheet_to_json<Record<string, string>>(workbook.Sheets['员工参考'])[0]).toMatchObject({ 员工账号: 'liuchengyue', 员工姓名: '刘成跃' });
   });
 
-  it('parses the standard Excel columns and preserves their actual row numbers', async () => {
+  it('still parses older Excel columns and preserves their actual row numbers', async () => {
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.aoa_to_sheet([
       ['员工账号', '员工姓名', '门店', '加班日期', '加班工时', '登记说明'],

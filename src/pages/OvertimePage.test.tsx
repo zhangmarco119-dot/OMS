@@ -38,20 +38,20 @@ describe('OvertimePage employee workflow', () => {
   it('separates submission and records while showing approved summaries', async () => {
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><OvertimePage /></MemoryRouter>);
 
-    expect(screen.getByRole('button', { name: '加班填报' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '加班记录' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /点击选择加班/ }));
+    expect(screen.getByRole('button', { name: '自主延时工作登记' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '自主延时工作登记记录' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /点击选择延时工作时长/ }));
     expect(screen.getByRole('button', { name: '0 小时' })).toHaveAttribute('aria-pressed', 'false');
     const halfHour = screen.getByRole('button', { name: '0.5 小时' });
     expect(halfHour).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: '6 小时' })).toBeInTheDocument();
     fireEvent.click(halfHour);
     expect(screen.getByRole('button', { name: /0.5 小时/ })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByText('加班说明（选填）')).toBeInTheDocument();
+    expect(screen.getByText('登记说明（选填）')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '加班记录' }));
+    fireEvent.click(screen.getByRole('button', { name: '自主延时工作登记记录' }));
     await waitFor(() => expect(loadMyOvertimeRequests).toHaveBeenCalled());
-    expect(await screen.findByText('本月加班汇总')).toBeInTheDocument();
+    expect(await screen.findByText('本月自主延时工作登记汇总')).toBeInTheDocument();
     expect(screen.getByText('2 小时')).toBeInTheDocument();
     expect(screen.getByText('¥50.00')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /申请修改/ })).toBeInTheDocument();
@@ -70,7 +70,7 @@ describe('OvertimePage employee workflow', () => {
     expect(screen.getByRole('button', { name: '兼职工时填报' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '兼职工时记录' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /点击选择兼职工时/ }));
-    expect(screen.getByRole('textbox', { name: '兼职工时说明（选填）' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: '登记说明（选填）' })).toBeInTheDocument();
     expect(screen.queryByText(/加班/)).not.toBeInTheDocument();
   });
 });

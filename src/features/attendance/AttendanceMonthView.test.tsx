@@ -43,7 +43,7 @@ describe('AttendanceMonthView', () => {
     render(<AttendanceMonthView detail={detail} />);
     const cards = [
       ['出勤天数', '出勤天数明细'],
-      ['累计加班', '累计加班明细'],
+      ['自主延时工作登记', '自主延时工作登记明细'],
       ['迟到次数', '迟到次数明细'],
       ['迟到累计', '迟到累计明细'],
       ['缺卡次数', '缺卡次数明细'],
@@ -58,7 +58,7 @@ describe('AttendanceMonthView', () => {
 
   it('shows approved overtime date, store, hours and reason', () => {
     render(<AttendanceMonthView detail={detail} />);
-    fireEvent.click(screen.getByRole('button', { name: '累计加班，点击查看明细' }));
+    fireEvent.click(screen.getByRole('button', { name: '自主延时工作登记，点击查看明细' }));
     expect(screen.getByText('2.5 小时', { selector: 'b' })).toBeInTheDocument();
     expect(screen.getByText('门店 A · 盘点')).toBeInTheDocument();
   });

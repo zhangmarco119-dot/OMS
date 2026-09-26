@@ -15,7 +15,7 @@ export function AttendanceMonthView({ detail }: { detail: AttendanceMonthDetail 
   return <>
     <section className="grid grid-cols-3 gap-2">
       <Metric label="出勤天数" onClick={() => setSelectedMetric('attendance')} value={summary.attendanceDays} />
-      <Metric label="累计加班" onClick={() => setSelectedMetric('overtime')} value={`${summary.overtimeHours} 小时`} />
+      <Metric label="自主延时工作登记" onClick={() => setSelectedMetric('overtime')} value={`${summary.overtimeHours} 小时`} />
       <Metric label="迟到次数" onClick={() => setSelectedMetric('lateCount')} value={`${summary.lateCount} 次`} />
       <Metric label="迟到累计" onClick={() => setSelectedMetric('lateMinutes')} value={`${summary.lateMinutes} 分`} />
       <Metric label="缺卡次数" onClick={() => setSelectedMetric('missing')} value={summary.missingCount} />
@@ -56,7 +56,7 @@ function Metric({ label, onClick, value }: { label: string; onClick: () => void;
 
 const metricTitle: Record<MetricKey, string> = {
   attendance: '出勤天数明细',
-  overtime: '累计加班明细',
+  overtime: '自主延时工作登记明细',
   lateCount: '迟到次数明细',
   lateMinutes: '迟到累计明细',
   missing: '缺卡次数明细',

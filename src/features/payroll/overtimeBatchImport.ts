@@ -52,8 +52,8 @@ const readFileAsArrayBuffer = (file: File) => {
   if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
   return new Promise<ArrayBuffer>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error('读取加班工时 Excel 文件失败。'));
-    reader.onload = () => reader.result instanceof ArrayBuffer ? resolve(reader.result) : reject(new Error('加班工时 Excel 文件格式无效。'));
+    reader.onerror = () => reject(new Error('读取登记时长 Excel 文件失败。'));
+    reader.onload = () => reader.result instanceof ArrayBuffer ? resolve(reader.result) : reject(new Error('登记时长 Excel 文件格式无效。'));
     reader.readAsArrayBuffer(file);
   });
 };
@@ -95,19 +95,19 @@ export async function parseOvertimeImportFile(file: File): Promise<OvertimeImpor
   const requiredHeaderGroups = [
     ['员工账号', '账号名', 'username'],
     ['门店', '门店名称', 'store'],
-    ['加班日期', '日期', 'overtime_date'],
-    ['加班工时', '工时', '小时', 'hours'],
+    ['登记日期', '\u52a0\u73ed\u65e5\u671f', '日期', 'overtime_date'],
+    ['登记时长', '\u52a0\u73ed\u5de5\u65f6', '工时', '小时', 'hours'],
   ];
   const missingHeaders = requiredHeaderGroups.filter((aliases) => !headers.some((header) => aliases.map(normalize).includes(normalize(header))));
   if (missingHeaders.length) throw new Error(`Excel 缺少必要列：${missingHeaders.map((aliases) => aliases[0]).join('、')}。`);
 
   return table.slice(1).flatMap((rawRow, index) => {
     if (rawRow.every((value) => !String(value ?? '').trim())) return [];
-    const hoursValue = readCell(rawRow, headers, ['加班工时', '工时', '小时', 'hours']);
+    const hoursValue = readCell(rawRow, headers, ['登记时长', '\u52a0\u73ed\u5de5\u65f6', '工时', '小时', 'hours']);
     return [{
       employeeName: String(readCell(rawRow, headers, ['员工姓名', '姓名', 'display_name'])).trim(),
       hours: typeof hoursValue === 'number' ? hoursValue : Number(String(hoursValue).trim()),
-      overtimeDate: parseExcelDate(readCell(rawRow, headers, ['加班日期', '日期', 'overtime_date'])),
+      overtimeDate: parseExcelDate(readCell(rawRow, headers, ['登记日期', '\u52a0\u73ed\u65e5\u671f', '日期', 'overtime_date'])),
       reason: String(readCell(rawRow, headers, ['登记说明', '说明', '原因', 'reason'])).trim(),
       rowNumber: index + 2,
       storeName: String(readCell(rawRow, headers, ['门店', '门店名称', 'store'])).trim(),
@@ -157,10 +157,10 @@ export async function importAdminOvertimeRows(input: {
     try {
       if (!row.username && !row.employeeName) throw new Error('员工账号不能为空。');
       if (!row.storeName) throw new Error('门店不能为空。');
-      if (!row.overtimeDate) throw new Error('加班日期格式无效，请填写 YYYY-MM-DD。');
-      if (row.overtimeDate > input.today) throw new Error('加班日期不能晚于今天。');
+      if (!row.overtimeDate) throw new Error('登记日期格式无效，请填写 YYYY-MM-DD。');
+      if (row.overtimeDate > input.today) throw new Error('登记日期不能晚于今天。');
       if (!Number.isFinite(row.hours) || row.hours < 0.5 || row.hours > 6 || row.hours * 2 % 1 !== 0) {
-        throw new Error('加班工时必须为 0.5–6 小时，并按 0.5 小时递增。');
+        throw new Error('登记时长必须为 0.5–6 小时，并按 0.5 小时递增。');
       }
       const profile = resolveProfile(row, availableProfiles);
       const store = resolveStore(row, input.stores);
@@ -173,7 +173,7 @@ export async function importAdminOvertimeRows(input: {
       });
       succeeded += 1;
     } catch (error) {
-      failures.push({ item, reason: error instanceof Error ? error.message : '该行加班工时登记失败。' });
+      failures.push({ item, reason: error instanceof Error ? error.message : '该行自主延时工作登记失败。' });
     } finally {
       completed += 1;
       input.onProgress?.(completed, input.rows.length);
@@ -186,10 +186,10 @@ export async function importAdminOvertimeRows(input: {
 export function createOvertimeImportTemplate(profiles: OvertimeImportProfile[], stores: OvertimeImportStore[]) {
   const workbook = XLSX.utils.book_new();
   const inputSheet = XLSX.utils.aoa_to_sheet([
-    ['员工账号', '员工姓名', '门店', '加班日期', '加班工时', '登记说明'],
+    ['员工账号', '员工姓名', '门店', '登记日期', '登记时长', '登记说明'],
   ]);
   inputSheet['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 30 }];
-  XLSX.utils.book_append_sheet(workbook, inputSheet, '加班工时导入');
+  XLSX.utils.book_append_sheet(workbook, inputSheet, '自主延时工作登记');
 
   const referenceRows = profiles
     .filter((profile) => profile.is_active && profile.employment_type === 'full_time' && (profile.role === 'staff' || profile.role === 'manager'))
@@ -204,7 +204,7 @@ export function createOvertimeImportTemplate(profiles: OvertimeImportProfile[], 
 
   const instructionSheet = XLSX.utils.aoa_to_sheet([
     ['填写说明'],
-    ['1. 员工账号、门店、加班日期、加班工时为必填项；员工姓名用于校验，可不填。'],
+    ['1. 员工账号、门店、登记日期、登记时长为必填项；员工姓名用于校验，可不填。'],
     ['2. 日期使用 YYYY-MM-DD；工时范围为 0.5–6 小时，按 0.5 小时递增。'],
     ['3. 同一员工、门店和日期已有记录时，导入会更新原记录并直接确认通过。'],
     ['4. 单行错误不会中断整批，导入完成后系统会逐条报告失败原因。'],
@@ -220,7 +220,7 @@ export function downloadOvertimeImportTemplate(blob: Blob) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = '员工加班工时批量导入模板.xlsx';
+  anchor.download = '自主延时工作登记批量导入模板.xlsx';
   document.body.append(anchor);
   anchor.click();
   anchor.remove();

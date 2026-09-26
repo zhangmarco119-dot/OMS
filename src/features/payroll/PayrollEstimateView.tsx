@@ -19,6 +19,10 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
     ? estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable
     : estimate.dataComplete ? estimate.estimatedNetPayable ?? estimate.estimatedPayable : estimate.knownEstimatedNetPayable ?? estimate.knownEstimatedPayable;
   const performanceStores = estimate.performanceStores ?? [];
+  const approvedHourlyAmount = estimate.overtimeHours > 0 ? estimate.accruedOvertime / estimate.overtimeHours : 25;
+  const overtimeNote = Math.abs(approvedHourlyAmount - 25) < 0.005
+    ? `${estimate.overtimeHours} 小时 · 补贴标准 ${formatMoney(25)}/小时`
+    : `${estimate.overtimeHours} 小时 · 按该月审批记录计薪`;
   const storeGradeNote = performanceStores.map((item) => `${item.storeName} ${item.grade} 级`).join(' · ');
   const performanceNote = estimate.hasMultiplePerformanceStores && storeGradeNote
     ? storeGradeNote
@@ -51,14 +55,14 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
       {estimate.serviceAwardEnabled ? <AmountRow label="工龄奖" note={`${formatMoney(estimate.serviceAwardAmount)} ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedServiceAward} /> : null}
       {estimate.accruedExtraReward > 0 ? <AmountRow label="额外奖励" note="本月增加的额外奖励" value={estimate.accruedExtraReward} /> : null}
       <AmountRow label="累计提成" note={estimate.departureMonthExcluded ? '离职月不核算提成' : estimate.commissionEnabled ? `本月累计提成基数 ${formatMoney(estimate.revenueTotal)} × ${((estimate.commissionRate ?? 0) * 100).toFixed(2)}%${regularizationNote}` : '该员工未启用营业收入提成'} value={estimate.accruedCommission} />
-      <AmountRow label="已审批加班" note={`${estimate.overtimeHours} 小时 · 当前参考时薪 ${formatMoney(estimate.overtimeHourlyRate)}/小时`} value={estimate.accruedOvertime} />
+      <AmountRow label="延时工作补贴" note={overtimeNote} value={estimate.accruedOvertime} />
       <PayrollDeductionRow estimate={estimate} label="罚款合计" total={estimate.fineTotal} />
       {mode === 'estimate' ? <AmountRow label="预计个税扣除" note={`${estimate.individualIncomeTaxEstimateMode === 'override' ? '管理员已按本月手动调整' : estimate.individualIncomeTaxEstimateBasis === 'year_to_date' ? '按本年度已有工资单累计预扣法估算' : '暂无历史工资单，暂按本月已知收入估算'}；未计入专项附加扣除，最终以工资单人工确认`} value={estimate.estimatedIndividualIncomeTax ?? 0} /> : null}
     </div></SectionCard>
 
     {!estimate.departureMonthExcluded ? estimate.hasMultiplePerformanceStores ? <SectionCard><SectionHeader icon={ClipboardCheck} title="门店绩效等级" description="各关联门店分别定级。" /><div className="mt-3 grid grid-cols-2 gap-2">{performanceStores.map((item) => <div className="rounded-lg bg-slate-50 px-3 py-2.5" key={item.storeId}><span className="block truncate text-xs text-slate-500">{item.storeName}</span><b className="mt-0.5 block text-base text-slate-900">{item.grade} 级</b></div>)}</div></SectionCard> : <SectionCard><SectionHeader icon={ClipboardCheck} title="绩效评分" description={estimate.performanceReady ? `${estimate.performanceScore} 分 · ${estimate.performanceGrade} 级` : '当前待评分'} /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="任务完成" value={`${estimate.taskCompletedCount}/${estimate.taskDueCount}`} /><Metric label="考勤得分" value={`${estimate.attendanceScore}`} /><Metric label="纪律得分" value={`${estimate.disciplineScore}`} /></div><p className="mt-3 text-xs text-slate-500">迟到共 {estimate.lateMinutes} 分钟，迟到罚款 {formatMoney(estimate.lateFine)}；其他罚款 {formatMoney(estimate.otherFine)}。</p></SectionCard> : null}
 
-    <SectionCard><SectionHeader icon={Database} title="数据更新时间" description="用于判断预估结果是否已包含最新业务数据。" /><div className="mt-3 space-y-1.5 text-xs text-slate-600"><p><Clock3 className="mr-1 inline h-3.5 w-3.5" />考勤：{updated(estimate.attendanceUpdatedAt)}</p><p>任务：{updated(estimate.tasksUpdatedAt)}</p><p>营业收入：{updated(estimate.revenueUpdatedAt)}</p><p>处罚：{updated(estimate.penaltiesUpdatedAt)}</p><p>加班：{updated(estimate.overtimeUpdatedAt)}</p></div></SectionCard>
+    <SectionCard><SectionHeader icon={Database} title="数据更新时间" description="用于判断预估结果是否已包含最新业务数据。" /><div className="mt-3 space-y-1.5 text-xs text-slate-600"><p><Clock3 className="mr-1 inline h-3.5 w-3.5" />考勤：{updated(estimate.attendanceUpdatedAt)}</p><p>任务：{updated(estimate.tasksUpdatedAt)}</p><p>营业收入：{updated(estimate.revenueUpdatedAt)}</p><p>处罚：{updated(estimate.penaltiesUpdatedAt)}</p><p>自主延时工作登记：{updated(estimate.overtimeUpdatedAt)}</p></div></SectionCard>
   </>;
 }
 

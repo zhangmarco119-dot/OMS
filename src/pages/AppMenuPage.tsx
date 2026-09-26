@@ -37,7 +37,7 @@ export function AppMenuPage() {
     ...(featureFlags.noticesAndSops && canUseV2 ? [{ icon: Bell, label: '门店公告', note: '查看公告和已读状态', to: '/app/notices' }, { icon: BookOpenCheck, label: 'SOP 手册', note: '查看标准作业流程', to: '/app/sops' }] : []),
     { icon: CalendarClock, label: '我的考勤', note: '查看月度出勤、迟到与异常记录', to: '/app/attendance' },
     { icon: CircleDollarSign, label: '我的薪资', note: '查看预估薪资、工资单并完成确认', to: '/app/payroll' },
-    { icon: CalendarClock, label: '加班管理', note: '填报加班并查看记录与工资汇总', to: '/app/overtime' },
+    { icon: CalendarClock, label: '自主延时工作登记', note: '登记自主延时工作并查看记录与工资汇总', to: '/app/overtime' },
     { icon: History, label: '运营历史', note: '点货、订货、到货和任务记录', to: '/app/operations-history' },
   ];
   if (isAdmin || (!isPartTime && canUseOperationReports)) {

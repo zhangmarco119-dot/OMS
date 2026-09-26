@@ -15,7 +15,7 @@ export function AboutSystemPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Store className="h-7 w-7" aria-hidden="true" /></div>
           <div><h2 className="text-lg font-bold text-ink">门店运营系统</h2><p className="mt-1 text-sm font-semibold text-brand-700">当前版本：{systemVersion}</p></div>
         </div>
-        <p className="mt-4 text-sm leading-7 text-slate-600">用于门店点货、订货、到货、任务、公告、SOP、考勤、加班和预估工资等日常协作。当前账号可查看与角色对应的功能和使用说明。</p>
+        <p className="mt-4 text-sm leading-7 text-slate-600">用于门店点货、订货、到货、任务、公告、SOP、考勤、自主延时工作和预估工资等日常协作。当前账号可查看与角色对应的功能和使用说明。</p>
       </section>
 
       <section aria-labelledby="manuals-title" className="space-y-3">

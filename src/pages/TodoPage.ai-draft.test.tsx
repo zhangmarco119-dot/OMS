@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
+import { reviewV2TasksBatch } from '../features/v2-tasks/batchReview';
 import {
   loadProductCreationRequests,
   handleProductFeedbackAction,
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
+vi.mock('../features/v2-tasks/batchReview', () => ({ reviewV2TasksBatch: vi.fn() }));
 vi.mock('../features/v2-tasks/useTaskDeadlineClock', () => ({ useTaskDeadlineClock: () => new Date('2026-08-13T00:00:00Z') }));
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../features/admin/adminProductsService', async (importOriginal) => {
@@ -183,5 +185,34 @@ describe('TodoPage AI product creation draft', () => {
     expect(screen.getByText('确认归档货品')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '确认归档' }));
     await waitFor(() => expect(handleProductFeedbackAction).toHaveBeenCalledWith('deletion-feedback-1', 'confirm_archive'));
+  });
+
+  it('lets an administrator select task approvals and reject only the selected tasks', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      availableStores: [{ id: 'store-1', name: '五道口店' }],
+      profile: { id: 'admin-1', role: 'admin' },
+      store: { id: 'store-1' },
+    } as unknown as ReturnType<typeof useAuth>);
+    const task = (id: string, name: string) => ({ id, name, status: 'submitted', due_at: '2026-08-20T00:00:00Z', submitted_by: null, submitted_at: '2026-08-13T00:00:00Z' });
+    mocks.loadV2Tasks.mockResolvedValue([task('task-1', '任务一'), task('task-2', '任务二')]);
+    vi.mocked(loadProductCreationRequests).mockResolvedValue([]);
+    vi.mocked(reviewV2TasksBatch).mockResolvedValue({ failed: [], succeeded: [{ id: 'task-2', name: '任务二' }] });
+
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }} initialEntries={['/app/todos']}>
+      <Routes><Route element={<TodoPage />} path="/app/todos" /></Routes>
+    </MemoryRouter>);
+
+    expect(await screen.findByRole('checkbox', { name: '选择任务：任务一' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批量通过' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择任务：任务二' }));
+    expect(screen.getByText('已选 1/2 项')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '批量拒绝' }));
+    expect(screen.getByRole('dialog', { name: '批量拒绝任务' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: '整改原因' }), { target: { value: '重新检查照片' } });
+    fireEvent.click(screen.getByRole('button', { name: '确认批量拒绝' }));
+
+    await waitFor(() => expect(reviewV2TasksBatch).toHaveBeenCalledWith(
+      {}, [{ id: 'task-2', name: '任务二' }], 'rejected', '重新检查照片', expect.any(Function),
+    ));
   });
 });

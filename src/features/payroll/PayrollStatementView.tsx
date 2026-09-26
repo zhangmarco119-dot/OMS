@@ -21,7 +21,7 @@ export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }:
     ['工龄奖', estimate.accruedServiceAward],
     ['额外奖励', estimate.accruedExtraReward],
     ['提成', estimate.accruedCommission ?? 0],
-    ['加班', estimate.accruedOvertime],
+    ['延时工作补贴', estimate.accruedOvertime],
   ] as const;
   const income = earnings.reduce((sum, [, amount]) => sum + amount, 0);
   const otherDeductions = estimate.fineTotal;

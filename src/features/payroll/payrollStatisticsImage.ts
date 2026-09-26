@@ -105,10 +105,10 @@ export async function downloadPayrollStatisticsImage(statistics: PayrollStatisti
     text(context, `实发 ${numericMoney(detail.netPayable)}`, width - 105, rowTop + 40, { align: 'right', color: '#047857', font: 'bold 32px "Microsoft YaHei", sans-serif' });
     text(context, `收入 ${numericMoney(detail.grossIncome)} · 工时 ${employee.hours.toFixed(2)} h · 时均 ${employee.averageHourlyCost == null ? '—' : `${numericMoney(employee.averageHourlyCost)} / h`}`, 105, rowTop + 78, { color: '#334155', font: '22px "Microsoft YaHei", sans-serif' });
     text(context, `基本 ${numericMoney(detail.baseSalary)} · 房补 ${numericMoney(detail.housingAllowance)} · 绩效 ${numericMoney(detail.performance)} · 全勤 ${numericMoney(detail.fullAttendanceBonus)} · 超勤 ${numericMoney(detail.extraAttendanceBonus)} · 工龄 ${numericMoney(detail.serviceAward)}`, 105, rowTop + 113, { color: '#475569', font: '21px "Microsoft YaHei", sans-serif' });
-    text(context, `奖励 ${numericMoney(detail.extraReward)} · 提成 ${numericMoney(detail.commission)} · 加班/兼职 ${numericMoney(detail.overtime + detail.partTimeWage)} · 其他扣款 -${numericMoney(detail.fines)} · 个税 -${numericMoney(detail.individualIncomeTax)}`, 105, rowTop + 145, { color: '#64748b', font: '21px "Microsoft YaHei", sans-serif' });
+    text(context, `奖励 ${numericMoney(detail.extraReward)} · 提成 ${numericMoney(detail.commission)} · 延时工作补贴/兼职薪资 ${numericMoney(detail.overtime + detail.partTimeWage)} · 其他扣款 -${numericMoney(detail.fines)} · 个税 -${numericMoney(detail.individualIncomeTax)}`, 105, rowTop + 145, { color: '#64748b', font: '21px "Microsoft YaHei", sans-serif' });
   });
 
-  text(context, `工时口径：排班时长扣除 1 小时用餐时间，另加已审批兼职/加班工时 · ${currentRelease.version} · 生成于 ${generatedAtLabel(generatedAt)}`, 70, height - 48, { color: '#64748b', font: '20px "Microsoft YaHei", sans-serif' });
+  text(context, `工时口径：排班时长扣除 1 小时用餐时间，另加已审批兼职/自主延时工作时长 · ${currentRelease.version} · 生成于 ${generatedAtLabel(generatedAt)}`, 70, height - 48, { color: '#64748b', font: '20px "Microsoft YaHei", sans-serif' });
 
   const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('统计图表生成失败。')), 'image/png'));
   const url = URL.createObjectURL(blob);

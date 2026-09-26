@@ -42,7 +42,7 @@ describe('AppMenuPage administrator workbench', () => {
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AppMenuPage /></MemoryRouter>);
     expect(screen.getByRole('link', { name: /我的考勤/ })).toHaveAttribute('href', '/app/attendance');
     expect(screen.getByRole('link', { name: /我的薪资/ })).toHaveAttribute('href', '/app/payroll');
-    expect(screen.getByRole('link', { name: /加班管理/ })).toHaveAttribute('href', '/app/overtime');
+    expect(screen.getByRole('link', { name: /自主延时工作登记/ })).toHaveAttribute('href', '/app/overtime');
     expect(screen.queryByRole('link', { name: /考勤管理/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /AI 质检试点/ })).not.toBeInTheDocument();
   });

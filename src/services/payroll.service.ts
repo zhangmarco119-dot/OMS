@@ -740,7 +740,7 @@ export async function adminRecordOvertime(client: Client, input: { profileId: st
     p_hours: input.hours,
     p_reason: input.reason?.trim() ?? '',
   });
-  if (error) throw new Error(error.message || '管理员加班工时登记失败。');
+  if (error) throw new Error(error.message || '管理员自主延时工作时长登记失败。');
   return data as unknown as OvertimeRequestRow;
 }
 

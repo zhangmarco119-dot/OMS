@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-09-27',
+    highlights: [
+      '任务审批列表默认隐藏多选框，进入批量审批模式后才显示选择与批量操作。',
+      '关联点货清单默认保持简洁，仅在选择需要重新点货的货品时显示勾选框。',
+    ],
+    title: '优化批量审批与点货选择交互',
+    version: 'StoreHub v3.0.34',
+  },
+  {
     date: '2026-09-26',
     highlights: [
       '管理员待办的任务审批支持多选、全选以及批量通过或拒绝。',

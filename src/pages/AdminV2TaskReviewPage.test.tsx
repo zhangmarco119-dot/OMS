@@ -132,8 +132,12 @@ describe('AdminV2TaskReviewPage focused re-review', () => {
 
     render(<MemoryRouter initialEntries={['/app/admin/tasks/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route element={<AdminV2TaskReviewPage />} path="/app/admin/tasks/:taskId" /></Routes></MemoryRouter>);
 
-    fireEvent.click(await screen.findByRole('checkbox', { name: '选择重新点货：原味酸奶' }));
+    expect(await screen.findByRole('button', { name: '选择需要重新点货的货品' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: '选择重新点货：原味酸奶' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '选择需要重新点货的货品' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择重新点货：原味酸奶' }));
     fireEvent.click(screen.getByRole('button', { name: '部分驳回所选项' }));
+    expect(screen.queryByRole('checkbox', { name: '选择重新点货：原味酸奶' })).not.toBeInTheDocument();
     expect(screen.getByText('本轮驳回')).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText(/有驳回项目时请填写整改原因/), { target: { value: '数量异常，请重新点货。' } });
     fireEvent.click(screen.getByRole('button', { name: /提交审核结果/ }));

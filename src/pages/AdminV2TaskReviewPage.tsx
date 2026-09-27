@@ -46,6 +46,7 @@ export function AdminV2TaskReviewPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [decisions, setDecisions] = useState<Record<string, ReviewDecision>>({});
   const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
+  const [inventorySelectionMode, setInventorySelectionMode] = useState(false);
   const [selectedInventoryIds, setSelectedInventoryIds] = useState<string[]>([]);
   const [rejectedInventoryIds, setRejectedInventoryIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export function AdminV2TaskReviewPage() {
       setSelectedIds([]);
       setDecisions({});
       setItemNotes({});
+      setInventorySelectionMode(false);
       setSelectedInventoryIds([]);
       setRejectedInventoryIds([]);
       setMessage(null);
@@ -109,6 +111,7 @@ export function AdminV2TaskReviewPage() {
     if (selectedInventoryIds.length === 0) { setMessage('请先勾选需要重新点货的条目。'); return; }
     setRejectedInventoryIds((current) => [...new Set([...current, ...selectedInventoryIds])]);
     setSelectedInventoryIds([]);
+    setInventorySelectionMode(false);
     setMessage(null);
   };
 
@@ -116,6 +119,7 @@ export function AdminV2TaskReviewPage() {
     setDecisions({});
     setItemNotes({});
     setSelectedIds([]);
+    setInventorySelectionMode(false);
     setSelectedInventoryIds([]);
     setRejectedInventoryIds([]);
     setMessage(null);
@@ -182,18 +186,23 @@ export function AdminV2TaskReviewPage() {
       </section>
 
       {detail.task.requires_inventory ? <section className="ui-card p-4">
-        <div className="flex items-start justify-between gap-3"><div><h2 className="font-bold text-slate-900">{detail.task.inventory_correction_task_id ? '本轮重新点货结果' : '关联点货清单'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">勾选数量有误、需要员工重新点货的条目，再选择“部分驳回”。未驳回条目自动通过。</p></div>{linkedInventory ? <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{linkedInventory.items.length} 项</span> : null}</div>
+        <div className="flex items-start justify-between gap-3"><div><h2 className="font-bold text-slate-900">{detail.task.inventory_correction_task_id ? '本轮重新点货结果' : '关联点货清单'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{inventorySelectionMode ? '勾选数量有误、需要员工重新点货的条目；未驳回条目自动通过。' : '请核对各货品数量；只有选择部分驳回时才会显示勾选框。'}</p></div>{linkedInventory ? <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{linkedInventory.items.length} 项</span> : null}</div>
+        {isReviewable && linkedInventory && !inventorySelectionMode ? <button className="ui-button-secondary mt-3 w-full" onClick={() => setInventorySelectionMode(true)} type="button">选择需要重新点货的货品</button> : null}
         {!linkedInventory ? <FeedbackBanner className="mt-3" title="点货单尚未提交" tone="warning">员工提交关联点货单后，才可以逐项审核点货数量。</FeedbackBanner> : <div className="mt-3 space-y-2">{linkedInventory.items.map((inventoryItem) => {
           const product = asProductSnapshot(inventoryItem.product_snapshot);
           const selected = selectedInventoryIds.includes(inventoryItem.id);
           const rejected = rejectedInventoryIds.includes(inventoryItem.id);
-          return <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${rejected ? 'border-red-300 bg-red-50' : selected ? 'border-brand-400 bg-brand-50' : 'border-slate-200 bg-white'}`} key={inventoryItem.id}>
-            {isReviewable ? <input aria-label={`选择重新点货：${product.name}`} checked={selected} className="mt-1 h-5 w-5" onChange={() => setSelectedInventoryIds((current) => current.includes(inventoryItem.id) ? current.filter((id) => id !== inventoryItem.id) : [...current, inventoryItem.id])} type="checkbox" /> : null}
+          return <article className={`flex items-start gap-3 rounded-xl border p-3 ${inventorySelectionMode ? 'cursor-pointer select-none' : ''} ${rejected ? 'border-red-300 bg-red-50' : selected ? 'border-brand-400 bg-brand-50' : 'border-slate-200 bg-white'}`} key={inventoryItem.id} onClick={(event) => {
+            if (!inventorySelectionMode || (event.target as HTMLElement).closest('input, button, a')) return;
+            setSelectedInventoryIds((current) => current.includes(inventoryItem.id) ? current.filter((id) => id !== inventoryItem.id) : [...current, inventoryItem.id]);
+          }}>
+            {isReviewable && inventorySelectionMode ? <input aria-label={`选择重新点货：${product.name}`} checked={selected} className="mt-1 h-5 w-5" onChange={() => setSelectedInventoryIds((current) => current.includes(inventoryItem.id) ? current.filter((id) => id !== inventoryItem.id) : [...current, inventoryItem.id])} type="checkbox" /> : null}
             <span className="min-w-0 flex-1"><b className="block text-slate-900">{product.name}</b><span className="mt-1 block text-xs text-slate-500">{product.spec || '无规格'} · {product.count_unit || '单位'}</span></span>
             <span className="shrink-0 text-right"><b className="block text-lg tabular-nums text-brand-800">{inventoryItem.quantity == null ? '未填写' : inventoryItem.quantity}</b><span className="text-xs text-slate-500">{product.count_unit || ''}</span>{rejected ? <span className="mt-1 block text-xs font-bold text-red-700">本轮驳回</span> : null}</span>
-          </label>;
+          </article>;
         })}</div>}
-        {isReviewable && linkedInventory ? <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary border-red-200 text-red-700" onClick={rejectSelectedInventoryItems} type="button">部分驳回所选项</button><button className="ui-button-secondary" onClick={() => { setSelectedInventoryIds([]); setRejectedInventoryIds([]); }} type="button">点货项全部通过</button></div> : null}
+        {isReviewable && linkedInventory && inventorySelectionMode ? <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => { setInventorySelectionMode(false); setSelectedInventoryIds([]); }} type="button">取消选择</button><button className="ui-button-secondary border-red-200 text-red-700" onClick={rejectSelectedInventoryItems} type="button">部分驳回所选项</button></div> : null}
+        {isReviewable && linkedInventory && rejectedInventoryIds.length > 0 && !inventorySelectionMode ? <button className="mt-3 text-sm font-bold text-brand-700" onClick={() => { setSelectedInventoryIds([]); setRejectedInventoryIds([]); }} type="button">撤销全部点货驳回</button> : null}
         {isReviewable && linkedInventory ? <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">点货审核：通过 {linkedInventory.items.length - inventoryRejectedCount} 项，部分驳回 {inventoryRejectedCount} 项</p> : null}
       </section> : null}
 

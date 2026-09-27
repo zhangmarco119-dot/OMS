@@ -202,7 +202,10 @@ describe('TodoPage AI product creation draft', () => {
       <Routes><Route element={<TodoPage />} path="/app/todos" /></Routes>
     </MemoryRouter>);
 
-    expect(await screen.findByRole('checkbox', { name: '选择任务：任务一' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '批量审批' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: '选择任务：任务一' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '批量审批' }));
+    expect(screen.getByRole('checkbox', { name: '选择任务：任务一' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '批量通过' })).toBeDisabled();
     fireEvent.click(screen.getByRole('checkbox', { name: '选择任务：任务二' }));
     expect(screen.getByText('已选 1/2 项')).toBeInTheDocument();
@@ -214,5 +217,6 @@ describe('TodoPage AI product creation draft', () => {
     await waitFor(() => expect(reviewV2TasksBatch).toHaveBeenCalledWith(
       {}, [{ id: 'task-2', name: '任务二' }], 'rejected', '重新检查照片', expect.any(Function),
     ));
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: '选择任务：任务一' })).not.toBeInTheDocument());
   });
 });

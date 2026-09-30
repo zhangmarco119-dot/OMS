@@ -33,7 +33,7 @@ vi.mock('../services/product-registration.service', () => ({
 }));
 
 const entry: ProductRegistrationEntry = {
-  created_at: '2026-09-30T08:00:00Z', created_by: 'staff-1', creatorName: '员工甲', id: 'entry-1', images: [], note: '', product_id: null, product_name: '', registration_type: 'packaging', status: 'draft', store_id: 'store-x', unit: '', updated_at: '2026-09-30T08:00:00Z',
+  created_at: '2026-09-30T08:00:00Z', created_by: 'staff-1', creatorName: '员工甲', id: 'entry-1', images: [], note: '', product_id: null, product_name: '', quantity: null, registration_type: 'packaging', status: 'draft', store_id: 'store-x', unit: '', updated_at: '2026-09-30T08:00:00Z',
 };
 
 describe('ProductRegistrationPage', () => {
@@ -54,8 +54,8 @@ describe('ProductRegistrationPage', () => {
     expect(screen.getByRole('button', { name: '借用到五道口的货品' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '设备' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '其他' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('货品名称'), { target: { value: '打包' } });
-    fireEvent.click(screen.getByRole('button', { name: /打包袋/ }));
+    fireEvent.change(screen.getByLabelText('货品名称'), { target: { value: '打包袋' } });
+    fireEvent.blur(screen.getByLabelText('货品名称'));
     expect(screen.getByLabelText('单位')).toHaveValue('箱');
     await waitFor(() => expect(updateProductRegistrationEntry).toHaveBeenCalledWith(expect.anything(), 'entry-1', expect.objectContaining({ product_id: 'product-1', unit: '箱' })));
   });
@@ -75,5 +75,15 @@ describe('ProductRegistrationPage', () => {
     await screen.findByText('待填写货品名称');
     fireEvent.click(screen.getByRole('button', { name: '增加货品登记条目' }));
     await waitFor(() => expect(createProductRegistrationEntry).toHaveBeenCalledWith(expect.anything(), { creatorId: 'staff-1', storeId: 'store-x', type: 'packaging' }));
+  });
+
+  it('keeps the category row compact and places the add action after the registered entries', async () => {
+    render(<MemoryRouter><ProductRegistrationPage /></MemoryRouter>);
+    const card = await screen.findByText('待填写货品名称');
+    const addButton = screen.getByRole('button', { name: '增加货品登记条目' });
+    expect(screen.queryByText(/登记会自动实时保存/)).not.toBeInTheDocument();
+    expect(screen.queryByText('西直门货品库匹配结果')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('数量')).toBeInTheDocument();
+    expect(card.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

@@ -1,4 +1,4 @@
-import { BarChart3, Bell, BookOpenCheck, Bot, CalendarClock, CircleDollarSign, ClipboardList, FileText, History, Landmark, PackageCheck, PackagePlus, ScrollText, ShoppingBag, Users } from 'lucide-react';
+import { BarChart3, Bell, BookOpenCheck, Bot, CalendarClock, CircleDollarSign, ClipboardList, FileText, History, Landmark, PackageCheck, PackagePlus, ScrollText, ShoppingBag, Tags, Users } from 'lucide-react';
 import { PageShell } from '../components/layout/PageShell';
 import { FeatureCard } from '../components/ui/Surface';
 import { featureFlags } from '../config/featureFlags';
@@ -13,12 +13,14 @@ export function AppMenuPage() {
   const isPartTime = auth.profile?.employment_type === 'part_time';
   const canUseV2 = canOperateV2Modules(auth.profile?.role);
   const canUseOperationReports = Boolean(auth.store?.name.includes('西直门'));
+  const canUseProductRegistration = Boolean(auth.store?.name.includes('西直门'));
   const items = isAdmin ? [
     { icon: ClipboardList, label: '任务管理', note: '发布、模板、周期与审核', to: '/app/admin/tasks' },
     { icon: PackageCheck, label: '到货中心', note: '到货消息、记录和汇总', to: '/app/admin/arrivals' },
     { icon: Bell, label: '公告管理', note: '发布公告并查看员工已读情况', to: '/app/admin/announcements' },
     { icon: BookOpenCheck, label: 'SOP 管理', note: '制作、发布和归档作业流程', to: '/app/admin/sops' },
     { icon: ShoppingBag, label: '货品管理', note: '货品维护、导入与导出', to: '/app/admin/products' },
+    { icon: Tags, label: '货品登记', note: '查看西直门员工货品登记', to: '/app/admin/product-registrations' },
     { icon: Users, label: '员工管理', note: '账号权限与员工档案', to: '/app/admin/users' },
     { icon: CalendarClock, label: '考勤管理', note: '同步钉钉考勤、绑定员工与查看异常', to: '/app/admin/attendance' },
     { icon: CircleDollarSign, label: '薪资管理', note: '预估工资、参数、提成与处罚管理', to: '/app/admin/payroll' },
@@ -33,6 +35,7 @@ export function AppMenuPage() {
     { icon: ClipboardList, label: '点货', note: '录入实际库存并自动保存', to: '/app/inventory' },
     { icon: PackagePlus, label: '订货', note: '填写订货数量和无需订货', to: '/app/order' },
     ...(featureFlags.arrivalEntry && canUseV2 ? [{ icon: PackageCheck, label: '到货上报', note: '登记到货并查看本店历史', to: '/app/arrivals' }] : []),
+    ...(canUseProductRegistration ? [{ icon: Tags, label: '货品登记', note: '按类别登记货品并上传现场照片', to: '/app/product-registrations' }] : []),
     ...(featureFlags.taskTemplates && canUseV2 ? [{ icon: ClipboardList, label: '任务中心', note: '处理周清、月清和临时任务', to: '/app/tasks' }] : []),
     ...(featureFlags.noticesAndSops && canUseV2 ? [{ icon: Bell, label: '门店公告', note: '查看公告和已读状态', to: '/app/notices' }, { icon: BookOpenCheck, label: 'SOP 手册', note: '查看标准作业流程', to: '/app/sops' }] : []),
     { icon: CalendarClock, label: '我的考勤', note: '查看月度出勤、迟到与异常记录', to: '/app/attendance' },

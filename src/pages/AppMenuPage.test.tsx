@@ -21,6 +21,7 @@ describe('AppMenuPage administrator workbench', () => {
     expect(screen.getByRole('link', { name: /公告管理/ })).toHaveAttribute('href', '/app/admin/announcements');
     expect(screen.getByRole('link', { name: /SOP 管理/ })).toHaveAttribute('href', '/app/admin/sops');
     expect(screen.getByRole('link', { name: /货品管理/ })).toHaveAttribute('href', '/app/admin/products');
+    expect(screen.getByRole('link', { name: /货品登记/ })).toHaveAttribute('href', '/app/admin/product-registrations');
     expect(screen.getByRole('link', { name: /员工管理/ })).toHaveAttribute('href', '/app/admin/users');
     expect(screen.getByRole('link', { name: /考勤管理/ })).toHaveAttribute('href', '/app/admin/attendance');
     expect(screen.getByRole('link', { name: /薪资管理/ })).toHaveAttribute('href', '/app/admin/payroll');
@@ -45,6 +46,12 @@ describe('AppMenuPage administrator workbench', () => {
     expect(screen.getByRole('link', { name: /自主延时工作登记/ })).toHaveAttribute('href', '/app/overtime');
     expect(screen.queryByRole('link', { name: /考勤管理/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /AI 质检试点/ })).not.toBeInTheDocument();
+  });
+
+  it('shows product registration only to Xizhimen store staff and managers', () => {
+    vi.mocked(useAuth).mockReturnValue({ profile: { role: 'manager' }, store: { id: 'store-x', name: 'OMEGA酸奶（西直门店）' } } as ReturnType<typeof useAuth>);
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AppMenuPage /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /货品登记/ })).toHaveAttribute('href', '/app/product-registrations');
   });
 
   it('keeps the AI pilot invisible to store managers', () => {

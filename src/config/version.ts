@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-09-30',
+    highlights: [
+      '西直门员工与店长可按打包、遗弃、借用、设备和其他五类登记货品，并实时保存图片与内容。',
+      '管理员工作台新增货品登记查看入口，可实时只读查看西直门员工登记。',
+    ],
+    title: '新增西直门货品登记',
+    version: 'StoreHub v3.0.35',
+  },
+  {
     date: '2026-09-27',
     highlights: [
       '任务审批列表默认隐藏多选框，进入批量审批模式后才显示选择与批量操作。',

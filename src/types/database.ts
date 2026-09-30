@@ -610,6 +610,18 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['product_creation_requests']['Insert']>;
         Relationships: [];
       };
+      product_registration_entries: {
+        Row: { created_at: string; created_by: string; id: string; note: string; product_id: string | null; product_name: string; registration_type: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status: 'draft' | 'completed'; store_id: string; unit: string; updated_at: string };
+        Insert: { created_at?: string; created_by: string; id?: string; note?: string; product_id?: string | null; product_name?: string; registration_type: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status?: 'draft' | 'completed'; store_id: string; unit?: string; updated_at?: string };
+        Update: { created_at?: string; created_by?: string; id?: string; note?: string; product_id?: string | null; product_name?: string; registration_type?: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status?: 'draft' | 'completed'; store_id?: string; unit?: string; updated_at?: string };
+        Relationships: [];
+      };
+      product_registration_images: {
+        Row: { bucket: 'product-registration-images'; created_at: string; entry_id: string; file_name: string; height: number | null; id: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; size_bytes: number; store_id: string; uploaded_by: string; width: number | null };
+        Insert: { bucket?: 'product-registration-images'; created_at?: string; entry_id: string; file_name: string; height?: number | null; id?: string; mime_type: 'image/jpeg' | 'image/png' | 'image/webp'; object_path: string; size_bytes: number; store_id: string; uploaded_by: string; width?: number | null };
+        Update: { bucket?: 'product-registration-images'; entry_id?: string; file_name?: string; height?: number | null; id?: string; mime_type?: 'image/jpeg' | 'image/png' | 'image/webp'; object_path?: string; size_bytes?: number; store_id?: string; uploaded_by?: string; width?: number | null };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           created_at: string;

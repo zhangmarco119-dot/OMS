@@ -43,6 +43,7 @@ import { OperationsHistoryPage } from './pages/OperationsHistoryPage';
 import { OvertimePage } from './pages/OvertimePage';
 import { OperationReportDetailPage } from './pages/OperationReportDetailPage';
 import { OperationReportsPage } from './pages/OperationReportsPage';
+import { ProductRegistrationPage } from './pages/ProductRegistrationPage';
 import { RouteErrorPage } from './pages/RouteErrorPage';
 import { SopLibraryPage } from './pages/SopLibraryPage';
 import { SopDetailPage } from './pages/SopDetailPage';
@@ -99,6 +100,7 @@ export const router = createBrowserRouter([
       { path: 'overtime', element: <OvertimePage /> },
       { path: 'operation-reports', element: <OperationReportsPage /> },
       { path: 'operation-reports/:reportId', element: <OperationReportDetailPage /> },
+      { path: 'product-registrations', element: <ProductRegistrationPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/about', element: <ProtectedRoute><AboutSystemPage /></ProtectedRoute> },
       { path: 'account/about/manual/:manualSlug', element: <ProtectedRoute><SystemManualPage /></ProtectedRoute> },
@@ -115,6 +117,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'admin/products', element: <ProtectedRoute requireAdmin><AdminProductsPage /></ProtectedRoute> },
+      { path: 'admin/product-registrations', element: <ProtectedRoute requireAdmin><ProductRegistrationPage adminView /></ProtectedRoute> },
       { path: 'admin/ai-review', element: <ProtectedRoute requireAdmin><AdminAiReviewPage /></ProtectedRoute> },
       { path: 'admin/products/correction-task', element: <ProtectedRoute requireAdmin><AdminProductCorrectionTaskPage /></ProtectedRoute> },
       { path: 'admin/users', element: <ProtectedRoute requireAdmin><AdminUsersPage /></ProtectedRoute> },

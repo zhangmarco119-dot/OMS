@@ -78,13 +78,13 @@ export function ProductRegistrationPage({ adminView = false }: { adminView?: boo
 
   useEffect(() => {
     const client = supabase;
-    if (!client || !store) return undefined;
-    const channel = client.channel(`product-registration:${store.id}:${adminView ? 'admin' : auth.profile?.id ?? 'staff'}`)
+    if (!client || !store || !adminView) return undefined;
+    const channel = client.channel(`product-registration:${store.id}:admin`)
       .on('postgres_changes', { event: '*', filter: `store_id=eq.${store.id}`, schema: 'public', table: 'product_registration_entries' }, () => void reload())
       .on('postgres_changes', { event: '*', filter: `store_id=eq.${store.id}`, schema: 'public', table: 'product_registration_images' }, () => void reload())
       .subscribe();
     return () => { void client.removeChannel(channel); };
-  }, [adminView, auth.profile?.id, reload, store]);
+  }, [adminView, reload, store]);
 
   const updateEntry = (entryId: string, patch: Partial<EntryPatch>) => {
     const client = supabase;
@@ -105,7 +105,7 @@ export function ProductRegistrationPage({ adminView = false }: { adminView?: boo
     setMessage('');
     try {
       const created = await createProductRegistrationEntry(supabase, { creatorId: auth.profile.id, storeId: store.id, type });
-      setEntries((current) => [{ ...created, creatorName: auth.profile?.display_name ?? '我' }, ...current]);
+      setEntries((current) => [...current, { ...created, creatorName: auth.profile?.display_name ?? '我' }]);
     } catch (error) { setMessage(error instanceof Error ? error.message : '新增登记条目失败。'); }
   };
 

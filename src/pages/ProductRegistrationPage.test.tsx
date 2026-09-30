@@ -76,4 +76,13 @@ describe('ProductRegistrationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '增加货品登记条目' }));
     await waitFor(() => expect(createProductRegistrationEntry).toHaveBeenCalledWith(expect.anything(), { creatorId: 'staff-1', storeId: 'store-x', type: 'packaging' }));
   });
+
+  it('keeps the category row compact and places the add action after the registered entries', async () => {
+    render(<MemoryRouter><ProductRegistrationPage /></MemoryRouter>);
+    const card = await screen.findByText('待填写货品名称');
+    const addButton = screen.getByRole('button', { name: '增加货品登记条目' });
+    expect(screen.queryByText(/登记会自动实时保存/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('备注（选填）')).not.toBeInTheDocument();
+    expect(card.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

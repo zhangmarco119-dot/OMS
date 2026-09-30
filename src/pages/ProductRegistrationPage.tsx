@@ -25,10 +25,10 @@ import {
   type RegistrationProduct,
 } from '../services/product-registration.service';
 
-type EntryPatch = Pick<ProductRegistrationEntry, 'product_id' | 'product_name' | 'unit'>;
+type EntryPatch = Pick<ProductRegistrationEntry, 'product_id' | 'product_name' | 'quantity' | 'unit'>;
 
 const isXizhimen = (name?: string) => Boolean(name?.includes('西直门'));
-const complete = (entry: ProductRegistrationEntry) => Boolean(entry.product_name.trim() && entry.unit.trim() && entry.images.length > 0);
+const complete = (entry: ProductRegistrationEntry) => Boolean(entry.product_name.trim() && entry.quantity !== null && entry.unit.trim() && entry.images.length > 0);
 
 export function ProductRegistrationPage({ adminView = false }: { adminView?: boolean }) {
   const auth = useAuth();
@@ -150,8 +150,6 @@ function RegistrationCard({ adminView, entry, imagesLoading, onDelete, onDeleteI
   const [uploadError, setUploadError] = useState('');
   const [activeImage, setActiveImage] = useState<number | null>(null);
   const readonly = adminView;
-  const query = entry.product_name.trim().toLocaleLowerCase();
-  const matches = query ? products.filter((product) => product.name.toLocaleLowerCase().includes(query)).slice(0, 6) : [];
   const chooseProduct = (product: RegistrationProduct) => onUpdate({ product_id: product.id, product_name: product.name, unit: product.count_unit });
   const uploadFiles = (files: FileList | null) => {
     if (!files) return;
@@ -166,10 +164,9 @@ function RegistrationCard({ adminView, entry, imagesLoading, onDelete, onDeleteI
   const images = entry.images.flatMap((image) => image.signedUrl ? [{ alt: image.file_name, url: image.signedUrl }] : []);
   return <article className="ui-card p-4">
     <div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-900">{entry.product_name || '待填写货品名称'}</p><p className="mt-1 text-xs text-slate-500">{adminView ? `登记人：${entry.creatorName} · ` : ''}更新于 {new Date(entry.updated_at).toLocaleString('zh-CN')}</p></div><StatusBadge tone={complete(entry) ? 'success' : 'warning'}>{complete(entry) ? '已完成' : '待完善'}</StatusBadge></div>
-    {readonly ? <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-sm"><span className="text-slate-500">单位</span><b>{entry.unit || '未填写'}</b><span className="text-slate-500">货品来源</span><b>{entry.product_id ? '西直门货品库' : '手动新建'}</b></div> : <div className="mt-3 space-y-3">
-      <label className="block text-sm font-semibold text-slate-700">货品名称<input className="ui-input mt-1" onBlur={() => { const exact = products.find((product) => product.name.trim() === entry.product_name.trim()); if (exact) chooseProduct(exact); }} onChange={(event) => onUpdate({ product_id: null, product_name: event.target.value })} placeholder="检索西直门货品库，或直接输入新名称" value={entry.product_name} /></label>
-      {query ? <div className="rounded-lg border border-slate-200 bg-white p-2"><p className="px-2 pb-1 text-xs font-semibold text-slate-500">西直门货品库匹配结果</p>{matches.length ? matches.map((product) => <button className="flex min-h-10 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-sm hover:bg-brand-50" key={product.id} onClick={() => chooseProduct(product)} type="button"><span className="min-w-0 truncate font-semibold">{product.name}<span className="ml-1 text-xs font-normal text-slate-500">{product.spec}</span></span><span className="shrink-0 text-brand-700">{product.count_unit}</span></button>) : <p className="px-2 py-2 text-xs leading-5 text-slate-500">货品库中未找到该名称，可继续作为新货品登记，并手动填写单位。</p>}</div> : null}
-      <label className="block text-sm font-semibold text-slate-700">单位<input className="ui-input mt-1" onChange={(event) => onUpdate({ unit: event.target.value })} placeholder="如：个、箱、台" value={entry.unit} /></label>
+    {readonly ? <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-sm"><span className="text-slate-500">数量</span><b>{entry.quantity ?? '未填写'}</b><span className="text-slate-500">单位</span><b>{entry.unit || '未填写'}</b><span className="text-slate-500">货品来源</span><b>{entry.product_id ? '西直门货品库' : '手动新建'}</b></div> : <div className="mt-3 space-y-3">
+      <div><label className="block text-sm font-semibold text-slate-700" htmlFor={`product-name-${entry.id}`}>货品名称</label><input className="ui-input mt-1" id={`product-name-${entry.id}`} list={`registration-product-options-${entry.id}`} onBlur={() => { const exact = products.find((product) => product.name.trim() === entry.product_name.trim()); if (exact) chooseProduct(exact); }} onChange={(event) => onUpdate({ product_id: null, product_name: event.target.value })} placeholder="检索西直门货品库，或直接输入新名称" value={entry.product_name} /><datalist id={`registration-product-options-${entry.id}`}>{products.map((product) => <option key={product.id} value={product.name}>{product.spec ? `${product.spec} · ${product.count_unit}` : product.count_unit}</option>)}</datalist></div>
+      <div className="grid grid-cols-2 gap-3"><label className="block text-sm font-semibold text-slate-700" htmlFor={`quantity-${entry.id}`}>数量<input className="ui-input mt-1" id={`quantity-${entry.id}`} inputMode="decimal" min="0" onChange={(event) => { const value = event.target.value; onUpdate({ quantity: value === '' ? null : Number(value) }); }} placeholder="填写数量" step="any" type="number" value={entry.quantity ?? ''} /></label><label className="block text-sm font-semibold text-slate-700" htmlFor={`unit-${entry.id}`}>单位<input className="ui-input mt-1" id={`unit-${entry.id}`} onChange={(event) => onUpdate({ unit: event.target.value })} placeholder="如：个、箱、台" value={entry.unit} /></label></div>
       <p className="text-xs font-semibold text-slate-500">{saving ? '正在自动保存…' : '已自动保存'}</p>
     </div>}
     <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-900">现场照片 <span className="text-red-600">*</span></p><p className="mt-1 text-xs text-slate-500">至少上传 1 张，已上传 {entry.images.length} 张。</p></div>{!readonly ? <div className="grid shrink-0 grid-cols-2 gap-2"><button className="ui-button-primary min-h-10 px-3" onClick={() => cameraRef.current?.click()} type="button"><Camera className="h-4 w-4" />拍照</button><button className="ui-button-secondary min-h-10 px-3" onClick={() => albumRef.current?.click()} type="button"><ImagePlus className="h-4 w-4" />相册</button></div> : null}</div>

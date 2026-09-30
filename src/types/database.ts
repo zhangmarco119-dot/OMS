@@ -611,9 +611,9 @@ export type Database = {
         Relationships: [];
       };
       product_registration_entries: {
-        Row: { created_at: string; created_by: string; id: string; note: string; product_id: string | null; product_name: string; registration_type: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status: 'draft' | 'completed'; store_id: string; unit: string; updated_at: string };
-        Insert: { created_at?: string; created_by: string; id?: string; note?: string; product_id?: string | null; product_name?: string; registration_type: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status?: 'draft' | 'completed'; store_id: string; unit?: string; updated_at?: string };
-        Update: { created_at?: string; created_by?: string; id?: string; note?: string; product_id?: string | null; product_name?: string; registration_type?: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status?: 'draft' | 'completed'; store_id?: string; unit?: string; updated_at?: string };
+        Row: { created_at: string; created_by: string; id: string; note: string; product_id: string | null; product_name: string; quantity: number | null; registration_type: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status: 'draft' | 'completed'; store_id: string; unit: string; updated_at: string };
+        Insert: { created_at?: string; created_by: string; id?: string; note?: string; product_id?: string | null; product_name?: string; quantity?: number | null; registration_type: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status?: 'draft' | 'completed'; store_id: string; unit?: string; updated_at?: string };
+        Update: { created_at?: string; created_by?: string; id?: string; note?: string; product_id?: string | null; product_name?: string; quantity?: number | null; registration_type?: 'packaging' | 'abandoned' | 'loaned_to_wudaokou' | 'equipment' | 'other'; status?: 'draft' | 'completed'; store_id?: string; unit?: string; updated_at?: string };
         Relationships: [];
       };
       product_registration_images: {

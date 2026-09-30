@@ -68,7 +68,7 @@ export const createProductRegistrationEntry = async (client: Client, input: { cr
   return { ...data, creatorName: '', images: [] } as ProductRegistrationEntry;
 };
 
-export const updateProductRegistrationEntry = async (client: Client, entryId: string, patch: Pick<Database['public']['Tables']['product_registration_entries']['Update'], 'note' | 'product_id' | 'product_name' | 'unit'>) => {
+export const updateProductRegistrationEntry = async (client: Client, entryId: string, patch: Pick<Database['public']['Tables']['product_registration_entries']['Update'], 'product_id' | 'product_name' | 'quantity' | 'unit'>) => {
   const { error } = await client.from('product_registration_entries').update(patch).eq('id', entryId);
   if (error) throw new Error(error.message);
 };

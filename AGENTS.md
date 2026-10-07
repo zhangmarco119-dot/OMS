@@ -7,6 +7,13 @@
 - Run `pnpm run release:check` for the development commit and again for the production merge commit. Do not describe a change as released until both branches are pushed and their deployed `version.json` files are verified.
 - Preserve unrelated working-tree files and changes.
 
+## Android parity convention
+
+- Android reuses the deployed React application in `android/`; never create a second implementation of business screens or a separate Android database. Production loads `https://oms-store-management.pages.dev`; development loads `https://oms-store-development.pages.dev`.
+- Every feature change applies to web and Android together through the shared deployment. Preserve existing realtime subscriptions; cross-device visibility follows server saves and refresh/subscription behavior, while unsaved local drafts and login sessions remain device-local.
+- Changes affecting navigation, authentication, images, uploads, camera, downloads or browser APIs must be checked in the Android WebView as well as the browser. Run `pnpm android:build` and `pnpm android:check` for Android shell changes. Do not claim authenticated parity or two-device synchronization without testing them.
+- Keep APK signing keys and passwords outside Git. Shell updates require a new signed APK using the same signing key; web feature updates use the existing release/update mechanism.
+
 ## Image-loading UX convention
 
 - Page data and layout must render as soon as their non-image data is available. Never await image signing, downloading, or browser decoding before displaying the page, list, detail card, editor, or modal.

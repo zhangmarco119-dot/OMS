@@ -15,6 +15,7 @@ export default tseslint.config(
       'node_modules',
       'reference',
       'qmai-cli-main',
+      'android',
     ],
   },
   js.configs.recommended,

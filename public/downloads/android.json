@@ -1,0 +1,13 @@
+{
+    "version":  "3.0.39",
+    "packages":  {
+                     "development":  {
+                                         "sha256":  "4f1a27f20df3c78f9767f38cfb0defca306ecafb17f0f7d122a55aba6698a46e",
+                                         "path":  "/downloads/storehub-development.apk"
+                                     },
+                     "production":  {
+                                        "sha256":  "f6337642c7a7ceb9d4acb2bfbd96abaf46ed7bb705e07b9b7102e7a675b76766",
+                                        "path":  "/downloads/storehub-production.apk"
+                                    }
+                 }
+}

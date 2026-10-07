@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, Eye, EyeOff, Lock, Store, User } from 'lucide-react';
+import { ArrowRight, Download, Eye, EyeOff, Lock, Store, User } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { FormField } from '../components/ui/FormField';
 import { loginSchema, type LoginFormValues } from '../features/auth/loginSchema';
 import { hasSupabaseConfig } from '../lib/env';
 import { systemVersion } from '../config/version';
+import { currentRelease } from '../config/release';
 
 export function LoginPage() {
   const auth = useAuth();
@@ -128,6 +129,10 @@ export function LoginPage() {
         </div>
       </form>
       <p className="mt-4 text-xs font-medium text-slate-500">{systemVersion}</p>
+      <a className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-brand-700" download href={`/downloads/storehub-${currentRelease.environment}.apk`}>
+        <Download aria-hidden="true" className="h-4 w-4" />
+        {currentRelease.environment === 'development' ? '下载安卓测试版' : '下载安卓 APP'}
+      </a>
     </main>
   );
 }

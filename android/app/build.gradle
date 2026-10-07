@@ -1,0 +1,60 @@
+plugins { id 'com.android.application' }
+def storehub = new groovy.json.JsonSlurper().parse(file('../../package.json'))
+def parts = storehub.version.tokenize('.').collect { it.toInteger() }
+def productionUrl = providers.gradleProperty('storehubProductionUrl').orElse('https://oms-store-management.pages.dev').get()
+if (productionUrl && !(productionUrl ==~ /https:\/\/[a-zA-Z0-9.-]+(:443)?/)) {
+    throw new GradleException('storehubProductionUrl must be an HTTPS origin without a path.')
+}
+android {
+    namespace 'com.storehub.app'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.storehub.app'
+        minSdk 29
+        targetSdk 36
+        versionCode parts[0] * 1000000 + parts[1] * 1000 + parts[2]
+        versionName storehub.version
+    }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    flavorDimensions += 'environment'
+    productFlavors {
+        development {
+            dimension 'environment'
+            applicationIdSuffix '.development'
+            resValue 'string', 'app_name', 'StoreHub 测试版'
+            buildConfigField 'String', 'WEB_ORIGIN', '"https://oms-store-development.pages.dev"'
+        }
+        production {
+            dimension 'environment'
+            resValue 'string', 'app_name', 'StoreHub'
+            buildConfigField 'String', 'WEB_ORIGIN', '"' + productionUrl + '"'
+        }
+    }
+    buildTypes {
+        release {
+            def signingFile = rootProject.file('signing.properties')
+            if (signingFile.exists()) {
+                def values = new Properties()
+                signingFile.withInputStream { values.load(it) }
+                signingConfigs.create('storehubRelease') {
+                    storeFile rootProject.file(values.storeFile)
+                    storePassword values.storePassword
+                    keyAlias values.keyAlias
+                    keyPassword values.keyPassword
+                }
+                signingConfig signingConfigs.storehubRelease
+            }
+        }
+    }
+}
+tasks.configureEach {
+    if (name.startsWith('assembleProduction') || name.startsWith('bundleProduction')) {
+        doFirst { if (!productionUrl) throw new GradleException('Provide -PstorehubProductionUrl=https://your-production-host') }
+    }
+}
+dependencies {
+    implementation 'androidx.activity:activity:1.13.0'
+    implementation 'androidx.webkit:webkit:1.14.0'
+    implementation 'androidx.core:core:1.17.0'
+}

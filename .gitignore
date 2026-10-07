@@ -16,6 +16,7 @@ supabase/.temp/
 playwright-report/
 test-results/
 .vite-dev.*.log
+.tmp-android-emulator*.log
 phase1-mobile-preview.png
 phase3-login-mobile-preview.png
 supabase-config-login-preview.png

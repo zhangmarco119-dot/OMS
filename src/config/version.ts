@@ -8,6 +8,15 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-10-07',
+    highlights: [
+      '新增安卓 APP，复用网页版全部功能页面、账号权限和同一套后端数据。',
+      '安卓支持文件上传、拍照、文件保存、返回导航和连接失败重试；网页功能发布同步适用于 APP。',
+    ],
+    title: '新增 StoreHub 安卓应用',
+    version: 'StoreHub v3.0.39',
+  },
+  {
     date: '2026-09-30',
     highlights: [
       '货品登记新增条目会追加到当前列表末尾，不再插入到最上方。',

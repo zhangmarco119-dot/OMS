@@ -1,7 +1,7 @@
 {
   "name": "mobile-store-inventory-ordering",
   "private": true,
-  "version": "3.0.38",
+  "version": "3.0.39",
   "type": "module",
   "scripts": {
     "env:check": "node scripts/verify-environment.mjs",
@@ -10,6 +10,9 @@
     "manuals:sync": "node scripts/sync-system-documents.mjs",
     "release:version:check": "node scripts/check-release-version.mjs",
     "release:check": "node scripts/release-gate.mjs",
+    "android:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1",
+    "android:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1 -BuildType Release",
+    "android:check": "node scripts/android-smoke.mjs",
     "dev": "vite --host 0.0.0.0",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",

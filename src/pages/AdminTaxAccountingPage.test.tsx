@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
 import { savePayrollIndividualTaxes } from '../services/payroll.service';
@@ -28,12 +28,16 @@ const data = {
 
 describe('AdminTaxAccountingPage individual tax register', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-20T12:00:00+08:00'));
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ profile: { id: 'admin-1', role: 'admin' } } as never);
     vi.mocked(loadTaxAccountingData).mockResolvedValue(data as never);
     vi.mocked(savePayrollIndividualTaxes).mockResolvedValue({ month: '2026-08-01', reconfirmationCount: 0, savedCount: 1, syncedPayslipCount: 1 });
     vi.mocked(saveTaxPerson).mockImplementation(async (_client, _actor, input) => ({ id: input.id ?? 'new-person' }) as never);
   });
+
+  afterEach(() => { vi.useRealTimers(); });
 
   it('registers actual monthly tax and explains payslip synchronization', async () => {
     render(<MemoryRouter><AdminTaxAccountingPage /></MemoryRouter>);
@@ -55,7 +59,7 @@ describe('AdminTaxAccountingPage individual tax register', () => {
     vi.mocked(saveTaxMonthlySalary).mockResolvedValue(undefined);
     render(<MemoryRouter><AdminTaxAccountingPage /></MemoryRouter>);
 
-    fireEvent.click(await screen.findByRole('button', { name: '2026年09月' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^\d{4}年\d{2}月$/ }));
     fireEvent.click(within(screen.getByRole('dialog', { name: '统计月份选择器' })).getByRole('button', { name: '8 月' }));
     await waitFor(() => expect(loadTaxAccountingData).toHaveBeenLastCalledWith(expect.anything(), '2026-08'));
 

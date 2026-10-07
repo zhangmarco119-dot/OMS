@@ -9,3 +9,11 @@
 
 /index.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/downloads/*.apk
+  Content-Type: application/vnd.android.package-archive
+  Content-Disposition: attachment
+  Cache-Control: no-store, max-age=0
+
+/downloads/android.json
+  Cache-Control: no-store, max-age=0

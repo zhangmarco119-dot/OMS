@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { verifyCurrentEnvironment } from './verify-environment.mjs';
@@ -12,12 +13,14 @@ const runPnpm = (args) => {
       cwd: root,
       encoding: 'utf8',
       env: process.env,
+      timeout: 120000,
     });
   }
   return spawnSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', args, {
     cwd: root,
     encoding: 'utf8',
     env: process.env,
+    timeout: 120000,
   });
 };
 
@@ -27,6 +30,16 @@ export const compareMigrationRows = (rows) => rows.flatMap((row) => {
   if (row.local !== row.remote) return [`Migration 状态不一致：local=${row.local}, remote=${row.remote}`];
   return [];
 });
+
+export const compareMigrationVersions = (localVersions, remoteRows) => {
+  if (!Array.isArray(remoteRows) || !remoteRows.length || remoteRows.some(row => typeof row.version !== 'string' || !/^\d+$/.test(row.version))) {
+    throw new Error('远端 Migration 版本响应无效，不能跳过校验。');
+  }
+  const remoteVersions = remoteRows.map(row => row.version);
+  if (new Set(remoteVersions).size !== remoteVersions.length) throw new Error('远端 Migration 版本重复。');
+  const versions = [...new Set([...localVersions, ...remoteVersions])].sort();
+  return compareMigrationRows(versions.map(version => ({local:localVersions.includes(version) ? version : null, remote:remoteVersions.includes(version) ? version : null})));
+};
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
@@ -38,30 +51,35 @@ if (isMain) {
   }
 
   const result = runPnpm([
-    'dlx',
-    'supabase@latest',
-    'migration',
-    'list',
+    'exec',
+    'supabase',
+    'db',
+    'query',
     '--linked',
-    '--output-format',
+    '--output',
     'json',
     '--agent',
     'no',
+    'select version from supabase_migrations.schema_migrations order by version',
   ]);
-  if (result.status !== 0) {
+  // Management API avoids direct PostgreSQL connections that can be blocked
+  // while still reading the actual linked project's migration history.
+  let payload;
+  try { payload = JSON.parse(result.stdout); } catch { /* Report CLI failure below. */ }
+  if (!payload) {
     process.stderr.write(result.stderr || result.stdout || 'Supabase CLI 执行失败。\n');
     process.exit(result.status ?? 1);
   }
 
   try {
-    const payload = JSON.parse(result.stdout);
-    const errors = compareMigrationRows(payload.migrations ?? []);
+    const localVersions = readdirSync(path.join(root,'supabase/migrations')).filter(name => /^\d+_.+\.sql$/.test(name)).map(name => name.match(/^(\d+)_/)[1]);
+    const errors = compareMigrationVersions(localVersions,payload);
     if (errors.length) {
       console.error('远端 Migration 状态检查失败：');
       errors.forEach((error) => console.error(`- ${error}`));
       process.exit(1);
     }
-    console.log(`远端 Migration 状态一致：${payload.migrations?.length ?? 0} 个版本，项目 ${environment.expectedProjectRef}。`);
+    console.log(`远端 Migration 状态一致：${payload.length} 个版本，项目 ${environment.expectedProjectRef}（只读管理接口）。`);
   } catch (error) {
     console.error(`无法解析 Supabase Migration 状态：${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

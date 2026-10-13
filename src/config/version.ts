@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-13',
+    highlights: ['迁移检查通过只读管理接口核对真实数据库版本，避免受限环境的数据库直连等待。'],
+    title: '完善自托管环境迁移检查',
+    version: 'StoreHub v3.0.42',
+  },
+  {
+    date: '2026-10-13',
     highlights: ['正式环境支持独立自托管后端，正式与测试数据、密钥和连接保持隔离。'],
     title: '恢复正式环境服务',
     version: 'StoreHub v3.0.41',

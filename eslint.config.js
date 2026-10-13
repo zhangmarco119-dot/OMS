@@ -43,4 +43,10 @@ export default tseslint.config(
       },
     },
   },
+  {
+    files: ['public/_worker.js', 'scripts/development-backend-proxy.test.mjs'],
+    languageOptions: {
+      globals: { fetch: 'readonly', Request: 'readonly', Response: 'readonly', URL: 'readonly', Headers: 'readonly' },
+    },
+  },
 );

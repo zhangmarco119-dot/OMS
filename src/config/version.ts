@@ -8,6 +8,18 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-10-13',
+    highlights: ['正式环境支持独立自托管后端，正式与测试数据、密钥和连接保持隔离。'],
+    title: '恢复正式环境服务',
+    version: 'StoreHub v3.0.41',
+  },
+  {
+    date: '2026-10-13',
+    highlights: ['开发测试环境支持独立自托管后端，保留原有账号和业务数据。'],
+    title: '恢复开发测试环境服务',
+    version: 'StoreHub v3.0.40',
+  },
+  {
     date: '2026-10-07',
     highlights: [
       '新增安卓 APP，复用网页版全部功能页面、账号权限和同一套后端数据。',

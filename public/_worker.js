@@ -18,16 +18,23 @@ export async function proxyDevelopmentBackend(request, env, fetcher = fetch) {
     return new Response('Not found', {status:404});
   }
   let origin;
+  let cloudOrigin = false;
   try {
     origin = new URL(env[binding]);
-    if (origin.protocol !== 'https:' || !/^[a-z0-9-]+\.trycloudflare\.com$/.test(origin.hostname)
+    cloudOrigin = url.hostname === 'oms-store-management.pages.dev'
+      && origin.hostname === 'storehub-prod.43-163-113-19.sslip.io';
+    if (origin.protocol !== 'https:' || (!cloudOrigin && !/^[a-z0-9-]+\.trycloudflare\.com$/.test(origin.hostname))
       || origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password || origin.port) throw new Error('Invalid origin');
+    if (cloudOrigin && (typeof env.STOREHUB_PROD_ORIGIN_TOKEN !== 'string' || env.STOREHUB_PROD_ORIGIN_TOKEN.length < 32)) throw new Error('Missing origin authentication');
   } catch {
     return new Response('Backend is unavailable', {status:503,headers:{'Cache-Control':'no-store'}});
   }
   const target = new URL(`${path}${url.search}`, origin);
   try {
-    const upstream = await fetcher(new Request(target.href, request), {redirect:'manual'});
+    const forwarded = new Request(target.href, request);
+    forwarded.headers.delete('X-StoreHub-Origin-Token');
+    if (cloudOrigin) forwarded.headers.set('X-StoreHub-Origin-Token', env.STOREHUB_PROD_ORIGIN_TOKEN);
+    const upstream = await fetcher(forwarded, {redirect:'manual'});
     // Preserve Cloudflare's WebSocket response object and upgrade connection.
     if (upstream.status === 101) return upstream;
     const headers = new Headers(upstream.headers);

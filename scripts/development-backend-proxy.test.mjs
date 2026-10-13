@@ -60,4 +60,13 @@ describe('development-only API proxy',()=>{
     const fetcher=vi.fn(async request=>{expect(request.headers.has('X-StoreHub-Origin-Token')).toBe(false);return new Response('ok');});
     await proxyDevelopmentBackend(new Request('https://oms-store-development.pages.dev/backend/rest/v1/products',{headers:{'X-StoreHub-Origin-Token':'forged'}}),env,fetcher);
   });
+  it('uses the development cloud token only and rejects swapped cloud backends',async()=>{
+    const token='development-private-origin-secret-32-characters';
+    const bindings={...env,STOREHUB_DEV_BACKEND_ORIGIN:'https://storehub-dev.43-163-113-19.sslip.io',STOREHUB_DEV_ORIGIN_TOKEN:token,STOREHUB_PROD_ORIGIN_TOKEN:'different-production-token-32-characters'};
+    const request=()=>new Request('https://oms-store-development.pages.dev/backend/auth/v1/health');
+    const fetcher=vi.fn(async req=>{expect(req.headers.get('X-StoreHub-Origin-Token')).toBe(token);return new Response('ok');});
+    expect((await proxyDevelopmentBackend(request(),bindings,fetcher)).status).toBe(200);
+    expect((await proxyDevelopmentBackend(request(),{...bindings,STOREHUB_DEV_ORIGIN_TOKEN:undefined},fetcher)).status).toBe(503);
+    expect((await proxyDevelopmentBackend(new Request('https://oms-store-management.pages.dev/backend/auth/v1/health'),{...bindings,STOREHUB_PROD_BACKEND_ORIGIN:bindings.STOREHUB_DEV_BACKEND_ORIGIN},fetcher)).status).toBe(503);
+  });
 });

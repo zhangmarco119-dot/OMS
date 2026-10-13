@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-14',
+    highlights: ['测试与正式环境支持各自独立的云端接口和源站校验，保持数据与访问密钥隔离。'],
+    title: '完善测试环境云端连接',
+    version: 'StoreHub v3.0.44',
+  },
+  {
+    date: '2026-10-14',
     highlights: ['正式服务支持独立云端后端，保留账号、业务数据和图片关联，接口连接增加源站校验。'],
     title: '完善云端后端连接',
     version: 'StoreHub v3.0.43',

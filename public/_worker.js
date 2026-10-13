@@ -19,13 +19,14 @@ export async function proxyDevelopmentBackend(request, env, fetcher = fetch) {
   }
   let origin;
   let cloudOrigin = false;
+  const tokenBinding = binding === 'STOREHUB_DEV_BACKEND_ORIGIN' ? 'STOREHUB_DEV_ORIGIN_TOKEN' : 'STOREHUB_PROD_ORIGIN_TOKEN';
   try {
     origin = new URL(env[binding]);
-    cloudOrigin = url.hostname === 'oms-store-management.pages.dev'
-      && origin.hostname === 'storehub-prod.43-163-113-19.sslip.io';
+    cloudOrigin = origin.hostname === (binding === 'STOREHUB_DEV_BACKEND_ORIGIN'
+      ? 'storehub-dev.43-163-113-19.sslip.io' : 'storehub-prod.43-163-113-19.sslip.io');
     if (origin.protocol !== 'https:' || (!cloudOrigin && !/^[a-z0-9-]+\.trycloudflare\.com$/.test(origin.hostname))
       || origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password || origin.port) throw new Error('Invalid origin');
-    if (cloudOrigin && (typeof env.STOREHUB_PROD_ORIGIN_TOKEN !== 'string' || env.STOREHUB_PROD_ORIGIN_TOKEN.length < 32)) throw new Error('Missing origin authentication');
+    if (cloudOrigin && (typeof env[tokenBinding] !== 'string' || env[tokenBinding].length < 32)) throw new Error('Missing origin authentication');
   } catch {
     return new Response('Backend is unavailable', {status:503,headers:{'Cache-Control':'no-store'}});
   }
@@ -33,7 +34,7 @@ export async function proxyDevelopmentBackend(request, env, fetcher = fetch) {
   try {
     const forwarded = new Request(target.href, request);
     forwarded.headers.delete('X-StoreHub-Origin-Token');
-    if (cloudOrigin) forwarded.headers.set('X-StoreHub-Origin-Token', env.STOREHUB_PROD_ORIGIN_TOKEN);
+    if (cloudOrigin) forwarded.headers.set('X-StoreHub-Origin-Token', env[tokenBinding]);
     const upstream = await fetcher(forwarded, {redirect:'manual'});
     // Preserve Cloudflare's WebSocket response object and upgrade connection.
     if (upstream.status === 101) return upstream;

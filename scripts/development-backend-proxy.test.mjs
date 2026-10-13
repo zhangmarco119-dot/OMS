@@ -37,4 +37,27 @@ describe('development-only API proxy',()=>{
     const upgrade={status:101};
     expect(await proxyDevelopmentBackend(new Request('https://oms-store-development.pages.dev/backend/realtime/v1/websocket'),env,async()=>upgrade)).toBe(upgrade);
   });
+  it('authenticates only the pinned production cloud origin and preserves request bodies',async()=>{
+    const token='server-side-origin-token-at-least-32-characters';
+    const fetcher=vi.fn(async request=>{
+      expect(request.url).toBe('https://storehub-prod.43-163-113-19.sslip.io/functions/v1/account-login');
+      expect(request.headers.get('X-StoreHub-Origin-Token')).toBe(token);
+      expect(request.headers.get('authorization')).toBe('Bearer session');
+      expect(await request.text()).toBe('{"identifier":"test"}');
+      return new Response('ok');
+    });
+    const request=new Request('https://oms-store-management.pages.dev/backend/functions/v1/account-login',{method:'POST',headers:{authorization:'Bearer session','X-StoreHub-Origin-Token':'untrusted-client-value'},body:'{"identifier":"test"}'});
+    expect((await proxyDevelopmentBackend(request,{...env,STOREHUB_PROD_BACKEND_ORIGIN:'https://storehub-prod.43-163-113-19.sslip.io',STOREHUB_PROD_ORIGIN_TOKEN:token},fetcher)).status).toBe(200);
+  });
+  it('fails closed for cloud origins on development, other IPs, and missing origin tokens',async()=>{
+    const fetcher=vi.fn();
+    const cloud='https://storehub-prod.43-163-113-19.sslip.io';
+    expect((await proxyDevelopmentBackend(new Request('https://oms-store-development.pages.dev/backend/auth/v1/health'),{...env,STOREHUB_DEV_BACKEND_ORIGIN:cloud},fetcher)).status).toBe(503);
+    for(const origin of [cloud,'https://storehub-prod.43-163-113-20.sslip.io'])expect((await proxyDevelopmentBackend(new Request('https://oms-store-management.pages.dev/backend/auth/v1/health'),{...env,STOREHUB_PROD_BACKEND_ORIGIN:origin},fetcher)).status).toBe(503);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('never passes client-supplied origin secrets into tunnel backends',async()=>{
+    const fetcher=vi.fn(async request=>{expect(request.headers.has('X-StoreHub-Origin-Token')).toBe(false);return new Response('ok');});
+    await proxyDevelopmentBackend(new Request('https://oms-store-development.pages.dev/backend/rest/v1/products',{headers:{'X-StoreHub-Origin-Token':'forged'}}),env,fetcher);
+  });
 });

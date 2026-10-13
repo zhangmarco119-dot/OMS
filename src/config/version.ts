@@ -8,6 +8,12 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-10-14',
+    highlights: ['正式服务支持独立云端后端，保留账号、业务数据和图片关联，接口连接增加源站校验。'],
+    title: '完善云端后端连接',
+    version: 'StoreHub v3.0.43',
+  },
+  {
     date: '2026-10-13',
     highlights: ['迁移检查通过只读管理接口核对真实数据库版本，避免受限环境的数据库直连等待。'],
     title: '完善自托管环境迁移检查',

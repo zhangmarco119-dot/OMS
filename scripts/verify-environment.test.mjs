@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 import { extractSupabaseProjectRef, validateEnvironment } from './verify-environment.mjs';
 
@@ -21,6 +22,16 @@ const policyConfig = {
 };
 
 describe('StoreHub environment guard', () => {
+  it('allows only the registered development self-hosted URL and anon fingerprint', () => {
+    const key = `${Buffer.from('{"alg":"HS256"}').toString('base64url')}.${Buffer.from('{"role":"anon"}').toString('base64url')}.test`;
+    const url = 'https://oms-store-development.pages.dev/backend';
+    const config = {...policyConfig,developmentSelfHosted:{url,anonKeySha256:sha256(key)}};
+    const env = {...base,VITE_APP_ENV:'development',VITE_SUPABASE_URL:url,VITE_SUPABASE_ANON_KEY:key};
+    expect(validateEnvironment({branch:'v2-development',env,policyConfig:config}).errors).toEqual([]);
+    expect(validateEnvironment({branch:'manage-system',env:{...env,VITE_APP_ENV:'production'},policyConfig:config}).errors.length).toBeGreaterThan(0);
+    expect(validateEnvironment({branch:'v2-development',env:{...env,VITE_SUPABASE_ANON_KEY:developmentKey},policyConfig:config}).errors.length).toBeGreaterThan(0);
+    expect(validateEnvironment({branch:'v2-development',env:{...env,VITE_SUPABASE_URL:'https://other.example/backend'},policyConfig:config}).errors.length).toBeGreaterThan(0);
+  });
   it('allows each release branch to use only its assigned project', () => {
     expect(validateEnvironment({ branch: 'v2-development', env: { ...base, VITE_APP_ENV: 'development', VITE_SUPABASE_URL: `https://${developmentRef}.supabase.co`, VITE_SUPABASE_ANON_KEY: developmentKey }, policyConfig }).errors).toEqual([]);
     expect(validateEnvironment({ branch: 'manage-system', env: { ...base, VITE_APP_ENV: 'production', VITE_SUPABASE_URL: `https://${productionRef}.supabase.co`, VITE_SUPABASE_ANON_KEY: productionKey }, policyConfig }).errors).toEqual([]);

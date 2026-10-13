@@ -7,9 +7,9 @@ import packageJson from '../package.json' with { type: 'json' };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const verifyBundleEnvironment = ({ bundleText, expectedProjectRef, forbiddenProjectRefs }) => {
+export const verifyBundleEnvironment = ({ bundleText, expectedProjectRef, expectedBackendUrl, forbiddenProjectRefs }) => {
   const errors = [];
-  const expectedUrl = `https://${expectedProjectRef}.supabase.co`;
+  const expectedUrl = expectedBackendUrl ?? `https://${expectedProjectRef}.supabase.co`;
   if (!bundleText.includes(expectedUrl)) errors.push(`构建产物缺少预期 Supabase URL：${expectedUrl}`);
   for (const projectRef of forbiddenProjectRefs.filter(Boolean)) {
     const forbiddenUrl = `https://${projectRef}.supabase.co`;
@@ -48,7 +48,8 @@ if (isMain) {
   const errors = verifyBundleEnvironment({
     bundleText,
     expectedProjectRef: environment.expectedProjectRef,
-    forbiddenProjectRefs: [forbiddenProjectRef],
+    expectedBackendUrl: environment.expectedBackendUrl,
+    forbiddenProjectRefs: [forbiddenProjectRef, ...(environment.projectRef === null ? [environment.expectedProjectRef] : [])],
   });
   const manifestPath = path.join(root, 'dist', 'version.json');
   const headersPath = path.join(root, 'dist', '_headers');

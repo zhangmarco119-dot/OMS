@@ -22,6 +22,15 @@ const policyConfig = {
 };
 
 describe('StoreHub environment guard', () => {
+  it('isolates registered production and development self-hosted credentials', () => {
+    const key = `${Buffer.from('{"alg":"HS256"}').toString('base64url')}.${Buffer.from('{"role":"anon"}').toString('base64url')}.production`;
+    const url = 'https://oms-store-management.pages.dev/backend';
+    const config = {...policyConfig,productionSelfHosted:{url,anonKeySha256:sha256(key)}};
+    const env = {...base,VITE_APP_ENV:'production',VITE_SUPABASE_URL:url,VITE_SUPABASE_ANON_KEY:key};
+    expect(validateEnvironment({branch:'manage-system',env,policyConfig:config}).errors).toEqual([]);
+    expect(validateEnvironment({branch:'v2-development',env:{...env,VITE_APP_ENV:'development'},policyConfig:config}).errors.length).toBeGreaterThan(0);
+    expect(validateEnvironment({branch:'manage-system',env:{...env,VITE_SUPABASE_ANON_KEY:developmentKey},policyConfig:config}).errors.length).toBeGreaterThan(0);
+  });
   it('allows only the registered development self-hosted URL and anon fingerprint', () => {
     const key = `${Buffer.from('{"alg":"HS256"}').toString('base64url')}.${Buffer.from('{"role":"anon"}').toString('base64url')}.test`;
     const url = 'https://oms-store-development.pages.dev/backend';

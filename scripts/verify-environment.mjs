@@ -100,10 +100,11 @@ export const validateEnvironment = ({ branch, env, linkedProjectRef = null, poli
   }
 
   const projectRef = extractSupabaseProjectRef(env.VITE_SUPABASE_URL ?? '');
-  const selfHosted = expectedEnvironment === 'development'
-    && policyConfig.developmentSelfHosted?.url === env.VITE_SUPABASE_URL
-    && /^https:\/\/oms-store-development\.pages\.dev\/backend$/.test(env.VITE_SUPABASE_URL ?? '')
-    && hashPattern.test(policyConfig.developmentSelfHosted?.anonKeySha256 ?? '');
+  const selfHostedPolicy = expectedEnvironment === 'production' ? policyConfig.productionSelfHosted : policyConfig.developmentSelfHosted;
+  const fixedSelfHostedUrl = expectedEnvironment === 'production' ? 'https://oms-store-management.pages.dev/backend' : 'https://oms-store-development.pages.dev/backend';
+  const selfHosted = selfHostedPolicy?.url === env.VITE_SUPABASE_URL
+    && env.VITE_SUPABASE_URL === fixedSelfHostedUrl
+    && hashPattern.test(selfHostedPolicy?.anonKeySha256 ?? '');
   if (!projectRef && !selfHosted) errors.push('VITE_SUPABASE_URL 必须是有效的 https://<project-ref>.supabase.co 地址。');
   const expectedProjectRef = expectedEnvironment === 'production'
     ? committedProductionRef
@@ -122,12 +123,12 @@ export const validateEnvironment = ({ branch, env, linkedProjectRef = null, poli
   if (!anonKey || /your-|replace|placeholder/i.test(anonKey)) errors.push('缺少有效的 VITE_SUPABASE_ANON_KEY。');
   if (/service[_-]?role|sb_secret_/i.test(anonKey)) errors.push('前端禁止使用 service role 或 secret key。');
   const anonKeyHash = anonKey ? createHash('sha256').update(anonKey).digest('hex') : null;
-  const expectedKeyHash = expectedEnvironment === 'production'
+  const expectedKeyHash = selfHosted ? selfHostedPolicy.anonKeySha256 : expectedEnvironment === 'production'
     ? committedProductionKeyHash
-    : (selfHosted ? policyConfig.developmentSelfHosted.anonKeySha256 : (hashPattern.test(committedDevelopmentKeyHash ?? '') ? committedDevelopmentKeyHash : null));
+    : (hashPattern.test(committedDevelopmentKeyHash ?? '') ? committedDevelopmentKeyHash : null);
   if (anonKeyHash && expectedKeyHash && anonKeyHash !== expectedKeyHash) errors.push('Anon Key 指纹与当前分支指定的 Supabase 项目不一致。');
   const payload = decodeJwtPayload(anonKey);
-  if (selfHosted && payload?.role !== 'anon') errors.push('自托管开发后端必须使用已登记指纹的 anon JWT。');
+  if (selfHosted && payload?.role !== 'anon') errors.push('自托管后端必须使用已登记指纹的 anon JWT。');
   if (payload?.role && payload.role !== 'anon') errors.push('VITE_SUPABASE_ANON_KEY 的 JWT role 必须为 anon。');
   if (payload?.ref && projectRef && payload.ref !== projectRef) errors.push('Anon Key 所属项目与 Supabase URL 不一致。');
 
@@ -135,7 +136,7 @@ export const validateEnvironment = ({ branch, env, linkedProjectRef = null, poli
     errors.push('Supabase CLI 当前链接项目与此分支指定环境不一致，请先执行安全 Link。');
   }
 
-  return { errors, expectedEnvironment, expectedProjectRef, projectRef, expectedBackendUrl: selfHosted ? policyConfig.developmentSelfHosted.url : `https://${expectedProjectRef}.supabase.co` };
+  return { errors, expectedEnvironment, expectedProjectRef, projectRef, expectedBackendUrl: selfHosted ? selfHostedPolicy.url : `https://${expectedProjectRef}.supabase.co` };
 };
 
 export const verifyCurrentEnvironment = ({ requireLinked = false } = {}) => {

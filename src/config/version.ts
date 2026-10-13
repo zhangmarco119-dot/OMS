@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-13',
+    highlights: ['正式环境支持独立自托管后端，正式与测试数据、密钥和连接保持隔离。'],
+    title: '恢复正式环境服务',
+    version: 'StoreHub v3.0.41',
+  },
+  {
+    date: '2026-10-13',
     highlights: ['开发测试环境支持独立自托管后端，保留原有账号和业务数据。'],
     title: '恢复开发测试环境服务',
     version: 'StoreHub v3.0.40',

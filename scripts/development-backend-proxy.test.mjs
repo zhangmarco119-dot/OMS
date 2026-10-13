@@ -16,13 +16,17 @@ describe('development-only API proxy',()=>{
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
-  it('never proxies production or administrative routes',async()=>{
+  it('never falls back to development for production or proxies administrative routes',async()=>{
     const fetcher=vi.fn();
-    await proxyDevelopmentBackend(new Request('https://oms-store-management.pages.dev/backend/rest/v1/products'),env,fetcher);
-    for(const path of ['/pg/query','/mcp','/rest-admin/v1/config','/unknown/v1/']) {
+    expect((await proxyDevelopmentBackend(new Request('https://oms-store-management.pages.dev/backend/rest/v1/products'),env,fetcher)).status).toBe(503);
+    for(const path of ['/pg/query','/mcp','/rest-admin/v1/config','/unknown/v1/','/realtime/v1/api/tenants']) {
       expect((await proxyDevelopmentBackend(new Request(`https://oms-store-development.pages.dev/backend${path}`),env,fetcher)).status).toBe(404);
     }
     expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('uses an independent production binding without mixing development data',async()=>{
+    const fetcher=vi.fn(async request=>{expect(request.url).toBe('https://production-only.trycloudflare.com/rest/v1/products');return new Response('ok');});
+    expect((await proxyDevelopmentBackend(new Request('https://oms-store-management.pages.dev/backend/rest/v1/products'),{...env,STOREHUB_PROD_BACKEND_ORIGIN:'https://production-only.trycloudflare.com'},fetcher)).status).toBe(200);
   });
   it('fails closed for missing or untrusted upstreams and connection failures',async()=>{
     const request=new Request('https://oms-store-development.pages.dev/backend/auth/v1/health');

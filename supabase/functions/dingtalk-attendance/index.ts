@@ -5,6 +5,7 @@ import { chunk, DingTalkApiError, DingTalkClient } from './dingtalk-client.ts';
 import { loadDingTalkEnterpriseConfigs } from './enterprise-config.ts';
 import { eachDate, scheduledAttendanceStart, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan.ts';
 import { summarizeAttendanceSync } from './sync-result.ts';
+import { attendanceReservationErrorCode } from './reservation-error.ts';
 
 type AttendanceAction =
   | { action: 'refresh-directory'; rootDepartmentIds?: string[] }
@@ -38,6 +39,8 @@ const datePart = (date: Date, timezone: string) => new Intl.DateTimeFormat('en-C
 const monthEnd = (month: string) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
 const publicError = (error: unknown) => {
   if (error instanceof DingTalkApiError) {
+    if (error.code === 'DAILY_API_LIMIT') return '今日钉钉接口调用已达到安全上限，请明日再同步。';
+    if (error.code === 'SYNC_API_RESERVATION_FAILED') return '系统未能保存考勤同步调用记录，请管理员检查同步服务。';
     if (error.code === 'TIMEOUT' || error.code === 'NETWORK_ERROR') return '钉钉服务暂时无法连接，请稍后重试。';
     if (error.code.startsWith('HTTP_') || error.retryable) return '钉钉服务繁忙，本次同步已记录，可稍后重试。';
     return `钉钉接口未能完成请求（${error.code}）。`;
@@ -111,7 +114,7 @@ Deno.serve(async (request) => {
         p_corp_id: config.corpId,
         p_endpoint: endpoint,
       });
-      if (reservation.error) throw new DingTalkApiError(reservation.error.message, 'DAILY_API_LIMIT', false);
+      if (reservation.error) throw new DingTalkApiError(reservation.error.message, attendanceReservationErrorCode(reservation.error.message), false);
     },
   })]));
   const configByCorp = new Map(enterpriseConfigs.map((config) => [config.corpId, config]));

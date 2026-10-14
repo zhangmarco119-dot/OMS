@@ -68,19 +68,18 @@ describe('payroll service', () => {
       .mockResolvedValueOnce({ data: { id: 'slip-1', status: 'confirmed' }, error: null });
     const invoke = vi.fn().mockResolvedValue({ data: { status: 'succeeded' }, error: null });
     await expect(generatePayrollPayslips({ rpc, functions: { invoke } } as never, '2026-06')).resolves.toMatchObject({ generatedCount: 2, refreshedCount: 1, skippedSentCount: 1 });
-    expect(invoke).toHaveBeenCalledWith('dingtalk-attendance', { body: { action: 'sync', month: '2026-06' } });
-    expect(invoke.mock.invocationCallOrder[0]).toBeLessThan(rpc.mock.invocationCallOrder[0]);
+    expect(invoke).not.toHaveBeenCalled();
     await confirmPayrollPayslip({ rpc } as never, 'slip-1');
     expect(rpc).toHaveBeenNthCalledWith(1, 'admin_generate_payroll_payslips', { p_payroll_month: '2026-06-01', p_profile_ids: null });
     expect(rpc).toHaveBeenNthCalledWith(2, 'confirm_my_payroll_payslip', { p_payslip_id: 'slip-1' });
   });
 
-  it.each(['partial', 'failed', undefined])('does not generate payslips after an incomplete attendance sync (%s)', async (status) => {
-    const rpc = vi.fn();
-    const invoke = vi.fn().mockResolvedValue({ data: { status }, error: null });
-    await expect(generatePayrollPayslips({ rpc, functions: { invoke } } as never, '2026-09', ['p1'])).rejects.toThrow();
-    expect(rpc).not.toHaveBeenCalled();
-    expect(invoke).toHaveBeenCalledWith('dingtalk-attendance', { body: { action: 'sync', month: '2026-09', profileIds: ['p1'] } });
+  it('generates selected employee payslips from saved data even when DingTalk is unavailable', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { generatedCount: 1, month: '2026-09-01' }, error: null });
+    const invoke = vi.fn().mockRejectedValue(new Error('DingTalk quota exhausted'));
+    await expect(generatePayrollPayslips({ rpc, functions: { invoke } } as never, '2026-09', ['p1'])).resolves.toMatchObject({ generatedCount: 1 });
+    expect(rpc).toHaveBeenCalledWith('admin_generate_payroll_payslips', { p_payroll_month: '2026-09-01', p_profile_ids: ['p1'] });
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('supports preview-first send, edit and withdrawal operations', async () => {

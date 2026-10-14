@@ -4,7 +4,6 @@ import type { AdminPayrollSummary, PayrollDeductionItem, PayrollEstimate, Payrol
 import { loadStorageImageResource } from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
 import type { Database, Json } from '../types/database';
-import { invokeAttendanceSync } from './attendance.service';
 
 type Client = SupabaseClient<Database>;
 type RuleRow = Database['public']['Tables']['payroll_employee_rules']['Row'];
@@ -323,11 +322,6 @@ export interface PayrollPayslipGenerationResult {
 }
 
 export async function generatePayrollPayslips(client: Client, month: string, profileIds?: string[]): Promise<PayrollPayslipGenerationResult> {
-  const sync = await invokeAttendanceSync(client, {
-    action: 'sync', month: month.slice(0, 7),
-    ...(profileIds?.length ? { profileIds } : {}),
-  });
-  if (sync?.status !== 'succeeded') throw new Error('考勤同步未完整成功，暂未生成工资单。请在考勤管理中核对同步日志后重试。');
   const { data, error } = await client.rpc('admin_generate_payroll_payslips', {
     p_payroll_month: `${month.slice(0, 7)}-01`,
     p_profile_ids: profileIds?.length ? profileIds : null,

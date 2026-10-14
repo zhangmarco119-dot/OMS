@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-14',
+    highlights: ['恢复云端考勤服务的原有企业连接配置，支持重新同步所选月份的考勤与补卡结果。'],
+    title: '恢复云端考勤连接',
+    version: 'StoreHub v3.0.49',
+  },
+  {
+    date: '2026-10-14',
     highlights: ['补卡消除缺卡时仍保留钉钉判定的迟到、早退及对应时长，避免错误改为正常。'],
     title: '保留补卡真实考勤结果',
     version: 'StoreHub v3.0.48',

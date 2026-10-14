@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { compareMigrationRows, compareMigrationVersions } from './verify-remote-migrations.mjs';
+import { compareMigrationRows, compareMigrationVersions, cloudMigrationCommand } from './verify-remote-migrations.mjs';
 
 describe('remote migration comparison', () => {
+  it('checks cloud history with pinned SSH hosts and rejects cross-environment targets', () => {
+    const config={projectRef:'dev-ref',container:'supabase_db_storehub-local-development',host:'43.163.113.19',user:'ubuntu',identityFile:'/private/key',knownHostsFile:'/private/known_hosts'};
+    const environment={expectedEnvironment:'development',expectedProjectRef:'dev-ref'};
+    expect(cloudMigrationCommand(config,environment)).toContain('StrictHostKeyChecking=yes');
+    expect(()=>cloudMigrationCommand({...config,container:'supabase_db_storehub-local-production'},environment)).toThrow();
+    expect(()=>cloudMigrationCommand({...config,host:'host;unsafe'},environment)).toThrow();
+    expect(()=>cloudMigrationCommand({...config,projectRef:'prod-ref'},environment)).toThrow();
+  });
   it('compares actual management-API history without accepting empty or malformed responses', () => {
     expect(compareMigrationVersions(['0001','0002'],[{version:'0002'},{version:'0001'}])).toEqual([]);
     expect(compareMigrationVersions(['0001','0002'],[{version:'0001'}])).toEqual(['Migration 0002 尚未应用到当前 Supabase']);

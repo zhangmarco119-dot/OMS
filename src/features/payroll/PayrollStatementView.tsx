@@ -10,7 +10,7 @@ const monthLabel = (month: string) => {
 };
 
 export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }: { adminNote?: string; estimate: PayrollEstimate; payrollMonth: string }) {
-  const earnings = estimate.employmentType === 'part_time' ? [
+  const baseEarnings = estimate.employmentType === 'part_time' ? [
     ['兼职薪资', estimate.accruedPartTimeWage],
   ] as const : [
     ['基本工资', estimate.accruedBaseSalary],
@@ -23,6 +23,8 @@ export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }:
     ['提成', estimate.accruedCommission ?? 0],
     ['延时工作补贴', estimate.accruedOvertime],
   ] as const;
+  const hasHolidaySubsidy = Boolean(estimate.holidayAttendanceDates?.length) || (estimate.holidaySubsidy ?? 0) > 0;
+  const earnings = hasHolidaySubsidy ? [...baseEarnings, ['节假日补贴', estimate.holidaySubsidy ?? 0] as const] : baseEarnings;
   const income = earnings.reduce((sum, [, amount]) => sum + amount, 0);
   const otherDeductions = estimate.fineTotal;
   const totalDeductions = otherDeductions + estimate.individualIncomeTax;
@@ -34,7 +36,7 @@ export function PayrollStatementView({ adminNote = '', estimate, payrollMonth }:
       <p className="mt-1 text-sm text-slate-500">{estimate.displayName}</p>
     </header>
     <div className="px-4 py-2">
-      {earnings.filter(([, amount]) => amount !== 0).map(([label, amount]) => <div className="flex items-center justify-between border-b border-slate-100 py-2.5 text-sm" key={label}><span className="text-slate-600">{label}</span><b className="tabular-nums text-slate-900">{formatMoney(amount)}</b></div>)}
+      {earnings.filter(([label, amount]) => amount !== 0 || label === '节假日补贴').map(([label, amount]) => <div className="flex items-center justify-between border-b border-slate-100 py-2.5 text-sm" key={label}><span className="text-slate-600">{label}</span><b className="tabular-nums text-slate-900">{formatMoney(amount)}</b></div>)}
       {estimate.hasMultiplePerformanceStores ? <div className="border-b border-slate-100 py-2.5"><p className="text-xs text-slate-500">门店绩效等级</p><div className="mt-1.5 flex flex-wrap gap-1.5">{(estimate.performanceStores ?? []).map((item) => <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-900" key={item.storeId}>{item.storeName} · {item.grade} 级</span>)}</div></div> : null}
       <div className="flex items-center justify-between border-b border-slate-100 py-2.5 text-sm"><span className="text-slate-600">个税扣除</span><b className="tabular-nums text-rose-700">{estimate.individualIncomeTax ? `-${formatMoney(estimate.individualIncomeTax)}` : formatMoney(0)}</b></div>
       <PayrollDeductionRow detailsTitle="其他扣款明细" emptyMessage="本期没有其他扣款记录。" estimate={estimate} label="其他扣款" total={otherDeductions} />

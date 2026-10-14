@@ -103,6 +103,8 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     extraAttendanceBonusRate: numberAt(item.extraAttendanceBonusRate), accruedExtraAttendanceBonus: numberAt(item.accruedExtraAttendanceBonus), serviceAwardEnabled: boolAt(item.serviceAwardEnabled),
     serviceAwardAmount: numberAt(item.serviceAwardAmount), accruedServiceAward: numberAt(item.accruedServiceAward),
     extraRewardAmount: numberAt(item.extraRewardAmount), accruedExtraReward: numberAt(item.accruedExtraReward),
+    holidayAttendanceDates: Array.isArray(item.holidayAttendanceDates) ? item.holidayAttendanceDates.filter((date): date is string => typeof date === 'string') : [],
+    holidaySubsidy: numberAt(item.holidaySubsidy),
     regularizationDate: nullableTextAt(item.regularizationDate), eligibleAttendanceDays: numberAt(item.eligibleAttendanceDays),
     regularizationFactor: numberAt(item.regularizationFactor), isProbation: boolAt(item.isProbation), accruedBaseSalary: numberAt(item.accruedBaseSalary),
     accruedHousingAllowance: numberAt(item.accruedHousingAllowance), accruedPerformance: nullableNumberAt(item.accruedPerformance),
@@ -336,6 +338,7 @@ export async function generatePayrollPayslips(client: Client, month: string, pro
 }
 
 export interface PayrollPayslipDraftFields {
+  holidaySubsidy?: number;
   accruedBaseSalary: number;
   accruedHousingAllowance: number;
   accruedPerformance: number;

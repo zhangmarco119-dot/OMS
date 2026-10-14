@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-14',
+    highlights: ['修复历史月份税务与记账页面的长查询加载失败，打卡数据分批完整读取，并优化异常提示。'],
+    title: '修复历史月份税务登记',
+    version: 'StoreHub v3.0.45',
+  },
+  {
+    date: '2026-10-14',
     highlights: ['测试与正式环境支持各自独立的云端接口和源站校验，保持数据与访问密钥隔离。'],
     title: '完善测试环境云端连接',
     version: 'StoreHub v3.0.44',

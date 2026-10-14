@@ -13,6 +13,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { downloadTaxCardImage } from '../features/tax-accounting/taxCardImage';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
+import { userFacingError } from '../lib/userFacingError';
 import { savePayrollIndividualTaxes } from '../services/payroll.service';
 import {
   loadTaxAccountingData,
@@ -100,7 +101,7 @@ export function AdminTaxAccountingPage() {
       setStatus('ready');
     } catch (error) {
       setStatus('error');
-      setFeedback({ title: '暂时无法加载', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+      setFeedback({ title: '暂时无法加载', message: userFacingError(error, '税务与记账信息暂时无法加载，请稍后重新加载。'), tone: 'danger' });
     }
   }, [month]);
 
@@ -184,7 +185,7 @@ export function AdminTaxAccountingPage() {
       await load();
       setFeedback({ title: '人员资料已保存', message: `报税归属、身份资料和${editor.salaryMonth.replace('-', '年')}月薪资来源已更新。`, tone: 'success' });
     } catch (error) {
-      setFeedback({ title: '保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+      setFeedback({ title: '保存失败', message: userFacingError(error), tone: 'danger' });
     } finally {
       setBusy('');
     }
@@ -198,7 +199,7 @@ export function AdminTaxAccountingPage() {
       await load();
       setFeedback({ title: '公司名称已保存', message: '下载的员工个税申报卡片会使用新的公司名称。', tone: 'success' });
     } catch (error) {
-      setFeedback({ title: '保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+      setFeedback({ title: '保存失败', message: userFacingError(error), tone: 'danger' });
     } finally {
       setBusy('');
     }
@@ -214,7 +215,7 @@ export function AdminTaxAccountingPage() {
       await load();
       setFeedback({ title: '报税人员已删除', message: `${current.full_name} 已从人员登记中删除，对应的手工薪资记录也已清除。`, tone: 'success' });
     } catch (error) {
-      setFeedback({ title: '删除失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+      setFeedback({ title: '删除失败', message: userFacingError(error), tone: 'danger' });
     } finally {
       setBusy('');
     }
@@ -250,7 +251,7 @@ export function AdminTaxAccountingPage() {
       ].filter(Boolean).join('；');
       setFeedback({ title: '实际个税已保存', message: `${consequences}。之后生成的工资单会直接使用这些金额。`, tone: missing ? 'warning' : 'success' });
     } catch (error) {
-      setFeedback({ title: '个税登记保存失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' });
+      setFeedback({ title: '个税登记保存失败', message: userFacingError(error), tone: 'danger' });
     } finally {
       setBusy('');
     }
@@ -270,7 +271,7 @@ export function AdminTaxAccountingPage() {
       await downloadTaxCardImage(report, month);
       setFeedback({ title: '个税申报卡片已下载', message: '图片已保存，可直接发送给会计。', tone: 'success' });
     } catch (error) {
-      setFeedback({ title: '无法下载', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'warning' });
+      setFeedback({ title: '无法下载', message: userFacingError(error), tone: 'warning' });
     } finally {
       setBusy('');
     }

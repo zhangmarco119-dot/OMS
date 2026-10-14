@@ -54,6 +54,25 @@ const monthBounds = (month: string) => {
 const estimateAmount = (estimate: PayrollEstimate | undefined) =>
   estimate?.estimatedPayable ?? estimate?.knownEstimatedPayable ?? null;
 
+// Keep UUID filters below gateway request-line limits, regardless of month size.
+export async function loadTaxAttendancePunches(client: Client, dailyRecordIds: string[]) {
+  type Punch = Pick<Database['public']['Tables']['attendance_punch_records']['Row'], 'check_type' | 'daily_record_id' | 'location_name' | 'location_result' | 'source_type' | 'store_id'>;
+  const punches: Punch[] = [];
+  const ids = [...new Set(dailyRecordIds)];
+  for (let start = 0; start < ids.length; start += 50) {
+    const batch = ids.slice(start, start + 50);
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await client.from('attendance_punch_records')
+        .select('check_type,daily_record_id,location_name,location_result,source_type,store_id')
+        .in('daily_record_id', batch).order('id').range(offset, offset + 499);
+      if (error) throw new Error(error.message || '暂时无法加载打卡地点。');
+      punches.push(...(data ?? []));
+      if (!data || data.length < 500) break;
+    }
+  }
+  return punches;
+}
+
 export function createTaxReports(
   stores: TaxStore[],
   people: TaxPerson[],
@@ -126,10 +145,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
   const attendance = attendanceResult.data ?? [];
   const overtime = overtimeResult.data ?? [];
   const dailyRecordIds = attendance.map((row) => row.id);
-  const punchesResult = dailyRecordIds.length
-    ? await client.from('attendance_punch_records').select('check_type,daily_record_id,location_name,location_result,source_type,store_id').in('daily_record_id', dailyRecordIds)
-    : { data: [], error: null };
-  if (punchesResult.error) throw new Error(punchesResult.error.message || '暂时无法加载打卡地点。');
+  const punches = await loadTaxAttendancePunches(client, dailyRecordIds);
   const calculatedAllocations = allocatePayrollCosts(
     estimatesResult.items.map((estimate) => ({
       estimate,
@@ -152,7 +168,7 @@ export async function loadTaxAccountingData(client: Client, month: string): Prom
       storeId: row.store_id,
     })),
     overtime.map((row) => ({ approvedHourlyRate: row.approved_hourly_rate, hours: row.hours, profileId: row.profile_id, status: row.status, storeId: row.store_id })),
-    (punchesResult.data ?? []).map((row) => ({ checkType: row.check_type, dailyRecordId: row.daily_record_id, locationName: row.location_name, locationResult: row.location_result, sourceType: row.source_type, storeId: row.store_id })),
+    punches.map((row) => ({ checkType: row.check_type, dailyRecordId: row.daily_record_id, locationName: row.location_name, locationResult: row.location_result, sourceType: row.source_type, storeId: row.store_id })),
     stores.map((store) => ({ id: store.id, name: store.name, shortName: store.short_name })),
     (allocationRulesResult.data ?? []).map((row) => ({ effectiveFrom: row.effective_from, effectiveTo: row.effective_to, isEnabled: row.is_enabled, profileId: row.profile_id, punchScope: row.punch_scope, sourceStoreId: row.source_store_id, targetRatio: row.target_ratio, targetStoreId: row.target_store_id })),
   );

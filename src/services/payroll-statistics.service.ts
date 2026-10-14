@@ -38,6 +38,7 @@ export interface PayrollStatisticsBreakdown {
   fines: number;
   fullAttendanceBonus: number;
   grossIncome: number;
+  holidaySubsidy: number;
   housingAllowance: number;
   individualIncomeTax: number;
   netPayable: number;
@@ -110,7 +111,7 @@ function monthSegments(from: string, to: string) {
 
 const emptyBreakdown = (): PayrollStatisticsBreakdown => ({
   baseSalary: 0, commission: 0, extraAttendanceBonus: 0, extraReward: 0, fines: 0,
-  fullAttendanceBonus: 0, grossIncome: 0, housingAllowance: 0, individualIncomeTax: 0,
+  fullAttendanceBonus: 0, grossIncome: 0, holidaySubsidy: 0, housingAllowance: 0, individualIncomeTax: 0,
   netPayable: 0, overtime: 0, partTimeWage: 0, performance: 0, serviceAward: 0,
 });
 
@@ -124,6 +125,7 @@ const breakdownFromEstimate = (estimate: PayrollEstimate | undefined, formal = f
     fines: estimate.fineTotal,
     fullAttendanceBonus: estimate.accruedFullAttendanceBonus,
     housingAllowance: estimate.accruedHousingAllowance,
+    holidaySubsidy: estimate.holidaySubsidy ?? 0,
     individualIncomeTax: formal
       ? estimate.registeredIndividualIncomeTax ?? estimate.individualIncomeTax ?? estimate.estimatedIndividualIncomeTax ?? 0
       : estimate.estimatedIndividualIncomeTax ?? estimate.individualIncomeTax ?? 0,
@@ -133,7 +135,7 @@ const breakdownFromEstimate = (estimate: PayrollEstimate | undefined, formal = f
     serviceAward: estimate.accruedServiceAward,
   };
   const grossIncome = money(values.baseSalary + values.housingAllowance + values.performance + values.fullAttendanceBonus
-    + values.extraAttendanceBonus + values.serviceAward + values.extraReward + values.commission + values.overtime + values.partTimeWage);
+    + values.extraAttendanceBonus + values.serviceAward + values.extraReward + values.commission + values.overtime + values.partTimeWage + values.holidaySubsidy);
   return { ...values, grossIncome, netPayable: money(Math.max(grossIncome - values.fines - values.individualIncomeTax, 0)) };
 };
 
@@ -142,7 +144,7 @@ const subtractBreakdown = (end: PayrollStatisticsBreakdown, start?: PayrollStati
   const keys = Object.keys(result) as Array<keyof PayrollStatisticsBreakdown>;
   for (const key of keys) result[key] = money(Math.max(end[key] - (start?.[key] ?? 0), 0));
   result.grossIncome = money(result.baseSalary + result.housingAllowance + result.performance + result.fullAttendanceBonus
-    + result.extraAttendanceBonus + result.serviceAward + result.extraReward + result.commission + result.overtime + result.partTimeWage);
+    + result.extraAttendanceBonus + result.serviceAward + result.extraReward + result.commission + result.overtime + result.partTimeWage + result.holidaySubsidy);
   result.netPayable = money(Math.max(result.grossIncome - result.fines - result.individualIncomeTax, 0));
   return result;
 };

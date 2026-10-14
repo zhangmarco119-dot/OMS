@@ -9,8 +9,8 @@ const statistics: PayrollStatistics = {
     averageHourlyCost: 43.21,
     breakdown: {
       baseSalary: 8000, commission: 600, extraAttendanceBonus: 100, extraReward: 50, fines: 20,
-      fullAttendanceBonus: 100, grossIncome: 9000, housingAllowance: 100, individualIncomeTax: 80,
-      netPayable: 8900, overtime: 50, partTimeWage: 0, performance: 0, serviceAward: 0,
+      fullAttendanceBonus: 100, grossIncome: 9250, holidaySubsidy: 250, housingAllowance: 100, individualIncomeTax: 80,
+      netPayable: 9150, overtime: 50, partTimeWage: 0, performance: 0, serviceAward: 0,
     },
     displayName: '员工甲', employmentType: 'full_time', hours: 208.28, periods: [], profileId: 'profile-1', salaryCost: 8920,
   }],
@@ -75,7 +75,8 @@ describe('payroll statistics image', () => {
     expect(drawnValues).toContain('¥ 166,437.93');
     expect(drawnValues).toContain('¥ 129,413.00');
     expect(drawnValues).toContain('12.22%');
-    expect(drawnValues).toContain('实发 ¥ 8,900.00');
+    expect(drawnValues).toContain('实发 ¥ 9,150.00');
+    expect(drawnValues.some(value => String(value).includes('节假日补贴 ¥ 250.00'))).toBe(true);
     expect(drawnValues).toContain('基本 ¥ 8,000.00 · 房补 ¥ 100.00 · 绩效 ¥ 0.00 · 全勤 ¥ 100.00 · 超勤 ¥ 100.00 · 工龄 ¥ 0.00');
   });
 

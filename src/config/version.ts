@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-14',
+    highlights: ['薪资综合统计图表增加节假日补贴，补贴计入员工收入、实发及门店薪资成本，并保留分时段统计口径。'],
+    title: '补齐综合统计节假日补贴',
+    version: 'StoreHub v3.0.51',
+  },
+  {
+    date: '2026-10-14',
     highlights: ['工资单直接按所选月份已保存的考勤与薪资数据生成，不再触发钉钉同步，考勤同步保持独立。'],
     title: '工资单使用已同步考勤',
     version: 'StoreHub v3.0.50',

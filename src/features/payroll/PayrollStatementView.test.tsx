@@ -7,6 +7,22 @@ import { PayrollStatementView } from './PayrollStatementView';
 const estimate = { profileId:'p1',displayName:'员工甲',asOf:'2026-07-31',monthStart:'2026-07-01',monthEnd:'2026-07-31',accruedBaseSalary:3000,accruedHousingAllowance:500,accruedPerformance:300,accruedFullAttendanceBonus:0,accruedExtraAttendanceBonus:300,accruedServiceAward:50,accruedExtraReward:80,accruedCommission:100,accruedOvertime:75,fineTotal:20,individualIncomeTax:50,deductionTotal:70,deductionItems:[{id:'fine-1',date:'2026-07-12',createdAt:null,type:'penalty',title:'其他罚款',reason:'盘点差异处罚',amount:20,performanceDeduction:0}]} as PayrollEstimate;
 
 describe('PayrollStatementView', () => {
+  it('shows only the holiday subsidy name and amount, including a zero pending manual entry', () => {
+    render(<PayrollStatementView estimate={{...estimate,holidayAttendanceDates:['2026-10-01'],holidaySubsidy:0}} payrollMonth="2026-10-01" />);
+    expect(screen.getByText('节假日补贴')).toBeInTheDocument();
+    expect(screen.queryByText('2026-10-01')).not.toBeInTheDocument();
+    expect(screen.queryByText(/手动填写|三倍|法定节假日/)).not.toBeInTheDocument();
+  });
+  it('adds the subsidy exactly once to full-time and part-time statement totals', () => {
+    const {rerender}=render(<PayrollStatementView estimate={{...estimate,holidayAttendanceDates:['2026-10-01'],holidaySubsidy:200}} payrollMonth="2026-10-01" />);
+    expect(screen.getByText('¥4,535.00')).toBeInTheDocument();
+    rerender(<PayrollStatementView estimate={{...estimate,employmentType:'part_time',accruedPartTimeWage:1000,fineTotal:0,individualIncomeTax:0,holidayAttendanceDates:['2026-10-01'],holidaySubsidy:200}} payrollMonth="2026-10-01" />);
+    expect(screen.getByText('¥1,200.00', {selector:'strong'})).toBeInTheDocument();
+  });
+  it('does not add an empty subsidy row without holiday attendance', () => {
+    render(<PayrollStatementView estimate={estimate} payrollMonth="2026-07-01" />);
+    expect(screen.queryByText('节假日补贴')).not.toBeInTheDocument();
+  });
   it('renders a compact statement with a recomputed payable total', () => {
     render(<PayrollStatementView adminNote="本月核对完成" estimate={estimate} payrollMonth="2026-07-01" />);
     expect(screen.getByText('2026年7月工资单')).toBeInTheDocument();

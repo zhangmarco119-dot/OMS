@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { verifyCurrentEnvironment } from './verify-environment.mjs';
@@ -41,6 +41,15 @@ export const compareMigrationVersions = (localVersions, remoteRows) => {
   return compareMigrationRows(versions.map(version => ({local:localVersions.includes(version) ? version : null, remote:remoteVersions.includes(version) ? version : null})));
 };
 
+export const cloudMigrationCommand = (config, environment) => {
+  if (config.projectRef !== environment.expectedProjectRef
+    || config.container !== `supabase_db_storehub-local-${environment.expectedEnvironment}`
+    || !/^[a-zA-Z0-9.-]+$/.test(config.host ?? '') || !/^[a-z_][a-z0-9_-]*$/.test(config.user ?? '')
+    || !path.isAbsolute(config.identityFile ?? '') || !path.isAbsolute(config.knownHostsFile ?? '')) throw new Error('云端 Migration 校验配置与当前环境不匹配。');
+  return ['-i',config.identityFile,'-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o',`UserKnownHostsFile=${config.knownHostsFile}`,`${config.user}@${config.host}`,
+    `sudo docker exec -i ${config.container} psql -U supabase_admin -d postgres -Atq -v ON_ERROR_STOP=1`];
+};
+
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const environment = verifyCurrentEnvironment({ requireLinked: true });
@@ -50,7 +59,11 @@ if (isMain) {
     process.exit(1);
   }
 
-  const result = runPnpm([
+  const configPath = process.env.STOREHUB_MIGRATION_CHECK_CONFIG;
+  const result = configPath ? spawnSync('ssh',cloudMigrationCommand(JSON.parse(readFileSync(configPath,'utf8')), environment), {
+    cwd:root,encoding:'utf8',env:process.env,timeout:30000,
+    input:"begin read only; select json_agg(json_build_object('version',version) order by version) from supabase_migrations.schema_migrations; rollback;"
+  }) : runPnpm([
     'exec',
     'supabase',
     'db',

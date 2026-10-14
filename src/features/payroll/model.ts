@@ -63,6 +63,8 @@ export interface PayrollEstimate {
   accruedServiceAward: number;
   extraRewardAmount: number;
   accruedExtraReward: number;
+  holidayAttendanceDates?: string[];
+  holidaySubsidy?: number;
   regularizationDate: string | null;
   eligibleAttendanceDays: number;
   regularizationFactor: number;

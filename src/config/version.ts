@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-14',
+    highlights: ['法定节假日有出勤的工资单增加节假日补贴，管理员手动登记金额，员工工资单显示补贴并计入合计。'],
+    title: '新增节假日补贴',
+    version: 'StoreHub v3.0.46',
+  },
+  {
+    date: '2026-10-14',
     highlights: ['修复历史月份税务与记账页面的长查询加载失败，打卡数据分批完整读取，并优化异常提示。'],
     title: '修复历史月份税务登记',
     version: 'StoreHub v3.0.45',

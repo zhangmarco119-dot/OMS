@@ -62,12 +62,35 @@ describe('payroll statistics', () => {
         work: [{ attendanceHours: 16, overtimeCost: 0, overtimeHours: 0, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' }],
         revenues: [], payslips: [],
       }, error: null };
-      if (name === 'admin_payroll_estimates') return { data: { items: [estimate(args.p_as_of === '2026-07-09' ? 300 : 800)] }, error: null };
+      if (name === 'admin_payroll_estimates') return { data: { items: [{ ...estimate(args.p_as_of === '2026-07-09' ? 300 : 800), holidaySubsidy: args.p_as_of === '2026-07-09' ? 100 : 250 }] }, error: null };
       throw new Error(`unexpected rpc ${name}`);
     });
     const result = await loadPayrollStatistics({ rpc } as never, '2026-07-10', '2026-07-20');
-    expect(result.totalSalaryCost).toBe(500);
-    expect(result.employees[0].periods[0]).toMatchObject({ from: '2026-07-10', salaryCost: 500, source: 'realtime', to: '2026-07-20' });
+    expect(result.totalSalaryCost).toBe(650);
+    expect(result.employees[0].breakdown.holidaySubsidy).toBe(150);
+    expect(result.employees[0].periods[0]).toMatchObject({ from: '2026-07-10', salaryCost: 650, source: 'realtime', to: '2026-07-20' });
+  });
+
+  it.each(['full_time', 'part_time'] as const)('aggregates holiday subsidies across months for %s employees without double counting', async (employmentType) => {
+    const rpc = vi.fn(async (name: string, args: { p_as_of?: string }) => {
+      if (name === 'admin_payroll_statistics_inputs') return { data: {
+        profiles: [{ displayName: '测试员工', employmentType, id: 'profile-1', primaryStoreId: 'store-1' }],
+        stores: [{ id: 'store-1', name: '一店' }],
+        work: ['2026-07-01', '2026-08-01'].map(payrollMonth => ({ attendanceHours: 8, overtimeCost: 0, overtimeHours: 0, payrollMonth, profileId: 'profile-1', storeId: 'store-1' })),
+        revenues: [], payslips: [],
+      }, error: null };
+      if (name === 'admin_payroll_estimates') return { data: { items: [{
+        ...estimate(employmentType === 'part_time' ? 0 : 900), employmentType,
+        accruedPartTimeWage: employmentType === 'part_time' ? 900 : 0,
+        holidaySubsidy: args.p_as_of?.startsWith('2026-07') ? 100 : 200,
+        estimatedPayable: args.p_as_of?.startsWith('2026-07') ? 1000 : 1100,
+      }] }, error: null };
+      throw new Error(`unexpected rpc ${name}`);
+    });
+    const result = await loadPayrollStatistics({ rpc } as never, '2026-07-01', '2026-08-31');
+    expect(result.employees[0].breakdown).toMatchObject({ holidaySubsidy: 300, grossIncome: 2100, netPayable: 2100 });
+    expect(result.totalSalaryCost).toBe(2100);
+    expect(result.stores[0].salaryCost).toBe(2100);
   });
 
   it('aggregates detailed payslip items for the exported employee row', async () => {
@@ -75,7 +98,7 @@ describe('payroll statistics', () => {
       ...estimate(1000), accruedBaseSalary: 500, accruedHousingAllowance: 100, accruedPerformance: 100,
       accruedFullAttendanceBonus: 50, accruedExtraAttendanceBonus: 50, accruedServiceAward: 50,
       accruedExtraReward: 50, accruedCommission: 50, accruedOvertime: 50, fineTotal: 25,
-      individualIncomeTax: 75, estimatedPayable: 925, knownEstimatedPayable: 925,
+      individualIncomeTax: 75, estimatedPayable: 1150, knownEstimatedPayable: 1150, holidaySubsidy: 250,
     };
     const rpc = vi.fn(async (name: string) => {
       if (name === 'admin_payroll_statistics_inputs') return { data: {
@@ -92,8 +115,10 @@ describe('payroll statistics', () => {
     expect(result.employees[0].breakdown).toMatchObject({
       baseSalary: 500, housingAllowance: 100, performance: 100, fullAttendanceBonus: 50,
       extraAttendanceBonus: 50, serviceAward: 50, extraReward: 50, commission: 50,
-      overtime: 50, fines: 25, individualIncomeTax: 75, grossIncome: 1000, netPayable: 900,
+      overtime: 50, holidaySubsidy: 250, fines: 25, individualIncomeTax: 75, grossIncome: 1250, netPayable: 1150,
     });
     expect(result.employees[0].periods[0].source).toBe('payslip');
+    expect(result.totalSalaryCost).toBe(1225);
+    expect(result.stores[0].salaryCost).toBe(1225);
   });
 });

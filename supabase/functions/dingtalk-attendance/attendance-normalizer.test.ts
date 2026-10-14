@@ -5,6 +5,16 @@ import { normalizeAttendanceBundle, normalizeDutyResult } from './attendance-nor
 const binding = { corpId: 'ding-test', dingtalkUserId: 'user-1', profileId: 'profile-1', storeId: 'store-1' };
 
 describe('DingTalk attendance normalization', () => {
+  it('preserves lateness in an approved correction instead of turning it into a normal punch', () => {
+    const [day] = normalizeAttendanceBundle(binding, {
+      results: [
+        { userId: 'user-1', workDate: '2026-09-25', checkType: 'OnDuty', userCheckTime: '2026-09-25 09:45:00', baseCheckTime: '2026-09-25 09:45:00', timeResult: 'NotSigned' },
+        { userId: 'user-1', workDate: '2026-09-25', checkType: 'OffDuty', userCheckTime: '2026-09-25 22:11:23', baseCheckTime: '2026-09-25 18:20:00', timeResult: 'Normal' },
+      ],
+      punches: [{ id: 'approved', userId: 'user-1', checkType: 'OnDuty', sourceType: 'APPROVE', timeResult: 'Late', userCheckTime: '2026-09-25 09:55:00' }], schedules: [],
+    }, new Date('2026-10-14T00:00:00Z'));
+    expect(day).toMatchObject({ dailyStatus: 'late', onDutyResult: 'late', missingPunch: 'none', isAttended: true, lateMinutes: 10 });
+  });
   it('does not count a NotSigned placeholder time as an actual punch', () => {
     const [day] = normalizeAttendanceBundle(binding, {
       results: [

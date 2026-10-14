@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-14',
+    highlights: ['补卡消除缺卡时仍保留钉钉判定的迟到、早退及对应时长，避免错误改为正常。'],
+    title: '保留补卡真实考勤结果',
+    version: 'StoreHub v3.0.48',
+  },
+  {
+    date: '2026-10-14',
     highlights: ['跨月继续复查上月缺卡与异常，手动同步重新获取所选月份，生成工资单前先同步考勤，失败时不使用旧记录生成。'],
     title: '修复跨月补卡同步',
     version: 'StoreHub v3.0.47',

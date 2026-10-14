@@ -145,8 +145,12 @@ export const normalizeAttendanceBundle = (
       : iso(read(onResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? normalizedPunches.find((item) => item.checkType === 'on_duty')?.punchTime ?? null;
     const actualOffAt = offDutyResult === 'missing' ? correctedOff?.punchTime ?? null
       : iso(read(offResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? [...normalizedPunches].reverse().find((item) => item.checkType === 'off_duty')?.punchTime ?? null;
-    if (onDutyResult === 'missing' && correctedOn) onDutyResult = 'normal';
-    if (offDutyResult === 'missing' && correctedOff) offDutyResult = 'normal';
+    const correctedResult = (punch: NormalizedPunch) => {
+      const result = normalizeDutyResult(punch.timeResult);
+      return result === 'unknown' ? 'normal' : result;
+    };
+    if (onDutyResult === 'missing' && correctedOn) onDutyResult = correctedResult(correctedOn);
+    if (offDutyResult === 'missing' && correctedOff) offDutyResult = correctedResult(correctedOff);
     const statuses: DutyResult[] = [onDutyResult, offDutyResult, scheduleStatus];
     if (isRest) statuses.push('rest');
     const plannedOnAt = iso(read(onResultRow ?? onSchedule, ['baseCheckTime','planCheckTime','plan_check_time','plannedOnAt','checkBeginTime']));

@@ -119,13 +119,11 @@ export const normalizeAttendanceBundle = (
     });
     const onResultRow = dayResults.find((item) => text(read(item, ['checkType','check_type'])).toLowerCase() === 'onduty');
     const offResultRow = dayResults.find((item) => text(read(item, ['checkType','check_type'])).toLowerCase() === 'offduty');
-    const onDutyResult = normalizeDutyResult(read(onResultRow ?? {}, ['timeResult','time_result','status']));
-    const offDutyResult = normalizeDutyResult(read(offResultRow ?? {}, ['timeResult','time_result','status']));
+    let onDutyResult = normalizeDutyResult(read(onResultRow ?? {}, ['timeResult','time_result','status']));
+    let offDutyResult = normalizeDutyResult(read(offResultRow ?? {}, ['timeResult','time_result','status']));
     const scheduleStatus = normalizeDutyResult(read(schedule, ['status','attendanceStatus','attendance_status']));
     const isRestValue = (value: unknown) => value === true || value === 1 || ['Y', 'TRUE', '1', 'REST'].includes(text(value).toUpperCase());
     const isRest = daySchedules.some((item) => isRestValue(read(item, ['isRest','is_rest'])) || normalizeDutyResult(read(item, ['status','attendanceStatus','attendance_status'])) === 'rest');
-    const statuses: DutyResult[] = [onDutyResult, offDutyResult, scheduleStatus];
-    if (isRest) statuses.push('rest');
     const normalizedPunches: NormalizedPunch[] = dayPunches.map((item, index) => ({
       checkType: text(read(item, ['checkType','check_type'])).toLowerCase() === 'onduty' ? 'on_duty' : text(read(item, ['checkType','check_type'])).toLowerCase() === 'offduty' ? 'off_duty' : 'unknown',
       corpId: binding.corpId,
@@ -139,8 +137,18 @@ export const normalizeAttendanceBundle = (
       storeId: binding.storeId,
       timeResult: text(read(item, ['timeResult','time_result'])) || null,
     }));
-    const actualOnAt = iso(read(onResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? normalizedPunches.find((item) => item.checkType === 'on_duty')?.punchTime ?? null;
-    const actualOffAt = iso(read(offResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? [...normalizedPunches].reverse().find((item) => item.checkType === 'off_duty')?.punchTime ?? null;
+    const correctedOn = normalizedPunches.find((item) => item.checkType === 'on_duty' && item.isApprovedCorrection);
+    const correctedOff = [...normalizedPunches].reverse().find((item) => item.checkType === 'off_duty' && item.isApprovedCorrection);
+    // NotSigned may carry the scheduled time as userCheckTime. It is not an
+    // actual punch. Only an approved correction can supersede that result.
+    const actualOnAt = onDutyResult === 'missing' ? correctedOn?.punchTime ?? null
+      : iso(read(onResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? normalizedPunches.find((item) => item.checkType === 'on_duty')?.punchTime ?? null;
+    const actualOffAt = offDutyResult === 'missing' ? correctedOff?.punchTime ?? null
+      : iso(read(offResultRow ?? {}, ['userCheckTime','user_check_time'])) ?? [...normalizedPunches].reverse().find((item) => item.checkType === 'off_duty')?.punchTime ?? null;
+    if (onDutyResult === 'missing' && correctedOn) onDutyResult = 'normal';
+    if (offDutyResult === 'missing' && correctedOff) offDutyResult = 'normal';
+    const statuses: DutyResult[] = [onDutyResult, offDutyResult, scheduleStatus];
+    if (isRest) statuses.push('rest');
     const plannedOnAt = iso(read(onResultRow ?? onSchedule, ['baseCheckTime','planCheckTime','plan_check_time','plannedOnAt','checkBeginTime']));
     const plannedOffAt = iso(read(offResultRow ?? offSchedule, ['baseCheckTime','planCheckTime','plan_check_time','plannedOffAt','checkEndTime']));
     const hasPassed = (value: string | null) => Boolean(value && new Date(value).getTime() <= now.getTime());

@@ -3,12 +3,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 import { normalizeAttendanceBundle, type AttendanceBindingInput } from './attendance-normalizer.ts';
 import { chunk, DingTalkApiError, DingTalkClient } from './dingtalk-client.ts';
 import { loadDingTalkEnterpriseConfigs } from './enterprise-config.ts';
-import { eachDate, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan.ts';
+import { eachDate, scheduledAttendanceStart, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan.ts';
 import { summarizeAttendanceSync } from './sync-result.ts';
 
 type AttendanceAction =
   | { action: 'refresh-directory'; rootDepartmentIds?: string[] }
-  | { action: 'sync'; month?: string; profileId?: string; storeId?: string }
+  | { action: 'sync'; month?: string; profileId?: string; profileIds?: string[]; storeId?: string }
   | { action: 'report-sync'; date: string; storeId: string }
   | { action: 'scheduled-sync'; mode?: 'incremental' }
   | { action: 'retry-job'; jobId: string };
@@ -174,12 +174,14 @@ Deno.serve(async (request) => {
     if (!previous.range_start || !previous.range_end) return json({ error: '该同步任务缺少可重试的日期范围。' }, 400);
     startDate = previous.range_start; endDate = previous.range_end; requestedStoreId = previous.store_id; requestedProfileId = previous.profile_id; syncType = previous.sync_type === 'employee' ? 'employee' : 'date_range';
   } else if (payload.action === 'scheduled-sync') {
-    startDate = `${today.slice(0, 7)}-01`;
+    startDate = scheduledAttendanceStart(today);
     endDate = today;
     syncType = 'current_month';
   } else if (payload.action === 'sync') {
     if (payload.storeId && (!uuidPattern.test(payload.storeId) || !allowedStoreIds.includes(payload.storeId))) return json({ error: '当前管理员无权同步该门店。' }, 403);
     if (payload.profileId && !uuidPattern.test(payload.profileId)) return json({ error: '员工编号无效。' }, 400);
+    if (payload.profileIds && (!Array.isArray(payload.profileIds) || payload.profileIds.length > 100 || payload.profileIds.some((id) => typeof id !== 'string' || !uuidPattern.test(id)))) return json({ error: '员工范围无效。' }, 400);
+    if (payload.profileId && payload.profileIds) return json({ error: '请只指定一种员工范围。' }, 400);
     requestedStoreId = payload.storeId ?? null; requestedProfileId = payload.profileId ?? null;
     const month = payload.month ?? today.slice(0, 7);
     if (!monthPattern.test(month)) return json({ error: '月份格式应为 YYYY-MM。' }, 400);
@@ -201,6 +203,10 @@ Deno.serve(async (request) => {
 
   let bindingsQuery = adminClient.from('dingtalk_employee_bindings').select('profile_id,corp_id,dingtalk_user_id,store_id').eq('binding_status', 'active');
   if (requestedProfileId) bindingsQuery = bindingsQuery.eq('profile_id', requestedProfileId);
+  if (payload.action === 'sync' && payload.profileIds) {
+    if (payload.profileIds.length === 0) return json({ error: '员工范围不能为空。' }, 400);
+    bindingsQuery = bindingsQuery.in('profile_id', unique(payload.profileIds));
+  }
   const { data: bindingRows, error: bindingError } = await bindingsQuery;
   if (bindingError) return json({ error: '无法读取员工绑定。' }, 500);
   const profileIds = (bindingRows ?? []).map((item) => item.profile_id);
@@ -234,8 +240,8 @@ Deno.serve(async (request) => {
       .gte('attendance_date', startDate).lte('attendance_date', endDate)
     : { data: [], error: null };
   if (coverageError) return json({ error: '无法检查新绑定员工的历史考勤覆盖范围。' }, 500);
-  // Organization and store syncs remain incremental, but a single-employee
-  // request replays the selected range so a newly bound profile gets history.
+  // Manual requests replay the month, including days previously considered
+  // final. Scheduled requests remain incremental to conserve API quota.
   const forceRequestedRange = shouldForceRequestedRange(payload.action, requestedProfileId);
   const todayStart = new Date(`${today}T00:00:00+08:00`).getTime();
   const datesByScope = new Map<string, string[]>();

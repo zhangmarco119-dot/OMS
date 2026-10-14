@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-14',
+    highlights: ['跨月继续复查上月缺卡与异常，手动同步重新获取所选月份，生成工资单前先同步考勤，失败时不使用旧记录生成。'],
+    title: '修复跨月补卡同步',
+    version: 'StoreHub v3.0.47',
+  },
+  {
+    date: '2026-10-14',
     highlights: ['法定节假日有出勤的工资单增加节假日补贴，管理员手动登记金额，员工工资单显示补贴并计入合计。'],
     title: '新增节假日补贴',
     version: 'StoreHub v3.0.46',

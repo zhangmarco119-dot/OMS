@@ -5,6 +5,30 @@ import { normalizeAttendanceBundle, normalizeDutyResult } from './attendance-nor
 const binding = { corpId: 'ding-test', dingtalkUserId: 'user-1', profileId: 'profile-1', storeId: 'store-1' };
 
 describe('DingTalk attendance normalization', () => {
+  it('does not count a NotSigned placeholder time as an actual punch', () => {
+    const [day] = normalizeAttendanceBundle(binding, {
+      results: [
+        { userId: 'user-1', workDate: '2026-09-26', checkType: 'OnDuty', userCheckTime: '2026-09-26 08:50:38', baseCheckTime: '2026-09-26 09:00:00', timeResult: 'Normal' },
+        { userId: 'user-1', workDate: '2026-09-26', checkType: 'OffDuty', userCheckTime: '2026-09-26 19:00:00', baseCheckTime: '2026-09-26 19:00:00', timeResult: 'NotSigned' },
+      ], punches: [], schedules: [],
+    }, new Date('2026-10-14T00:00:00Z'));
+    expect(day).toMatchObject({ actualOffAt: null, offDutyResult: 'missing', missingPunch: 'off', dailyStatus: 'missing', isAttended: false });
+  });
+
+  it.each(['OnDuty', 'OffDuty'])('uses approved %s corrections even if the result endpoint is still missing', (checkType) => {
+    const [day] = normalizeAttendanceBundle(binding, {
+      results: ['OnDuty', 'OffDuty'].map((type) => ({
+        userId: 'user-1', workDate: '2026-09-25', checkType: type,
+        userCheckTime: `2026-09-25 ${type === 'OnDuty' ? '09:40:00' : '19:40:00'}`,
+        baseCheckTime: `2026-09-25 ${type === 'OnDuty' ? '09:40:00' : '19:40:00'}`,
+        timeResult: type === checkType ? 'NotSigned' : 'Normal',
+      })),
+      punches: [{ id: 'approved', userId: 'user-1', checkType, sourceType: 'APPROVE', userCheckTime: `2026-09-25 ${checkType === 'OnDuty' ? '09:39:00' : '19:41:00'}` }],
+      schedules: [],
+    }, new Date('2026-10-14T00:00:00Z'));
+    expect(day).toMatchObject({ onDutyResult: 'normal', offDutyResult: 'normal', missingPunch: 'none', dailyStatus: 'normal', isAttended: true });
+    expect(checkType === 'OnDuty' ? day.actualOnAt : day.actualOffAt).toBe(checkType === 'OnDuty' ? '2026-09-25T01:39:00.000Z' : '2026-09-25T11:41:00.000Z');
+  });
   it('keeps multiple punches in one day and counts a late shift once', () => {
     const days = normalizeAttendanceBundle(binding, {
       results: [

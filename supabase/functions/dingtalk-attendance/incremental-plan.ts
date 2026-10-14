@@ -19,8 +19,15 @@ export const eachDate = (startDate: string, endDate: string) => {
 export const previousDate = (date: string) => new Date(new Date(`${date}T00:00:00Z`).getTime() - DAY_MS).toISOString().slice(0, 10);
 
 export const shouldForceRequestedRange = (action: string, requestedProfileId: string | null) => (
-  action === 'retry-job' || Boolean(requestedProfileId)
+  action === 'sync' || action === 'retry-job' || Boolean(requestedProfileId)
 );
+
+// Keep last month's corrections in scope after the calendar rolls over.
+export const scheduledAttendanceStart = (today: string) => {
+  const date = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
+  date.setUTCMonth(date.getUTCMonth() - 1);
+  return date.toISOString().slice(0, 10);
+};
 
 export const selectUncoveredBindingDates = (
   startDate: string,

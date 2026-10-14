@@ -173,6 +173,7 @@ export const invokeAttendanceSync = async (client: Client, body: Record<string, 
   if (error) throw new Error('同步请求未能完成，请查看同步日志或确认钉钉配置。');
   const response = data as { error?: string; message?: string; status?: string } | null;
   if (response?.error) throw new Error(response.error);
+  if (response?.status === 'partial' || response?.status === 'failed') throw new Error(response.message || '考勤未完整同步，请查看同步日志后重试。');
   return response;
 };
 

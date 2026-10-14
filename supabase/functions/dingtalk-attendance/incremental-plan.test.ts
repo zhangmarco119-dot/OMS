@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupContiguousDates, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan';
+import { groupContiguousDates, scheduledAttendanceStart, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan';
 
 describe('attendance incremental plan', () => {
   it('only fetches missing dates, today, and a not-yet-finalized yesterday', () => {
@@ -47,8 +47,15 @@ describe('attendance incremental plan', () => {
   it('forces the requested range for a single employee so a new binding receives historical attendance', () => {
     expect(shouldForceRequestedRange('sync', 'profile-1')).toBe(true);
     expect(shouldForceRequestedRange('retry-job', null)).toBe(true);
-    expect(shouldForceRequestedRange('sync', null)).toBe(false);
+    expect(shouldForceRequestedRange('sync', null)).toBe(true);
     expect(shouldForceRequestedRange('scheduled-sync', null)).toBe(false);
+  });
+
+  it('keeps September corrections in the October schedule and handles year boundaries', () => {
+    expect(scheduledAttendanceStart('2026-10-14')).toBe('2026-09-01');
+    expect(scheduledAttendanceStart('2027-01-01')).toBe('2026-12-01');
+    const states = [{ syncDate: '2026-09-26', lastSyncedAt: '2026-09-30T15:00:21Z' }];
+    expect(selectIncrementalDates(scheduledAttendanceStart('2026-10-14'), '2026-10-14', '2026-10-14', states, ['2026-09-26'])).toContain('2026-09-26');
   });
 
   it('backfills dates that are covered for existing employees but missing for a newly bound employee', () => {

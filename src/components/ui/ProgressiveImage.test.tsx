@@ -6,6 +6,8 @@ import { ProgressiveImage } from './ProgressiveImage';
 describe('ProgressiveImage', () => {
   it('shows loading until the browser finishes decoding the image', () => {
     render(<ProgressiveImage alt="到货照片" src="https://example.test/arrival.jpg" />);
+    expect(screen.getByAltText('到货照片')).toHaveAttribute('loading', 'lazy');
+    expect(screen.getByAltText('到货照片')).toHaveAttribute('decoding', 'async');
     expect(screen.getByText('正在加载图片')).toBeInTheDocument();
 
     fireEvent.load(screen.getByAltText('到货照片'));

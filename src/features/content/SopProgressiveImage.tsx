@@ -16,6 +16,7 @@ export function SopProgressiveImage({
   initialUrl = null,
   objectPath,
   onActivate,
+  onResolved,
   variant,
 }: {
   alt: string;
@@ -26,9 +27,12 @@ export function SopProgressiveImage({
   initialUrl?: string | null;
   objectPath: string;
   onActivate?: (url: string) => void;
+  onResolved?: (url: string) => void;
   variant: Exclude<SopImageVariant, 'original'>;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const onResolvedRef = useRef(onResolved);
+  onResolvedRef.current = onResolved;
   const [eligible, setEligible] = useState(eager || Boolean(initialUrl));
   const [url, setUrl] = useState<string | null>(initialUrl);
   const [state, setState] = useState<'idle' | 'loading' | 'loaded' | 'error'>(initialUrl ? 'loading' : 'idle');
@@ -66,6 +70,7 @@ export function SopProgressiveImage({
         if (!active) return;
         setUrl(nextUrl);
         setState('loading');
+        onResolvedRef.current?.(nextUrl);
       })
       .catch(() => {
         if (active) setState('error');
@@ -98,8 +103,8 @@ export function SopProgressiveImage({
       : image}
     {state !== 'loaded' ? <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-400">
       {state === 'error'
-        ? <button className="flex flex-col items-center gap-1 px-2 text-[11px] font-bold text-slate-600" onClick={(event) => { event.stopPropagation(); retry(); }} type="button"><RefreshCw className="h-4 w-4" />重新加载</button>
-        : <><span className="absolute inset-0 animate-pulse bg-slate-200/70" /><ImageIcon className="relative h-5 w-5" /></>}
+        ? <button className="flex flex-col items-center gap-1 px-2 text-[11px] font-bold text-slate-600" onClick={(event) => { event.stopPropagation(); retry(); }} type="button"><RefreshCw className="h-4 w-4" /><span>图片预览加载失败</span><span>重新加载</span></button>
+        : <><span className="absolute inset-0 animate-pulse bg-slate-200/70" /><span className="relative flex flex-col items-center gap-1 text-center text-[10px]"><ImageIcon className="h-5 w-5" /><span>正在加载图片</span></span></>}
     </div> : null}
   </div>;
 }

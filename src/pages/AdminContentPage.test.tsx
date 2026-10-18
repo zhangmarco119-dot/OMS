@@ -60,7 +60,9 @@ describe('SopEditor image-first workflow', () => {
     />);
 
     expect(screen.getByRole('dialog', { name: '新建制作流程' })).toHaveClass('h-[100dvh]', 'z-50');
-    expect(screen.getByRole('button', { name: '保存并预览' }).closest('.safe-bottom')).toHaveClass('fixed', 'z-[60]');
+    expect(screen.getByRole('button', { name: '保存并预览' }).closest('.safe-bottom')).toHaveClass('relative', 'shrink-0', 'z-[60]');
+    expect(screen.getByTestId('sop-editor-scroll')).toHaveClass('flex-1', 'overflow-y-auto', 'min-h-0');
+    expect(screen.getByTestId('sop-editor-scroll')).toHaveStyle({ maxHeight: 'none' });
 
     const file = new File(['image'], 'finished-bowl.png', { type: 'image/png' });
     const input = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"][accept*="image/png"]')).find((entry) => entry.multiple);
@@ -100,10 +102,14 @@ describe('SopEditor image-first workflow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '添加纯文字步骤' }));
     fireEvent.change(screen.getByPlaceholderText('无图片时必须填写；有图片时可留空'), { target: { value: '静置十分钟后检查状态。' } });
+    const nextStep = screen.getByRole('button', { name: '添加下一步骤' });
+    expect(screen.getByTestId('sop-step-grid').compareDocumentPosition(nextStep) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(nextStep);
+    fireEvent.change(screen.getAllByPlaceholderText('无图片时必须填写；有图片时可留空')[1], { target: { value: '再加入配料。' } });
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
-      pendingAssets: [expect.objectContaining({ assetKind: 'step', file: null, stepText: '静置十分钟后检查状态。' })],
+      pendingAssets: [expect.objectContaining({ assetKind: 'step', file: null, sortOrder: 0, stepText: '静置十分钟后检查状态。' }), expect.objectContaining({ assetKind: 'step', file: null, sortOrder: 1, stepText: '再加入配料。' })],
     })));
   });
 

@@ -8,6 +8,12 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-10-18',
+    highlights: ['修复手机 SOP 编辑区被底部操作栏遮挡，步骤末尾可连续添加并定位新步骤。', 'SOP 图片按需逐张显示，优化图片请求并发与设备缓存复用，图片失败不影响编辑及正文。'],
+    title: '优化 SOP 编辑与图片加载',
+    version: 'StoreHub v3.0.52',
+  },
+  {
     date: '2026-10-14',
     highlights: ['薪资综合统计图表增加节假日补贴，补贴计入员工收入、实发及门店薪资成本，并保留分时段统计口径。'],
     title: '补齐综合统计节假日补贴',

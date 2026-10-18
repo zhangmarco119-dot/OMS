@@ -37,11 +37,35 @@ const DEVICE_CACHE_NAME = 'storehub-image-resources-v1';
 const CACHE_ROUTE = '/__storehub_image_cache__/';
 const DEVICE_MAX_ENTRIES = 180;
 const DEVICE_MAX_BYTES = 120 * 1024 * 1024;
+const MAX_NETWORK_LOADS = 4;
+const IMAGE_TIMEOUT_MS = 30_000;
 
 const memoryCache = new Map<string, MemoryEntry>();
 const pendingLoads = new Map<string, Promise<string>>();
 let memoryBytes = 0;
 let deviceWritesSincePrune = 0;
+let networkLoads = 0;
+let cacheGeneration = 0;
+const networkWaiters: Array<() => void> = [];
+const assertCurrentGeneration = (generation: number) => {
+  if (generation !== cacheGeneration) throw new Error('Image request cancelled after session change');
+};
+
+// Keep signing and its download together: a gallery must not queue hundreds
+// of signing requests ahead of the first visible image's download.
+const withNetworkSlot = async <T>(load: () => Promise<T>): Promise<T> => {
+  if (networkLoads < MAX_NETWORK_LOADS) networkLoads += 1;
+  else await new Promise<void>((resolve) => networkWaiters.push(resolve));
+  try {
+    return await load();
+  } finally {
+    const next = networkWaiters.shift();
+    if (next) next();
+    else networkLoads -= 1;
+  }
+};
+
+class ImageHttpError extends Error {}
 
 const canUseObjectUrls = () =>
   typeof window !== 'undefined'
@@ -245,26 +269,35 @@ const materializeSignedUrl = async (
   key: string,
   scope: ImageCacheScope,
   skipDeviceLookup = false,
+  generation = cacheGeneration,
 ) => {
+  assertCurrentGeneration(generation);
   if (!skipDeviceLookup && scope === 'device' && canUseObjectUrls()) {
     const stored = await loadDeviceBlob(key);
     if (stored) {
-      void storeDeviceBlob(key, stored);
+      assertCurrentGeneration(generation);
       return blobToMemoryUrl(key, stored);
     }
   }
   if (canUseObjectUrls() && shouldFetchSignedUrl(signedUrl)) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS);
     try {
-      const response = await window.fetch(signedUrl, { credentials: 'omit' });
-      if (!response.ok) throw new Error(`Image request failed: ${response.status}`);
+      const response = await window.fetch(signedUrl, { credentials: 'omit', signal: controller.signal });
+      if (!response.ok) throw new ImageHttpError(`Image request failed: ${response.status}`);
       const blob = await response.blob();
+      assertCurrentGeneration(generation);
       if (scope === 'device') void storeDeviceBlob(key, blob);
       return blobToMemoryUrl(key, blob);
-    } catch {
+    } catch (error) {
+      if (error instanceof ImageHttpError || controller.signal.aborted) throw error;
       // Some storage/CDN responses may not permit a JavaScript fetch even
       // though an <img> element can display them. Keep the signed URL fallback.
+    } finally {
+      clearTimeout(timeout);
     }
   }
+  assertCurrentGeneration(generation);
   putMemoryEntry(key, {
     expiresAt: Date.now() + MEMORY_SIGNED_URL_TTL_MS,
     lastAccess: Date.now(),
@@ -288,13 +321,14 @@ export const loadSignedImageResource = async (
 
   const request = (async () => {
     const scope = options.scope ?? 'session';
-    return materializeSignedUrl(signedUrl, key, scope);
+    const generation = cacheGeneration;
+    return withNetworkSlot(() => materializeSignedUrl(signedUrl, key, scope, false, generation));
   })();
   pendingLoads.set(key, request);
   try {
     return await request;
   } finally {
-    pendingLoads.delete(key);
+    if (pendingLoads.get(key) === request) pendingLoads.delete(key);
   }
 };
 
@@ -312,31 +346,36 @@ export const loadStorageImageResource = async (
   if (pending) return pending;
 
   const request = (async () => {
+    const generation = cacheGeneration;
     if ((options.scope ?? 'session') === 'device' && canUseObjectUrls()) {
       const stored = await loadDeviceBlob(key);
       if (stored) {
-        void storeDeviceBlob(key, stored);
+        assertCurrentGeneration(generation);
         return blobToMemoryUrl(key, stored);
       }
     }
-    const storage = client.storage.from(bucket);
-    const signed = options.transform
-      ? await storage.createSignedUrl(objectPath, 60 * 60, { transform: options.transform })
-      : await storage.createSignedUrl(objectPath, 60 * 60);
-    if (signed.error || !signed.data?.signedUrl) {
-      throw new Error(signed.error?.message ?? '无法加载图片。');
-    }
-    return materializeSignedUrl(signed.data.signedUrl, key, options.scope ?? 'session', true);
+    return withNetworkSlot(async () => {
+      assertCurrentGeneration(generation);
+      const storage = client.storage.from(bucket);
+      const signed = options.transform
+        ? await storage.createSignedUrl(objectPath, 60 * 60, { transform: options.transform })
+        : await storage.createSignedUrl(objectPath, 60 * 60);
+      if (signed.error || !signed.data?.signedUrl) {
+        throw new Error(signed.error?.message ?? '无法加载图片。');
+      }
+      return materializeSignedUrl(signed.data.signedUrl, key, options.scope ?? 'session', true, generation);
+    });
   })();
   pendingLoads.set(key, request);
   try {
     return await request;
   } finally {
-    pendingLoads.delete(key);
+    if (pendingLoads.get(key) === request) pendingLoads.delete(key);
   }
 };
 
 export const clearImageResourceCache = async (options: { persistent?: boolean } = {}) => {
+  cacheGeneration += 1;
   for (const key of [...memoryCache.keys()]) deleteMemoryEntry(key);
   pendingLoads.clear();
   deviceWritesSincePrune = 0;

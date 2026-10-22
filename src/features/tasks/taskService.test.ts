@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../../types/database';
-import { addExtraTaskItem, findMissingDraftProductIds, findStaleDraftItemIds, shouldSyncDraftTaskProducts, submitTask } from './taskService';
+import { addExtraTaskItem, findMissingDraftProductIds, findStaleDraftItemIds, loadTaskFeedback, shouldSyncDraftTaskProducts, submitTask } from './taskService';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 
@@ -20,6 +20,31 @@ const draftTask: TaskRow = {
   task_type: 'inventory',
   updated_at: '2026-07-31T05:00:00.000Z',
 };
+
+describe('bounded task feedback queries', () => {
+  it('splits a 129-item inventory into short requests without dropping feedback or global time order', async () => {
+    const batches: string[][] = [];
+    const client = { from: vi.fn(() => ({ select: () => ({ in: (_column: string, ids: string[]) => {
+      batches.push(ids);
+      return { order: async () => ({ data: [{ id: ids[0], created_at: `2026-10-${30 - batches.length}T00:00:00Z` }], error: null }) };
+    } }) })) } as unknown as Parameters<typeof loadTaskFeedback>[0];
+    const ids = Array.from({ length: 129 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    const rows = await loadTaskFeedback(client, [...ids, ids[0]]);
+    expect(batches.map((batch) => batch.length)).toEqual([50, 50, 29]);
+    expect(batches.flat()).toEqual(ids);
+    expect(rows.map((row) => row.id)).toEqual([ids[100], ids[50], ids[0]]);
+  });
+  it('propagates a failed batch instead of presenting incomplete feedback as complete', async () => {
+    const order = vi.fn().mockResolvedValueOnce({ data: [], error: null }).mockResolvedValueOnce({ data: null, error: { message: 'batch failed' } });
+    const client = { from: () => ({ select: () => ({ in: () => ({ order }) }) }) } as unknown as Parameters<typeof loadTaskFeedback>[0];
+    await expect(loadTaskFeedback(client, Array.from({ length: 60 }, (_, i) => String(i)))).rejects.toThrow('batch failed');
+  });
+  it('does not query feedback for an empty inventory', async () => {
+    const client = { from: vi.fn() } as unknown as Parameters<typeof loadTaskFeedback>[0];
+    await expect(loadTaskFeedback(client, [])).resolves.toEqual([]);
+    expect(client.from).not.toHaveBeenCalled();
+  });
+});
 
 describe('taskService draft product synchronization', () => {
   it('keeps a focused recount limited to the rows rejected by the reviewer', () => {

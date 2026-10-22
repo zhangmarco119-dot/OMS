@@ -8,6 +8,12 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-10-22',
+    highlights: ['大份点货单反馈查询分批加载，避免过长请求导致单据无法打开。', '只读查询遇到临时网关错误自动重试，错误提示不再显示网页源代码。'],
+    title: '修复点货历史单据加载',
+    version: 'StoreHub v3.0.53',
+  },
+  {
     date: '2026-10-18',
     highlights: ['修复手机 SOP 编辑区被底部操作栏遮挡，步骤末尾可连续添加并定位新步骤。', 'SOP 图片按需逐张显示，优化图片请求并发与设备缓存复用，图片失败不影响编辑及正文。'],
     title: '优化 SOP 编辑与图片加载',

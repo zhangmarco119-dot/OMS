@@ -21,6 +21,13 @@ vi.mock('../services/ai-review.service', async (importOriginal) => {
 });
 
 describe('HistoryTaskDetailPage', () => {
+  it('never renders gateway HTML as the record error', async () => {
+    vi.mocked(loadSubmittedTaskDetailView).mockRejectedValueOnce(new Error('<!DOCTYPE html><html><title>502: Bad gateway</title></html>'));
+    render(<MemoryRouter initialEntries={['/app/history/task-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/history/:taskId" element={<HistoryTaskDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText(/单据服务连接暂时异常/)).toBeInTheDocument();
+    expect(screen.queryByText(/DOCTYPE/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /重新加载/ })).toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ profile: { id: 'profile-1', role: 'staff' } } as unknown as ReturnType<typeof useAuth>);

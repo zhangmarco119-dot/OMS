@@ -17,6 +17,35 @@ const policy = (overrides: Partial<SystemReleasePolicy> = {}): SystemReleasePoli
 });
 
 describe('release control', () => {
+  it('retries a transient gateway error on an inventory read and returns the successful response', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response('<!DOCTYPE html><title>502: Bad gateway</title>', { status: 502 }))
+      .mockResolvedValueOnce(new Response('[{"id":"item-1"}]', { headers: { 'content-type': 'application/json' } }));
+    const response = await createReleaseAwareFetch(fetcher)('https://example.com/rest/v1/task_items');
+    expect(await response.json()).toEqual([{ id: 'item-1' }]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('limits retries and replaces persistent gateway HTML with a readable JSON error', async () => {
+    const fetcher = vi.fn().mockImplementation(async () => new Response('<!DOCTYPE html><title>502: Bad gateway</title>', { status: 502, headers: { 'content-type': 'text/html' } }));
+    const response = await createReleaseAwareFetch(fetcher)('https://example.com/rest/v1/task_items');
+    expect(response.status).toBe(502);
+    const error = await response.json();
+    expect(error.code).toBe('HTTP_502');
+    expect(error.message).toContain('重新加载');
+    expect(JSON.stringify(error)).not.toContain('<!DOCTYPE');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('never retries business writes, permission failures or an aborted read', async () => {
+    for (const [method, status] of [['POST', 502], ['PATCH', 503], ['DELETE', 504], ['GET', 403]] as const) {
+      const fetcher = vi.fn(async () => new Response('{}', { status }));
+      await createReleaseAwareFetch(fetcher)('https://example.com/rest/v1/tasks', { method });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+    const controller = new AbortController();
+    controller.abort();
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('aborted'));
+    await expect(createReleaseAwareFetch(fetcher)('https://example.com/rest/v1/tasks', { signal: controller.signal })).rejects.toThrow('aborted');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('requires refresh when the deployed build differs in either direction', () => {
     const requirement = determineRequiredUpdate({
       manifest: { ...currentRelease, buildId: '2.4.2+rollback', schema: 1, version: '2.4.2' },

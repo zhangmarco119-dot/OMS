@@ -52,7 +52,21 @@ export const createReleaseAwareFetch = (fetcher: typeof fetch = fetch, options: 
   const timeout = controller ? window.setTimeout(() => controller.abort(new Error(TASK_IMAGE_UPLOAD_TIMEOUT_MESSAGE)), timeoutMs) : null;
   let response: Response;
   try {
-    response = await fetcher(input, controller ? { ...init, signal: controller.signal } : init);
+    const readOnly = ['GET', 'HEAD'].includes(requestMethod(input, init));
+    const signal = controller?.signal ?? inheritedSignal;
+    let retried = false;
+    while (true) {
+      try {
+        response = await fetcher(input, controller ? { ...init, signal: controller.signal } : init);
+      } catch (error) {
+        if (!readOnly || retried || signal?.aborted || !(error instanceof TypeError)) throw error;
+        retried = true;
+        continue;
+      }
+      if (!readOnly || retried || signal?.aborted || ![502, 503, 504].includes(response.status)) break;
+      await response.body?.cancel().catch(() => undefined);
+      retried = true;
+    }
   } finally {
     if (timeout !== null) window.clearTimeout(timeout);
     inheritedSignal?.removeEventListener('abort', forwardAbort);
@@ -66,7 +80,17 @@ export const createReleaseAwareFetch = (fetcher: typeof fetch = fetch, options: 
         }));
       }
     } catch {
-      // Non-JSON and unrelated API failures keep their original handling path.
+      // Gateway HTML must never become a business screen's error message.
+      const headers = new Headers(response.headers);
+      headers.set('content-type', 'application/json; charset=utf-8');
+      headers.delete('content-length');
+      headers.delete('content-encoding');
+      return new Response(JSON.stringify({
+        code: `HTTP_${response.status}`,
+        message: response.status >= 500
+          ? '服务连接暂时异常，请点击重新加载；已保存的数据不受影响。'
+          : '请求未能完成，请重新加载后重试。',
+      }), { status: response.status, statusText: response.statusText, headers });
     }
   }
   return response;

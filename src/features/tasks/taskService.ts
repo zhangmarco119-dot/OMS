@@ -76,17 +76,20 @@ export const loadTaskFeedback = async (client: Client, itemIds: string[]) => {
     return [];
   }
 
-  const { data, error } = await client
-    .from('product_feedback')
-    .select('*')
-    .in('task_item_id', itemIds)
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    throw new Error(error.message);
+  const feedback: ProductFeedbackRow[] = [];
+  const uniqueIds = [...new Set(itemIds)];
+  // UUID filters grow by about 40 URL bytes per item. Keep every request well
+  // below gateway request-line limits, including large historical inventories.
+  for (let offset = 0; offset < uniqueIds.length; offset += 50) {
+    const { data, error } = await client
+      .from('product_feedback')
+      .select('*')
+      .in('task_item_id', uniqueIds.slice(offset, offset + 50))
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    feedback.push(...(data ?? []));
   }
-
-  return data ?? [];
+  return feedback.sort((left, right) => left.created_at.localeCompare(right.created_at));
 };
 
 export const loadTaskWithItems = async (client: Client, taskId: string): Promise<TaskWithItems> => {

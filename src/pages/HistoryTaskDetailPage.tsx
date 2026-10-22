@@ -55,7 +55,10 @@ export function HistoryTaskDetailPage() {
       setStatus('ready');
     } catch (error) {
       setStatus('error');
-      setMessage(error instanceof Error ? error.message : '点货单明细加载失败。');
+      const reason = error instanceof Error ? error.message : '';
+      setMessage(/<!doctype|<html|bad gateway|failed to fetch/i.test(reason)
+        ? '单据服务连接暂时异常，请点击重新加载；已提交的点货记录仍然保留。'
+        : reason || '点货单明细加载失败。');
     }
   }, [auth.profile, taskId]);
 

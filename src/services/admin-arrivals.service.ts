@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { loadStorageImageResource } from '../lib/imageResourceCache';
+import { summarizeArrivalDetails } from '../features/arrivals/arrivalProductStatistics';
 import type { Database } from '../types/database';
 
 type Client = SupabaseClient<Database>;
@@ -272,36 +273,24 @@ export const loadAdminArrivalSummary = async (
   range: { dateFrom: string; dateTo: string },
   storeId = '',
 ): Promise<AdminArrivalSummary> => {
-  let detailQuery = client
-    .from('arrival_daily_detail_view')
-    .select('*')
-    .gte('arrival_date', range.dateFrom)
-    .lte('arrival_date', range.dateTo)
-    .order('arrival_time', { ascending: true });
-  let productQuery = client
-    .from('arrival_daily_product_summary_view')
-    .select('*')
-    .gte('arrival_date', range.dateFrom)
-    .lte('arrival_date', range.dateTo)
-    .order('store_name_snapshot')
-    .order('product_name_snapshot');
-  if (storeId) {
-    detailQuery = detailQuery.eq('store_id', storeId);
-    productQuery = productQuery.eq('store_id', storeId);
+  // The API caps each result set. Page through the whole selected period so
+  // single-product totals cannot silently omit arrivals after the first page.
+  const details: ArrivalDetailRow[] = [];
+  const seenItems = new Set<string>();
+  for (let offset = 0; ; offset += 500) {
+    let query = client.from('arrival_daily_detail_view').select('*')
+      .gte('arrival_date', range.dateFrom).lte('arrival_date', range.dateTo)
+      .order('arrival_date', { ascending: false }).order('arrival_time', { ascending: false })
+      .order('report_id').order('item_id');
+    if (storeId) query = query.eq('store_id', storeId);
+    const page = await query.range(offset, offset + 499);
+    throwIfError(page.error);
+    for (const row of page.data ?? []) {
+      if (row.item_id && seenItems.has(row.item_id)) continue;
+      if (row.item_id) seenItems.add(row.item_id);
+      details.push(row);
+    }
+    if ((page.data?.length ?? 0) < 500) break;
   }
-  const [details, products] = await Promise.all([detailQuery, productQuery]);
-  throwIfError(details.error);
-  throwIfError(products.error);
-  const productRows = products.data ?? [];
-  const mergedProducts = [...productRows.reduce((merged, row) => {
-    const key = `${row.store_id ?? ''}:${row.product_name_snapshot ?? ''}:${row.unit ?? ''}`;
-    const current = merged.get(key);
-    merged.set(key, current ? {
-      ...current,
-      report_count: (current.report_count ?? 0) + (row.report_count ?? 0),
-      total_quantity: (current.total_quantity ?? 0) + (row.total_quantity ?? 0),
-    } : row);
-    return merged;
-  }, new Map<string, ArrivalProductSummaryRow>()).values()];
-  return { details: details.data ?? [], products: mergedProducts };
+  return { details, products: summarizeArrivalDetails(details) };
 };

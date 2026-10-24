@@ -43,10 +43,33 @@ describe('AdminArrivalSummaryPage product search', () => {
     await waitFor(() => expect(screen.queryByText('淡奶油')).not.toBeInTheDocument());
     const links = screen.getAllByRole('link', { name: '查看蓝莓果酱到货详情' });
     expect(links[0]).toHaveAttribute('href', '/app/admin/arrivals/report-jam?item=item-jam');
-    expect(screen.getByText('明细数量合计').nextSibling).toHaveTextContent('2');
-
-    fireEvent.click(screen.getByRole('tab', { name: '产品汇总' }));
+    expect(screen.getByLabelText('期间到货总量 2 瓶')).toBeInTheDocument();
+    expect(screen.getByText('2026-09-22 10:30')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: '产品汇总' })).not.toBeInTheDocument();
     expect(screen.getAllByText('蓝莓果酱').length).toBeGreaterThan(0);
     expect(screen.queryByText('淡奶油')).not.toBeInTheDocument();
+  });
+
+  it('groups matching products separately and allows focusing on one exact name/unit', async () => {
+    vi.mocked(loadAdminArrivalSummary).mockResolvedValue({ products: [], details: [
+      ...summary.details,
+      { ...summary.details[1], item_id: 'second-jam', report_id: 'report-jam-2', arrival_date: '2026-09-23', quantity: 5 },
+      { ...summary.details[1], item_id: 'jam-box', unit: '箱', quantity: 1 },
+      { ...summary.details[1], item_id: 'another-jam', product_name_snapshot: '草莓果酱', quantity: 4 },
+    ] });
+    render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AdminArrivalSummaryPage /></MemoryRouter>);
+    await screen.findByRole('searchbox', { name: '检索汇总产品' });
+    await screen.findByText('明细数量合计');
+    fireEvent.change(screen.getByRole('searchbox', { name: '检索汇总产品' }), { target: { value: '果酱' } });
+    expect(screen.getByLabelText('期间到货总量 7 瓶')).toBeInTheDocument();
+    expect(screen.getByLabelText('期间到货总量 1 箱')).toBeInTheDocument();
+    const select = screen.getByRole('combobox', { name: '选择统计商品' });
+    fireEvent.change(select, { target: { value: JSON.stringify(['蓝莓果酱', '瓶']) } });
+    expect(screen.queryByRole('region', { name: '草莓果酱（瓶）到货统计' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('期间到货总量 1 箱')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: '查看蓝莓果酱到货详情' })).toHaveLength(2);
+    expect(screen.getAllByRole('link', { name: '查看蓝莓果酱到货详情' })[0]).toHaveTextContent('2026-09-23 10:30');
+    fireEvent.click(screen.getByRole('button', { name: '清空汇总产品检索' }));
+    expect(screen.getByRole('tab', { name: '到货明细' })).toBeInTheDocument();
   });
 });

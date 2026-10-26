@@ -139,17 +139,41 @@ export const validateEnvironment = ({ branch, env, linkedProjectRef = null, poli
   return { errors, expectedEnvironment, expectedProjectRef, projectRef, expectedBackendUrl: selfHosted ? selfHostedPolicy.url : `https://${expectedProjectRef}.supabase.co` };
 };
 
+export const validateCloudEnvironmentLink = (config, expectedEnvironment, expectedProjectRef) => {
+  if (!config || config.projectRef !== expectedProjectRef
+    || config.container !== `supabase_db_storehub-local-${expectedEnvironment}`
+    || !/^[a-zA-Z0-9.-]+$/.test(config.host ?? '') || !/^[a-z_][a-z0-9_-]*$/.test(config.user ?? '')
+    || !path.isAbsolute(config.identityFile ?? '') || !path.isAbsolute(config.knownHostsFile ?? '')) {
+    return ['云端连接登记与当前发布环境不一致。'];
+  }
+  return [];
+};
+
 export const verifyCurrentEnvironment = ({ requireLinked = false } = {}) => {
   const branch = resolveBranch();
   const expectedEnvironment = policy.branches[branch];
   const fileEnv = loadEnvFiles(expectedEnvironment ?? 'development');
   const env = { ...fileEnv, ...process.env };
   const linkedPath = path.join(root, 'supabase/.temp/project-ref');
-  const linkedProjectRef = requireLinked && existsSync(linkedPath)
+  let linkedProjectRef = requireLinked && existsSync(linkedPath)
     ? readFileSync(linkedPath, 'utf8').trim()
     : null;
+  const cloudErrors = [];
+  const cloudPath = env.STOREHUB_MIGRATION_CHECK_CONFIG;
+  // Self-hosted migrations are checked over SSH by verify-remote-migrations.
+  // The retired Supabase CLI target must not substitute for that actual target.
+  if (requireLinked && cloudPath) {
+    try {
+      const config = JSON.parse(readFileSync(cloudPath, 'utf8'));
+      const expectedRef = expectedEnvironment === 'production' ? policy.productionProjectRef : policy.developmentProjectRef;
+      cloudErrors.push(...validateCloudEnvironmentLink(config, expectedEnvironment, expectedRef));
+      if (env.VITE_SUPABASE_URL !== policy[`${expectedEnvironment}SelfHosted`]?.url) cloudErrors.push('云端迁移校验仅允许已登记的自托管后端。');
+      linkedProjectRef = config.projectRef;
+    } catch { cloudErrors.push('无法读取云端连接登记，不能执行发布校验。'); }
+  }
   const result = validateEnvironment({ branch, env, linkedProjectRef });
-  if (requireLinked && !existsSync(linkedPath)) result.errors.push('Supabase CLI 尚未链接任何项目。');
+  result.errors.push(...cloudErrors);
+  if (requireLinked && !cloudPath && !existsSync(linkedPath)) result.errors.push('Supabase CLI 尚未链接任何项目。');
   return { ...result, branch, env };
 };
 

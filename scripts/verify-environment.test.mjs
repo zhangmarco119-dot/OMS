@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 
-import { extractSupabaseProjectRef, validateEnvironment } from './verify-environment.mjs';
+import { extractSupabaseProjectRef, validateCloudEnvironmentLink, validateEnvironment } from './verify-environment.mjs';
+import path from 'node:path';
 
 const productionRef = 'mxxxpyowccezplfeffms';
 const developmentRef = 'dddddddddddddddddddd';
@@ -22,6 +23,15 @@ const policyConfig = {
 };
 
 describe('StoreHub environment guard', () => {
+  it('accepts only the registered cloud database for the selected release environment', () => {
+    const config = { projectRef: productionRef, container: 'supabase_db_storehub-local-production', host: '192.0.2.1', user: 'ubuntu', identityFile: path.resolve('key'), knownHostsFile: path.resolve('known_hosts') };
+    expect(validateCloudEnvironmentLink(config, 'production', productionRef)).toEqual([]);
+    expect(validateCloudEnvironmentLink(config, 'development', developmentRef)).not.toEqual([]);
+    for (const changed of [{ container: 'supabase_db_storehub-local-development' }, { projectRef: developmentRef }, { host: 'host;command' }, { identityFile: 'relative-key' }]) {
+      expect(validateCloudEnvironmentLink({ ...config, ...changed }, 'production', productionRef)).not.toEqual([]);
+    }
+    expect(validateCloudEnvironmentLink(null, 'production', productionRef)).not.toEqual([]);
+  });
   it('isolates registered production and development self-hosted credentials', () => {
     const key = `${Buffer.from('{"alg":"HS256"}').toString('base64url')}.${Buffer.from('{"role":"anon"}').toString('base64url')}.production`;
     const url = 'https://oms-store-management.pages.dev/backend';

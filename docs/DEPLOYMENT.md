@@ -1,5 +1,7 @@
 # StoreHub 部署说明
 
+自托管环境发布时，设置 `STOREHUB_MIGRATION_CHECK_CONFIG` 指向当前环境登记的 SSH 主机、身份文件、主机密钥文件、容器和项目编号。环境门禁验证这些登记与分支、后端 URL 一致，随后通过 SSH 只读核对真实数据库迁移；此时不依赖已退役的 Supabase CLI 项目链接。未提供自托管配置时仍保留原 CLI 链接校验。
+
 强制更新、两阶段启用和回滚操作见 [RELEASE_UPDATE_AND_ROLLBACK.md](./RELEASE_UPDATE_AND_ROLLBACK.md)。
 
 StoreHub 只允许以下发布关系，详细安全规则见 [ENVIRONMENT_ISOLATION.md](./ENVIRONMENT_ISOLATION.md)。

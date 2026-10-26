@@ -3,6 +3,12 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      profile_store_assignment_periods: {
+        Row: { id: string; profile_id: string; store_id: string; effective_from: string; effective_to: string | null; updated_by: string | null; created_at: string };
+        Insert: { id?: string; profile_id: string; store_id: string; effective_from: string; effective_to?: string | null; updated_by?: string | null; created_at?: string };
+        Update: { effective_from?: string; effective_to?: string | null; updated_by?: string | null };
+        Relationships: [];
+      };
       attendance_audit_logs: {
         Row: { action: 'binding_created' | 'binding_removed' | 'binding_replaced' | 'sync_requested' | 'sync_retried'; actor_id: string | null; created_at: string; entity_id: string; entity_type: 'binding' | 'sync_job'; id: string; metadata: Json; store_id: string | null };
         Insert: { action: 'binding_created' | 'binding_removed' | 'binding_replaced' | 'sync_requested' | 'sync_retried'; actor_id?: string | null; created_at?: string; entity_id: string; entity_type: 'binding' | 'sync_job'; id?: string; metadata?: Json; store_id?: string | null };
@@ -1430,6 +1436,10 @@ export type Database = {
       };
       admin_set_profile_stores: {
         Args: { p_profile_id: string; p_store_ids: string[] };
+        Returns: undefined;
+      };
+      admin_end_profile_store: {
+        Args: { p_profile_id: string; p_store_id: string; p_effective_date: string };
         Returns: undefined;
       };
       can_modify_task: {

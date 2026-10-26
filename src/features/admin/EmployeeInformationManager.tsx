@@ -13,6 +13,7 @@ import {
   uploadEmployeeIdCard,
   type TaxPerson,
 } from '../../services/tax-accounting.service';
+import { EmployeeStoreAssignments } from './EmployeeStoreAssignments';
 import type { AdminUserRow, StoreRow } from './adminUsersService';
 
 type Feedback = { message: string; title: string; tone: ActionFeedbackTone };
@@ -52,7 +53,7 @@ const toEditor = (user: AdminUserRow, person: TaxPerson | undefined): EmployeeEd
   reportingStoreId: person?.reporting_store_id ?? user.store_id,
 });
 
-export function EmployeeInformationManager({ stores, users }: { stores: StoreRow[]; users: AdminUserRow[] }) {
+export function EmployeeInformationManager({ stores, users, onChanged }: { stores: StoreRow[]; users: AdminUserRow[]; onChanged?: () => void }) {
   const auth = useAuth();
   const [people, setPeople] = useState<TaxPerson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +171,7 @@ export function EmployeeInformationManager({ stores, users }: { stores: StoreRow
     {editor ? <div aria-labelledby="employee-information-editor-title" aria-modal="true" className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog">
       <div className="mx-auto max-w-2xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
         <header className="ui-card sticky top-0 z-20 flex items-center justify-between p-3.5"><div><p className="text-xs font-bold text-brand-700">员工管理</p><h2 className="text-xl font-bold" id="employee-information-editor-title">{editor.fullName}的员工信息</h2></div><button aria-label="关闭员工信息编辑" className="ui-icon-button" onClick={() => setEditor(null)} type="button"><X className="h-5 w-5" /></button></header>
+        <EmployeeStoreAssignments onChanged={onChanged} profileId={editor.profileId} stores={stores} />
         <SectionCard><SectionHeader icon={FileText} title="身份与联系方式" description="证件资料仅限管理员查看，并会同步显示在税务与记账的人员登记中。" /><div className="mt-4 grid gap-3 sm:grid-cols-2">
           <FormField label="姓名"><input className="ui-input" disabled value={editor.fullName} /></FormField>
           <FormField label="手机号"><input className="ui-input" inputMode="tel" maxLength={11} onChange={(event) => setEditor((current) => current ? { ...current, phone: event.target.value.replace(/\D/g, '') } : current)} value={editor.phone} /></FormField>

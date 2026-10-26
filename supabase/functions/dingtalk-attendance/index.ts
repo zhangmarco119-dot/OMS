@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 import { normalizeAttendanceBundle, type AttendanceBindingInput } from './attendance-normalizer.ts';
 import { chunk, DingTalkApiError, DingTalkClient } from './dingtalk-client.ts';
 import { loadDingTalkEnterpriseConfigs } from './enterprise-config.ts';
-import { eachDate, scheduledAttendanceStart, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan.ts';
+import { eachDate, limitScheduledDates, scheduledAttendanceStart, selectIncrementalDates, selectUncoveredBindingDates, shouldForceRequestedRange } from './incremental-plan.ts';
 import { summarizeAttendanceSync } from './sync-result.ts';
 import { attendanceReservationErrorCode } from './reservation-error.ts';
 
@@ -204,6 +204,9 @@ Deno.serve(async (request) => {
     if (!running.error && running.data) return json({ error: '同步正在进行，请至少等待 30 秒后再试。' }, 429);
   }
 
+  // A terminated isolate cannot finalize its job. Make stale attempts visible.
+  await adminClient.from('attendance_sync_jobs').update({ status: 'failed', error_summary: '同步执行超时，已保存的记录保留，未完成日期将在下次补齐。', finished_at: new Date().toISOString() })
+    .eq('status', 'running').lt('started_at', new Date(Date.now() - 10 * 60_000).toISOString());
   let bindingsQuery = adminClient.from('dingtalk_employee_bindings').select('profile_id,corp_id,dingtalk_user_id,store_id').eq('binding_status', 'active');
   if (requestedProfileId) bindingsQuery = bindingsQuery.eq('profile_id', requestedProfileId);
   if (payload.action === 'sync' && payload.profileIds) {
@@ -212,6 +215,8 @@ Deno.serve(async (request) => {
   }
   const { data: bindingRows, error: bindingError } = await bindingsQuery;
   if (bindingError) return json({ error: '无法读取员工绑定。' }, 500);
+  const { data: assignmentPeriods, error: assignmentError } = await adminClient.from('profile_store_assignment_periods').select('profile_id,store_id,effective_from,effective_to');
+  if (assignmentError) return json({ error: '无法读取员工门店关联日期。' }, 500);
   const profileIds = (bindingRows ?? []).map((item) => item.profile_id);
   const { data: profiles, error: profilesError } = profileIds.length
     ? await adminClient.from('profiles').select('id,store_id,is_active,deleted_at').in('id', profileIds)
@@ -221,6 +226,7 @@ Deno.serve(async (request) => {
   const bindings: AttendanceBindingInput[] = (bindingRows ?? []).flatMap((binding) => {
     const profile = profileMap.get(binding.profile_id);
     if (!profile?.is_active || profile.deleted_at) return [];
+    if (!(assignmentPeriods ?? []).some((period) => period.profile_id === binding.profile_id && period.store_id === binding.store_id && period.effective_from <= endDate && (!period.effective_to || period.effective_to > startDate))) return [];
     if (!isScheduled && (!allowedStoreIds.includes(binding.store_id) || (requestedStoreId && binding.store_id !== requestedStoreId))) return [];
     if (isScheduled && requestedStoreId && binding.store_id !== requestedStoreId) return [];
     return [{ corpId: binding.corp_id, dingtalkUserId: binding.dingtalk_user_id, profileId: binding.profile_id, storeId: binding.store_id }];
@@ -238,7 +244,7 @@ Deno.serve(async (request) => {
     : { data: [], error: null };
   if (abnormalError) return json({ error: '无法读取需要复查的历史缺卡和异常记录。' }, 500);
   const { data: coverageRows, error: coverageError } = bindings.length
-    ? await adminClient.from('attendance_daily_records').select('profile_id,corp_id,store_id,attendance_date')
+    ? await adminClient.from('attendance_sync_binding_days').select('profile_id,corp_id,store_id,attendance_date')
       .in('profile_id', unique(bindings.map((binding) => binding.profileId)))
       .gte('attendance_date', startDate).lte('attendance_date', endDate)
     : { data: [], error: null };
@@ -262,7 +268,8 @@ Deno.serve(async (request) => {
       .filter((row) => row.corp_id === corpId && row.store_id === storeId)
       .map((row) => ({ attendanceDate: row.attendance_date, profileId: row.profile_id })));
     const incrementalDates = selectIncrementalDates(startDate, endDate, today, states, recheckDates);
-    datesByScope.set(scopeKey, forceRequestedRange ? eachDate(startDate, endDate) : unique([...incrementalDates, ...uncoveredDates]).sort());
+    const requested = (forceRequestedRange ? eachDate(startDate, endDate) : unique([...incrementalDates, ...uncoveredDates]).sort()).filter((date) => (assignmentPeriods ?? []).some((period) => scopedProfileIds.includes(period.profile_id) && period.store_id === storeId && period.effective_from <= date && (!period.effective_to || period.effective_to > date)));
+    datesByScope.set(scopeKey, isScheduled ? limitScheduledDates(requested, today) : requested);
   }
   const datesByCorp = new Map<string, string[]>();
   for (const binding of bindings) {
@@ -313,7 +320,7 @@ Deno.serve(async (request) => {
       const config = configByCorp.get(binding.corpId);
       if (!client || !config) throw new Error(`DingTalk enterprise ${binding.corpId} is not configured`);
       const bundle = bundlesByCorp.get(binding.corpId);
-      const bindingDates = datesByScope.get(`${binding.corpId}|${binding.storeId}`) ?? [];
+      const bindingDates = (datesByScope.get(`${binding.corpId}|${binding.storeId}`) ?? []).filter((date) => (assignmentPeriods ?? []).some((period) => period.profile_id === binding.profileId && period.store_id === binding.storeId && period.effective_from <= date && (!period.effective_to || period.effective_to > date)));
       if (!bindingDates.length) { skippedCount += 1; successCount += 1; continue; }
       if (!bundle) throw new Error(`DingTalk attendance bundle ${binding.corpId} is unavailable`);
       const requestedDateSet = new Set(bindingDates);
@@ -338,9 +345,9 @@ Deno.serve(async (request) => {
         if (staleDeleteError) throw new Error(staleDeleteError.message);
       }
       if (!days.length) skippedCount += 1;
-      for (const day of days) {
-        const { data: existing } = await adminClient.from('attendance_daily_records').select('id').eq('corp_id', day.corpId).eq('profile_id', day.profileId).eq('attendance_date', day.attendanceDate).maybeSingle();
-        const { data: daily, error: dailyError } = await adminClient.from('attendance_daily_records').upsert({
+      const syncedAt = new Date().toISOString();
+      for (const batch of chunk(days, 25)) {
+        const rows = batch.map((day) => ({
           corp_id: day.corpId, profile_id: day.profileId, store_id: day.storeId, attendance_date: day.attendanceDate,
           enterprise_timezone: config.timezone, shift_id: day.shiftId, shift_name: day.shiftName, planned_on_at: day.plannedOnAt,
           planned_off_at: day.plannedOffAt, actual_on_at: day.actualOnAt, actual_off_at: day.actualOffAt,
@@ -348,19 +355,27 @@ Deno.serve(async (request) => {
           is_attended: day.isAttended, late_minutes: day.lateMinutes, early_minutes: day.earlyMinutes,
           missing_punch: day.missingPunch, exception_note: day.exceptionNote, dingtalk_result_ids: day.dingtalkResultIds,
           source_updated_at: day.sourceUpdatedAt, last_synced_at: new Date().toISOString(),
-        }, { onConflict: 'corp_id,profile_id,attendance_date' }).select('id').single();
-        if (dailyError || !daily) throw new Error(dailyError?.message ?? 'daily attendance upsert failed');
-        if (existing) updatedCount += 1; else insertedCount += 1;
-        if (day.punches.length) {
-          const { error: punchError } = await adminClient.from('attendance_punch_records').upsert(day.punches.map((punch) => ({
-            daily_record_id: daily.id, corp_id: punch.corpId, profile_id: punch.profileId, store_id: punch.storeId,
-            dingtalk_record_id: punch.dingtalkRecordId, punch_time: punch.punchTime, check_type: punch.checkType,
-            source_type: punch.sourceType, time_result: punch.timeResult, location_result: punch.locationResult,
-            location_name: punch.locationName, is_approved_correction: punch.isApprovedCorrection, last_synced_at: new Date().toISOString(),
-          })), { onConflict: 'corp_id,dingtalk_record_id' });
-          if (punchError) throw new Error(punchError.message);
+
+        }));
+        const { data: savedDays, error: dailyError } = await adminClient.from('attendance_daily_records').upsert(rows, { onConflict: 'corp_id,profile_id,attendance_date' }).select('id,attendance_date');
+        if (dailyError || !savedDays) throw new Error(dailyError?.message ?? 'daily attendance upsert failed');
+        const idByDate = new Map(savedDays.map((row) => [row.attendance_date, row.id]));
+        const punches = batch.flatMap((day) => day.punches.map((punch) => ({
+          daily_record_id: idByDate.get(day.attendanceDate)!, corp_id: punch.corpId, profile_id: punch.profileId, store_id: punch.storeId,
+          dingtalk_record_id: punch.dingtalkRecordId, punch_time: punch.punchTime, check_type: punch.checkType,
+          source_type: punch.sourceType, time_result: punch.timeResult, location_result: punch.locationResult,
+          location_name: punch.locationName, is_approved_correction: punch.isApprovedCorrection, last_synced_at: syncedAt,
+        })));
+        for (const punchRows of chunk([...new Map(punches.map((row) => [row.dingtalk_record_id, row])).values()], 100)) {
+          const { error } = await adminClient.from('attendance_punch_records').upsert(punchRows, { onConflict: 'corp_id,dingtalk_record_id' });
+          if (error) throw new Error(error.message);
         }
+        const existingDates = new Set((persistedDays ?? []).map((row) => row.attendance_date));
+        updatedCount += batch.filter((day) => existingDates.has(day.attendanceDate)).length;
+        insertedCount += batch.filter((day) => !existingDates.has(day.attendanceDate)).length;
       }
+      const { error: coverageSaveError } = await adminClient.from('attendance_sync_binding_days').upsert(bindingDates.map((date) => ({ corp_id: binding.corpId, store_id: binding.storeId, profile_id: binding.profileId, attendance_date: date, last_synced_at: syncedAt })), { onConflict: 'corp_id,profile_id,store_id,attendance_date' });
+      if (coverageSaveError) throw new Error(coverageSaveError.message);
       successCount += 1;
     } catch (error) {
       failureCount += 1;

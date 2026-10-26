@@ -2,7 +2,7 @@
 -- is exclusive: cancellation on October 17 preserves membership through the 16th.
 create table public.profile_store_assignment_periods (
   id uuid primary key default gen_random_uuid(),
-  profile_id uuid not null references public.profiles(id),
+  profile_id uuid not null references public.profiles(id) on delete cascade,
   store_id uuid not null references public.stores(id),
   effective_from date not null,
   effective_to date,
@@ -121,7 +121,7 @@ $$;
 
 create table public.attendance_sync_binding_days (
   corp_id text not null,
-  profile_id uuid not null references public.profiles(id),
+  profile_id uuid not null references public.profiles(id) on delete cascade,
   store_id uuid not null references public.stores(id),
   attendance_date date not null,
   last_synced_at timestamptz not null default now(),

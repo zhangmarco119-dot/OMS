@@ -1,0 +1,17 @@
+const fs = require('node:fs'), path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const source = path.join(root, 'wechatapp/build/production');
+const project = path.join(root, 'wechatapp');
+const target = path.join(project, 'dist');
+const marker = path.join(target, '.storehub-generated.json');
+if (fs.existsSync(target) && !fs.existsSync(marker)) throw new Error('Existing wechatapp/dist is not owned by this build');
+const original = path.join(project, 'project.config.json');
+const backup = path.join(root, 'wechatapp/.local/original-project.config.json');
+fs.mkdirSync(path.dirname(backup),{recursive:true}); if (!fs.existsSync(backup)) fs.copyFileSync(original, backup);
+const previous = JSON.parse(fs.readFileSync(original, 'utf8'));
+const generated = JSON.parse(fs.readFileSync(path.join(source, 'project.config.json'), 'utf8'));
+if (previous.appid !== generated.appid) throw new Error('Original AppID differs from build AppID');
+fs.cpSync(source, target, { recursive: true, filter: name => !['node_modules','project.private.config.json'].includes(path.basename(name)) });
+fs.writeFileSync(marker, JSON.stringify({ application: 'StoreHub', environment: 'production', generated: true }));
+fs.writeFileSync(original, JSON.stringify({ ...previous, miniprogramRoot: 'dist/', projectname: 'StoreHub微信小程序', libVersion: generated.libVersion, setting: { ...previous.setting, ...generated.setting } }, null, 2)+'\n');
+console.log(JSON.stringify({ project, target, appid: generated.appid, environment: 'production' }));

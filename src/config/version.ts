@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-26',
+    highlights: ['修复微信小程序读取较大业务数据时页面卡住的问题，长列表支持分页浏览。', '适配日期时间选择、确认弹窗、文件图片选择和导出，修复部分勾选交互、间距及弹窗布局。'],
+    title: '修复小程序页面访问与交互兼容性',
+    version: 'StoreHub v3.0.56',
+  },
+  {
+    date: '2026-10-26',
     highlights: ['修复考勤定时同步反复扫描历史导致超时和调用额度耗尽，分批保存并记录员工逐日同步进度。', '员工门店关联支持按日期取消并保留历史，单店员工停用跨店工时与薪资分摊，绩效按有效门店计算。'],
     title: '修复考勤同步并完善门店关联日期',
     version: 'StoreHub v3.0.55',

@@ -16,6 +16,12 @@ export default tseslint.config(
       'reference',
       'qmai-cli-main',
       'android',
+      'wechatapp/build',
+      'wechatapp/dist',
+      'wechatapp/tooling/*.generated.*',
+      // Preserved starter templates are outside miniprogramRoot and unused by StoreHub.
+      'wechatapp/components',
+      'wechatapp/pages',
     ],
   },
   js.configs.recommended,
@@ -33,6 +39,21 @@ export default tseslint.config(
         { allowConstantExport: true, allowExportNames: ['useAuth'] },
       ],
     },
+  },
+  {
+    files: ['wechatapp/**/*.{js,cjs,ts,tsx}'],
+    languageOptions: {globals: Object.fromEntries(['require','module','exports','__dirname','console','process','global','Buffer','URL','AbortController','fetch','Response','setTimeout','clearTimeout','setImmediate','wx','App','Page','Component','getApp','getCurrentPages','__STOREHUB_MINIPROGRAM__'].map(name=>[name,'readonly']))},
+    rules: {'@typescript-eslint/no-require-imports':'off'},
+  },
+  {
+    files: ['wechatapp/tooling/native-{controls,jsx-runtime}.{ts,tsx}'],
+    // Native Kbone events and custom element properties cross an untyped SDK boundary.
+    rules: {'@typescript-eslint/no-explicit-any':'off'},
+  },
+  {
+    files: ['wechatapp/cloudfunctions/bridge/proxy.cjs'],
+    // The request guard intentionally rejects C0 control characters.
+    rules: {'no-control-regex':'off'},
   },
   {
     files: ['scripts/**/*.mjs'],

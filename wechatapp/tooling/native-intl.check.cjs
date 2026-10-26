@@ -1,0 +1,30 @@
+const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'),os=require('node:os');
+const { buildIntl } = require('./build-intl.cjs');
+test('a runtime without Intl formats China payroll dates, date parts and money', async t => {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'storehub-intl-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+  const output = path.join(directory, 'runtime.cjs');
+  await buildIntl(output);
+  const context = vm.createContext({ Intl: undefined, module: { exports: {} }, console, setTimeout, clearTimeout });
+  vm.runInContext(fs.readFileSync(output, 'utf8'), context);
+  vm.runInContext('var scopedWindow={};module.exports.install(scopedWindow);', context);
+  const value = expression => vm.runInContext(expression, context);
+  assert.equal(value('new scopedWindow.Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Shanghai"}).format(new Date("2026-10-31T16:01:00Z"))'), '2026-11-01');
+  const parts = value('JSON.stringify(new scopedWindow.Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Shanghai",year:"numeric",month:"2-digit"}).formatToParts(new Date("2026-10-31T16:01:00Z")))');
+  assert.equal(JSON.parse(parts).find(p => p.type === 'month').value, '11');
+  assert.equal(value('new scopedWindow.Intl.NumberFormat("zh-CN",{minimumFractionDigits:2,maximumFractionDigits:2}).format(10630.56)'), '10,630.56');
+  assert.match(value('new Date("2026-10-31T16:01:00Z").toLocaleString("zh-CN",{hour12:false})'), /2026.*11.*1.*0.*01/);
+  assert.equal(value('new scopedWindow.Intl.DateTimeFormat("zh-CN",{timeZone:"Asia/Shanghai",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date("2026-10-31T16:01:00Z"))'), '00:01');
+  assert(fs.statSync(output).size < 2 * 1024 * 1024);
+  assert.equal(value('scopedWindow.Intl.__storehubCached'),true);
+  assert.equal(value('new Date("invalid").toLocaleString("zh-CN")'),'Invalid Date');
+  assert.equal(value('new Date("2026-10-31T16:01:00Z").toLocaleDateString("sv-SE")'),'2026-11-01');
+});
+test('a runtime with native Intl keeps working without polyfill-only timezone methods', async t => {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'storehub-intl-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+  const output = path.join(directory, 'runtime.cjs');
+  await buildIntl(output);
+  const context = vm.createContext({ Intl, module: { exports: {} }, console, setTimeout, clearTimeout });
+  vm.runInContext(fs.readFileSync(output, 'utf8'), context);
+  vm.runInContext('var scopedWindow={};module.exports.install(scopedWindow);', context);
+  assert.equal(vm.runInContext('new scopedWindow.Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Shanghai"}).format(new Date("2026-10-31T16:01:00Z"))', context), '2026-11-01');
+});

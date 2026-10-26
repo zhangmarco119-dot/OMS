@@ -25,6 +25,7 @@ const scannedExtensions = new Set([
   '.css',
   '.html',
   '.js',
+  '.cjs',
   '.json',
   '.md',
   '.mjs',
@@ -88,6 +89,9 @@ const walk = async (directory) => {
     const relativePath = path.relative(root, fullPath).replaceAll(path.sep, '/');
 
     if (entry.isDirectory()) {
+      // Native output contains the same public client configuration as dist/.
+      // Continue scanning all maintained Mini Program source files.
+      if (['wechatapp/build', 'wechatapp/dist', 'wechatapp/.local'].includes(relativePath)) continue;
       if (!ignoredDirectories.has(entry.name)) {
         files.push(...await walk(fullPath));
       }

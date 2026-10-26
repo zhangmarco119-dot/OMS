@@ -7,6 +7,7 @@ const nodeSteps = [
   ['正式版本规则校验', ['scripts/check-release-version.mjs']],
   ['环境与 CLI Link 校验', ['scripts/verify-environment.mjs', '--require-linked']],
   ['Migration 安全检查', ['scripts/check-migration-safety.mjs']],
+  ['微信小程序兼容性回归', ['--test', 'wechatapp/tooling/*.check.cjs', 'wechatapp/cloudfunctions/bridge/*.check.cjs']],
   ['远端 Migration 一致性检查', ['scripts/verify-remote-migrations.mjs']],
 ];
 const pnpmSteps = [

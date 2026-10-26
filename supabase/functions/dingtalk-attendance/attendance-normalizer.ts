@@ -59,6 +59,7 @@ const iso = (value: unknown) => {
   const date = numeric === null ? new Date(normalized) : new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
+const chinaDateFormatter = new Intl.DateTimeFormat('en-CA', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Shanghai', year: 'numeric' });
 const localDate = (value: unknown, fallback?: string) => {
   const raw = text(value);
   const dateOnly = raw.match(/^(\d{4}-\d{2}-\d{2})$/);
@@ -68,7 +69,7 @@ const localDate = (value: unknown, fallback?: string) => {
   if (localDateTime && !hasExplicitTimezone) return localDateTime[1];
   const timestamp = iso(value);
   if (!timestamp) return fallback ?? '';
-  return new Intl.DateTimeFormat('en-CA', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Shanghai', year: 'numeric' }).format(new Date(timestamp));
+  return chinaDateFormatter.format(new Date(timestamp));
 };
 
 const resultMap: Record<string, DutyResult> = {

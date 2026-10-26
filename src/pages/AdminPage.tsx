@@ -931,7 +931,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
             ))}
           </div>
           </section>
-          </> : <EmployeeInformationManager stores={stores} users={users} />}
+          </> : <EmployeeInformationManager onChanged={() => void refresh(selectedStoreId)} stores={stores} users={users} />}
         </section>
       ) : null}
       {savedAccountName ? <div className="ui-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="account-save-success-title"><section className="ui-dialog-panel max-w-sm border border-emerald-100 p-5"><div className="flex items-start justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 className="h-7 w-7" aria-hidden="true" /></div><button aria-label="关闭保存成功提示" className="ui-icon-button" onClick={() => setSavedAccountName(null)} type="button"><X className="h-5 w-5" /></button></div><h2 className="mt-4 text-xl font-bold text-slate-900" id="account-save-success-title">账号修改已保存</h2><p className="mt-2 text-sm leading-6 text-slate-600">“{savedAccountName}”的账号资料已更新并生效。</p><button className="ui-button-primary mt-5 w-full" onClick={() => setSavedAccountName(null)} type="button">我知道了</button></section></div> : null}

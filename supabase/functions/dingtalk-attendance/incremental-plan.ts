@@ -18,6 +18,14 @@ export const eachDate = (startDate: string, endDate: string) => {
 
 export const previousDate = (date: string) => new Date(new Date(`${date}T00:00:00Z`).getTime() - DAY_MS).toISOString().slice(0, 10);
 
+// Keep each invocation small enough to persist every employee. Recent missing
+// days take precedence; attempted empty/rest days also count as coverage.
+export const limitScheduledDates = (dates: string[], today: string, maxDays = 7) => {
+  const sorted = [...new Set(dates)].sort().reverse();
+  const recent = [today, previousDate(today)].filter((date) => sorted.includes(date));
+  return [...recent, ...sorted.filter((date) => !recent.includes(date))].slice(0, maxDays).sort();
+};
+
 export const shouldForceRequestedRange = (action: string, requestedProfileId: string | null) => (
   action === 'sync' || action === 'retry-job' || Boolean(requestedProfileId)
 );

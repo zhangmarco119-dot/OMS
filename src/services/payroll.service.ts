@@ -442,7 +442,7 @@ export async function savePayrollIndividualTaxes(
 }
 
 export async function loadPayrollAdminSetup(client: Client, monthStart: string) {
-  const [profiles, penaltyPublishers, rules, commissionStores, performanceStores, departureMonths, attendanceAllocationRules, profileStoreAccess, performanceRules, revenues, revenueInputs, penalties, penaltyAssets, overtimeRates, overtimeRequests] = await Promise.all([
+  const [profiles, penaltyPublishers, rules, commissionStores, performanceStores, departureMonths, attendanceAllocationRules, profileStoreAccess, assignmentPeriods, performanceRules, revenues, revenueInputs, penalties, penaltyAssets, overtimeRates, overtimeRequests] = await Promise.all([
     client.from('profiles').select('*').in('role', ['staff', 'manager']).is('deleted_at', null).order('display_name'),
     client.from('profiles').select('id, display_name, role').in('role', ['admin', 'manager']).is('deleted_at', null).order('display_name'),
     client.from('payroll_employee_rules').select('*').order('effective_from', { ascending: false }),
@@ -451,6 +451,7 @@ export async function loadPayrollAdminSetup(client: Client, monthStart: string) 
     client.from('payroll_employee_departure_months').select('*').order('payroll_month'),
     client.from('payroll_attendance_allocation_rules').select('*'),
     client.from('profile_store_access').select('*'),
+    client.from('profile_store_assignment_periods').select('*'),
     client.from('payroll_performance_rules').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_store_revenues').select('*').gte('revenue_date', monthStart).order('revenue_date', { ascending: false }),
     client.from('payroll_store_revenue_inputs').select('*').gte('as_of_date', monthStart).order('as_of_date', { ascending: false }),
@@ -459,9 +460,9 @@ export async function loadPayrollAdminSetup(client: Client, monthStart: string) 
     client.from('payroll_overtime_rates').select('*').order('effective_from', { ascending: false }),
     client.from('payroll_overtime_requests').select('*').gte('overtime_date', monthStart).order('created_at', { ascending: false }),
   ]);
-  const error = profiles.error ?? penaltyPublishers.error ?? rules.error ?? commissionStores.error ?? performanceStores.error ?? departureMonths.error ?? attendanceAllocationRules.error ?? profileStoreAccess.error ?? performanceRules.error ?? revenues.error ?? revenueInputs.error ?? penalties.error ?? penaltyAssets.error ?? overtimeRates.error ?? overtimeRequests.error;
+  const error = profiles.error ?? penaltyPublishers.error ?? rules.error ?? commissionStores.error ?? performanceStores.error ?? departureMonths.error ?? attendanceAllocationRules.error ?? profileStoreAccess.error ?? assignmentPeriods.error ?? performanceRules.error ?? revenues.error ?? revenueInputs.error ?? penalties.error ?? penaltyAssets.error ?? overtimeRates.error ?? overtimeRequests.error;
   if (error) throw new Error(error.message || '暂时无法加载工资设置。');
-  return { profiles: profiles.data ?? [], penaltyPublishers: penaltyPublishers.data ?? [], rules: rules.data ?? [], commissionStores: commissionStores.data ?? [], performanceStores: performanceStores.data ?? [], departureMonths: departureMonths.data ?? [], attendanceAllocationRules: attendanceAllocationRules.data ?? [], profileStoreAccess: profileStoreAccess.data ?? [], performanceRules: performanceRules.data ?? [], revenues: revenues.data ?? [], revenueInputs: revenueInputs.data ?? [], penalties: penalties.data ?? [], penaltyAssets: penaltyAssets.data ?? [], overtimeRates: overtimeRates.data ?? [], overtimeRequests: overtimeRequests.data ?? [] };
+  return { profiles: profiles.data ?? [], penaltyPublishers: penaltyPublishers.data ?? [], rules: rules.data ?? [], commissionStores: commissionStores.data ?? [], performanceStores: performanceStores.data ?? [], departureMonths: departureMonths.data ?? [], attendanceAllocationRules: attendanceAllocationRules.data ?? [], profileStoreAccess: profileStoreAccess.data ?? [], assignmentPeriods: assignmentPeriods.data ?? [], performanceRules: performanceRules.data ?? [], revenues: revenues.data ?? [], revenueInputs: revenueInputs.data ?? [], penalties: penalties.data ?? [], penaltyAssets: penaltyAssets.data ?? [], overtimeRates: overtimeRates.data ?? [], overtimeRequests: overtimeRequests.data ?? [] };
 }
 
 export async function savePayrollEmployeeRule(client: Client, profileId: string, fields: Record<string, Json | undefined>, storeIds: string[], performanceStores: { allocationRatio: number; storeId: string }[]) {

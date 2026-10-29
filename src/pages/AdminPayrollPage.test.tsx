@@ -53,13 +53,10 @@ function LocationProbe() {
 
 describe('AdminPayrollPage update guidance', () => {
   it('saves the two award thresholds independently and rejects fractional days', async () => {
-    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'profile-1', display_name: '测试员工', employment_type: 'full_time', role: 'staff', store_id: 'store-1' }], profileStoreAccess: [{ profile_id: 'profile-1', store_id: 'store-1' }] } as never);
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'profile-1', display_name: '测试员工', employment_type: 'full_time', role: 'staff', store_id: 'store-1' }], profileStoreAccess: [{ profile_id: 'profile-1', store_id: 'store-1' }], rules: [{ id: 'rule-1', profile_id: 'profile-1', monthly_base_salary: 2700, monthly_housing_allowance: 0, full_performance_amount: null, commission_rate: null, extra_reward_amount: 0, full_attendance_bonus_amount: 500, full_attendance_bonus_enabled: true, service_award_amount: 100, service_award_enabled: false, housing_enabled: false, performance_enabled: false, commission_enabled: false, confirmed: true, effective_from: '2026-07-01' }] } as never);
     vi.mocked(savePayrollEmployeeRule).mockResolvedValue('rule-1');
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=employees']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
-    fireEvent.change(await screen.findByLabelText('月基本工资（含社保补贴）'), { target: { value: '2700' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: '启用绩效' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: '启用全勤奖' }));
-    fireEvent.change(screen.getByLabelText('全勤奖金额'), { target: { value: '500' } });
+    await waitFor(() => expect(screen.getByLabelText('月基本工资（含社保补贴）')).toHaveValue(2700));
     fireEvent.change(screen.getByLabelText('全勤奖出勤标准（天）'), { target: { value: '24' } });
     fireEvent.change(screen.getByLabelText('超勤奖出勤标准（天）'), { target: { value: '26.5' } });
     fireEvent.click(screen.getByRole('button', { name: '保存员工工资参数' }));

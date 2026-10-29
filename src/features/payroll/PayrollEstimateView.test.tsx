@@ -56,7 +56,7 @@ describe('PayrollEstimateView', () => {
   it('shows the automatic extra-attendance award and administrator reward separately', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, attendanceDays: 29, extraAttendanceDays: 2, accruedExtraAttendanceBonus: 600, extraRewardAmount: 80, accruedExtraReward: 80 }} />);
     expect(screen.getByText('超勤奖')).toBeInTheDocument();
-    expect(screen.getByText(/超过全勤标准 2 天/)).toBeInTheDocument();
+    expect(screen.getByText(/超过超勤奖标准 27 天后的出勤 2 天/)).toBeInTheDocument();
     expect(screen.getByText('额外奖励')).toBeInTheDocument();
     expect(screen.getByText('本月增加的额外奖励')).toBeInTheDocument();
     expect(screen.getByText('¥600.00')).toBeInTheDocument();

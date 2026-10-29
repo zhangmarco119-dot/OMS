@@ -1,6 +1,6 @@
-/// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { configDefaults } from 'vitest/config';
 import packageJson from './package.json';
 
 // The guard owns environment-file selection because Git branches and Vite modes
@@ -82,6 +82,7 @@ export default defineConfig(({ mode }) => {
       port: 4173,
     },
     test: {
+      exclude: [...configDefaults.exclude, '**/.tmp/**'],
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
       globals: true,

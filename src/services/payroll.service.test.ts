@@ -5,6 +5,10 @@ import { addPayrollPenalty, adminRecordOvertime, bindQmaiSalesIntegration, confi
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
 describe('payroll service', () => {
+  it('keeps award thresholds separate from the salary standard and reads old payslip snapshots compatibly', () => {
+    expect(parsePayrollEstimate({ ...estimate, fullAttendanceBonusDays: 24, extraAttendanceBonusDays: 26 })).toMatchObject({ fullAttendanceDays: 27, fullAttendanceBonusDays: 24, extraAttendanceBonusDays: 26 });
+    expect(parsePayrollEstimate(estimate)).toMatchObject({ fullAttendanceBonusDays: 27, extraAttendanceBonusDays: 27 });
+  });
   it('parses nullable pending amounts without treating them as final zero', () => {
     expect(parsePayrollEstimate({ ...estimate, monthStart: '2026-07-01', accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, accruedFullAttendanceBonus: 0, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true })).toMatchObject({ attendanceDays: 8, accruedCommission: null, estimatedPayable: null, fullAttendanceBonusEnabled: true, fullAttendanceBonusAmount: 500, fullAttendanceBonusAwarded: false, revenueEffectiveDate: '2026-07-16', revenueCarriedForward: true, dataIssues: ['2026年7月营业收入尚未录入，提成暂未计入'] });
   });

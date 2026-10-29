@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
+import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollEmployeeRule, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
 import { AdminPayrollPage } from './AdminPayrollPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -21,6 +21,8 @@ vi.mock('../services/payroll.service', async (original) => {
     loadPayrollVisibilitySettings: vi.fn(),
     loadPosSalesSetup: vi.fn(),
     savePayrollAttendanceAllocationRule: vi.fn(),
+    savePayrollEmployeeRule: vi.fn(),
+    loadPayrollMonthlyPerformance: vi.fn().mockResolvedValue({ settings: [], finalAmount: null }),
   };
 });
 
@@ -50,6 +52,24 @@ function LocationProbe() {
 }
 
 describe('AdminPayrollPage update guidance', () => {
+  it('saves the two award thresholds independently and rejects fractional days', async () => {
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'profile-1', display_name: '测试员工', employment_type: 'full_time', role: 'staff', store_id: 'store-1' }], profileStoreAccess: [{ profile_id: 'profile-1', store_id: 'store-1' }] } as never);
+    vi.mocked(savePayrollEmployeeRule).mockResolvedValue('rule-1');
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=employees']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText('月基本工资（含社保补贴）'), { target: { value: '2700' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '启用绩效' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '启用全勤奖' }));
+    fireEvent.change(screen.getByLabelText('全勤奖金额'), { target: { value: '500' } });
+    fireEvent.change(screen.getByLabelText('全勤奖出勤标准（天）'), { target: { value: '24' } });
+    fireEvent.change(screen.getByLabelText('超勤奖出勤标准（天）'), { target: { value: '26.5' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存员工工资参数' }));
+    expect(await screen.findByText('请检查奖励出勤标准')).toBeInTheDocument();
+    expect(savePayrollEmployeeRule).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '我知道了' }));
+    fireEvent.change(screen.getByLabelText('超勤奖出勤标准（天）'), { target: { value: '26' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存员工工资参数' }));
+    await waitFor(() => expect(savePayrollEmployeeRule).toHaveBeenCalledWith(expect.anything(), 'profile-1', expect.objectContaining({ fullAttendanceBonusDays: 24, extraAttendanceBonusDays: 26, monthlyBaseSalary: 2700 }), expect.any(Array), expect.any(Array)));
+  });
   beforeEach(() => {
     vi.setSystemTime(new Date(2026, 6, 18, 12, 0, 0));
     vi.clearAllMocks();
@@ -77,7 +97,7 @@ describe('AdminPayrollPage update guidance', () => {
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=performance']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByText('绩效分计算细则')).toBeInTheDocument();
     expect(screen.getByText((_, node) => node?.tagName === 'LI' && Boolean(node.textContent?.includes('任务得分：当月已通过任务数')))).toBeInTheDocument();
-    expect(screen.getByText((_, node) => node?.tagName === 'LI' && Boolean(node.textContent?.includes('全勤奖：员工启用后')))).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.tagName === 'LI' && Boolean(node.textContent?.includes('全勤奖与超勤奖')))).toBeInTheDocument();
     expect(screen.getByText((_, node) => node?.tagName === 'LI' && Boolean(node.textContent?.includes('不与绩效金额合并')))).toBeInTheDocument();
   });
 

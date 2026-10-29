@@ -19,6 +19,8 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
     ? estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable
     : estimate.dataComplete ? estimate.estimatedNetPayable ?? estimate.estimatedPayable : estimate.knownEstimatedNetPayable ?? estimate.knownEstimatedPayable;
   const performanceStores = estimate.performanceStores ?? [];
+  const fullAwardDays = estimate.fullAttendanceBonusDays ?? estimate.fullAttendanceDays;
+  const extraAwardDays = estimate.extraAttendanceBonusDays ?? estimate.fullAttendanceDays;
   const approvedHourlyAmount = estimate.overtimeHours > 0 ? estimate.accruedOvertime / estimate.overtimeHours : 25;
   const overtimeNote = Math.abs(approvedHourlyAmount - 25) < 0.005
     ? `${estimate.overtimeHours} 小时 · 补贴标准 ${formatMoney(25)}/小时`
@@ -50,8 +52,8 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
       <AmountRow label="累计基本工资" note={`${formatMoney(estimate.monthlyBaseSalary)}（含社保补贴） ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedBaseSalary} />
       <AmountRow label="累计房补" note={estimate.departureMonthExcluded ? '离职月不核算房补' : estimate.housingEnabled ? `按 ${estimate.attendanceDays} 个出勤日折算` : '该员工未启用房补'} value={estimate.accruedHousingAllowance} />
       <AmountRow label="累计绩效" note={estimate.departureMonthExcluded ? '离职月不核算绩效' : `${performanceNote}${regularizationNote}`} value={estimate.accruedPerformance} />
-      {estimate.fullAttendanceBonusEnabled ? <AmountRow label="全勤奖" note={estimate.fullAttendanceBonusAwarded ? `本月累计出勤已达到 ${estimate.fullAttendanceDays} 天` : `累计出勤达到 ${estimate.fullAttendanceDays} 天后产生 ${formatMoney(estimate.fullAttendanceBonusAmount)}`} value={estimate.accruedFullAttendanceBonus} /> : null}
-      {estimate.accruedExtraAttendanceBonus > 0 ? <AmountRow label="超勤奖" note={`超过全勤标准 ${estimate.extraAttendanceDays} 天 · 每超 1 天 ${formatMoney(estimate.extraAttendanceBonusRate)}`} value={estimate.accruedExtraAttendanceBonus} /> : null}
+      {estimate.fullAttendanceBonusEnabled ? <AmountRow label="全勤奖" note={estimate.fullAttendanceBonusAwarded ? `本月累计出勤已达到奖励标准 ${fullAwardDays} 天` : `累计出勤达到 ${fullAwardDays} 天后产生 ${formatMoney(estimate.fullAttendanceBonusAmount)}`} value={estimate.accruedFullAttendanceBonus} /> : null}
+      {estimate.accruedExtraAttendanceBonus > 0 ? <AmountRow label="超勤奖" note={`超过超勤奖标准 ${extraAwardDays} 天后的出勤 ${estimate.extraAttendanceDays} 天 · 每多 1 天 ${formatMoney(estimate.extraAttendanceBonusRate)}`} value={estimate.accruedExtraAttendanceBonus} /> : null}
       {estimate.serviceAwardEnabled ? <AmountRow label="工龄奖" note={`${formatMoney(estimate.serviceAwardAmount)} ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedServiceAward} /> : null}
       {estimate.accruedExtraReward > 0 ? <AmountRow label="额外奖励" note="本月增加的额外奖励" value={estimate.accruedExtraReward} /> : null}
       {estimate.holidayAttendanceDates?.length || (estimate.holidaySubsidy ?? 0)>0 ? <AmountRow label="节假日补贴" value={estimate.holidaySubsidy ?? 0} /> : null}

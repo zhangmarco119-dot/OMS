@@ -49,9 +49,11 @@ const actionLabel = (row: OperationLog) => {
   if (row.operation === 'deleted') return '删除';
   const before = row.metadata.beforeStatus;
   const after = row.metadata.afterStatus;
-  if (row.entity_type === 'payroll_payslips' && after === 'issued') return '发送工资单';
-  if (row.entity_type === 'payroll_payslips' && after === 'confirmed') return '确认工资单';
-  if (row.entity_type === 'payroll_payslips' && after === 'withdrawn') return '撤回工资单';
+  if (row.entity_type === 'payroll_payslips' && before !== after) {
+    if (after === 'issued') return '发送工资单';
+    if (after === 'confirmed') return '确认工资单';
+    if (after === 'withdrawn') return '撤回工资单';
+  }
   if (after === 'published') return '发布';
   if (after === 'archived') return '归档';
   if (after === 'submitted') return '提交';

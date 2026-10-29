@@ -11,7 +11,7 @@ function AmountRow({ label, note, value }: { label: string; note?: string; value
   return <div className="flex items-start justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0"><div><b className="text-sm text-slate-800">{label}</b>{note ? <p className="mt-0.5 text-xs leading-4 text-slate-500">{note}</p> : null}</div><span className="shrink-0 text-sm font-bold tabular-nums text-slate-900">{formatMoney(value)}</span></div>;
 }
 
-export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssue }: { estimate: PayrollEstimate; mode?: 'estimate' | 'payslip'; onResolveIssue?: (issue: string) => void }) {
+export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssue, showAwardRules = true }: { estimate: PayrollEstimate; mode?: 'estimate' | 'payslip'; onResolveIssue?: (issue: string) => void; showAwardRules?: boolean }) {
   if (estimate.employmentType === 'part_time') {
     return <PartTimePayrollEstimateView estimate={estimate} mode={mode} />;
   }
@@ -19,6 +19,8 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
     ? estimate.dataComplete ? estimate.estimatedPayable : estimate.knownEstimatedPayable
     : estimate.dataComplete ? estimate.estimatedNetPayable ?? estimate.estimatedPayable : estimate.knownEstimatedNetPayable ?? estimate.knownEstimatedPayable;
   const performanceStores = estimate.performanceStores ?? [];
+  const fullAwardDays = estimate.fullAttendanceBonusDays ?? estimate.fullAttendanceDays;
+  const extraAwardDays = estimate.extraAttendanceBonusDays ?? estimate.fullAttendanceDays;
   const approvedHourlyAmount = estimate.overtimeHours > 0 ? estimate.accruedOvertime / estimate.overtimeHours : 25;
   const overtimeNote = Math.abs(approvedHourlyAmount - 25) < 0.005
     ? `${estimate.overtimeHours} 小时 · 补贴标准 ${formatMoney(25)}/小时`
@@ -44,14 +46,14 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
 
     {estimate.departureMonthExcluded ? <SectionCard className="border-amber-200 bg-amber-50 p-3.5"><b className="text-sm text-amber-950">本月为离职月</b><p className="mt-1 text-xs leading-5 text-amber-900">本月不核算绩效、提成和房补，其余工资项目继续按实际数据计算。</p></SectionCard> : null}
 
-    <SectionCard><SectionHeader icon={CalendarDays} title="出勤与计薪口径" /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="累计出勤" value={`${estimate.attendanceDays} 天`} /><Metric label="全勤标准" value={`${estimate.fullAttendanceDays} 天`} /><Metric label="迟到" value={`${estimate.lateCount} 次`} /></div></SectionCard>
+    <SectionCard><SectionHeader icon={CalendarDays} title={showAwardRules ? '出勤与计薪口径' : '出勤情况'} /><div className={`mt-3 grid ${showAwardRules ? 'grid-cols-3' : 'grid-cols-2'} gap-2 text-center`}><Metric label="累计出勤" value={`${estimate.attendanceDays} 天`} />{showAwardRules ? <Metric label="月计薪标准" value={`${estimate.fullAttendanceDays} 天`} /> : null}<Metric label="迟到" value={`${estimate.lateCount} 次`} /></div>{showAwardRules ? <p className="mt-3 text-xs leading-5 text-slate-500">{estimate.fullAttendanceBonusEnabled ? `全勤奖门槛 ${fullAwardDays} 天 · ` : ''}超勤奖门槛 {extraAwardDays} 天，超出部分按天计奖。奖励门槛不改变基本工资折算标准。</p> : null}</SectionCard>
 
     <SectionCard><SectionHeader icon={CircleDollarSign} title="工资明细" description="每项金额均按截至当前日期的实际数据计算。" /><div className="mt-2">
       <AmountRow label="累计基本工资" note={`${formatMoney(estimate.monthlyBaseSalary)}（含社保补贴） ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedBaseSalary} />
       <AmountRow label="累计房补" note={estimate.departureMonthExcluded ? '离职月不核算房补' : estimate.housingEnabled ? `按 ${estimate.attendanceDays} 个出勤日折算` : '该员工未启用房补'} value={estimate.accruedHousingAllowance} />
       <AmountRow label="累计绩效" note={estimate.departureMonthExcluded ? '离职月不核算绩效' : `${performanceNote}${regularizationNote}`} value={estimate.accruedPerformance} />
-      {estimate.fullAttendanceBonusEnabled ? <AmountRow label="全勤奖" note={estimate.fullAttendanceBonusAwarded ? `本月累计出勤已达到 ${estimate.fullAttendanceDays} 天` : `累计出勤达到 ${estimate.fullAttendanceDays} 天后产生 ${formatMoney(estimate.fullAttendanceBonusAmount)}`} value={estimate.accruedFullAttendanceBonus} /> : null}
-      {estimate.accruedExtraAttendanceBonus > 0 ? <AmountRow label="超勤奖" note={`超过全勤标准 ${estimate.extraAttendanceDays} 天 · 每超 1 天 ${formatMoney(estimate.extraAttendanceBonusRate)}`} value={estimate.accruedExtraAttendanceBonus} /> : null}
+      {estimate.fullAttendanceBonusEnabled ? <AmountRow label="全勤奖" note={showAwardRules ? estimate.fullAttendanceBonusAwarded ? `本月累计出勤已达到奖励标准 ${fullAwardDays} 天` : `累计出勤达到 ${fullAwardDays} 天后产生 ${formatMoney(estimate.fullAttendanceBonusAmount)}` : undefined} value={estimate.accruedFullAttendanceBonus} /> : null}
+      {estimate.accruedExtraAttendanceBonus > 0 ? <AmountRow label="超勤奖" note={showAwardRules ? `超过超勤奖标准 ${extraAwardDays} 天后的出勤 ${estimate.extraAttendanceDays} 天 · 每多 1 天 ${formatMoney(estimate.extraAttendanceBonusRate)}` : undefined} value={estimate.accruedExtraAttendanceBonus} /> : null}
       {estimate.serviceAwardEnabled ? <AmountRow label="工龄奖" note={`${formatMoney(estimate.serviceAwardAmount)} ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedServiceAward} /> : null}
       {estimate.accruedExtraReward > 0 ? <AmountRow label="额外奖励" note="本月增加的额外奖励" value={estimate.accruedExtraReward} /> : null}
       {estimate.holidayAttendanceDates?.length || (estimate.holidaySubsidy ?? 0)>0 ? <AmountRow label="节假日补贴" value={estimate.holidaySubsidy ?? 0} /> : null}

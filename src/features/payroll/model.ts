@@ -33,6 +33,8 @@ export interface PayrollEstimate {
   partTimeHourlyRate: number | null;
   accruedPartTimeWage: number;
   fullAttendanceDays: number;
+  fullAttendanceBonusDays?: number;
+  extraAttendanceBonusDays?: number;
   attendanceDays: number;
   ruleId: string | null;
   ruleConfirmed: boolean;

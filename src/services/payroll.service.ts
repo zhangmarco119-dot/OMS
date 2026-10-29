@@ -87,6 +87,8 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     partTimeHours: numberAt(item.partTimeHours), partTimeHourlyRate: nullableNumberAt(item.partTimeHourlyRate),
     accruedPartTimeWage: numberAt(item.accruedPartTimeWage),
     fullAttendanceDays: numberAt(item.fullAttendanceDays), attendanceDays: numberAt(item.attendanceDays), ruleId: nullableTextAt(item.ruleId),
+    fullAttendanceBonusDays: numberAt(item.fullAttendanceBonusDays ?? item.fullAttendanceDays),
+    extraAttendanceBonusDays: numberAt(item.extraAttendanceBonusDays ?? item.fullAttendanceDays),
     ruleConfirmed: boolAt(item.ruleConfirmed), monthlyBaseSalary: nullableNumberAt(item.monthlyBaseSalary),
     monthlyHousingAllowance: nullableNumberAt(item.monthlyHousingAllowance), fullPerformanceAmount: nullableNumberAt(item.fullPerformanceAmount),
     commissionRate: nullableNumberAt(item.commissionRate), housingEnabled: boolAt(item.housingEnabled), performanceEnabled: boolAt(item.performanceEnabled),

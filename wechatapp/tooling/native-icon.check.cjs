@@ -1,0 +1,4 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const {iconSvg}=require('./native-icon.cjs');
+test('preserves actual Lucide geometry, color and absolute stroke scaling',()=>{const svg=iconSvg([['path',{d:'M 3 4 L 5 6',key:'x',strokeLinecap:'round'}]],{color:'#147d5b',size:48,strokeWidth:2,absoluteStrokeWidth:true});assert.match(svg,/stroke="#147d5b"/);assert.match(svg,/stroke-width="1"/);assert.match(svg,/d="M 3 4 L 5 6"/);assert.match(svg,/stroke-linecap="round"/);assert.doesNotMatch(svg,/key=/);});
+test('escapes XML and omits executable or remote-loading attributes',()=>{const svg=iconSvg([['path',{d:'"<&',onload:'run()',href:'https://other.example/icon'}]],{color:'" onload="bad'});assert.match(svg,/&quot;/);assert.doesNotMatch(svg,/<path[^>]*(?:onload|href)=/);assert.throws(()=>iconSvg([['script',{}]]),/Unsupported icon primitive/);});

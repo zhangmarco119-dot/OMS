@@ -1,7 +1,7 @@
 {
   "name": "mobile-store-inventory-ordering",
   "private": true,
-  "version": "3.0.55",
+  "version": "3.0.57",
   "type": "module",
   "scripts": {
     "env:check": "node scripts/verify-environment.mjs",
@@ -10,6 +10,11 @@
     "manuals:sync": "node scripts/sync-system-documents.mjs",
     "release:version:check": "node scripts/check-release-version.mjs",
     "release:check": "node scripts/release-gate.mjs",
+    "wechat:setup": "pnpm --dir wechatapp/tooling --ignore-workspace install --frozen-lockfile --ignore-scripts",
+    "wechat:check": "node --test wechatapp/tooling/*.check.cjs wechatapp/cloudfunctions/bridge/*.check.cjs",
+    "wechat:build:cloud": "node wechatapp/tooling/build-cloud.cjs",
+    "wechat:build": "node wechatapp/tooling/build.cjs",
+    "wechat:build:production": "node wechatapp/tooling/build.cjs --production && node wechatapp/tooling/stage-wechatapp.cjs",
     "android:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1",
     "android:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1 -BuildType Release",
     "android:check": "node scripts/android-smoke.mjs",

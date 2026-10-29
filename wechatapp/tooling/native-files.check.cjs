@@ -1,0 +1,30 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const {installNativeFiles}=require('./native-files.cjs');
+const {Blob:NodeBlob,File:NodeFile}=require('node:buffer');
+test('image input delivers real file bytes and camera cancellation leaves selection intact',async()=>{
+  let picker;
+  const files=new Map([['photo.jpg',new Uint8Array([1,2,255]).buffer]]);
+  const fs={readFile:({filePath,success})=>success({data:files.get(filePath)})};
+  const document={createElement:()=>({type:'file',disabled:false,getAttribute:name=>name==='accept'?'image/*':undefined,hasAttribute:()=>false,dispatchEvent(event){this.lastEvent=event;}}),addEventListener(){}};
+  const window={File:NodeFile,Blob:NodeBlob,CustomEvent:class{constructor(type,options){this.type=type;Object.assign(this,options);}}};
+  const wx={getFileSystemManager:()=>fs,chooseMedia:options=>picker=options,showToast:()=>{throw new Error('Cancellation must be silent');}};
+  installNativeFiles(window,document,wx);
+  const input=document.createElement('input');
+  const chosen=input.click();assert.equal(picker.count,1);assert.deepEqual(picker.sourceType,['album','camera']);
+  picker.success({tempFiles:[{tempFilePath:'photo.jpg'}]});await chosen;
+  assert.deepEqual(new Uint8Array(await input.files[0].arrayBuffer()),new Uint8Array([1,2,255]));
+  assert.equal(input.lastEvent.type,'change');assert.equal(input.lastEvent.bubbles,true);
+  const previous=input.files;
+  const cancelled=input.click();picker.fail({errMsg:'chooseMedia:fail cancel'});await cancelled;
+  assert.equal(input.files,previous);
+});
+test('export takes ownership before the shared handler revokes its temporary URL',async()=>{
+  const files=new Map([['wxfile://local/source.xlsx','actual workbook']]);let opened;
+  const fs={copyFileSync:(source,target)=>files.set(target,files.get(source))};
+  const document={createElement:()=>({download:'到货汇总.xlsx',href:'wxfile://local/source.xlsx',getAttribute:()=>undefined,hasAttribute:()=>true}),addEventListener(){}};
+  const wx={env:{USER_DATA_PATH:'wxfile://local'},getFileSystemManager:()=>fs,openDocument:options=>opened=options,showToast(){}};
+  installNativeFiles({},document,wx);
+  document.createElement('a').click();files.delete('wxfile://local/source.xlsx');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(files.get(opened.filePath),'actual workbook');assert.equal(opened.showMenu,true);
+});

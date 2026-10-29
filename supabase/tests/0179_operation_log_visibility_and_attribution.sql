@@ -12,9 +12,9 @@ begin
   insert into public.profile_store_access(profile_id,store_id) values(a,shop),(s,shop),(t,shop);
   insert into public.admin_store_access(admin_profile_id,store_id) values(a,shop);
   perform set_config('request.jwt.claim.sub',s::text,true);
-  l1:=public.record_system_activity('payroll','estimate_detail','2026-09',null,s,'{"scope":"self"}');
-  l2:=public.record_system_activity('payroll','estimate_detail','2026-09',null,s,'{"scope":"self"}');
-  l3:=public.record_system_activity('payroll','estimate_detail','2026-10',null,s,'{"scope":"self"}');
+  l1:=public.record_system_activity('payroll','estimate_detail','2026-09',null,s,'{"scope":"self","requestEventId":"log-test-same-request"}');
+  l2:=public.record_system_activity('payroll','estimate_detail','2026-09',null,s,'{"scope":"self","requestEventId":"log-test-same-request"}');
+  l3:=public.record_system_activity('payroll','estimate_detail','2026-10',null,s,'{"scope":"self","requestEventId":"log-test-same-request"}');
   if l1<>l2 or l1=l3 then raise exception 'Retry or month deduplication mismatch'; end if;
   if not exists(select 1 from public.system_operation_logs where id=l1 and store_id=shop and actor_id=s and entity_id=s and metadata->>'period'='2026-09') then raise exception 'Employee/store attribution mismatch'; end if;
   perform set_config('request.jwt.claim.sub',a::text,true);

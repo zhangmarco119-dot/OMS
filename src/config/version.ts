@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-29',
+    highlights: ['操作日志逐条显示发生时间，不再合并为连续次数；每次薪资、考勤查看分别记录，仅同一请求的网络重试去重。'],
+    title: '逐条展示操作记录',
+    version: 'StoreHub v3.0.60',
+  },
+  {
+    date: '2026-10-29',
     highlights: ['操作日志默认包含薪资与考勤查看，个人详情记录自动关联门店；不同员工和月份的查看不再被合并。', '补齐工资单处理日志，修正税务与员工信息登记的日志分类及门店归属。'],
     title: '修复操作日志显示与归属',
     version: 'StoreHub v3.0.59',

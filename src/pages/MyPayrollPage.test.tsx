@@ -42,6 +42,7 @@ describe('MyPayrollPage month picker', () => {
     mocks.loadEstimate.mockResolvedValue({});
     render(<MemoryRouter><MyPayrollPage /></MemoryRouter>);
     await screen.findByText('工资明细');
+    expect(mocks.loadEstimate).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: '预估薪资' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '工资单' })).toBeInTheDocument();
     expect(screen.queryByText(/日前.*查看前/)).not.toBeInTheDocument();

@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-29',
+    highlights: ['操作日志默认包含薪资与考勤查看，个人详情记录自动关联门店；不同员工和月份的查看不再被合并。', '补齐工资单处理日志，修正税务与员工信息登记的日志分类及门店归属。'],
+    title: '修复操作日志显示与归属',
+    version: 'StoreHub v3.0.59',
+  },
+  {
+    date: '2026-10-29',
     highlights: ['薪资估算和工资单的参考水印字号增大、颜色加深、排列更紧密，保持明细与操作正常可用。'],
     title: '调整薪资参考水印',
     version: 'StoreHub v3.0.58',

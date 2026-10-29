@@ -21,7 +21,7 @@ const moduleLabels: Record<string, string> = {
   account: '账号管理', arrival: '到货', attendance: '考勤', auth: '登录', inventory_order: '点货订货',
   notice: '公告', operation_report: '运营报告', operation_report_template: '运营报告模板',
   payroll: '薪资', penalty: '处罚', product: '货品', sop: 'SOP', task: '任务',
-  task_template: '任务模板', work_hours: '工时',
+  task_template: '任务模板', work_hours: '工时', tax_accounting: '税务与员工信息',
 };
 const metadataLabels: Record<string, string> = {
   afterStatus: '操作后状态', beforeStatus: '操作前状态', changedFields: '变更内容', clientPlatform: '设备平台',
@@ -38,7 +38,7 @@ const valueLabels: Record<string, string> = {
   draft: '草稿', email: '邮箱登录', estimate_detail: '预估薪资详情', estimate_summary: '员工薪资汇总',
   login: '登录系统', month_detail: '考勤详情', month_summary: '月度考勤汇总', payslip_detail: '工资单详情',
   payslip_list: '工资单列表', published: '已发布', rejected: '已驳回', retracted: '已撤回', self: '本人',
-  single_store: '单个门店', submitted: '已提交',
+  single_store: '单个门店', submitted: '已提交', issued: '已发送', confirmed: '已确认', withdrawn: '已撤回', settings: '薪资配置',
 };
 const roleText = (role: OperationLog['actor_role_snapshot'], employmentType: OperationLog['actor_employment_type_snapshot']) => employmentType === 'part_time' ? '兼职' : role === 'admin' ? '管理员' : role === 'manager' ? '店长' : role === 'staff' ? '员工' : '系统';
 const actorRoleText = (actor: OperationLogActor) => roleText(actor.role, actor.employmentType);
@@ -49,6 +49,11 @@ const actionLabel = (row: OperationLog) => {
   if (row.operation === 'deleted') return '删除';
   const before = row.metadata.beforeStatus;
   const after = row.metadata.afterStatus;
+  if (row.entity_type === 'payroll_payslips' && before !== after) {
+    if (after === 'issued') return '发送工资单';
+    if (after === 'confirmed') return '确认工资单';
+    if (after === 'withdrawn') return '撤回工资单';
+  }
   if (after === 'published') return '发布';
   if (after === 'archived') return '归档';
   if (after === 'submitted') return '提交';
@@ -77,8 +82,8 @@ export function AdminOperationLogsPage() {
   const [operation, setOperation] = useRememberedPageState('operation-log-operation', '');
   const [startDate, setStartDate] = useRememberedPageState('operation-log-start', '');
   const [endDate, setEndDate] = useRememberedPageState('operation-log-end', '');
-  const [excludeActorId, setExcludeActorId] = useRememberedPageState('operation-log-exclude-actor', auth.profile?.id ?? '');
-  const [keyOnly, setKeyOnly] = useRememberedPageState('operation-log-key-only', true);
+  const [excludeActorId, setExcludeActorId] = useRememberedPageState('operation-log-exclude-actor-v2', '');
+  const [keyOnly, setKeyOnly] = useRememberedPageState('operation-log-key-only-v2', false);
   const [actors, setActors] = useState<OperationLogActor[]>([]);
   const [items, setItems] = useState<OperationLog[]>([]);
   const [total, setTotal] = useState(0);
@@ -158,7 +163,7 @@ export function AdminOperationLogsPage() {
         <button className="ui-button-secondary min-h-10" onClick={() => void load(false)} type="button"><RefreshCw className="h-4 w-4" />立即刷新</button>
         <button className="ui-button-secondary min-h-10" disabled={!hasFilters} onClick={resetFilters} type="button"><RotateCcw className="h-4 w-4" />清除筛选</button>
       </div>
-      <p className="mt-2 text-[11px] leading-5 text-slate-500">默认隐藏自己的普通查看记录；相邻的同人同事项只显示一次。日志每 15 秒自动更新{lastUpdatedAt ? ` · 最近更新 ${lastUpdatedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</p>
+      <p className="mt-2 text-[11px] leading-5 text-slate-500">默认显示查看记录和业务变更，可按需筛选关键操作或排除账号；相邻的同人同事项只显示一次。日志每 15 秒自动更新{lastUpdatedAt ? ` · 最近更新 ${lastUpdatedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</p>
     </SectionCard>
     {status === 'loading' ? <LoadingState label="正在加载操作日志" /> : status === 'error' ? <ErrorState message="暂时无法读取操作日志。" onRetry={() => void load()} /> : !items.length ? <EmptyState title="暂无匹配的操作日志" description="可以调整账号、模块、操作或日期筛选条件。" /> : <>
       <p className="px-1 text-xs text-slate-500">共 {total} 条记录</p>

@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-29',
+    highlights: ['薪资估算和工资单的参考水印字号增大、颜色加深、排列更紧密，保持明细与操作正常可用。'],
+    title: '调整薪资参考水印',
+    version: 'StoreHub v3.0.58',
+  },
+  {
+    date: '2026-10-29',
     highlights: ['全勤奖与超勤奖的出勤门槛可按员工分别设置，奖励门槛独立于基本工资的出勤折算标准。', '员工薪资估算与工资单增加浅色参考水印。'],
     title: '配置出勤奖励标准与薪资水印',
     version: 'StoreHub v3.0.57',

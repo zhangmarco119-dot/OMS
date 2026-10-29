@@ -8,7 +8,7 @@ export function PayrollReferenceWatermark({ children }: { children: ReactNode })
   return <div className="relative grid gap-3" data-testid="payroll-reference-watermark">
     {children}
     <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 h-full w-full select-none" data-testid="payroll-watermark-layer">
-      <defs><pattern id={patternId} width="360" height="160" patternUnits="userSpaceOnUse"><text x="180" y="85" textAnchor="middle" transform="rotate(-18 180 80)" fill="#64748b" fillOpacity="0.13" fontSize="12" fontFamily="Microsoft YaHei,sans-serif">{PAYROLL_REFERENCE_TEXT}</text></pattern></defs>
+      <defs><pattern id={patternId} width="330" height="110" patternUnits="userSpaceOnUse"><text x="165" y="60" textAnchor="middle" transform="rotate(-18 165 55)" fill="#64748b" fillOpacity="0.25" fontSize="14" fontFamily="Microsoft YaHei,sans-serif">{PAYROLL_REFERENCE_TEXT}</text></pattern></defs>
       <rect width="100%" height="100%" fill={`url(#${patternId})`} />
     </svg>
   </div>;

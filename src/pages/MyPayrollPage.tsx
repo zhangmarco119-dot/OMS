@@ -75,7 +75,7 @@ function EstimatePanel() {
     <div className="ui-card p-3"><MonthPicker disabled={!settings} label="查看月份" maxMonth={currentMonth()} minMonth={historyEnabled && settings ? shiftMonth(currentMonth(), -settings.historyMonths) : currentMonth()} onChange={setMonth} value={month} /></div>
     {status === 'loading' ? <LoadingState label="正在计算所选月份的预估工资" /> : null}
     {status === 'error' ? <ErrorState message={message} onRetry={() => void load()} /> : null}
-    {status === 'ready' && estimate ? <PayrollReferenceWatermark><PayrollEstimateView estimate={estimate} /></PayrollReferenceWatermark> : null}
+    {status === 'ready' && estimate ? <PayrollReferenceWatermark><PayrollEstimateView estimate={estimate} showAwardRules={false} /></PayrollReferenceWatermark> : null}
   </>;
 }
 

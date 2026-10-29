@@ -40,6 +40,14 @@ describe('PayrollEstimateView', () => {
     expect(screen.queryByText('超勤奖')).not.toBeInTheDocument();
   });
 
+  it('keeps employee awards visible without exposing award thresholds or calculation explanations', () => {
+    render(<PayrollEstimateView estimate={{ ...estimate, fullAttendanceBonusDays: 24, extraAttendanceBonusDays: 26, fullAttendanceBonusAwarded: true, accruedFullAttendanceBonus: 500, accruedExtraAttendanceBonus: 600 }} showAwardRules={false} />);
+    expect(screen.getByText('全勤奖')).toBeInTheDocument();
+    expect(screen.getByText('超勤奖')).toBeInTheDocument();
+    expect(screen.getByText('¥500.00')).toBeInTheDocument();
+    expect(screen.getByText('¥600.00')).toBeInTheDocument();
+    expect(screen.queryByText(/门槛|奖励标准|超勤奖标准|月计薪标准/)).not.toBeInTheDocument();
+  });
   it('shows an awarded full-attendance bonus as a separate salary item', () => {
     render(<PayrollEstimateView estimate={{ ...estimate, attendanceDays: 27, fullAttendanceBonusAwarded: true, accruedFullAttendanceBonus: 500, accruedPerformance: 2900 }} />);
     expect(screen.getByText(/本月累计出勤已达到/)).toBeInTheDocument();

@@ -1,5 +1,5 @@
 import { CheckCircle2, FileText } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog } from '../components/feedback/ActionFeedbackDialog';
@@ -54,6 +54,7 @@ function EstimatePanel() {
   const profileId = auth.profile?.id;
   const [estimate, setEstimate] = useState<PayrollEstimate | null>(null);
   const [settings, setSettings] = useState<PayrollVisibilitySettings | null>(null);
+  const settingsRef = useRef<PayrollVisibilitySettings | null>(null);
   const [month, setMonth] = useRememberedPageState('estimate-month', currentMonth());
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -62,13 +63,14 @@ function EstimatePanel() {
     if (!supabase || !profileId) { setStatus('error'); setMessage('账号或服务配置尚未就绪。'); return; }
     setStatus('loading');
     try {
-      const nextSettings = settings ?? await loadPayrollVisibilitySettings(supabase);
+      const nextSettings = settingsRef.current ?? await loadPayrollVisibilitySettings(supabase);
+      settingsRef.current = nextSettings;
       setSettings(nextSettings);
       setEstimate(await loadMyPayrollEstimate(supabase, profileId, asOf));
       void recordSystemActivity(supabase, { module: 'payroll', view: 'estimate_detail', period: month, targetProfileId: profileId, context: { scope: 'self' } }).catch(() => undefined);
       setStatus('ready'); setMessage('');
     } catch (error) { setMessage(error instanceof Error ? error.message : '暂时无法计算预估工资。'); setStatus('error'); }
-  }, [asOf, month, profileId, settings]);
+  }, [asOf, month, profileId]);
   useEffect(() => { void load(); }, [load]);
   const historyEnabled = Boolean(settings?.historyOpenNow && settings.historyMonths > 0);
   return <>

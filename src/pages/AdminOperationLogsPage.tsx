@@ -10,7 +10,7 @@ import { useRememberedPageState } from '../lib/useRememberedPageState';
 import {
   loadOperationLogActors,
   loadOperationLogs,
-  compactConsecutiveOperationLogs,
+  uniqueOperationLogs,
   OPERATION_LOGS_CHANGED_EVENT,
   type OperationLog,
   type OperationLogActor,
@@ -139,7 +139,7 @@ export function AdminOperationLogsPage() {
       const nextOffset = offset + result.rawCount;
       rawOffsetRef.current = nextOffset;
       hasLoadedMoreRef.current = true;
-      setItems((current) => compactConsecutiveOperationLogs([...current, ...result.items.filter((row) => !current.some((existing) => existing.id === row.id))]));
+      setItems((current) => uniqueOperationLogs([...current, ...result.items]));
       setRawOffset(nextOffset); setTotal(result.total);
     } finally { loadingMoreRef.current = false; setLoadingMore(false); }
   };
@@ -163,17 +163,17 @@ export function AdminOperationLogsPage() {
         <button className="ui-button-secondary min-h-10" onClick={() => void load(false)} type="button"><RefreshCw className="h-4 w-4" />立即刷新</button>
         <button className="ui-button-secondary min-h-10" disabled={!hasFilters} onClick={resetFilters} type="button"><RotateCcw className="h-4 w-4" />清除筛选</button>
       </div>
-      <p className="mt-2 text-[11px] leading-5 text-slate-500">默认显示查看记录和业务变更，可按需筛选关键操作或排除账号；相邻的同人同事项只显示一次。日志每 15 秒自动更新{lastUpdatedAt ? ` · 最近更新 ${lastUpdatedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</p>
+      <p className="mt-2 text-[11px] leading-5 text-slate-500">默认显示查看记录和业务变更，可按需筛选关键操作或排除账号。每条操作分别显示发生时间。日志每 15 秒自动更新{lastUpdatedAt ? ` · 最近更新 ${lastUpdatedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</p>
     </SectionCard>
     {status === 'loading' ? <LoadingState label="正在加载操作日志" /> : status === 'error' ? <ErrorState message="暂时无法读取操作日志。" onRetry={() => void load()} /> : !items.length ? <EmptyState title="暂无匹配的操作日志" description="可以调整账号、模块、操作或日期筛选条件。" /> : <>
       <p className="px-1 text-xs text-slate-500">共 {total} 条记录</p>
       <div className="space-y-2">{items.map((row) => {
         const expanded = expandedId === row.id;
         const storeName = auth.availableStores.find((store) => store.id === row.store_id)?.name ?? (typeof row.metadata.storeName === 'string' ? row.metadata.storeName : '');
-        const detailEntries = Object.entries(row.metadata).filter(([key, value]) => !['clientPlatform', 'clientRelease', 'dedupeWindowSeconds', 'eventKey', 'pagePath', 'targetProfileId'].includes(key) && value != null && value !== '' && !(Array.isArray(value) && value.length === 0));
+        const detailEntries = Object.entries(row.metadata).filter(([key, value]) => !['clientPlatform', 'clientRelease', 'dedupeWindowSeconds', 'eventKey', 'requestEventId', 'activityCategory', 'pagePath', 'targetProfileId'].includes(key) && value != null && value !== '' && !(Array.isArray(value) && value.length === 0));
         return <SectionCard className="p-3.5" key={row.id}>
           <div className="flex flex-wrap items-center gap-2"><b className="text-sm text-slate-900">{row.actor_name_snapshot}</b>{row.actor_username_snapshot ? <span className="text-xs text-slate-500">@{row.actor_username_snapshot}</span> : null}<StatusBadge>{roleText(row.actor_role_snapshot, row.actor_employment_type_snapshot)}</StatusBadge><StatusBadge tone={row.operation === 'deleted' ? 'danger' : row.operation === 'created' || row.operation === 'login' ? 'success' : 'info'}>{actionLabel(row)}</StatusBadge></div>
-          <p className="mt-2 text-sm font-semibold text-slate-700">{moduleLabels[row.module] ?? row.module} · {row.summary}{row.repeatCount > 1 ? <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">连续 {row.repeatCount} 次</span> : null}</p>
+          <p className="mt-2 text-sm font-semibold text-slate-700">{moduleLabels[row.module] ?? row.module} · {row.summary}</p>
           <p className="mt-1 text-xs text-slate-500">{formatTime(row.occurred_at)}{storeName ? ` · ${storeName}` : ''}</p>
           {detailEntries.length ? <button className="mt-2 flex min-h-8 items-center gap-1 text-xs font-bold text-brand-700" onClick={() => setExpandedId(expanded ? null : row.id)} type="button">{expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}{expanded ? '收起详情' : '查看详情'}</button> : null}
           {expanded ? <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">

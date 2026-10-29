@@ -3,7 +3,7 @@ import type { Database, Json } from '../types/database';
 
 type Client = SupabaseClient<Database>;
 type Row = Database['public']['Tables']['system_operation_logs']['Row'];
-export type OperationLog = Omit<Row, 'metadata'> & { metadata: Record<string, Json | undefined>; repeatCount: number };
+export type OperationLog = Omit<Row, 'metadata'> & { metadata: Record<string, Json | undefined> };
 export type OperationLogFilters = { actorId?: string; endDate?: string; excludeActorId?: string; keyOnly?: boolean; module?: string; operation?: string; search?: string; startDate?: string; storeId?: string };
 export interface OperationLogActor { displayName: string; employmentType: 'full_time' | 'part_time' | null; id: string; role: 'staff' | 'manager' | 'admin' | 'system'; username: string }
 export interface SystemActivityInput {
@@ -19,23 +19,19 @@ export const OPERATION_LOGS_CHANGED_EVENT = 'storehub:operation-logs-changed';
 
 const metadata = (value: Json): Record<string, Json | undefined> => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const objectAt = (value: Json): Record<string, Json | undefined> => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-const duplicateSignature = (row: OperationLog) => [row.actor_id, row.module, row.operation, row.entity_type, row.entity_id, row.summary].join('|');
-
-export function compactConsecutiveOperationLogs(rows: OperationLog[]): OperationLog[] {
-  return rows.reduce<OperationLog[]>((result, row) => {
-    const previous = result[result.length - 1];
-    if (previous && duplicateSignature(previous) === duplicateSignature(row)) {
-      previous.repeatCount += row.repeatCount;
-      return result;
-    }
-    result.push({ ...row, repeatCount: row.repeatCount || 1 });
-    return result;
-  }, []);
+export function uniqueOperationLogs(rows: OperationLog[]): OperationLog[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
 }
 
 export async function recordSystemActivity(client: Client, input: SystemActivityInput): Promise<boolean> {
   const context: Record<string, Json | undefined> = {
     ...input.context,
+    requestEventId: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     pagePath: typeof window === 'undefined' ? undefined : `${window.location.pathname}${window.location.search}`,
     clientPlatform: typeof navigator === 'undefined' ? undefined : navigator.platform,
   };
@@ -78,7 +74,7 @@ export async function loadOperationLogActors(client: Client): Promise<OperationL
 }
 
 export async function loadOperationLogs(client: Client, filters: OperationLogFilters, offset = 0) {
-  let query = client.from('system_operation_logs').select('*', { count: 'exact' }).order('occurred_at', { ascending: false }).range(offset, offset + pageSize - 1);
+  let query = client.from('system_operation_logs').select('*', { count: 'exact' }).order('occurred_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + pageSize - 1);
   if (filters.storeId) query = query.eq('store_id', filters.storeId);
   if (filters.actorId) query = query.eq('actor_id', filters.actorId);
   if (filters.excludeActorId && !filters.actorId) query = query.neq('actor_id', filters.excludeActorId);
@@ -93,6 +89,6 @@ export async function loadOperationLogs(client: Client, filters: OperationLogFil
   }
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
-  const rows = (data ?? []).map((row) => ({ ...row, metadata: metadata(row.metadata), repeatCount: 1 })) as OperationLog[];
-  return { items: compactConsecutiveOperationLogs(rows), rawCount: rows.length, total: count ?? 0 };
+  const rows = (data ?? []).map((row) => ({ ...row, metadata: metadata(row.metadata) })) as OperationLog[];
+  return { items: rows, rawCount: rows.length, total: count ?? 0 };
 }

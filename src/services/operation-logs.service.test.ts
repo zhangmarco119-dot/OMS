@@ -2,16 +2,24 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../types/database';
-import { compactConsecutiveOperationLogs, loadOperationLogActors, recordSystemActivity, type OperationLog } from './operation-logs.service';
+import { uniqueOperationLogs, loadOperationLogActors, recordSystemActivity, type OperationLog } from './operation-logs.service';
 
 describe('operation logs service', () => {
-  it('collapses only consecutive duplicate actions and keeps their repeat count', () => {
-    const row = { actor_id: 'profile-1', entity_id: 'item-1', entity_type: 'notice', id: 'log-1', metadata: {}, module: 'notice', occurred_at: '2026-08-13T01:00:00Z', operation: 'updated', repeatCount: 1, summary: '修改公告' } as OperationLog;
+  it('assigns different event IDs to separate visits to the same page', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: 'log-1', error: null });
+    const client = { rpc } as unknown as SupabaseClient<Database>;
+    await recordSystemActivity(client, { module: 'payroll', view: 'estimate_detail' });
+    await recordSystemActivity(client, { module: 'payroll', view: 'estimate_detail' });
+    expect(rpc.mock.calls[0][1].p_context.requestEventId).not.toBe(rpc.mock.calls[1][1].p_context.requestEventId);
+  });
+  it('keeps separate events even with identical actors, contents and timestamps; removes only duplicate IDs', () => {
+    const row = { actor_id: 'profile-1', entity_id: 'item-1', entity_type: 'notice', id: 'log-1', metadata: {}, module: 'notice', occurred_at: '2026-08-13T01:00:00Z', operation: 'updated', summary: '修改公告' } as OperationLog;
     const other = { ...row, entity_id: 'item-2', id: 'log-2', summary: '发布公告' };
-    expect(compactConsecutiveOperationLogs([row, { ...row, id: 'log-1b' }, other, { ...row, id: 'log-1c' }])).toEqual([
-      expect.objectContaining({ id: 'log-1', repeatCount: 2 }),
-      expect.objectContaining({ id: 'log-2', repeatCount: 1 }),
-      expect.objectContaining({ id: 'log-1c', repeatCount: 1 }),
+    expect(uniqueOperationLogs([row, { ...row, id: 'log-1b', occurred_at: '2026-08-13T02:00:00Z' }, other, { ...row, id: 'log-1c' }, row])).toEqual([
+      expect.objectContaining({ id: 'log-1' }),
+      expect.objectContaining({ id: 'log-1b' }),
+      expect.objectContaining({ id: 'log-2' }),
+      expect.objectContaining({ id: 'log-1c' }),
     ]);
   });
 
@@ -49,6 +57,8 @@ describe('operation logs service', () => {
 
     await expect(recordSystemActivity(client, { module: 'attendance', period: '2026-07', view: 'month_summary' })).resolves.toBe(true);
     expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[0][1].p_context.requestEventId).toBe(rpc.mock.calls[1][1].p_context.requestEventId);
+    expect(rpc.mock.calls[0][1].p_context.requestEventId).toBeTruthy();
   });
 
   it('returns a visible failure result after both audit attempts fail', async () => {

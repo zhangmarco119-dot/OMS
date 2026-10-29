@@ -46,7 +46,7 @@ export function PayrollEstimateView({ estimate, mode = 'estimate', onResolveIssu
 
     {estimate.departureMonthExcluded ? <SectionCard className="border-amber-200 bg-amber-50 p-3.5"><b className="text-sm text-amber-950">本月为离职月</b><p className="mt-1 text-xs leading-5 text-amber-900">本月不核算绩效、提成和房补，其余工资项目继续按实际数据计算。</p></SectionCard> : null}
 
-    <SectionCard><SectionHeader icon={CalendarDays} title="出勤与计薪口径" /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="累计出勤" value={`${estimate.attendanceDays} 天`} /><Metric label="全勤标准" value={`${estimate.fullAttendanceDays} 天`} /><Metric label="迟到" value={`${estimate.lateCount} 次`} /></div></SectionCard>
+    <SectionCard><SectionHeader icon={CalendarDays} title="出勤与计薪口径" /><div className="mt-3 grid grid-cols-3 gap-2 text-center"><Metric label="累计出勤" value={`${estimate.attendanceDays} 天`} /><Metric label="月计薪标准" value={`${estimate.fullAttendanceDays} 天`} /><Metric label="迟到" value={`${estimate.lateCount} 次`} /></div><p className="mt-3 text-xs leading-5 text-slate-500">{estimate.fullAttendanceBonusEnabled ? `全勤奖门槛 ${fullAwardDays} 天 · ` : ''}超勤奖门槛 {extraAwardDays} 天，超出部分按天计奖。奖励门槛不改变基本工资折算标准。</p></SectionCard>
 
     <SectionCard><SectionHeader icon={CircleDollarSign} title="工资明细" description="每项金额均按截至当前日期的实际数据计算。" /><div className="mt-2">
       <AmountRow label="累计基本工资" note={`${formatMoney(estimate.monthlyBaseSalary)}（含社保补贴） ÷ ${estimate.fullAttendanceDays} × ${Math.min(estimate.attendanceDays, estimate.fullAttendanceDays)} 天`} value={estimate.accruedBaseSalary} />

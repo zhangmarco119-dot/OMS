@@ -950,6 +950,12 @@ export type Database = {
         };
         Relationships: [];
       };
+      store_business_closures: {
+        Row: { id: string; store_id: string; closed_from: string; reopened_from: string | null; resume_sales_sync: boolean; updated_by: string; updated_at: string };
+        Insert: { id?: string; store_id: string; closed_from: string; reopened_from?: string | null; resume_sales_sync?: boolean; updated_by: string; updated_at?: string };
+        Update: { closed_from?: string; reopened_from?: string | null; resume_sales_sync?: boolean; updated_by?: string; updated_at?: string };
+        Relationships: [];
+      };
       stores: {
         Row: {
           created_at: string;
@@ -1434,6 +1440,8 @@ export type Database = {
         Args: { target_store_id: string };
         Returns: boolean;
       };
+      admin_set_store_operating: { Args: { p_store_id: string; p_operating: boolean; p_effective_date: string }; Returns: string | null };
+      store_is_operating_on: { Args: { p_store_id: string; p_date: string }; Returns: boolean };
       admin_set_profile_stores: {
         Args: { p_profile_id: string; p_store_ids: string[] };
         Returns: undefined;

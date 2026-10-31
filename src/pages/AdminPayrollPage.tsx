@@ -12,6 +12,7 @@ import { ImageViewer } from '../components/ui/ImageViewer';
 import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { PayrollEstimateView } from '../features/payroll/PayrollEstimateView';
 import { EmployeeStoreAssignments } from '../features/admin/EmployeeStoreAssignments';
+import { StoreBusinessSettings } from '../features/admin/StoreBusinessSettings';
 import { AdminOvertimeBatchImport } from '../features/payroll/AdminOvertimeBatchImport';
 import { AdminPayrollStatistics } from '../features/payroll/AdminPayrollStatistics';
 import { PayrollStatementView } from '../features/payroll/PayrollStatementView';
@@ -28,6 +29,7 @@ import {
   savePayrollMonthlyPerformance, savePayrollPayslipScheduleSettings, savePayrollVisibilitySettings,
   type PayrollEmployeeRule, type PayrollMonthlyStoreSetting, type PayrollPerformanceRule, type PosSalesIntegration, type PosSalesSyncJob, type QmaiStoreCandidate,
 } from '../services/payroll.service';
+import { loadStoreClosures, storeOperatesOn, type StoreClosure } from '../services/store-business.service';
 import { recordSystemActivity } from '../services/operation-logs.service';
 
 type Tab = 'overview' | 'statistics' | 'payslips' | 'employees' | 'performance' | 'revenue' | 'penalties' | 'overtime';
@@ -551,6 +553,7 @@ function PerformanceRuleExplanation({ form }: { form: ReturnType<typeof defaultP
 
 function RevenueManager() {
   const auth = useAuth();
+  const [closures, setClosures] = useState<StoreClosure[]>([]);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [posSetup, setPosSetup] = useState<Awaited<ReturnType<typeof loadPosSalesSetup>> | null>(null);
   const [storeId, setStoreId] = useRememberedPageState('revenue-store', auth.availableStores[0]?.id ?? '');
@@ -565,10 +568,12 @@ function RevenueManager() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [payroll, sales] = await Promise.all([
+    const [payroll, sales, storeClosures] = await Promise.all([
       loadPayrollAdminSetup(supabase, monthStart(date)),
       loadPosSalesSetup(supabase),
+      loadStoreClosures(supabase),
     ]);
+    setClosures(storeClosures);
     setSetup(payroll);
     setPosSetup(sales);
   }, [date]);
@@ -577,7 +582,7 @@ function RevenueManager() {
   const integration = posSetup?.integrations.find((item) => item.store_id === storeId);
   const savedInput = setup?.revenueInputs.find((item) => item.store_id === storeId && item.as_of_date === date);
   const dailyMonthTotal = setup?.revenues
-    .filter((item) => item.store_id === storeId && item.revenue_date >= monthStart(date) && item.revenue_date <= date)
+    .filter((item) => item.store_id === storeId && item.revenue_date >= monthStart(date) && item.revenue_date <= date && storeOperatesOn(closures, item.store_id, item.revenue_date))
     .reduce((total, item) => total + Number(item.confirmed_amount), 0) ?? 0;
   const cumulativeRevenue = savedInput?.input_mode === 'manual'
     ? Number(savedInput.manual_cumulative_amount ?? 0)
@@ -590,6 +595,7 @@ function RevenueManager() {
   }, [date, integration, savedInput, storeId]);
 
   const saveManual = async () => {
+    if (!storeOperatesOn(closures, storeId, date)) { setFeedback({ title: '该日期门店已关店', message: '请将截止日期改为实际营业日期，补录关店前的营业额。', tone: 'warning' }); return; }
     if (!supabase || !auth.profile || !storeId || amount === '') {
       setFeedback({ title: '请完善累计营业额', message: '请选择门店并填写本月 1 日至截止日期的累计营业额。', tone: 'warning' });
       return;
@@ -691,6 +697,7 @@ function RevenueManager() {
   };
 
   return <>
+    <StoreBusinessSettings onChanged={() => void load()} />
     <SectionCard>
       <SectionHeader icon={RefreshCw} title="收银系统自动同步" description="门店先完成企迈或银豹绑定，再按已确认的外部门店编码同步；不同门店的数据不会混用。" />
       <div className="mt-3 space-y-3">

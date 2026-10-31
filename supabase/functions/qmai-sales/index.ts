@@ -68,6 +68,11 @@ Deno.serve(async (request) => {
   const startDate = payload.action === 'manual-sync-month' ? `${endDate.slice(0, 7)}-01` : endDate;
   const results: Record<string, unknown>[] = [];
   for (const integration of integrations) {
+    const operating = await adminClient.rpc('store_is_operating_on', { p_store_id: integration.store_id, p_date: chinaDate() });
+    if (operating.error || operating.data !== true) {
+      results.push({ integrationId: integration.id, status: 'skipped', error: operating.error ? '无法核验门店经营状态，已暂停本次同步。' : '门店已关店，已停止营业额同步。' });
+      continue;
+    }
     const job = await adminClient.from('pos_sales_sync_jobs').insert({ integration_id: integration.id, store_id: integration.store_id, provider: 'qmai', trigger_type: scheduled ? 'scheduled' : 'manual', sync_date: startDate, sync_end_date: endDate, initiated_by: actorId, status: 'running' }).select('id').single();
     if (job.error || !job.data) { results.push({ integrationId: integration.id, status: 'failed', error: '无法创建营业收入同步任务。' }); continue; }
     let calls = 0;
@@ -87,6 +92,8 @@ Deno.serve(async (request) => {
       results.push({ integrationId: integration.id, jobId: job.data.id, status: 'failed', error: message });
     }
   }
+  const skipped = results.filter((result) => result.status === 'skipped');
+  if (!scheduled && skipped.length) return json({ status: 'skipped', error: skipped[0].error, results });
   const failed = results.filter((result) => result.status === 'failed');
   return !scheduled && failed.length ? json({ status: 'failed', error: failed[0].error, results }) : json({ status: failed.length ? 'partial' : 'succeeded', results });
 });

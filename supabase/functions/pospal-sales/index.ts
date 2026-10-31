@@ -203,13 +203,6 @@ Deno.serve(async (request) => {
   const anonKey = requiredEnv('SUPABASE_ANON_KEY');
   const serviceRoleKey = requiredEnv('SUPABASE_SERVICE_ROLE_KEY');
 
-  let configs: PospalSecretConfig[];
-  try {
-    configs = parsePospalSecretConfigs(requiredEnv('POSPAL_INTEGRATIONS_BASE64'));
-  } catch {
-    return json({ error: '银豹服务尚未完成安全配置。' }, 503);
-  }
-
   let payload: SalesAction;
   try {
     payload = (await request.json()) as SalesAction;
@@ -320,6 +313,18 @@ Deno.serve(async (request) => {
 
   const results: Record<string, unknown>[] = [];
   for (const integration of integrationRows) {
+    const operating = await adminClient.rpc('store_is_operating_on', { p_store_id: integration.store_id, p_date: chinaDate() });
+    if (operating.error || operating.data !== true) {
+      results.push({ integrationId: integration.id, status: 'skipped', error: operating.error ? '无法核验门店经营状态，已暂停本次同步。' : '门店已关店，已停止营业额同步。' });
+      continue;
+    }
+    let configs: PospalSecretConfig[];
+    try {
+      configs = parsePospalSecretConfigs(requiredEnv('POSPAL_INTEGRATIONS_BASE64'));
+    } catch {
+      return json({ error: '银豹服务尚未完成安全配置。' }, 503);
+    }
+
     const config = configs.find((item) => item.storeId === integration.store_id);
     const job = await adminClient
       .from('pos_sales_sync_jobs')
@@ -427,6 +432,8 @@ Deno.serve(async (request) => {
     }
   }
 
+  const skipped = results.filter((result) => result.status === 'skipped');
+  if (!scheduled && skipped.length) return json({ status: 'skipped', error: skipped[0].error, results });
   const failed = results.filter((result) => result.status === 'failed');
   if (!scheduled && failed.length) {
     return json({ status: 'failed', error: failed[0].error, results });

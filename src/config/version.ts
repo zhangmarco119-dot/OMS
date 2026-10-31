@@ -8,6 +8,12 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-10-31',
+    highlights: ['营业收入新增门店经营状态，按生效日期设置关店或恢复营业；关店停止营业额同步及该门店的提成、绩效累计，保留历史结算。'],
+    title: '增加门店关店设置',
+    version: 'StoreHub v3.0.61',
+  },
+  {
     date: '2026-10-29',
     highlights: ['操作日志逐条显示发生时间，不再合并为连续次数；每次薪资、考勤查看分别记录，仅同一请求的网络重试去重。'],
     title: '逐条展示操作记录',

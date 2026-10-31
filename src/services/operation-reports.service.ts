@@ -20,6 +20,7 @@ export type OperationReportRefundReason = {
 
 export type OperationReportAvailability = {
   available: boolean;
+  operating?: boolean;
   fields?: OperationReportField[];
   refundNote?: string;
   refundReasons?: OperationReportRefundReason[];

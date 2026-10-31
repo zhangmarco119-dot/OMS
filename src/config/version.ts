@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-10-31',
+    highlights: ['关店状态联动累计营业额、收银同步和门店绑定入口，自动切换失效选择；关店前历史仍可查询。', '关闭关店门店的营业报告生成入口，服务端同步拦截关店日期的营业额登记及门店绑定。'],
+    title: '完善关店业务入口联动',
+    version: 'StoreHub v3.0.62',
+  },
+  {
+    date: '2026-10-31',
     highlights: ['营业收入新增门店经营状态，按生效日期设置关店或恢复营业；关店停止营业额同步及该门店的提成、绩效累计，保留历史结算。'],
     title: '增加门店关店设置',
     version: 'StoreHub v3.0.61',

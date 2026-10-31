@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
 import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollEmployeeRule, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
+import { loadStoreClosures, setStoreOperating } from '../services/store-business.service';
+import { within } from '@testing-library/react';
 import { AdminPayrollPage } from './AdminPayrollPage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
+vi.mock('../services/store-business.service', async (original) => ({ ...await original<typeof import('../services/store-business.service')>(), loadStoreClosures: vi.fn().mockResolvedValue([]), setStoreOperating: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../services/payroll.service', async (original) => {
   const actual = await original<typeof import('../services/payroll.service')>();
@@ -52,6 +55,64 @@ function LocationProbe() {
 }
 
 describe('AdminPayrollPage update guidance', () => {
+  const west = { id: 'west', name: '西直门', short_name: '西直门' };
+  const five = { id: 'five', name: '五道口', short_name: '五道口' };
+  const closure = { id: 'closed', store_id: 'west', closed_from: '2026-10-01', reopened_from: null, resume_sales_sync: true, updated_by: 'admin', updated_at: '' };
+  const integration = { id: 'west-pos', store_id: 'west', provider: 'pospal', display_name: '西直门收银连接', external_account: '', enabled: true, sync_start_hour: 10, sync_end_hour: 22, sync_interval_minutes: 30, last_error: null, last_success_at: null };
+  const renderRevenue = (stores: typeof west[]) => {
+    vi.setSystemTime(new Date('2026-10-31T04:00:00Z'));
+    vi.mocked(useAuth).mockReturnValue({ availableStores: stores, profile: { id: 'admin', role: 'admin' } } as never);
+    vi.mocked(loadPosSalesSetup).mockResolvedValue({ integrations: [integration], jobs: [] } as never);
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=revenue']}><AdminPayrollPage /></MemoryRouter>);
+  };
+
+  it('removes closed stores from revenue, bindings and sync cards, replacing cached selections', async () => {
+    vi.mocked(loadStoreClosures).mockResolvedValue([closure]);
+    sessionStorage.setItem('storehub:page-state:/app/admin/payroll:revenue-store', JSON.stringify('west'));
+    sessionStorage.setItem('storehub:page-state:/app/admin/payroll:revenue-binding-store', JSON.stringify('west'));
+    renderRevenue([west, five]);
+    const revenue = await screen.findByRole('combobox', { name: '累计营业额门店' });
+    const binding = screen.getByRole('combobox', { name: '收银系统绑定门店' });
+    expect(revenue).toHaveValue('five'); expect(binding).toHaveValue('five');
+    expect(within(revenue).queryByRole('option', { name: '西直门' })).not.toBeInTheDocument();
+    expect(within(binding).queryByRole('option', { name: '西直门' })).not.toBeInTheDocument();
+    expect(screen.queryByText('西直门收银连接')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: '启用自动更新' })).not.toBeInTheDocument();
+    expect(screen.getByText('已关店')).toBeVisible();
+    fireEvent.change(screen.getByLabelText('截止日期'), { target: { value: '2026-09-30' } });
+    await waitFor(() => expect(revenue).toHaveValue('west'));
+    expect(within(revenue).getByRole('option', { name: '西直门' })).toBeInTheDocument();
+    expect(binding).toHaveValue('five');
+    expect(within(binding).queryByRole('option', { name: '西直门' })).not.toBeInTheDocument();
+    expect(screen.queryByText('西直门收银连接')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '收银系统同步' })).toBeDisabled();
+  });
+
+  it('disables new-business entries when every store is closed and restores them on reopening', async () => {
+    vi.mocked(loadStoreClosures).mockResolvedValue([closure]);
+    renderRevenue([west]);
+    const revenue = await screen.findByRole('combobox', { name: '累计营业额门店' });
+    expect(revenue).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: '收银系统绑定门店' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '读取企迈门店' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '保存手动营业额' })).not.toBeInTheDocument();
+    vi.mocked(setStoreOperating).mockImplementationOnce(async () => { vi.mocked(loadStoreClosures).mockResolvedValue([]); });
+    fireEvent.click(screen.getByRole('button', { name: '恢复营业' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认设置' }));
+    await waitFor(() => expect(revenue).not.toBeDisabled());
+    expect(revenue).toHaveValue('west');
+    expect(await screen.findByText('西直门收银连接')).toBeVisible();
+  });
+
+  it('does not expose all stores or synchronization controls while business state fails to load', async () => {
+    vi.mocked(loadStoreClosures).mockRejectedValue(new Error('经营状态读取失败'));
+    renderRevenue([west, five]);
+    await screen.findAllByText('经营状态读取失败');
+    expect(screen.queryByRole('combobox', { name: '累计营业额门店' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '收银系统绑定门店' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: '启用自动更新' })).not.toBeInTheDocument();
+  });
+
   it('saves the two award thresholds independently and rejects fractional days', async () => {
     vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'profile-1', display_name: '测试员工', employment_type: 'full_time', role: 'staff', store_id: 'store-1' }], profileStoreAccess: [{ profile_id: 'profile-1', store_id: 'store-1' }], rules: [{ id: 'rule-1', profile_id: 'profile-1', monthly_base_salary: 2700, monthly_housing_allowance: 0, full_performance_amount: null, commission_rate: null, extra_reward_amount: 0, full_attendance_bonus_amount: 500, full_attendance_bonus_enabled: true, service_award_amount: 100, service_award_enabled: false, housing_enabled: false, performance_enabled: false, commission_enabled: false, confirmed: true, effective_from: '2026-07-01' }] } as never);
     vi.mocked(savePayrollEmployeeRule).mockResolvedValue('rule-1');
@@ -70,6 +131,9 @@ describe('AdminPayrollPage update guidance', () => {
   beforeEach(() => {
     vi.setSystemTime(new Date(2026, 6, 18, 12, 0, 0));
     vi.clearAllMocks();
+    sessionStorage.clear();
+    vi.mocked(loadStoreClosures).mockResolvedValue([]);
+    vi.mocked(loadPosSalesSetup).mockResolvedValue({ integrations: [], jobs: [] });
     vi.mocked(useAuth).mockReturnValue({
       availableStores: [{ id: 'store-1', name: '测试门店', short_name: '测试门店' }],
       profile: { id: 'admin-1', role: 'admin' },

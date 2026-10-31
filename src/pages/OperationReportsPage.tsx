@@ -10,6 +10,7 @@ import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { buildOperationReportText, getMissingOperationReportFields, type OperationReportField, type RefundEntry } from '../features/operation-reports/reportText';
 import { supabase } from '../lib/supabase';
+import { loadStoreClosures, storeOperatesOn, type StoreClosure } from '../services/store-business.service';
 import { loadOperationReportImageMetadata, loadOperationReportImageUrls, removeOperationReportImage, uploadOperationReportImage, type OperationReportImage } from '../services/operation-report-images.service';
 import {
   addOperationReportRefundReason,
@@ -35,21 +36,27 @@ export function OperationReportsPage() {
   const isAdmin = auth.profile?.role === 'admin';
   const [tab, setTab] = useState<'create' | 'reports' | 'config'>(isAdmin ? 'reports' : 'create');
   const [selectedStoreId, setSelectedStoreId] = useState(auth.store?.id ?? '');
-  const storeId = isAdmin ? selectedStoreId : auth.store?.id ?? '';
+  const [closures, setClosures] = useState<StoreClosure[] | null>(null);
+  const selectorStores = tab === 'config' ? closures ? auth.availableStores.filter((store) => storeOperatesOn(closures, store.id, today())) : [] : auth.availableStores;
+  const storeId = isAdmin ? selectorStores.find((store) => store.id === selectedStoreId)?.id ?? selectorStores[0]?.id ?? '' : auth.store?.id ?? '';
   const [availability, setAvailability] = useState<OperationReportAvailability | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reports, setReports] = useState<OperationReport[]>([]);
+  const loadGeneration = useRef(0);
 
   const reload = useCallback(async () => {
-    if (!storeId) return;
+    const generation = ++loadGeneration.current;
+    if (!storeId) { setLoading(false); return; }
     setLoading(true); setError('');
     try {
-      const [available, reportRows] = await Promise.all([getOperationReportAvailability(storeId), listOperationReports(storeId)]);
+      const [available, reportRows, storeClosures] = await Promise.all([getOperationReportAvailability(storeId), listOperationReports(storeId), isAdmin && supabase ? loadStoreClosures(supabase) : Promise.resolve(null)]);
+      if (storeClosures) setClosures(storeClosures);
+      if (generation !== loadGeneration.current) return;
       setAvailability(available); setReports(reportRows);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '运营报告加载失败。'); }
-    finally { setLoading(false); }
-  }, [storeId]);
+    } catch (cause) { if (generation === loadGeneration.current) setError(cause instanceof Error ? cause.message : '运营报告加载失败。'); }
+    finally { if (generation === loadGeneration.current) setLoading(false); }
+  }, [isAdmin, storeId]);
   useEffect(() => { void reload(); }, [reload]);
 
   const tabItems = isAdmin ? [
@@ -61,9 +68,9 @@ export function OperationReportsPage() {
   ];
 
   return <PageShell backTo="/app/workbench" eyebrow="门店运营" title="运营报告">
-    {isAdmin ? <SectionCard><FormField label="配置门店"><select className="ui-input" value={selectedStoreId} onChange={(event) => setSelectedStoreId(event.target.value)}>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></FormField></SectionCard> : null}
+    {isAdmin ? <SectionCard><FormField label={tab === 'config' ? '配置门店' : '查询门店'}><select aria-label="运营报告门店" className="ui-input" disabled={!selectorStores.length} value={storeId} onChange={(event) => setSelectedStoreId(event.target.value)}>{!selectorStores.length ? <option value="">暂无营业中的门店</option> : null}{selectorStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></FormField></SectionCard> : null}
     <SegmentedControl className="grid-cols-2" items={tabItems} />
-    {loading ? <LoadingState label="正在加载运营报告" /> : error ? <ErrorState message={error} onRetry={() => void reload()} /> : !availability?.available ? <EmptyState title="当前门店暂未启用运营报告" description="运营报告目前仅开放给已连接银豹收银系统的西直门店。" /> : tab === 'create' ? <ReportComposer availability={availability} onSubmitted={() => void reload()} storeId={storeId} /> : tab === 'config' ? <ReportTemplateEditor availability={availability} onSaved={() => void reload()} storeId={storeId} /> : <ReportList reports={reports} />}
+    {!storeId ? <EmptyState title="当前没有营业中的门店" description="历史报告仍可在报告记录中查询。" /> : loading ? <LoadingState label="正在加载运营报告" /> : error ? <ErrorState message={error} onRetry={() => void reload()} /> : tab === 'reports' ? <ReportList reports={reports} /> : !availability?.available ? <EmptyState title="当前门店暂未启用运营报告" description="运营报告需要先连接收银系统并配置报告模板。" /> : tab === 'create' && availability.operating === false ? <EmptyState title="门店已关店" description="已停止生成营业报告，可在历史报告中查看已有记录。" /> : tab === 'create' ? <ReportComposer availability={availability} onSubmitted={() => void reload()} storeId={storeId} /> : <ReportTemplateEditor availability={availability} onSaved={() => void reload()} storeId={storeId} />}
   </PageShell>;
 }
 

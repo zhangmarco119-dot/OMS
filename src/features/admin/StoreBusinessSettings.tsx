@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { todayInChina } from '../payroll/model';
 import { loadStoreClosures, setStoreOperating, storeOperatesOn, type StoreClosure } from '../../services/store-business.service';
 
-export function StoreBusinessSettings({ onChanged }: { onChanged: () => void }) {
+export function StoreBusinessSettings({ onChanged }: { onChanged: (rows: StoreClosure[]) => void }) {
   const auth = useAuth();
   const [closures, setClosures] = useState<StoreClosure[]>([]);
   const [dates, setDates] = useState<Record<string, string>>({});
@@ -16,12 +16,12 @@ export function StoreBusinessSettings({ onChanged }: { onChanged: () => void }) 
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [action, setAction] = useState<{ id: string; name: string; operating: boolean; effectiveDate: string } | null>(null);
-  const load = useCallback(async () => { if (!supabase) return; try { const rows = await loadStoreClosures(supabase); setClosures(rows); setReady(true); setError(''); } catch (e) { setError(e instanceof Error ? e.message : '经营状态加载失败'); } }, []);
+  const load = useCallback(async () => { if (!supabase) return; try { const rows = await loadStoreClosures(supabase); setClosures(rows); setReady(true); setError(''); return rows; } catch (e) { setError(e instanceof Error ? e.message : '经营状态加载失败'); } }, []);
   useEffect(() => { void load(); }, [load]);
   const save = async () => {
     if (!supabase || !action) return;
     setBusy(true);
-    try { await setStoreOperating(supabase, action.id, action.operating, action.effectiveDate); setDates({}); setClosedDates({}); setAction(null); await load(); onChanged(); }
+    try { await setStoreOperating(supabase, action.id, action.operating, action.effectiveDate); setDates({}); setClosedDates({}); setAction(null); const rows = await load(); if (rows) onChanged(rows); }
     catch (e) { setError(e instanceof Error ? e.message : '经营状态保存失败'); setAction(null); }
     finally { setBusy(false); }
   };

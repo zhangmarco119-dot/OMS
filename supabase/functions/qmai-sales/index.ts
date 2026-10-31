@@ -37,11 +37,11 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
   let payload: SalesAction; try { payload = await request.json() as SalesAction; } catch { return json({ error: '请求内容格式不正确。' }, 400); }
   const supabaseUrl = requiredEnv('SUPABASE_URL'); const anonKey = requiredEnv('SUPABASE_ANON_KEY'); const serviceRoleKey = requiredEnv('SUPABASE_SERVICE_ROLE_KEY');
-  let configs: QmaiSecretConfig[]; try { configs = parseQmaiSecretConfigs(requiredEnv('QMAI_INTEGRATIONS_BASE64')); } catch { return json({ error: '企迈服务尚未完成安全配置。' }, 503); }
   const adminClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   if (payload.action === 'list-stores') {
     try {
       await authenticatedAdmin(request, adminClient, supabaseUrl, anonKey);
+      const configs = parseQmaiSecretConfigs(requiredEnv('QMAI_INTEGRATIONS_BASE64'));
       const stores = (await Promise.all(configs.map(async (config) => (await new QmaiClient(config).listStores()).map((store) => ({ ...store, credentialId: config.credentialId }))))).flat();
       return json({ stores });
     } catch (error) { return json({ error: safeError(error) }, 403); }
@@ -73,6 +73,7 @@ Deno.serve(async (request) => {
       results.push({ integrationId: integration.id, status: 'skipped', error: operating.error ? '无法核验门店经营状态，已暂停本次同步。' : '门店已关店，已停止营业额同步。' });
       continue;
     }
+    let configs: QmaiSecretConfig[]; try { configs = parseQmaiSecretConfigs(requiredEnv('QMAI_INTEGRATIONS_BASE64')); } catch { return json({ error: '企迈服务尚未完成安全配置。' }, 503); }
     const job = await adminClient.from('pos_sales_sync_jobs').insert({ integration_id: integration.id, store_id: integration.store_id, provider: 'qmai', trigger_type: scheduled ? 'scheduled' : 'manual', sync_date: startDate, sync_end_date: endDate, initiated_by: actorId, status: 'running' }).select('id').single();
     if (job.error || !job.data) { results.push({ integrationId: integration.id, status: 'failed', error: '无法创建营业收入同步任务。' }); continue; }
     let calls = 0;

@@ -167,8 +167,9 @@ function PayrollPayslipManager() {
       const parts = [`新生成 ${result.generatedCount} 份`];
       if (result.refreshedCount) parts.push(`重新生成草稿 ${result.refreshedCount} 份`);
       if (result.skippedSentCount) parts.push(`已发送并跳过 ${result.skippedSentCount} 份`);
+      if (result.skippedZeroCount) parts.push(`零薪资跳过 ${result.skippedZeroCount} 人`);
       if (result.missingTaxCount) parts.push(`${result.missingTaxCount} 人个税尚未登记`);
-      setFeedback({ title: '工资单草稿已生成', message: `${parts.join('，')}。${result.missingTaxCount ? '未登记者暂按 0 元个税生成，请先到“税务与记账 · 个税登记”补齐；' : ''}请逐份预览，确认无误后再发送。`, tone: result.missingTaxCount ? 'warning' : 'success' });
+      setFeedback({ title: result.generatedCount + result.refreshedCount ? '工资单草稿已生成' : '工资单生成检查完成', message: `${parts.join('，')}。${result.missingTaxCount ? '未登记者暂按 0 元个税生成，请先到“税务与记账 · 个税登记”补齐；' : ''}${result.generatedCount + result.refreshedCount ? '请逐份预览，确认无误后再发送。' : '本次没有新增工资单。'}`, tone: result.missingTaxCount ? 'warning' : 'success' });
       await load();
     } catch (error) { setFeedback({ title: '工资单生成失败', message: error instanceof Error ? error.message : '请稍后重试。', tone: 'danger' }); }
     finally { setBusy(false); }
@@ -303,7 +304,7 @@ function PayrollOverview() {
     else { next.set('tab', 'employees'); next.set('profile', employeeId); }
     setParams(next, { replace: true });
   };
-  if (employeeId && selected) return <><button className="ui-button-secondary" onClick={backToPayrollList} type="button">返回工资列表</button><PayrollEstimateView estimate={selected} onResolveIssue={resolveIssue} /><AdminPayrollCustomItems key={`${selected.profileId}:${selected.monthStart}`} estimate={selected} onSaved={load} /></>;
+  if (employeeId && selected) return <><button className="ui-button-secondary" onClick={backToPayrollList} type="button">{params.get('origin') === 'tax-accounting' ? '返回税务与记账' : '返回工资列表'}</button><PayrollEstimateView estimate={selected} onResolveIssue={resolveIssue} /><AdminPayrollCustomItems key={`${selected.profileId}:${selected.monthStart}`} estimate={selected} onSaved={load} /></>;
   return <>
     <SectionCard className="p-3"><div className="grid grid-cols-2 gap-2"><MonthPicker label="查看月份" maxMonth={todayInChina().slice(0, 7)} onChange={(month) => update('date', payrollMonthEndDate(month, todayInChina()))} value={selectedMonth} /><label className="text-sm font-semibold text-slate-700">门店范围<select className="ui-input mt-1" onChange={(event) => update('store', event.target.value)} value={storeId}><option value="">全部授权门店</option>{auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label></div><p className="mt-2 text-xs leading-5 text-slate-500">管理员可查看任意历史月份和本月；历史月份按该月最后一天汇总，本月按今天汇总。</p><label className="relative mt-2 block"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="ui-input pl-9" onChange={(event) => update('q', event.target.value)} placeholder="搜索员工姓名或账号" value={search} /></label></SectionCard>
     {result ? <section className="grid grid-cols-2 gap-2"><SummaryMetric label="预估合计（已知项）" value={formatMoney(result.knownEstimatedTotal)} /><SummaryMetric label="数据完整员工" value={`${result.completeCount}/${result.employeeCount}`} /></section> : null}

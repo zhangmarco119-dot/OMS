@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollEmployeeRule, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
+import { generatePayrollPayslips, loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollEmployeeRule, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
 import { loadStoreClosures, setStoreOperating } from '../services/store-business.service';
 import { within } from '@testing-library/react';
 import { AdminPayrollPage } from './AdminPayrollPage';
@@ -16,6 +16,7 @@ vi.mock('../services/payroll.service', async (original) => {
   return {
     ...actual,
     loadAdminPayrollEstimates: vi.fn(),
+    generatePayrollPayslips: vi.fn(),
     loadAdminPayrollPayslips: vi.fn(),
     loadPayrollAdminSetup: vi.fn(),
     loadPayrollPenaltyAssetUrl: vi.fn(),
@@ -65,6 +66,17 @@ describe('AdminPayrollPage update guidance', () => {
     vi.mocked(loadPosSalesSetup).mockResolvedValue({ integrations: [integration], jobs: [] } as never);
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=revenue']}><AdminPayrollPage /></MemoryRouter>);
   };
+
+  it('reports an all-zero generation as a successful skip without claiming drafts were created', async () => {
+    vi.mocked(generatePayrollPayslips).mockResolvedValue({ generatedCount: 0, refreshedCount: 0, skippedSentCount: 0, skippedZeroCount: 2, missingTaxCount: 0, month: '2026-07-01' });
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=payslips']}><AdminPayrollPage /></MemoryRouter>);
+    const generate = await screen.findByRole('button', { name: '生成 2026年7月工资单' });
+    await waitFor(() => expect(generate).not.toBeDisabled());
+    fireEvent.click(generate); fireEvent.click(screen.getByRole('button', { name: '确认生成' }));
+    expect(await screen.findByText('工资单生成检查完成')).toBeInTheDocument();
+    expect(screen.getByText(/零薪资跳过 2 人.*本次没有新增工资单/)).toBeInTheDocument();
+    expect(screen.queryByText('工资单草稿已生成')).not.toBeInTheDocument();
+  });
 
   it('removes closed stores from revenue, bindings and sync cards, replacing cached selections', async () => {
     vi.mocked(loadStoreClosures).mockResolvedValue([closure]);

@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-11-02',
+    highlights: ['手动和自动生成工资单时跳过已核实为零的月度薪资，并显示跳过人数；保留收入、扣款及待完善的结算记录。', '税务与记账中的姓名、薪资可直达对应月份的实时工资或手动填写页，支持填写后返回。'],
+    title: '完善工资单生成与报税薪资跳转',
+    version: 'StoreHub v3.0.64',
+  },
+  {
+    date: '2026-11-02',
     highlights: ['节假日补贴按实际节假日出勤自动计算，提成按整月天数减四的出勤标准折算。', '管理员可按员工和月份新增临时奖励、补贴条目，计入实时薪资与工资单；员工仅显示结果，工资单统一带水印。'],
     title: '修正薪资折算并新增月度工资条目',
     version: 'StoreHub v3.0.63',

@@ -331,6 +331,7 @@ export interface PayrollPayslipGenerationResult {
   missingTaxCount: number;
   refreshedCount: number;
   skippedSentCount: number;
+  skippedZeroCount: number;
   month: string;
 }
 
@@ -346,6 +347,7 @@ export async function generatePayrollPayslips(client: Client, month: string, pro
     missingTaxCount: numberAt(row.missingTaxCount),
     refreshedCount: numberAt(row.refreshedCount),
     skippedSentCount: numberAt(row.skippedSentCount),
+    skippedZeroCount: numberAt(row.skippedZeroCount),
     month: textAt(row.month, month),
   };
 }

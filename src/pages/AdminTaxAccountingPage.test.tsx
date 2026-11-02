@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
@@ -26,11 +26,14 @@ const data = {
   estimates: [{ profileId: 'profile-1', estimatedIndividualIncomeTax: 123.45 }],
 };
 
+function LocationProbe() { const location = useLocation(); return <output data-testid="route">{location.pathname + location.search}</output>; }
+
 describe('AdminTaxAccountingPage individual tax register', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-20T12:00:00+08:00'));
     vi.clearAllMocks();
+    sessionStorage.clear();
     vi.mocked(useAuth).mockReturnValue({ profile: { id: 'admin-1', role: 'admin' } } as never);
     vi.mocked(loadTaxAccountingData).mockResolvedValue(data as never);
     vi.mocked(savePayrollIndividualTaxes).mockResolvedValue({ month: '2026-08-01', reconfirmationCount: 0, savedCount: 1, syncedPayslipCount: 1 });
@@ -38,6 +41,37 @@ describe('AdminTaxAccountingPage individual tax register', () => {
   });
 
   afterEach(() => { vi.useRealTimers(); });
+
+  const person = { id: 'person-1', full_name: '测试员工', id_number: '110101199001011234', phone: '13800138000', profile_id: 'profile-1', reporting_store_id: 'store-1', id_card_image_path: null };
+  const report = (salarySource: 'system' | 'manual' | 'missing', amount: number | null) => ({ ...data, people: [person], stores: [{ id: 'store-1', name: '门店' }], taxReports: [{ store: { id: 'store-1', name: '门店' }, companyName: '公司', total: amount ?? 0, rows: [{ personId: person.id, fullName: person.full_name, salarySource, amount }] }], monthlySalaries: salarySource === 'manual' ? [{ person_id: person.id, manual_amount: amount }] : [] });
+
+  it.each(['manual', 'missing'] as const)('opens %s salaries from the report and saves to the selected month before returning', async (source) => {
+    vi.mocked(loadTaxAccountingData).mockResolvedValue(report(source, source === 'manual' ? 100 : null) as never);
+    vi.mocked(saveTaxMonthlySalary).mockResolvedValue(undefined);
+    render(<MemoryRouter initialEntries={['/app/admin/tax-accounting?tab=reports&month=2026-08']}><AdminTaxAccountingPage /><LocationProbe /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: '测试员工的申报薪资' }));
+    expect(screen.getByRole('dialog', { name: '填写申报薪资' })).toHaveTextContent('2026年08月');
+    fireEvent.change(screen.getByPlaceholderText('请输入该月薪资'), { target: { value: '4800' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存并返回' }));
+    await waitFor(() => expect(saveTaxMonthlySalary).toHaveBeenCalledWith(expect.anything(), 'admin-1', 'person-1', '2026-08', 4800));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '填写申报薪资' })).not.toBeInTheDocument());
+    expect(screen.getByTestId('route')).toHaveTextContent('/app/admin/tax-accounting?tab=reports&month=2026-08');
+    expect(saveTaxPerson).not.toHaveBeenCalled();
+  });
+
+  it.each(['测试员工', '测试员工的申报薪资'])('opens system salary by clicking %s with the selected month and return context', async (label) => {
+    vi.mocked(loadTaxAccountingData).mockResolvedValue(report('system', 5000) as never);
+    render(<MemoryRouter initialEntries={['/app/admin/tax-accounting?tab=reports&month=2026-08']}><AdminTaxAccountingPage /><LocationProbe /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: label }));
+    await waitFor(() => expect(screen.getByTestId('route')).toHaveTextContent('/app/admin/payroll?tab=overview&date=2026-08-31&employee=profile-1&origin=tax-accounting&taxTab=reports'));
+  });
+
+  it('opens accounting allocations in the same month and preserves the accounting return tab', async () => {
+    vi.mocked(loadTaxAccountingData).mockResolvedValue({ ...data, stores: [{ id: 'store-1', name: '门店' }], allocations: [{ storeId: 'store-1', amount: 5000, employees: [{ profileId: 'profile-1', amount: 5000, attendanceHours: 8, overtimeHours: 0 }] }] } as never);
+    render(<MemoryRouter initialEntries={['/app/admin/tax-accounting?tab=accounting&month=2026-08']}><AdminTaxAccountingPage /><LocationProbe /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: '测试员工的实时薪资' }));
+    expect(screen.getByTestId('route')).toHaveTextContent('date=2026-08-31&employee=profile-1&origin=tax-accounting&taxTab=accounting');
+  });
 
   it('registers actual monthly tax and explains payslip synchronization', async () => {
     render(<MemoryRouter><AdminTaxAccountingPage /></MemoryRouter>);

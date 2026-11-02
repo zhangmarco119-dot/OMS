@@ -1,5 +1,6 @@
 import { Banknote, Building2, Download, Edit3, Plus, ReceiptText, RefreshCw, Save, Search, Trash2, Upload, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ActionFeedbackDialog, type ActionFeedbackTone } from '../components/feedback/ActionFeedbackDialog';
 import { MonthPicker } from '../components/forms/MonthPicker';
@@ -11,6 +12,9 @@ import { ProgressiveImage } from '../components/ui/ProgressiveImage';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
 import { downloadTaxCardImage } from '../features/tax-accounting/taxCardImage';
+import { TaxSalaryEditor } from '../features/tax-accounting/TaxSalaryEditor';
+import { payrollMonthEndDate } from '../features/payroll/monthSelection';
+import { todayInChina } from '../features/payroll/model';
 import { supabase } from '../lib/supabase';
 import { useRememberedPageState } from '../lib/useRememberedPageState';
 import { userFacingError } from '../lib/userFacingError';
@@ -74,8 +78,14 @@ const emptyEditor = (salaryMonth: string): PersonEditor => ({
 
 export function AdminTaxAccountingPage() {
   const auth = useAuth();
-  const [tab, setTab] = useRememberedPageState<Tab>('tab', 'reports');
-  const [month, setMonth] = useRememberedPageState('month', currentMonth());
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [rememberedTab, setRememberedTab] = useRememberedPageState<Tab>('tab', 'reports');
+  const [rememberedMonth, setRememberedMonth] = useRememberedPageState('month', currentMonth());
+  const tab = (['reports','people','taxes','accounting'].includes(params.get('tab') ?? '') ? params.get('tab') : rememberedTab) as Tab;
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get('month') ?? '') ? params.get('month')! : rememberedMonth;
+  const setTab = (value: Tab) => { setRememberedTab(value); const next = new URLSearchParams(params); next.set('tab', value); next.set('month', month); next.delete('salary'); setParams(next, { replace: true }); };
+  const setMonth = (value: string) => { setRememberedMonth(value); const next = new URLSearchParams(params); next.set('month', value); next.set('tab', tab); next.delete('salary'); setParams(next, { replace: true }); };
   const [data, setData] = useState<TaxAccountingData | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -124,6 +134,18 @@ export function AdminTaxAccountingPage() {
   const storeById = useMemo(() => new Map(data?.stores.map((item) => [item.id, item]) ?? []), [data]);
   const estimateByProfile = useMemo(() => new Map(data?.estimates.map((item) => [item.profileId, item]) ?? []), [data]);
   const manualByPerson = useMemo(() => new Map(data?.monthlySalaries.map((item) => [item.person_id, item]) ?? []), [data]);
+  const salaryPerson = data?.people.find((person) => person.id === params.get('salary'));
+  const closeSalary = () => { const next = new URLSearchParams(params); next.delete('salary'); setParams(next, { replace: true, state: { restoreScroll: true } }); };
+  const openSystemSalary = (profileId: string) => {
+    const query = new URLSearchParams({ tab: 'overview', date: payrollMonthEndDate(month, todayInChina()), employee: profileId, origin: 'tax-accounting', taxTab: tab });
+    void navigate(`/app/admin/payroll?${query}`);
+  };
+  const openSalary = (personId: string, source: 'system' | 'manual' | 'missing') => {
+    const person = data?.people.find((item) => item.id === personId);
+    if (!person) return;
+    if (source === 'system' && person.profile_id) { openSystemSalary(person.profile_id); return; }
+    const next = new URLSearchParams(params); next.set('tab', tab); next.set('month', month); next.set('salary', personId); setParams(next);
+  };
 
   const editPerson = (person: TaxPerson) => {
     const manual = manualByPerson.get(person.id)?.manual_amount;
@@ -287,7 +309,7 @@ export function AdminTaxAccountingPage() {
       ]} />
       <SectionCard className="p-3">
         <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-          <MonthPicker disabled={Boolean(editor)} label="统计月份" onChange={selectMonth} value={month} />
+          <MonthPicker disabled={Boolean(editor) || Boolean(salaryPerson)} label="统计月份" onChange={selectMonth} value={month} />
           <button aria-label="刷新统计" className="ui-icon-button mb-0.5" disabled={status === 'loading'} onClick={() => void load()} type="button">
             <RefreshCw className={`h-5 w-5 ${status === 'loading' ? 'animate-spin' : ''}`} />
           </button>
@@ -315,7 +337,7 @@ export function AdminTaxAccountingPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-left text-sm">
                   <thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-4 py-3">姓名</th><th className="px-4 py-3">薪资</th><th className="px-4 py-3">身份证号</th><th className="px-4 py-3">手机号</th><th className="px-4 py-3">来源</th></tr></thead>
-                  <tbody>{report.rows.map((row) => <tr className="border-t border-slate-100" key={row.personId}><td className="px-4 py-3 font-semibold">{row.fullName}</td><td className={`px-4 py-3 font-bold ${row.amount == null ? 'text-red-600' : ''}`}>{money(row.amount)}</td><td className="px-4 py-3 tabular-nums">{row.idNumber}</td><td className="px-4 py-3 tabular-nums">{row.phone}</td><td className="px-4 py-3"><StatusBadge tone={row.salarySource === 'missing' ? 'danger' : row.salarySource === 'manual' ? 'warning' : 'success'}>{row.salarySource === 'manual' ? '手动填写' : row.salarySource === 'system' ? '系统实时工资' : '待填写'}</StatusBadge></td></tr>)}</tbody>
+                  <tbody>{report.rows.map((row) => <tr className="border-t border-slate-100" key={row.personId}><td className="px-4 py-3 font-semibold"><button className="text-brand-800 underline underline-offset-4" onClick={() => openSalary(row.personId, row.salarySource)} type="button">{row.fullName}</button></td><td className={`px-4 py-3 font-bold ${row.amount == null ? 'text-red-600' : ''}`}><button aria-label={`${row.fullName}的申报薪资`} className="underline underline-offset-4" onClick={() => openSalary(row.personId, row.salarySource)} type="button">{money(row.amount)}</button></td><td className="px-4 py-3 tabular-nums">{row.idNumber}</td><td className="px-4 py-3 tabular-nums">{row.phone}</td><td className="px-4 py-3"><StatusBadge tone={row.salarySource === 'missing' ? 'danger' : row.salarySource === 'manual' ? 'warning' : 'success'}>{row.salarySource === 'manual' ? '手动填写' : row.salarySource === 'system' ? '系统实时工资' : '待填写'}</StatusBadge></td></tr>)}</tbody>
                 </table>
               </div>
             </SectionCard>
@@ -375,7 +397,7 @@ export function AdminTaxAccountingPage() {
               <SectionHeader icon={Users} title={storeById.get(allocation.storeId)?.name ?? '未知门店'} description={`${allocation.employees.length}人 · 工资成本 ${money(allocation.amount)}`} />
               {allocation.employees.length ? <div className="mt-3 divide-y divide-slate-100">{allocation.employees.map((employee) => {
                 const profile = profileById.get(employee.profileId);
-                return <div className="grid grid-cols-[1fr_auto] gap-3 py-3 first:pt-0 last:pb-0" key={employee.profileId}><div><b className="text-sm">{profile?.display_name ?? data.estimates.find((item) => item.profileId === employee.profileId)?.displayName ?? '未命名员工'}</b><p className="mt-1 text-xs text-slate-500">普通工时 {employee.attendanceHours} 小时 · 已审批{profile?.employment_type === 'part_time' ? '兼职工时' : '自主延时工作登记'} {employee.overtimeHours} 小时</p></div><b className="self-center tabular-nums text-brand-800">{money(employee.amount)}</b></div>;
+                return <div className="grid grid-cols-[1fr_auto] gap-3 py-3 first:pt-0 last:pb-0" key={employee.profileId}><div><button className="text-sm font-bold text-brand-800 underline underline-offset-4" type="button" onClick={() => openSystemSalary(employee.profileId)}>{profile?.display_name ?? data.estimates.find((item) => item.profileId === employee.profileId)?.displayName ?? '未命名员工'}</button><p className="mt-1 text-xs text-slate-500">普通工时 {employee.attendanceHours} 小时 · 已审批{profile?.employment_type === 'part_time' ? '兼职工时' : '自主延时工作登记'} {employee.overtimeHours} 小时</p></div><button aria-label={`${profile?.display_name ?? '员工'}的实时薪资`} className="self-center font-bold tabular-nums text-brand-800 underline underline-offset-4" type="button" onClick={() => openSystemSalary(employee.profileId)}>{money(employee.amount)}</button></div>;
               })}</div> : <p className="mt-3 rounded-lg bg-slate-50 px-3 py-3 text-sm text-slate-500">本月该门店暂无可分摊工资记录。</p>}
             </SectionCard>
           ))}
@@ -383,6 +405,7 @@ export function AdminTaxAccountingPage() {
         </section>
       ) : null}
 
+      {salaryPerson && auth.profile ? <TaxSalaryEditor key={`${salaryPerson.id}:${month}`} actorId={auth.profile.id} person={salaryPerson} month={month} initialAmount={manualByPerson.get(salaryPerson.id)?.manual_amount ?? null} onClose={closeSalary} onSaved={async () => { closeSalary(); await load(); setFeedback({ title: '申报薪资已保存', message: `${month.replace('-', '年')}月薪资已更新。`, tone: 'success' }); }} /> : null}
       {editor && data ? (
         <div aria-labelledby="tax-person-editor-title" aria-modal="true" className="fixed inset-0 z-50 h-[100dvh] overflow-y-auto overscroll-contain bg-canvas px-3 pt-3 sm:px-5 sm:pt-5" role="dialog">
           <div className="mx-auto max-w-2xl space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">

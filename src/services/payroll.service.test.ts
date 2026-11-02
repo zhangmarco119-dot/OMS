@@ -68,10 +68,10 @@ describe('payroll service', () => {
 
   it('generates draft payslips and lets employees confirm sent statements', async () => {
     const rpc = vi.fn()
-      .mockResolvedValueOnce({ data: { generatedCount: 2, refreshedCount: 1, skippedSentCount: 1, month: '2026-06-01' }, error: null })
+      .mockResolvedValueOnce({ data: { generatedCount: 2, refreshedCount: 1, skippedSentCount: 1, skippedZeroCount: 3, month: '2026-06-01' }, error: null })
       .mockResolvedValueOnce({ data: { id: 'slip-1', status: 'confirmed' }, error: null });
     const invoke = vi.fn().mockResolvedValue({ data: { status: 'succeeded' }, error: null });
-    await expect(generatePayrollPayslips({ rpc, functions: { invoke } } as never, '2026-06')).resolves.toMatchObject({ generatedCount: 2, refreshedCount: 1, skippedSentCount: 1 });
+    await expect(generatePayrollPayslips({ rpc, functions: { invoke } } as never, '2026-06')).resolves.toMatchObject({ generatedCount: 2, refreshedCount: 1, skippedSentCount: 1, skippedZeroCount: 3 });
     expect(invoke).not.toHaveBeenCalled();
     await confirmPayrollPayslip({ rpc } as never, 'slip-1');
     expect(rpc).toHaveBeenNthCalledWith(1, 'admin_generate_payroll_payslips', { p_payroll_month: '2026-06-01', p_profile_ids: null });

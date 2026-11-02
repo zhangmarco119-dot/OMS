@@ -36,6 +36,13 @@ describe('navigation hierarchy', () => {
     expect(queryDetailParentRoute('/app/admin/payroll', '?tab=revenue&date=2026-06-30')).toBeNull();
   });
 
+  it('returns salary drilldowns to the same tax tab and month for browser and native back', () => {
+    const search = '?tab=overview&date=2026-08-31&employee=p1&origin=tax-accounting&taxTab=reports';
+    expect(businessParentDecision('/app/admin/payroll', search, 'admin')?.route).toBe('/app/admin/tax-accounting?tab=reports&month=2026-08');
+    expect(queryDetailParentRoute('/app/admin/tax-accounting', '?tab=reports&month=2026-08&salary=person1')).toBe('/app/admin/tax-accounting?tab=reports&month=2026-08');
+    expect(queryDetailParentRoute('/app/admin/payroll', search.replace('taxTab=reports', 'taxTab=https://example.com'))).toContain('/app/admin/payroll?');
+  });
+
   it('does not treat a peer tab as the parent of another tab', () => {
     expect(isAllowedBusinessParentRoute('/app/admin/payroll?tab=employees', '/app/admin/payroll?tab=overview', 'admin')).toBe(false);
     expect(businessParentDecision('/app/admin/payroll', '?tab=employees', 'admin', '/app/workbench')?.route).toBe('/app/workbench');

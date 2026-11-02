@@ -93,6 +93,11 @@ export function queryDetailParentRoute(pathname: string, search: string) {
 
   if (path === '/app/admin/payroll') {
     const tab = params.get('tab') || 'overview';
+    if (tab === 'overview' && params.has('employee') && params.get('origin') === 'tax-accounting'
+      && ['reports','people','taxes','accounting'].includes(params.get('taxTab') ?? '')
+      && /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(params.get('date') ?? '')) {
+      return `/app/admin/tax-accounting?tab=${params.get('taxTab')}&month=${params.get('date')!.slice(0, 7)}`;
+    }
     let childKey: string | null = null;
     if (tab === 'statistics' && params.has('statisticsPeriod')) childKey = 'statisticsPeriod';
     else if (tab === 'statistics' && params.has('statisticsEmployee')) childKey = 'statisticsEmployee';
@@ -101,6 +106,8 @@ export function queryDetailParentRoute(pathname: string, search: string) {
     else if (tab === 'overview' && params.has('employee')) childKey = 'employee';
     if (!childKey) return null;
     params.delete(childKey);
+  } else if (path === '/app/admin/tax-accounting' && params.has('salary')) {
+    params.delete('salary');
   } else if (path === '/app/payroll' && params.has('payslip')) {
     params.delete('payslip');
   } else if (path === '/app/account' && params.has('view')) {

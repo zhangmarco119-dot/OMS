@@ -114,7 +114,7 @@ function PayslipPanel() {
   if (selected) return <>
     <button className="ui-button-secondary" onClick={close} type="button">返回工资单列表</button>
     <SectionCard className="p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">工资单状态</p><p className="mt-1 text-xs text-slate-500">发放于 {selected.issued_at ? new Date(selected.issued_at).toLocaleString('zh-CN') : '尚未发送'}</p></div><StatusBadge tone={selected.status === 'confirmed' ? 'success' : 'warning'}>{selected.status === 'confirmed' ? '已确认' : '待确认'}</StatusBadge></div></SectionCard>
-    <PayrollReferenceWatermark><PayrollStatementView adminNote={selected.admin_note} estimate={selected.estimate} payrollMonth={selected.payroll_month} /></PayrollReferenceWatermark>
+    <PayrollStatementView adminNote={selected.admin_note} estimate={selected.estimate} payrollMonth={selected.payroll_month} />
     {selected.status === 'issued' ? <button className="ui-button-primary w-full" onClick={() => setConfirming(selected)} type="button">确认工资单内容</button> : <SectionCard className="border-emerald-200 bg-emerald-50 p-3 text-center text-sm font-bold text-emerald-800"><CheckCircle2 className="mr-1 inline h-4 w-4" />已于 {selected.confirmed_at ? new Date(selected.confirmed_at).toLocaleString('zh-CN') : '当前时间'} 确认</SectionCard>}
     <ConfirmDialog confirmLabel="确认工资单" onCancel={() => setConfirming(null)} onConfirm={() => void confirm()} open={Boolean(confirming)} title="确认工资单内容"><p>请确认已经核对本工资单的金额和明细。确认后，本月工资单待办将自动完成。</p></ConfirmDialog>
     <ActionFeedbackDialog message={feedback} onClose={() => setFeedback('')} open={Boolean(feedback)} title="工资单处理结果" tone="success" />

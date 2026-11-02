@@ -109,6 +109,17 @@ describe('PayrollEstimateView', () => {
     expect(screen.queryByText(/沿用截至/)).not.toBeInTheDocument();
   });
 
+  it('shows holiday and commission calculations only to the administrator', () => {
+    const data = { ...estimate, holidayAttendanceDates: ['2026-10-01', '2026-10-02', '2026-10-03'], holidaySubsidy: 244.44, payrollStandardDays: 27, commissionAttendanceDays: 20, customItems: [{ id: 'a', name: '另外补贴', amount: 50 }] };
+    const { rerender } = render(<PayrollEstimateView estimate={data} />);
+    expect(screen.getByText(/2200 ÷ 27 × 3 天/)).toBeInTheDocument();
+    expect(screen.getByText(/× 20 ÷ 27/)).toBeInTheDocument();
+    rerender(<PayrollEstimateView estimate={data} showAwardRules={false} />);
+    expect(screen.queryByText(/2200 ÷|× 20 ÷ 27/)).not.toBeInTheDocument();
+    expect(screen.getByText('节假日补贴')).toBeInTheDocument();
+    expect(screen.getByText('另外补贴')).toBeInTheDocument();
+  });
+
   it('only mentions regularization when it happened in the selected month', () => {
     const { rerender } = render(<PayrollEstimateView estimate={{ ...estimate, regularizationDate: '2026-06-15' }} />);
     expect(screen.queryByText(/2026-06-15.*转正/)).not.toBeInTheDocument();

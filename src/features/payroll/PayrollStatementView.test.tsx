@@ -7,6 +7,14 @@ import { PayrollStatementView } from './PayrollStatementView';
 const estimate = { profileId:'p1',displayName:'员工甲',asOf:'2026-07-31',monthStart:'2026-07-01',monthEnd:'2026-07-31',accruedBaseSalary:3000,accruedHousingAllowance:500,accruedPerformance:300,accruedFullAttendanceBonus:0,accruedExtraAttendanceBonus:300,accruedServiceAward:50,accruedExtraReward:80,accruedCommission:100,accruedOvertime:75,fineTotal:20,individualIncomeTax:50,deductionTotal:70,deductionItems:[{id:'fine-1',date:'2026-07-12',createdAt:null,type:'penalty',title:'其他罚款',reason:'盘点差异处罚',amount:20,performanceDeduction:0}]} as PayrollEstimate;
 
 describe('PayrollStatementView', () => {
+  it('includes named monthly additions once and always watermarks the final statement', () => {
+    render(<PayrollStatementView estimate={{ ...estimate, holidaySubsidy: 244.44, customItems: [{ id: 'a', name: '另外奖励', amount: 123.45 }, { id: 'b', name: '另外补贴', amount: 200 }] }} payrollMonth="2026-10-01" />);
+    expect(screen.getByText('另外奖励')).toBeInTheDocument();
+    expect(screen.getByText('另外补贴')).toBeInTheDocument();
+    expect(screen.getByText('¥4,902.89', { selector: 'strong' })).toBeInTheDocument();
+    expect(screen.getByTestId('payroll-watermark-layer')).toBeInTheDocument();
+    expect(screen.getByText('薪资计算仅供参考，具体薪资构成以实际为准')).toBeInTheDocument();
+  });
   it('shows only the holiday subsidy name and amount, including a zero pending manual entry', () => {
     render(<PayrollStatementView estimate={{...estimate,holidayAttendanceDates:['2026-10-01'],holidaySubsidy:0}} payrollMonth="2026-10-01" />);
     expect(screen.getByText('节假日补贴')).toBeInTheDocument();

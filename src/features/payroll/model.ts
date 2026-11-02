@@ -20,6 +20,8 @@ export interface PayrollStorePerformance {
   storeName: string;
 }
 
+export interface PayrollCustomItem { id: string; name: string; amount: number }
+
 export interface PayrollEstimate {
   employmentType: 'full_time' | 'part_time';
   profileId: string;
@@ -67,6 +69,12 @@ export interface PayrollEstimate {
   accruedExtraReward: number;
   holidayAttendanceDates?: string[];
   holidaySubsidy?: number;
+  holidaySubsidyAutomatic?: number;
+  holidaySubsidyMode?: 'automatic' | 'manual';
+  payrollStandardDays?: number;
+  commissionAttendanceDays?: number;
+  customItems?: PayrollCustomItem[];
+  customItemsTotal?: number;
   regularizationDate: string | null;
   eligibleAttendanceDays: number;
   regularizationFactor: number;
@@ -132,3 +140,5 @@ export const formatMoney = (value: number | null | undefined) => value == null
   : `¥${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export const todayInChina = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date());
+
+export const validPayrollCustomItems = (items: PayrollCustomItem[]) => items.length <= 50 && items.every((item) => item.name.trim().length > 0 && item.name.trim().length <= 50 && Number.isFinite(item.amount) && item.amount >= 0 && item.amount < 10000000000);

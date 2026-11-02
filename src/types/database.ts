@@ -1220,6 +1220,7 @@ export type Database = {
       };
     };
     Functions: {
+      admin_save_payroll_custom_items: { Args: { p_profile_id: string; p_payroll_month: string; p_items: Json }; Returns: Json };
       list_admin_arrivals_v1: { Args: { p_date_from?: string | null; p_date_to?: string | null; p_store_id?: string | null; p_status?: string; p_page?: number; p_page_size?: number }; Returns: Json };
       list_admin_arrivals_v2: { Args: { p_date_from?: string | null; p_date_to?: string | null; p_store_id?: string | null; p_status?: string; p_product_search?: string | null; p_page?: number; p_page_size?: number }; Returns: Json };
       get_product_matching_settings: { Args: Record<PropertyKey, never>; Returns: Json };

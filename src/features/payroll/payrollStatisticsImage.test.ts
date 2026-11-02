@@ -8,7 +8,7 @@ const statistics: PayrollStatistics = {
   employees: [{
     averageHourlyCost: 43.21,
     breakdown: {
-      baseSalary: 8000, commission: 600, extraAttendanceBonus: 100, extraReward: 50, fines: 20,
+      customItems: 75, baseSalary: 8000, commission: 600, extraAttendanceBonus: 100, extraReward: 50, fines: 20,
       fullAttendanceBonus: 100, grossIncome: 9250, holidaySubsidy: 250, housingAllowance: 100, individualIncomeTax: 80,
       netPayable: 9150, overtime: 50, partTimeWage: 0, performance: 0, serviceAward: 0,
     },

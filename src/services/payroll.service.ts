@@ -107,6 +107,12 @@ export const parsePayrollEstimate = (value: Json): PayrollEstimate => {
     extraRewardAmount: numberAt(item.extraRewardAmount), accruedExtraReward: numberAt(item.accruedExtraReward),
     holidayAttendanceDates: Array.isArray(item.holidayAttendanceDates) ? item.holidayAttendanceDates.filter((date): date is string => typeof date === 'string') : [],
     holidaySubsidy: numberAt(item.holidaySubsidy),
+    holidaySubsidyAutomatic: numberAt(item.holidaySubsidyAutomatic),
+    holidaySubsidyMode: item.holidaySubsidyMode === 'manual' ? 'manual' : 'automatic',
+    payrollStandardDays: numberAt(item.payrollStandardDays ?? item.fullAttendanceDays),
+    commissionAttendanceDays: numberAt(item.commissionAttendanceDays ?? item.eligibleAttendanceDays ?? item.attendanceDays),
+    customItems: Array.isArray(item.customItems) ? item.customItems.map((entry) => { const row = objectAt(entry); return { id: textAt(row.id), name: textAt(row.name), amount: numberAt(row.amount) }; }) : [],
+    customItemsTotal: numberAt(item.customItemsTotal),
     regularizationDate: nullableTextAt(item.regularizationDate), eligibleAttendanceDays: numberAt(item.eligibleAttendanceDays),
     regularizationFactor: numberAt(item.regularizationFactor), isProbation: boolAt(item.isProbation), accruedBaseSalary: numberAt(item.accruedBaseSalary),
     accruedHousingAllowance: numberAt(item.accruedHousingAllowance), accruedPerformance: nullableNumberAt(item.accruedPerformance),
@@ -142,6 +148,11 @@ export async function loadMyPayrollEstimate(client: Client, profileId: string, a
   const { data, error } = await client.rpc('get_payroll_estimate', { p_profile_id: profileId, p_as_of: asOf });
   if (error) throw new Error(error.message || '暂时无法计算预估工资。');
   return parsePayrollEstimate(data);
+}
+
+export async function savePayrollCustomItems(client: Client, profileId: string, month: string, items: import('../features/payroll/model').PayrollCustomItem[]) {
+  const { error } = await client.rpc('admin_save_payroll_custom_items', { p_profile_id: profileId, p_payroll_month: `${month.slice(0, 7)}-01`, p_items: items as unknown as Json });
+  if (error) throw new Error(error.message || '工资条目保存失败。');
 }
 
 export interface PayrollPayslipScheduleSettings {
@@ -340,6 +351,7 @@ export async function generatePayrollPayslips(client: Client, month: string, pro
 }
 
 export interface PayrollPayslipDraftFields {
+  customItems?: import('../features/payroll/model').PayrollCustomItem[];
   holidaySubsidy?: number;
   accruedBaseSalary: number;
   accruedHousingAllowance: number;

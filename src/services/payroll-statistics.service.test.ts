@@ -62,13 +62,13 @@ describe('payroll statistics', () => {
         work: [{ attendanceHours: 16, overtimeCost: 0, overtimeHours: 0, payrollMonth: '2026-07-01', profileId: 'profile-1', storeId: 'store-1' }],
         revenues: [], payslips: [],
       }, error: null };
-      if (name === 'admin_payroll_estimates') return { data: { items: [{ ...estimate(args.p_as_of === '2026-07-09' ? 300 : 800), holidaySubsidy: args.p_as_of === '2026-07-09' ? 100 : 250 }] }, error: null };
+      if (name === 'admin_payroll_estimates') return { data: { items: [{ ...estimate(args.p_as_of === '2026-07-09' ? 300 : 800), holidaySubsidy: args.p_as_of === '2026-07-09' ? 100 : 250, customItems: [{ id: 'a', name: '临时补贴', amount: args.p_as_of === '2026-07-09' ? 20 : 80 }] }] }, error: null };
       throw new Error(`unexpected rpc ${name}`);
     });
     const result = await loadPayrollStatistics({ rpc } as never, '2026-07-10', '2026-07-20');
-    expect(result.totalSalaryCost).toBe(650);
+    expect(result.totalSalaryCost).toBe(710);
     expect(result.employees[0].breakdown.holidaySubsidy).toBe(150);
-    expect(result.employees[0].periods[0]).toMatchObject({ from: '2026-07-10', salaryCost: 650, source: 'realtime', to: '2026-07-20' });
+    expect(result.employees[0].periods[0]).toMatchObject({ from: '2026-07-10', salaryCost: 710, source: 'realtime', to: '2026-07-20' });
   });
 
   it.each(['full_time', 'part_time'] as const)('aggregates holiday subsidies across months for %s employees without double counting', async (employmentType) => {
@@ -98,7 +98,7 @@ describe('payroll statistics', () => {
       ...estimate(1000), accruedBaseSalary: 500, accruedHousingAllowance: 100, accruedPerformance: 100,
       accruedFullAttendanceBonus: 50, accruedExtraAttendanceBonus: 50, accruedServiceAward: 50,
       accruedExtraReward: 50, accruedCommission: 50, accruedOvertime: 50, fineTotal: 25,
-      individualIncomeTax: 75, estimatedPayable: 1150, knownEstimatedPayable: 1150, holidaySubsidy: 250,
+      individualIncomeTax: 75, estimatedPayable: 1150, knownEstimatedPayable: 1150, holidaySubsidy: 250, customItems: [{ id: 'a', name: '另外奖励', amount: 123.45 }],
     };
     const rpc = vi.fn(async (name: string) => {
       if (name === 'admin_payroll_statistics_inputs') return { data: {
@@ -115,10 +115,10 @@ describe('payroll statistics', () => {
     expect(result.employees[0].breakdown).toMatchObject({
       baseSalary: 500, housingAllowance: 100, performance: 100, fullAttendanceBonus: 50,
       extraAttendanceBonus: 50, serviceAward: 50, extraReward: 50, commission: 50,
-      overtime: 50, holidaySubsidy: 250, fines: 25, individualIncomeTax: 75, grossIncome: 1250, netPayable: 1150,
+      overtime: 50, holidaySubsidy: 250, fines: 25, individualIncomeTax: 75, customItems: 123.45, grossIncome: 1373.45, netPayable: 1273.45,
     });
     expect(result.employees[0].periods[0].source).toBe('payslip');
-    expect(result.totalSalaryCost).toBe(1225);
-    expect(result.stores[0].salaryCost).toBe(1225);
+    expect(result.totalSalaryCost).toBe(1348.45);
+    expect(result.stores[0].salaryCost).toBe(1348.45);
   });
 });

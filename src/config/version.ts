@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-11-08',
+    highlights: ['查看图片时支持双击放大、双指缩放和拖动，单击可关闭。'],
+    title: '优化图片查看手势',
+    version: 'StoreHub v3.0.68',
+  },
+  {
+    date: '2026-11-08',
     highlights: ['修复任务模板参考图片在备用加载方式下无法显示的问题。'],
     title: '完善参考图片加载',
     version: 'StoreHub v3.0.67',

@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-11-08',
+    highlights: ['修复任务参考图片在部分情况下无法显示的问题。'],
+    title: '修复任务参考图片显示',
+    version: 'StoreHub v3.0.66',
+  },
+  {
+    date: '2026-11-08',
     highlights: ['支持员工按月绩效使用默认等级；各月手动等级、评分及自动计算设置仍可单独调整。'],
     title: '完善员工绩效等级设置',
     version: 'StoreHub v3.0.65',

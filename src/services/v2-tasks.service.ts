@@ -9,6 +9,7 @@ import {
   storageImageCacheKey,
 } from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
+import { appEnv } from '../lib/env';
 import type { Database, Json } from '../types/database';
 import type { ProductCategoryCode } from '../features/products/productCategories';
 
@@ -393,6 +394,21 @@ export const loadV2TaskImageUrls = async (client: Client, images: V2TaskImageRow
   }));
   return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
 };
+export const publicTaskReferenceUrl = (url: string, base = appEnv.supabaseUrl) => {
+  if (!base) return url;
+  try {
+    const parsed = new URL(url);
+    const prefix = '/storage/v1/object/sign/v2-task-template-reference-images/';
+    const index = parsed.pathname.indexOf(prefix);
+    if (index < 0) return url;
+    const publicBase = new URL(base);
+    if (!['http:', 'https:'].includes(publicBase.protocol)) return url;
+    return `${base.replace(/\/$/, '')}${parsed.pathname.slice(index)}${parsed.search}`;
+  } catch {
+    return url;
+  }
+};
+
 export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2TaskAnswerRow[]) => {
   const taskId = answers[0]?.task_id;
   if (!taskId) return {};
@@ -402,10 +418,13 @@ export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2Ta
     const sourceUrls = Array.isArray(urls)
       ? urls.filter((url): url is string => typeof url === 'string')
       : typeof urls === 'string' ? [urls] : [];
-    const cachedUrls = await Promise.all(sourceUrls.map((url) => loadSignedImageResource(url, {
+    const cachedUrls = await Promise.all(sourceUrls.map((sourceUrl) => {
+      const url = publicTaskReferenceUrl(sourceUrl);
+      return loadSignedImageResource(url, {
       scope: 'session',
       variant: 'task-reference',
-    }).catch(() => url)));
+      }).catch(() => url);
+    }));
     return [itemId, cachedUrls] as const;
   }));
   return Object.fromEntries(entries.filter((entry) => entry[1].length > 0)) as Record<string, string[]>;

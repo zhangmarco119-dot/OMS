@@ -78,7 +78,7 @@ describe('AdminTaskTemplatesPage reference images', () => {
     const imageViewer = screen.getByRole('dialog', { name: '管理员参考图片全屏预览' });
     expect(imageViewer).toBeInTheDocument();
     fireEvent.click(within(imageViewer).getByAltText('参考图片 1'));
-    expect(screen.queryByRole('dialog', { name: '管理员参考图片全屏预览' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '管理员参考图片全屏预览' })).not.toBeInTheDocument());
   });
 
   it('saves an existing browser draft before uploading so newly added items exist on the server', async () => {

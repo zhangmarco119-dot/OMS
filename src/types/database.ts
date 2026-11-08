@@ -722,9 +722,15 @@ export type Database = {
         Relationships: [];
       };
       payroll_store_performance_overrides: {
-        Row: { created_at: string; override_mode: 'score' | 'grade'; payroll_month: string; performance_grade: 'A' | 'B' | 'C' | 'D' | null; performance_score: number | null; profile_id: string; store_id: string; updated_at: string; updated_by: string };
-        Insert: { created_at?: string; override_mode: 'score' | 'grade'; payroll_month: string; performance_grade?: 'A' | 'B' | 'C' | 'D' | null; performance_score?: number | null; profile_id: string; store_id: string; updated_at?: string; updated_by: string };
-        Update: { override_mode?: 'score' | 'grade'; performance_grade?: 'A' | 'B' | 'C' | 'D' | null; performance_score?: number | null; updated_at?: string; updated_by?: string };
+        Row: { created_at: string; override_mode: 'automatic' | 'score' | 'grade'; payroll_month: string; performance_grade: 'A' | 'B' | 'C' | 'D' | null; performance_score: number | null; profile_id: string; store_id: string; updated_at: string; updated_by: string };
+        Insert: { created_at?: string; override_mode: 'automatic' | 'score' | 'grade'; payroll_month: string; performance_grade?: 'A' | 'B' | 'C' | 'D' | null; performance_score?: number | null; profile_id: string; store_id: string; updated_at?: string; updated_by: string };
+        Update: { override_mode?: 'automatic' | 'score' | 'grade'; performance_grade?: 'A' | 'B' | 'C' | 'D' | null; performance_score?: number | null; updated_at?: string; updated_by?: string };
+        Relationships: [];
+      };
+      payroll_default_performance_settings: {
+        Row: { profile_id: string; default_grade: 'A' | 'B' | 'C' | 'D'; effective_from: string; updated_by: string | null; updated_at: string };
+        Insert: { profile_id: string; default_grade: 'A' | 'B' | 'C' | 'D'; effective_from: string; updated_by?: string | null; updated_at?: string };
+        Update: { default_grade?: 'A' | 'B' | 'C' | 'D'; effective_from?: string; updated_by?: string | null; updated_at?: string };
         Relationships: [];
       };
       payroll_performance_amount_overrides: {

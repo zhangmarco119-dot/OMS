@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { loadStorageImageResource } from '../lib/imageResourceCache';
+import { publicTaskReferenceUrl } from '../lib/taskReferenceUrl';
 import { createUuid } from '../lib/uuid';
 import {
   validateTaskTemplateDraft,
@@ -84,7 +85,7 @@ const getReferenceImageUrl = async (client: Client, templateId: string, path: st
   });
   if (!fallback.error && fallback.data && typeof fallback.data === 'object'
     && 'signedUrl' in fallback.data && typeof fallback.data.signedUrl === 'string') {
-    return fallback.data.signedUrl;
+    return publicTaskReferenceUrl(fallback.data.signedUrl);
   }
   throw new Error(`参考图片预览地址生成失败：${error?.message ?? fallback.error?.message ?? '未知错误'}`);
 };

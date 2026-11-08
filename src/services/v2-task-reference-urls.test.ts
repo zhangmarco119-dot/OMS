@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../types/database';
-import { loadV2TaskReferenceImageUrls, publicTaskReferenceUrl, type V2TaskAnswerRow } from './v2-tasks.service';
+import { loadV2TaskReferenceImageUrls, type V2TaskAnswerRow } from './v2-tasks.service';
+import { publicTaskReferenceUrl } from '../lib/taskReferenceUrl';
 import { loadSignedImageResource } from '../lib/imageResourceCache';
 
 vi.mock('../lib/env', () => ({ appEnv: { supabaseUrl: 'https://example.test/backend' } }));

@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-11-08',
+    highlights: ['修复任务模板参考图片在备用加载方式下无法显示的问题。'],
+    title: '完善参考图片加载',
+    version: 'StoreHub v3.0.67',
+  },
+  {
+    date: '2026-11-08',
     highlights: ['修复任务参考图片在部分情况下无法显示的问题。'],
     title: '修复任务参考图片显示',
     version: 'StoreHub v3.0.66',

@@ -9,7 +9,7 @@ import {
   storageImageCacheKey,
 } from '../lib/imageResourceCache';
 import { createUuid } from '../lib/uuid';
-import { appEnv } from '../lib/env';
+import { publicTaskReferenceUrl } from '../lib/taskReferenceUrl';
 import type { Database, Json } from '../types/database';
 import type { ProductCategoryCode } from '../features/products/productCategories';
 
@@ -394,21 +394,6 @@ export const loadV2TaskImageUrls = async (client: Client, images: V2TaskImageRow
   }));
   return Object.fromEntries(results.filter((entry): entry is readonly [string, string] => entry !== null));
 };
-export const publicTaskReferenceUrl = (url: string, base = appEnv.supabaseUrl) => {
-  if (!base) return url;
-  try {
-    const parsed = new URL(url);
-    const prefix = '/storage/v1/object/sign/v2-task-template-reference-images/';
-    const index = parsed.pathname.indexOf(prefix);
-    if (index < 0) return url;
-    const publicBase = new URL(base);
-    if (!['http:', 'https:'].includes(publicBase.protocol)) return url;
-    return `${base.replace(/\/$/, '')}${parsed.pathname.slice(index)}${parsed.search}`;
-  } catch {
-    return url;
-  }
-};
-
 export const loadV2TaskReferenceImageUrls = async (client: Client, answers: V2TaskAnswerRow[]) => {
   const taskId = answers[0]?.task_id;
   if (!taskId) return {};

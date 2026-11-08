@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { generatePayrollPayslips, loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollEmployeeRule, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
+import { generatePayrollPayslips, loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollMonthlyPerformance, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollEmployeeRule, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
 import { loadStoreClosures, setStoreOperating } from '../services/store-business.service';
 import { within } from '@testing-library/react';
 import { AdminPayrollPage } from './AdminPayrollPage';
@@ -123,6 +123,20 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.queryByRole('combobox', { name: '累计营业额门店' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '收银系统绑定门店' })).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: '启用自动更新' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { settings: [], expectedMode: 'grade', expectedGrade: 'D' },
+    { settings: [{ storeId: 'store-1', mode: 'grade', grade: 'B', score: null }], expectedMode: 'grade', expectedGrade: 'B' },
+    { settings: [{ storeId: 'store-1', mode: 'automatic', grade: null, score: null }], expectedMode: 'automatic', expectedGrade: null },
+  ] as const)('shows the default grade while retaining an explicit monthly choice', async ({ settings, expectedMode, expectedGrade }) => {
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'profile-1', display_name: '测试员工', employment_type: 'full_time', role: 'staff', store_id: 'store-1' }], profileStoreAccess: [{ profile_id: 'profile-1', store_id: 'store-1' }], rules: [{ id: 'rule-1', profile_id: 'profile-1', monthly_base_salary: 2700, monthly_housing_allowance: 0, full_performance_amount: 500, commission_rate: null, extra_reward_amount: 0, full_attendance_bonus_amount: 0, full_attendance_bonus_enabled: false, service_award_amount: 0, service_award_enabled: false, housing_enabled: false, performance_enabled: true, commission_enabled: false, confirmed: true, effective_from: '2026-07-01' }] } as never);
+    vi.mocked(loadPayrollMonthlyPerformance).mockResolvedValue({ defaultGrade: 'D', finalAmount: null, settings: [...settings] } as never);
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=employees']}><AdminPayrollPage /></MemoryRouter>);
+    expect(await screen.findByText('未单独设置的月份默认 D 级，可按月修改。')).toBeInTheDocument();
+    expect(screen.getByLabelText('计算方式')).toHaveValue(expectedMode);
+    if (expectedGrade) expect(screen.getByLabelText('本月绩效等级')).toHaveValue(expectedGrade);
+    else expect(screen.queryByLabelText('本月绩效等级')).not.toBeInTheDocument();
   });
 
   it('saves the two award thresholds independently and rejects fractional days', async () => {

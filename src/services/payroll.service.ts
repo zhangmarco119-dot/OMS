@@ -223,14 +223,16 @@ export interface PayrollMonthlyStoreSetting {
 
 export async function loadPayrollMonthlyPerformance(client: Client, profileId: string, month: string) {
   const payrollMonth = `${month.slice(0, 7)}-01`;
-  const [settings, amount] = await Promise.all([
+  const [settings, amount, defaultSetting] = await Promise.all([
     client.from('payroll_store_performance_overrides').select('*').eq('profile_id', profileId).eq('payroll_month', payrollMonth),
     client.from('payroll_performance_amount_overrides').select('amount').eq('profile_id', profileId).eq('payroll_month', payrollMonth).maybeSingle(),
+    client.from('payroll_default_performance_settings').select('default_grade,effective_from').eq('profile_id', profileId).lte('effective_from', payrollMonth).maybeSingle(),
   ]);
-  const error = settings.error ?? amount.error;
+  const error = settings.error ?? amount.error ?? defaultSetting.error;
   if (error) throw new Error(error.message || '暂时无法加载该月分门店绩效设置。');
   return {
     finalAmount: amount.data?.amount ?? null,
+    defaultGrade: defaultSetting.data?.default_grade ?? null,
     settings: (settings.data ?? []).map((row): PayrollMonthlyStoreSetting => ({
       grade: row.performance_grade, mode: row.override_mode, score: row.performance_score, storeId: row.store_id,
     })),

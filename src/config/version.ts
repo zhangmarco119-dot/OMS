@@ -8,6 +8,12 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-11-08',
+    highlights: ['支持员工按月绩效使用默认等级；各月手动等级、评分及自动计算设置仍可单独调整。'],
+    title: '完善员工绩效等级设置',
+    version: 'StoreHub v3.0.65',
+  },
+  {
     date: '2026-11-02',
     highlights: ['手动和自动生成工资单时跳过已核实为零的月度薪资，并显示跳过人数；保留收入、扣款及待完善的结算记录。', '税务与记账中的姓名、薪资可直达对应月份的实时工资或手动填写页，支持填写后返回。'],
     title: '完善工资单生成与报税薪资跳转',

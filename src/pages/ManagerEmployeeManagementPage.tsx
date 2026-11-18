@@ -1,10 +1,11 @@
 import { X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { PageShell } from '../components/layout/PageShell';
 import { SectionCard, SectionHeader } from '../components/ui/Surface';
 import { ImageViewer } from '../components/ui/ImageViewer';
 import { useAuth } from '../features/auth/AuthContext';
+import { usePenaltyImages } from '../features/payroll/usePenaltyImages';
 import { supabase } from '../lib/supabase';
 import { loadManagerStoreStaff, managerCreatePayrollPenalty, uploadPayrollEvidence } from '../services/payroll.service';
 
@@ -34,7 +35,8 @@ export function ManagerEmployeeManagementPage() {
   const [deduction, setDeduction] = useState('3');
   const [amount, setAmount] = useState('0');
   const [reason, setReason] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
+  const { files, setFiles, previews, imageError, selectImages, allowMultiple, clearImageError } = usePenaltyImages();
+  const [pendingPenaltyId, setPendingPenaltyId] = useState<string | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -50,9 +52,6 @@ export function ManagerEmployeeManagementPage() {
   const [ownTasks, setOwnTasks] = useState<Array<{ id: string; task_no: string; name: string; status: string; due_at: string }>>([]);
   const [taskMessage, setTaskMessage] = useState('');
   const [activeTab, setActiveTab] = useState<'penalty' | 'task'>('penalty');
-
-  const previews = useMemo(() => files.map((file) => ({ file, url: URL.createObjectURL(file) })), [files]);
-  useEffect(() => () => previews.forEach((item) => URL.revokeObjectURL(item.url)), [previews]);
 
   const rpc = supabase?.rpc as unknown as (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
 
@@ -87,6 +86,7 @@ export function ManagerEmployeeManagementPage() {
   };
 
   const submitPenalty = async () => {
+    if (imageError) { setMessage('请先处理图片选择提示。'); return; }
     if (!supabase || !auth.profile || !profileId || !reason.trim()) {
       setMessage('请选择员工并填写处罚原因。');
       return;
@@ -94,7 +94,7 @@ export function ManagerEmployeeManagementPage() {
     setBusy(true);
     setMessage('');
     try {
-      const penalty = await managerCreatePayrollPenalty(supabase, {
+      const penalty = pendingPenaltyId ? { id: pendingPenaltyId } : await managerCreatePayrollPenalty(supabase, {
         profileId,
         eventDate: date,
         reason: reason.trim(),
@@ -102,17 +102,25 @@ export function ManagerEmployeeManagementPage() {
         eventLevel: level,
         performanceDeduction: Number(deduction) || 0,
       });
-      const failed: string[] = [];
+      setPendingPenaltyId(penalty.id);
+      const failed: File[] = [];
+      const errors: string[] = [];
       for (const file of files) {
         try {
           await uploadPayrollEvidence(supabase, { file, ownerId: auth.profile.id, entityId: penalty.id });
-        } catch {
-          failed.push(file.name);
+        } catch (error) {
+          failed.push(file);
+          errors.push(`${file.name}：${error instanceof Error ? error.message : '上传失败'}`);
         }
       }
-      setReason('');
-      setFiles([]);
-      setMessage(failed.length ? '罚单已发布，但 ' + failed.length + ' 张说明图片上传失败。' : '罚单已发布，已通知员工和管理员。');
+      setFiles(failed);
+      if (failed.length) {
+        setMessage('罚单已发布，但 ' + failed.length + ' 张图片上传失败；请点击重试图片，不会重复开单。' + errors.join('；'));
+      } else {
+        setPendingPenaltyId(null);
+        setReason('');
+        setMessage('罚单已发布，已通知员工和管理员。');
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '发布失败。');
     } finally {
@@ -173,6 +181,7 @@ export function ManagerEmployeeManagementPage() {
     </div>
     {activeTab === 'penalty' ? <SectionCard>
       <SectionHeader title="罚单开具" description="罚单会同步到员工薪资与管理员后台。" />
+      <fieldset disabled={busy || Boolean(pendingPenaltyId)}>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <label className="text-sm font-semibold text-slate-700">员工
           <select className="ui-input mt-1" value={profileId} onChange={(event) => setProfileId(event.target.value)}>
@@ -192,18 +201,20 @@ export function ManagerEmployeeManagementPage() {
         <label className="text-sm font-semibold text-slate-700">罚款金额<input className="ui-input mt-1" inputMode="decimal" min="0" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
       </div>
       <label className="mt-2 block text-sm font-semibold text-slate-700">处罚原因<textarea className="ui-input mt-1 min-h-20 py-2" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="请填写具体原因" /></label>
+      </fieldset>
       <label className="mt-3 block">
         <span className="text-sm font-semibold text-slate-700">说明图片</span>
         <span className="mt-2 flex min-h-20 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 text-sm font-bold text-slate-600 hover:border-brand-400 hover:bg-brand-50">
-          <span>{files.length ? '已选择 ' + files.length + ' 张图片' : '点击上传说明图片'}</span>
-          <input className="hidden" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
+          <span>{files.length ? '已选择 ' + files.length + ' 张图片，点击继续添加' : '点击上传说明图片'}</span>
+          <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple={allowMultiple} onChange={selectImages} disabled={busy || Boolean(pendingPenaltyId)} />
         </span>
       </label>
+      {imageError ? <p role="alert" className="mt-2 text-sm text-rose-700">{imageError} <button className="underline" onClick={clearImageError} type="button">知道了</button></p> : null}
       {previews.length ? <div className="mt-2 grid grid-cols-3 gap-2">{previews.map((item, index) => <div className="relative" key={`${item.file.name}-${item.file.lastModified}`}>
         <button aria-label={`预览 ${item.file.name}`} className="block w-full" onClick={() => setActiveImageIndex(index)} type="button"><img alt={item.file.name} className="aspect-square w-full rounded-lg object-cover" src={item.url} /></button>
         <button aria-label={`删除 ${item.file.name}`} className="absolute right-1 top-1 flex h-7 w-7 min-h-0 items-center justify-center rounded-full bg-black/70 text-white" onClick={() => setFiles((current) => current.filter((file) => file !== item.file))} type="button"><X className="h-4 w-4" /></button>
       </div>)}</div> : null}
-      <button className="mt-3 min-h-11 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void submitPenalty()} type="button">{busy ? '正在发布' : '发布罚单'}</button>
+      <button className="mt-3 min-h-11 rounded-lg bg-brand-600 px-4 font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void submitPenalty()} type="button">{busy ? '正在发布' : pendingPenaltyId ? '重试上传图片' : '发布罚单'}</button>
       {message ? <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{message}</p> : null}
     </SectionCard> : null}
 

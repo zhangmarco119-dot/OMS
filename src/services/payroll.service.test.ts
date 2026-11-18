@@ -1,10 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPayrollPenalty, adminRecordOvertime, bindQmaiSalesIntegration, configurePosSalesIntegration, configureQmaiSalesIntegration, confirmDelegatedPayrollPayslip, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, invokeQmaiMonthlySalesSync, invokeQmaiSalesSync, listPayrollConfirmationManagers, listQmaiStoreCandidates, loadAdminPayrollEstimates, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPenaltyAssets, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, sendPayrollPayslipToManager, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
+import { addPayrollPenalty, adminRecordOvertime, bindQmaiSalesIntegration, configurePosSalesIntegration, configureQmaiSalesIntegration, confirmDelegatedPayrollPayslip, confirmPayrollPayslip, generatePayrollPayslips, invokePospalMonthlySalesSync, invokePospalSalesSync, invokeQmaiMonthlySalesSync, invokeQmaiSalesSync, listPayrollConfirmationManagers, listQmaiStoreCandidates, loadAdminPayrollEstimates, loadManagerStoreStaff, loadMyPayrollEstimate, loadPayrollDeductionItems, loadPayrollPenaltyAssets, loadPayrollPayslipScheduleSettings, loadPayrollVisibilitySettings, parsePayrollEstimate, reviewOvertimeRequest, saveOvertimeRate, savePayrollAttendanceAllocationRule, savePayrollPayslipScheduleSettings, savePayrollPerformanceOverride, savePayrollRevenueInput, savePayrollVisibilitySettings, sendPayrollPayslip, sendPayrollPayslips, sendPayrollPayslipToManager, submitOvertimeRequest, updateOvertimeRequest, updatePayrollPayslip, withdrawPayrollPayslip, withdrawPayrollPayslips } from './payroll.service';
 
 const estimate = { profileId: 'p1', displayName: '李天欣', attendanceDays: 8, fullAttendanceDays: 27, accruedBaseSalary: 1629.63, knownEstimatedPayable: 1800, dataComplete: false, dataIssues: ['营业收入待更新'] };
 
 describe('payroll service', () => {
+  it('limits the manager penalty employee list to active, nondeleted staff in their stores', async () => {
+    const chain: Record<string, unknown> = {};
+    for (const method of ['select', 'in', 'eq', 'is', 'order']) chain[method] = vi.fn(() => chain);
+    chain.then = (resolve: (value: { data: unknown[]; error: null }) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve);
+    await loadManagerStoreStaff({ from: vi.fn(() => chain) } as never, ['store-1']);
+    expect(chain.in).toHaveBeenCalledWith('store_id', ['store-1']);
+    expect(chain.eq).toHaveBeenCalledWith('is_active', true);
+    expect(chain.is).toHaveBeenCalledWith('deleted_at', null);
+  });
   it('keeps award thresholds separate from the salary standard and reads old payslip snapshots compatibly', () => {
     expect(parsePayrollEstimate({ ...estimate, fullAttendanceBonusDays: 24, extraAttendanceBonusDays: 26 })).toMatchObject({ fullAttendanceDays: 27, fullAttendanceBonusDays: 24, extraAttendanceBonusDays: 26 });
     expect(parsePayrollEstimate(estimate)).toMatchObject({ fullAttendanceBonusDays: 27, extraAttendanceBonusDays: 27 });

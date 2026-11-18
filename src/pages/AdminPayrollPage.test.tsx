@@ -208,8 +208,26 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
   });
 
+  it('offers only active employees for a new penalty while retaining former employees in penalty history', async () => {
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({
+      ...setup,
+      profiles: [
+        { id: 'former', display_name: '离职员工', is_active: false, deleted_at: null },
+        { id: 'active', display_name: '在职员工', is_active: true, deleted_at: null },
+        { id: 'deleted', display_name: '已删除账号', is_active: true, deleted_at: '2026-10-01' },
+      ],
+      penalties: [{ id: 'historic', profile_id: 'former', created_by: 'admin-1', event_date: '2026-11-01', event_level: 'warning', amount: 0, performance_deduction: 3, reason: '历史记录', status: 'active' }],
+    } as never);
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=penalties']}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole('option', { name: '在职员工' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '离职员工' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '已删除账号' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '查看 离职员工 的处罚详情' })).toBeInTheDocument();
+    expect(screen.getByLabelText('员工')).toHaveValue('active');
+  });
+
   it('previews selected images and retries a failed upload without issuing another penalty', async () => {
-    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'staff-1', display_name: '员工甲' }] } as never);
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'staff-1', display_name: '员工甲', is_active: true, deleted_at: null }] } as never);
     vi.mocked(addPayrollPenalty).mockResolvedValue({ id: 'penalty-1' } as never);
     vi.mocked(uploadPayrollEvidence).mockRejectedValueOnce(new Error('temporary failure')).mockResolvedValueOnce(undefined);
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:admin-penalty-preview') });

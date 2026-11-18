@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-11-18',
+    highlights: ['开具罚单时仅显示有效的在职员工，历史处罚记录仍可查看。'],
+    title: '优化罚单员工选择',
+    version: 'StoreHub v3.0.70',
+  },
+  {
+    date: '2026-11-18',
     highlights: ['完善罚单图片选择、预览与上传，上传失败时可重试。'],
     title: '修复罚单图片上传',
     version: 'StoreHub v3.0.69',

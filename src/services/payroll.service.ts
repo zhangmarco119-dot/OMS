@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { compressArrivalImage, validateArrivalImageFile } from './arrival-images.service';
 
 import type { AdminPayrollSummary, PayrollDeductionItem, PayrollEstimate, PayrollStorePerformance } from '../features/payroll/model';
 import { loadStorageImageResource } from '../lib/imageResourceCache';
@@ -664,14 +665,17 @@ const evidenceBucket = 'payroll-evidence';
 const allowedEvidenceTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export async function uploadPayrollEvidence(client: Client, input: { file: File; ownerId: string; entityId: string }) {
-  if (!allowedEvidenceTypes.has(input.file.type)) throw new Error('只支持 JPG、PNG 或 WEBP 图片。');
-  if (!input.file.size || input.file.size > 10 * 1024 * 1024) throw new Error('图片大小必须在 10 MB 以内。');
-  const extension = input.file.type === 'image/png' ? 'png' : input.file.type === 'image/webp' ? 'webp' : 'jpg';
+  validateArrivalImageFile(input.file);
+  const processed = input.file.size > 10 * 1024 * 1024 ? await compressArrivalImage(input.file) : null;
+  const blob = processed?.blob ?? input.file;
+  const type = processed?.mimeType ?? input.file.type;
+  if (!allowedEvidenceTypes.has(type) || blob.size > 10 * 1024 * 1024) throw new Error('图片处理失败，请重新选择。');
+  const extension = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
   const objectPath = `${input.ownerId}/penalty/${input.entityId}/${createUuid()}.${extension}`;
-  const uploaded = await client.storage.from(evidenceBucket).upload(objectPath, input.file, { contentType: input.file.type, upsert: false });
+  const uploaded = await client.storage.from(evidenceBucket).upload(objectPath, blob, { contentType: type, upsert: false });
   if (uploaded.error) throw new Error(uploaded.error.message);
-  const mimeType = input.file.type as 'image/jpeg' | 'image/png' | 'image/webp';
-  const metadata = await client.from('payroll_penalty_assets').insert({ penalty_id: input.entityId, bucket: evidenceBucket, object_path: objectPath, file_name: input.file.name || `evidence.${extension}`, mime_type: mimeType, size_bytes: input.file.size, uploaded_by: input.ownerId });
+  const mimeType = type as 'image/jpeg' | 'image/png' | 'image/webp';
+  const metadata = await client.from('payroll_penalty_assets').insert({ penalty_id: input.entityId, bucket: evidenceBucket, object_path: objectPath, file_name: input.file.name || `evidence.${extension}`, mime_type: mimeType, size_bytes: blob.size, uploaded_by: input.ownerId });
   if (metadata.error) { await client.storage.from(evidenceBucket).remove([objectPath]); throw new Error(metadata.error.message); }
 }
 

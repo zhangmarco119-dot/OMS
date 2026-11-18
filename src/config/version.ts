@@ -8,6 +8,12 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-11-18',
+    highlights: ['完善罚单图片选择、预览与上传，上传失败时可重试。'],
+    title: '修复罚单图片上传',
+    version: 'StoreHub v3.0.69',
+  },
+  {
     date: '2026-11-08',
     highlights: ['查看图片时支持双击放大、双指缩放和拖动，单击可关闭。'],
     title: '优化图片查看手势',

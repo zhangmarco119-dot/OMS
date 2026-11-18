@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
-import { generatePayrollPayslips, loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollMonthlyPerformance, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollEmployeeRule, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
+import { addPayrollPenalty, uploadPayrollEvidence, generatePayrollPayslips, loadAdminPayrollEstimates, loadAdminPayrollPayslips, loadPayrollAdminSetup, loadPayrollPenaltyAssetUrl, loadPayrollMonthlyPerformance, loadPayrollPayslipScheduleSettings, loadPayrollProfiles, loadPayrollVisibilitySettings, loadPosSalesSetup, savePayrollEmployeeRule, savePayrollAttendanceAllocationRule } from '../services/payroll.service';
 import { loadStoreClosures, setStoreOperating } from '../services/store-business.service';
 import { within } from '@testing-library/react';
 import { AdminPayrollPage } from './AdminPayrollPage';
@@ -15,6 +15,8 @@ vi.mock('../services/payroll.service', async (original) => {
   const actual = await original<typeof import('../services/payroll.service')>();
   return {
     ...actual,
+    addPayrollPenalty: vi.fn(),
+    uploadPayrollEvidence: vi.fn(),
     loadAdminPayrollEstimates: vi.fn(),
     generatePayrollPayslips: vi.fn(),
     loadAdminPayrollPayslips: vi.fn(),
@@ -206,6 +208,28 @@ describe('AdminPayrollPage update guidance', () => {
     expect(screen.getByRole('checkbox', { name: '启用自动推送' })).not.toBeChecked();
   });
 
+  it('previews selected images and retries a failed upload without issuing another penalty', async () => {
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'staff-1', display_name: '员工甲' }] } as never);
+    vi.mocked(addPayrollPenalty).mockResolvedValue({ id: 'penalty-1' } as never);
+    vi.mocked(uploadPayrollEvidence).mockRejectedValueOnce(new Error('temporary failure')).mockResolvedValueOnce(undefined);
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:admin-penalty-preview') });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=penalties']}><Routes><Route path="/app/admin/payroll" element={<AdminPayrollPage />} /></Routes></MemoryRouter>);
+    await screen.findByRole('option', { name: '员工甲' });
+    fireEvent.change(screen.getByLabelText('原因'), { target: { value: '测试原因' } });
+    const input = screen.getByText('上传处罚图片（选填）').closest('label')!.querySelector('input[type="file"]')!;
+    const file = new File(['image'], '照片.jpg', { type: 'image/jpeg' });
+    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.change(input, { target: { files: [] } });
+    expect(screen.getByRole('img', { name: '照片.jpg' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '发布处罚记录' }));
+    await screen.findByText(/图片上传失败/);
+    fireEvent.click(screen.getByRole('button', { name: '我知道了' }));
+    fireEvent.click(screen.getByRole('button', { name: '重试上传图片' }));
+    await waitFor(() => expect(uploadPayrollEvidence).toHaveBeenCalledTimes(2));
+    expect(addPayrollPenalty).toHaveBeenCalledTimes(1);
+  });
+
   it('opens a penalty detail immediately and loads its images in a secondary phase', async () => {
     let resolveImage: (url: string) => void = () => undefined;
     vi.mocked(loadPayrollPenaltyAssetUrl).mockReturnValue(new Promise((resolve) => { resolveImage = resolve; }));
@@ -313,3 +337,4 @@ describe('AdminPayrollPage update guidance', () => {
     expect(await screen.findByPlaceholderText('搜索员工姓名或账号')).toBeInTheDocument();
   });
 });
+

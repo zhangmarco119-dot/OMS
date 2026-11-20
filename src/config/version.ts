@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-11-21',
+    highlights: ['防止较早的待办加载请求覆盖已经完成的审批结果。'],
+    title: '完善待办审批结果同步',
+    version: 'StoreHub v3.0.72',
+  },
+  {
+    date: '2026-11-21',
     highlights: ['任务批量审批改为服务器整批处理，待办工时可直接同意并定位对应记录。', '固定管理员 AI 质检试点入口，修复关联点货任务无法生成重新点货单的问题。'],
     title: '优化待办批量审批与工时处理',
     version: 'StoreHub v3.0.71',

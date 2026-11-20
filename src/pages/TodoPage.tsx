@@ -72,10 +72,12 @@ export function TodoPage() {
   const taskBatchInFlight = useRef(false);
   const overtimeInFlight = useRef(new Set<string>());
   const [overtimeBusyIds, setOvertimeBusyIds] = useState<string[]>([]);
+  const loadSequence = useRef(0);
   const [todoDataLoaded, setTodoDataLoaded] = useState(false);
   const [creationReview, setCreationReview] = useState<{ aiSuggestionId?: string; approve: boolean; draft: ProductCreationReviewDraft; id: string; note: string } | null>(null);
   const load = useCallback(async () => {
     if (!supabase) return;
+    const sequence = ++loadSequence.current;
     setTodoDataLoaded(false);
     try {
       const [nextTasks, summary, nextNotices, nextFeedback, nextOvertime, nextCorrections, nextPayslips, nextCreationRequests, nextTaskRecipients, nextTaskTimeline, nextArrivalCorrections, nextPayrollConfirmations, nextManagerPenalties] = await Promise.all([
@@ -94,6 +96,7 @@ export function TodoPage() {
         isAdmin ? loadAdminManagerPenaltyTodos(supabase) : Promise.resolve([]),
       ]);
       const overtimeProfiles = await loadOvertimeProfiles(supabase, nextOvertime.map((item) => item.profile_id));
+      if (sequence !== loadSequence.current) return;
       const profileMap = Object.fromEntries(overtimeProfiles.map((profile) => [profile.id, profile]));
       const approvableOvertime = nextOvertime.filter((item) => item.status === 'pending' && item.profile_id !== auth.profile?.id && (isAdmin ? profileMap[item.profile_id]?.role === 'manager' : isManager ? profileMap[item.profile_id]?.role === 'staff' : false));
       const pendingTasks = nextTasks.filter((task) => {
@@ -113,9 +116,9 @@ export function TodoPage() {
       setPayrollConfirmations(nextPayrollConfirmations);
       setManagerPenalties(nextManagerPenalties);
       setTodoDataLoaded(true);
-    } catch (error) { setMessage(error instanceof Error ? error.message : '加载待办失败。'); }
+    } catch (error) { if (sequence === loadSequence.current) setMessage(error instanceof Error ? error.message : '加载待办失败。'); }
   }, [auth.availableStores, auth.profile?.id, auth.store?.id, isAdmin, isManager]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current += 1; }; }, [load]);
   useEffect(() => {
     const routeState = location.state as { aiProductCreationReview?: AiProductCreationReviewDraft } | null;
     const aiDraft = isAdmin ? routeState?.aiProductCreationReview : null;
@@ -251,6 +254,7 @@ export function TodoPage() {
     setTaskBatchBusy(true);
     try {
       const result = await reviewV2TasksBatch(supabase, targets, taskBatchAction, taskBatchNote);
+      loadSequence.current += 1;
       const completedIds = new Set(result.succeeded.map((item) => item.id));
       setTasks((current) => current.filter((item) => !completedIds.has(item.id)));
       setSelectedTaskIds(result.failed.map((item) => item.id));
@@ -276,6 +280,7 @@ export function TodoPage() {
     setOvertimeBusyIds((current) => [...current, id]);
     try {
       await reviewOvertimeRequest(supabase, id, 'approved', '');
+      loadSequence.current += 1;
       setOvertime((current) => current.filter((item) => item.id !== id));
       window.dispatchEvent(new Event('storehub:todos-changed'));
       window.dispatchEvent(new Event('storehub:notifications-changed'));

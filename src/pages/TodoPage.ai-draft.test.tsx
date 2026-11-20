@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -242,6 +243,22 @@ describe('TodoPage AI product creation draft', () => {
     expect(button).toBeDisabled();
     await act(async () => finish({ status: 'approved' }));
     expect(screen.queryByRole('button', { name: '同意 申请人 2026-09-25 的工时登记' })).not.toBeInTheDocument();
+  });
+
+  it('ignores a delayed initial load after the displayed overtime has been approved', async () => {
+    const row = { id: 'hours-stale', profile_id: 'applicant', status: 'pending', hours: 1, overtime_date: '2026-09-25' };
+    let finishOldLoad!: (value: unknown) => void;
+    mocks.loadAllOvertimeRequests.mockReturnValueOnce(new Promise((resolve) => { finishOldLoad = resolve; })).mockResolvedValue([row]);
+    mocks.loadOvertimeProfiles.mockResolvedValue([{ id: 'applicant', role: 'manager', display_name: '申请人' }]);
+    mocks.reviewOvertimeRequest.mockResolvedValue({ status: 'approved' });
+    vi.mocked(loadProductCreationRequests).mockResolvedValue([]);
+    vi.mocked(useAuth).mockReturnValue({ availableStores: [], profile: { id: 'admin-1', role: 'admin' } } as never);
+    render(<StrictMode><MemoryRouter><TodoPage /></MemoryRouter></StrictMode>);
+    const name = '同意 申请人 2026-09-25 的工时登记';
+    fireEvent.click(await screen.findByRole('button', { name }));
+    await waitFor(() => expect(screen.queryByRole('button', { name })).not.toBeInTheDocument());
+    await act(async () => { finishOldLoad([row]); });
+    expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
   });
 
   it('keeps an overtime card available after approval fails', async () => {

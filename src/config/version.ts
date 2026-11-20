@@ -8,6 +8,12 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-11-21',
+    highlights: ['任务批量审批改为服务器整批处理，待办工时可直接同意并定位对应记录。', '固定管理员 AI 质检试点入口，修复关联点货任务无法生成重新点货单的问题。'],
+    title: '优化待办批量审批与工时处理',
+    version: 'StoreHub v3.0.71',
+  },
+  {
     date: '2026-11-18',
     highlights: ['开具罚单时仅显示有效的在职员工，历史处罚记录仍可查看。'],
     title: '优化罚单员工选择',

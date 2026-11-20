@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +16,7 @@ import { TodoPage } from './TodoPage';
 const mocks = vi.hoisted(() => ({
   loadAdminManagerPenaltyTodos: vi.fn(),
   loadAdminPayrollConfirmationTodos: vi.fn(),
+  reviewOvertimeRequest: vi.fn(),
   loadAllOvertimeRequests: vi.fn(),
   loadManagerOvertimeRequests: vi.fn(),
   loadOvertimeProfiles: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('../features/admin/adminProductsService', async (importOriginal) => {
 });
 vi.mock('../services/arrivals.service', () => ({ loadPendingArrivalCorrections: mocks.loadPendingArrivalCorrections }));
 vi.mock('../services/payroll.service', () => ({
+  reviewOvertimeRequest: mocks.reviewOvertimeRequest,
   loadAllOvertimeRequests: mocks.loadAllOvertimeRequests,
   loadManagerOvertimeRequests: mocks.loadManagerOvertimeRequests,
   loadOvertimeProfiles: mocks.loadOvertimeProfiles,
@@ -54,11 +56,11 @@ vi.mock('../services/todo.service', () => ({
   completeAttendanceCorrectionTodo: vi.fn(),
   loadAdminManagerPenaltyTodos: mocks.loadAdminManagerPenaltyTodos,
   loadAdminPayrollConfirmationTodos: mocks.loadAdminPayrollConfirmationTodos,
-  loadMyAttendanceCorrectionTodos: vi.fn(),
-  loadMyPayrollPayslipTodos: vi.fn(),
+  loadMyAttendanceCorrectionTodos: vi.fn().mockResolvedValue([]),
+  loadMyPayrollPayslipTodos: vi.fn().mockResolvedValue([]),
   loadTodoSummary: mocks.loadTodoSummary,
 }));
-vi.mock('../services/v2-content.service', () => ({ loadNotices: vi.fn() }));
+vi.mock('../services/v2-content.service', () => ({ loadNotices: vi.fn().mockResolvedValue([]) }));
 vi.mock('../services/v2-tasks.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/v2-tasks.service')>();
   return {
@@ -215,8 +217,42 @@ describe('TodoPage AI product creation draft', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认批量拒绝' }));
 
     await waitFor(() => expect(reviewV2TasksBatch).toHaveBeenCalledWith(
-      {}, [{ id: 'task-2', name: '任务二' }], 'rejected', '重新检查照片', expect.any(Function),
+      {}, [{ id: 'task-2', name: '任务二' }], 'rejected', '重新检查照片',
     ));
     await waitFor(() => expect(screen.queryByRole('checkbox', { name: '选择任务：任务一' })).not.toBeInTheDocument());
+    expect(screen.queryByText('任务二')).not.toBeInTheDocument();
+    expect(mocks.loadV2Tasks).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['admin', 'manager'] as const)('lets %s approve on the card without navigating or submitting twice', async (role) => {
+    vi.mocked(loadProductCreationRequests).mockResolvedValue([]);
+    const row = { id: 'hours-1', profile_id: 'applicant', store_id: 'store-1', status: 'pending', hours: 2, overtime_date: '2026-09-25', reason: '整理货品' };
+    mocks.loadAllOvertimeRequests.mockResolvedValue([row]);
+    mocks.loadManagerOvertimeRequests.mockResolvedValue([row]);
+    mocks.loadOvertimeProfiles.mockResolvedValue([{ id: 'applicant', display_name: '申请人', role: role === 'admin' ? 'manager' : 'staff', employment_type: 'part_time' }]);
+    let finish!: (value: unknown) => void;
+    mocks.reviewOvertimeRequest.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    renderTodo(role);
+    const button = await screen.findByRole('button', { name: '同意 申请人 2026-09-25 的工时登记' });
+    expect(screen.getByRole('link', { name: /申请人 · 兼职工时/ })).toHaveAttribute('href', `${role === 'admin' ? '/app/admin/payroll?tab=overtime' : '/app/overtime?tab=submit'}&request=hours-1&month=2026-09`);
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(mocks.reviewOvertimeRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.reviewOvertimeRequest).toHaveBeenCalledWith({}, 'hours-1', 'approved', '');
+    expect(button).toBeDisabled();
+    await act(async () => finish({ status: 'approved' }));
+    expect(screen.queryByRole('button', { name: '同意 申请人 2026-09-25 的工时登记' })).not.toBeInTheDocument();
+  });
+
+  it('keeps an overtime card available after approval fails', async () => {
+    vi.mocked(loadProductCreationRequests).mockResolvedValue([]);
+    mocks.loadAllOvertimeRequests.mockResolvedValue([{ id: 'hours-1', profile_id: 'applicant', status: 'pending', hours: 2, overtime_date: '2026-09-25' }]);
+    mocks.loadOvertimeProfiles.mockResolvedValue([{ id: 'applicant', role: 'manager', display_name: '申请人' }]);
+    mocks.reviewOvertimeRequest.mockRejectedValue(new Error('申请已被修改，请刷新'));
+    renderTodo('admin');
+    const button = await screen.findByRole('button', { name: '同意 申请人 2026-09-25 的工时登记' });
+    fireEvent.click(button);
+    expect(await screen.findByText('申请已被修改，请刷新')).toBeInTheDocument();
+    expect(button).toBeEnabled();
   });
 });

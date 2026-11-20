@@ -43,6 +43,7 @@ export function OvertimePage() {
   const auth = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') === 'records' ? 'records' : 'submit';
+  const requestedId = params.get('request');
   const isManager = auth.profile?.role === 'manager';
   const isPartTime = auth.profile?.employment_type === 'part_time';
   const workTerm = isPartTime ? '兼职工时' : '自主延时工作登记';
@@ -95,6 +96,9 @@ export function OvertimePage() {
   }, [auth.availableStores, auth.profile, isManager, workTerm]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (requestedId && status === 'ready') document.getElementById(`overtime-${requestedId}`)?.scrollIntoView?.({ block: 'center' });
+  }, [requestedId, status]);
 
   const resetForm = () => {
     setDate(today);
@@ -172,7 +176,7 @@ export function OvertimePage() {
   };
 
   const pendingApprovals = approvals.filter((item) => (
-    item.status === 'pending'
+    (item.status === 'pending' || item.id === requestedId)
     && item.profile_id !== auth.profile?.id
     && profiles[item.profile_id]?.role === 'staff'
   ));
@@ -194,12 +198,12 @@ export function OvertimePage() {
       {isManager ? <SectionCard>
         <SectionHeader icon={CheckCircle2} title="员工工时审批" description={`当前 ${pendingApprovals.length} 条待处理`} />
         <div className="mt-3 space-y-2">
-          {pendingApprovals.map((item) => <article className="rounded-lg border border-amber-200 bg-amber-50 p-3" key={item.id}>
+          {pendingApprovals.map((item) => <article className={`scroll-mt-20 rounded-lg border border-amber-200 bg-amber-50 p-3 ${item.id === requestedId ? 'ring-2 ring-brand-600' : ''}`} id={`overtime-${item.id}`} key={item.id}>
             <div className="flex items-start justify-between gap-3">
               <div><b>{profiles[item.profile_id]?.display_name ?? '员工'}</b><p className="mt-1 text-sm text-slate-600">{item.overtime_date} · {item.hours} 小时 · {auth.availableStores.find((store) => store.id === item.store_id)?.short_name}</p>{item.reason ? <p className="mt-1 text-xs text-slate-500">{item.reason}</p> : null}</div>
-              <StatusBadge tone="warning">待审批</StatusBadge>
+              <StatusBadge tone={statusTone[item.status]}>{statusLabel[item.status]}</StatusBadge>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => setReview({ request: item, action: 'rejected' })} type="button">驳回</button><button className="ui-button-primary" onClick={() => setReview({ request: item, action: 'approved' })} type="button">通过</button></div>
+            {item.status === 'pending' ? <div className="mt-3 grid grid-cols-2 gap-2"><button className="ui-button-secondary" onClick={() => setReview({ request: item, action: 'rejected' })} type="button">驳回</button><button className="ui-button-primary" onClick={() => setReview({ request: item, action: 'approved' })} type="button">通过</button></div> : null}
           </article>)}
           {!pendingApprovals.length ? <p className="py-2 text-sm text-slate-500">当前没有待审批的员工工时申请。</p> : null}
         </div>

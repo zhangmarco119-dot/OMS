@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from '../features/auth/AuthContext';
 import { todayInChina } from '../features/payroll/model';
-import { loadMyOvertimeRequests, loadOvertimeProfiles } from '../services/payroll.service';
+import { loadManagerOvertimeRequests, loadMyOvertimeRequests, loadOvertimeProfiles } from '../services/payroll.service';
 import { OvertimePage } from './OvertimePage';
 
 vi.mock('../features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -20,6 +20,7 @@ vi.mock('../services/payroll.service', () => ({
 
 describe('OvertimePage employee workflow', () => {
   beforeEach(() => {
+    vi.mocked(loadManagerOvertimeRequests).mockResolvedValue([]);
     const today = todayInChina();
     vi.mocked(useAuth).mockReturnValue({
       profile: { id: 'p1', role: 'staff' },
@@ -33,6 +34,15 @@ describe('OvertimePage employee workflow', () => {
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }]);
     vi.mocked(loadOvertimeProfiles).mockResolvedValue([]);
+  });
+
+  it('highlights a pending record opened from a manager todo card', async () => {
+    vi.mocked(useAuth).mockReturnValue({ profile: { id: 'm1', role: 'manager' }, store: { id: 's1' }, availableStores: [{ id: 's1' }] } as never);
+    vi.mocked(loadManagerOvertimeRequests).mockResolvedValue([{ id: 'selected', profile_id: 'staff1', status: 'pending', hours: 1, overtime_date: '2026-09-25', store_id: 's1' }] as never);
+    vi.mocked(loadOvertimeProfiles).mockResolvedValue([{ id: 'staff1', role: 'staff', display_name: '待审批员工' }] as never);
+    render(<MemoryRouter initialEntries={['/app/overtime?tab=submit&request=selected&month=2026-09']}><OvertimePage /></MemoryRouter>);
+    expect(await screen.findByText('待审批员工')).toBeInTheDocument();
+    expect(document.getElementById('overtime-selected')).toHaveClass('ring-2');
   });
 
   it('separates submission and records while showing approved summaries', async () => {

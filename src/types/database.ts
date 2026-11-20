@@ -1373,6 +1373,7 @@ export type Database = {
       review_v2_task: { Args: { p_action: string; p_correction_item_ids: string[]; p_note: string; p_task_id: string }; Returns: Json };
       review_v2_task_items: { Args: { p_decisions: Json; p_note: string; p_task_id: string }; Returns: Json };
       review_v2_task_items_with_inventory: { Args: { p_decisions: Json; p_inventory_rejected_item_ids?: string[]; p_inventory_task_id: string; p_note: string; p_task_id: string }; Returns: Json };
+      review_v2_tasks_batch: { Args: { p_task_ids: string[]; p_action: string; p_note?: string }; Returns: Json };
       withdraw_v2_task: { Args: { p_task_id: string }; Returns: Json };
       retract_v2_notice: { Args: { p_notice_id: string }; Returns: Json };
       retract_v2_task_template: { Args: { p_template_id: string }; Returns: Json };

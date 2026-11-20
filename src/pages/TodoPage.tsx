@@ -1,5 +1,5 @@
 import { CheckCircle2, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { PageShell } from '../components/layout/PageShell';
@@ -16,7 +16,7 @@ import { supabase } from '../lib/supabase';
 import { isV2TaskExecutionTodoForProfile, loadV2TaskRecipients, loadV2TaskTimeline, loadV2Tasks, type V2TaskListRow, type V2TaskTimelineEvent } from '../services/v2-tasks.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { completeAdminManagerPenaltyTodo, completeAdminPayrollConfirmationTodo, completeAttendanceCorrectionTodo, loadAdminManagerPenaltyTodos, loadAdminPayrollConfirmationTodos, loadMyAttendanceCorrectionTodos, loadMyPayrollPayslipTodos, loadTodoSummary } from '../services/todo.service';
-import { loadAllOvertimeRequests, loadManagerOvertimeRequests, loadOvertimeProfiles } from '../services/payroll.service';
+import { loadAllOvertimeRequests, loadManagerOvertimeRequests, loadOvertimeProfiles, reviewOvertimeRequest } from '../services/payroll.service';
 import type { Database } from '../types/database';
 import {
   feedbackProductText,
@@ -69,7 +69,9 @@ export function TodoPage() {
   const [taskBatchAction, setTaskBatchAction] = useState<BatchTaskDecision | null>(null);
   const [taskBatchNote, setTaskBatchNote] = useState('');
   const [taskBatchBusy, setTaskBatchBusy] = useState(false);
-  const [taskBatchCompleted, setTaskBatchCompleted] = useState(0);
+  const taskBatchInFlight = useRef(false);
+  const overtimeInFlight = useRef(new Set<string>());
+  const [overtimeBusyIds, setOvertimeBusyIds] = useState<string[]>([]);
   const [todoDataLoaded, setTodoDataLoaded] = useState(false);
   const [creationReview, setCreationReview] = useState<{ aiSuggestionId?: string; approve: boolean; draft: ProductCreationReviewDraft; id: string; note: string } | null>(null);
   const load = useCallback(async () => {
@@ -238,23 +240,24 @@ export function TodoPage() {
     }
   };
   const runTaskBatch = async () => {
-    if (!supabase || !isAdmin || !taskBatchAction || taskBatchBusy) return;
+    if (!supabase || !isAdmin || !taskBatchAction || taskBatchInFlight.current) return;
     const targets = tasks.filter((task) => selectedTaskIds.includes(task.id)).map(({ id, name }) => ({ id, name }));
     if (targets.length === 0) { setTaskBatchAction(null); return; }
     if (taskBatchAction === 'rejected' && !taskBatchNote.trim()) {
       setMessage('批量拒绝时请填写整改原因。');
       return;
     }
+    taskBatchInFlight.current = true;
     setTaskBatchBusy(true);
-    setTaskBatchCompleted(0);
     try {
-      const result = await reviewV2TasksBatch(supabase, targets, taskBatchAction, taskBatchNote, setTaskBatchCompleted);
+      const result = await reviewV2TasksBatch(supabase, targets, taskBatchAction, taskBatchNote);
+      const completedIds = new Set(result.succeeded.map((item) => item.id));
+      setTasks((current) => current.filter((item) => !completedIds.has(item.id)));
       setSelectedTaskIds(result.failed.map((item) => item.id));
       setTaskBatchMode(result.failed.length > 0);
       setTaskBatchAction(null);
       setTaskBatchNote('');
       window.dispatchEvent(new Event('storehub:todos-changed'));
-      await load();
       if (result.failed.length) {
         setMessage(`已处理 ${result.succeeded.length}/${targets.length} 项；${result.failed.map((item) => `${item.name}：${item.reason}`).join('；')}`);
       } else {
@@ -263,7 +266,24 @@ export function TodoPage() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '批量审核失败。');
     } finally {
+      taskBatchInFlight.current = false;
       setTaskBatchBusy(false);
+    }
+  };
+  const approveOvertime = async (id: string) => {
+    if (!supabase || !(isAdmin || isManager) || overtimeInFlight.current.has(id)) return;
+    overtimeInFlight.current.add(id);
+    setOvertimeBusyIds((current) => [...current, id]);
+    try {
+      await reviewOvertimeRequest(supabase, id, 'approved', '');
+      setOvertime((current) => current.filter((item) => item.id !== id));
+      window.dispatchEvent(new Event('storehub:todos-changed'));
+      window.dispatchEvent(new Event('storehub:notifications-changed'));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '审批未完成，请稍后重试。');
+    } finally {
+      overtimeInFlight.current.delete(id);
+      setOvertimeBusyIds((current) => current.filter((item) => item !== id));
     }
   };
   return <PageShell eyebrow="门店运营系统" title="待办" contentGapClassName="gap-3">
@@ -305,7 +325,7 @@ export function TodoPage() {
     </section> : null}
     {payrollConfirmations.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">员工工资单确认提醒</h2>{payrollConfirmations.map((item) => <article className="ui-card border-emerald-200 bg-emerald-50/40 p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="block truncate text-slate-900">{item.title}</b><p className="mt-1 text-sm leading-5 text-slate-600">{item.body}</p><p className="mt-1 text-xs text-slate-400">提醒时间：{formatV2TaskDueAt(item.created_at)}</p></div><StatusBadge tone="success">待阅读</StatusBadge></div><div className="mt-3 grid grid-cols-2 gap-2"><Link className="ui-button-secondary" to="/app/admin/payroll?tab=payslips">查看工资单</Link><button className="ui-button-primary" onClick={() => void completePayrollConfirmation(item.id)} type="button">我已阅读</button></div></article>)}</section> : null}
     {managerPenalties.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">店长罚单提醒</h2>{managerPenalties.map((item) => <article className="ui-card border-rose-200 bg-rose-50/30 p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><b className="block truncate text-slate-900">{item.title}</b><p className="mt-1 text-sm leading-5 text-slate-600">{item.body}</p><p className="mt-1 text-xs text-slate-400">开单时间：{formatV2TaskDueAt(item.created_at)}</p></div><StatusBadge tone="danger">待阅读</StatusBadge></div><div className="mt-3 grid grid-cols-2 gap-2"><Link className="ui-button-secondary" to="/app/admin/payroll?tab=penalties">查看处罚记录</Link><button className="ui-button-primary" onClick={() => void completeManagerPenalty(item.id)} type="button">我已阅读</button></div></article>)}</section> : null}
-    {overtime.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工时审批</h2>{overtime.map((item) => <Link className="ui-card ui-interactive block p-4" key={item.id} to={isAdmin ? '/app/admin/payroll?tab=overtime' : '/app/overtime?tab=submit'}><div className="flex items-start justify-between gap-3"><b>{overtimeNames[item.profile_id] ?? '员工'} · {overtimeTerms[item.profile_id] ?? '自主延时工作登记'} · {item.overtime_date} · {item.hours} 小时</b><StatusBadge tone="warning">待审批</StatusBadge></div>{item.reason ? <p className="mt-2 text-sm text-slate-500">{item.reason}</p> : null}</Link>)}</section> : null}
+    {overtime.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工时审批</h2>{overtime.map((item) => <article className="ui-card overflow-hidden" key={item.id}><Link className="ui-interactive block p-4" to={`${isAdmin ? '/app/admin/payroll?tab=overtime' : '/app/overtime?tab=submit'}&request=${item.id}&month=${item.overtime_date.slice(0, 7)}`}><div className="flex items-start justify-between gap-3"><b>{overtimeNames[item.profile_id] ?? '员工'} · {overtimeTerms[item.profile_id] ?? '自主延时工作登记'} · {item.overtime_date} · {item.hours} 小时</b><StatusBadge tone="warning">待审批</StatusBadge></div>{item.reason ? <p className="mt-2 text-sm text-slate-500">{item.reason}</p> : null}</Link><div className="px-4 pb-4"><button aria-label={`同意 ${overtimeNames[item.profile_id] ?? '员工'} ${item.overtime_date} 的工时登记`} className="ui-button-primary min-h-10 w-full" disabled={overtimeBusyIds.includes(item.id)} onClick={() => void approveOvertime(item.id)} type="button">{overtimeBusyIds.includes(item.id) ? '正在审批' : '同意'}</button></div></article>)}</section> : null}
     {corrections.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">补卡提醒</h2>{corrections.map((item) => { const overdue = new Date(item.due_at).getTime() <= deadlineNow; return <article className="ui-card p-4" key={item.id}><div className="flex items-start justify-between gap-3"><div><b>{item.attendance_date} · {item.missing_punch === 'on' ? '缺上班卡' : item.missing_punch === 'off' ? '缺下班卡' : '上下班均缺卡'}</b><p className={`mt-1 text-xs font-semibold ${overdue ? 'text-red-700' : 'text-slate-600'}`}>截止时间：{formatV2TaskDueAt(item.due_at)} · 请在钉钉提交补卡</p>{overdue ? <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-800">已逾期 · 补卡提醒尚未完成</p> : null}{item.missing_punch === 'on' || item.missing_punch === 'both' ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">请按实际到岗时间补上班卡，切勿虚假填报！</p> : null}</div><StatusBadge tone="danger">{overdue ? '已逾期' : '待补卡'}</StatusBadge></div><label className="mt-3 flex min-h-11 cursor-pointer items-center rounded-lg bg-emerald-50 px-3 text-sm font-bold text-emerald-900"><input className="mr-2 h-4 w-4" onChange={() => void completeCorrection(item.id)} type="checkbox" />我已提交补卡，完成提醒</label></article>; })}</section> : null}
     {payslips.length > 0 ? <section className="space-y-2"><h2 className="text-sm font-bold text-slate-700">工资单确认</h2>{payslips.map((item) => { const delegated = item.confirmation_target === 'manager'; const snapshot = item.estimate_snapshot && typeof item.estimate_snapshot === 'object' && !Array.isArray(item.estimate_snapshot) ? item.estimate_snapshot : {}; const employeeName = typeof snapshot.displayName === 'string' ? snapshot.displayName : '员工'; return <Link className="ui-card ui-interactive block border-brand-200 p-4" key={item.id} to={delegated ? `/app/payroll-confirmations/${item.id}` : `/app/payroll?tab=payslips&payslip=${item.id}`}><div className="flex items-start justify-between gap-3"><div><b>{delegated ? `${employeeName} · ` : ''}{item.payroll_month.slice(0, 4)}年{Number(item.payroll_month.slice(5, 7))}月工资单</b><p className="mt-1 text-sm text-slate-500">{delegated ? '请先在线下与员工核对全部明细，再由店长确认薪资。' : '请核对工资明细并确认工资单内容。'}</p></div><StatusBadge tone="warning">{delegated ? '待店长确认' : '待确认'}</StatusBadge></div></Link>; })}</section> : null}
     {tasks.length > 0 ? <section className="space-y-2">
@@ -332,10 +352,10 @@ export function TodoPage() {
         ? `将同意当前 ${productDeletions.length} 条删除申请，并删除对应货品。此操作无法撤销。`
         : `将当前 ${newProductRequests.length} 条新增和 ${productCorrections.length} 条已生效修改申请全部标记为已读。`}</p>
     </ConfirmDialog>
-    <ConfirmDialog confirmLabel={taskBatchBusy ? `正在处理 ${taskBatchCompleted}/${selectedTaskIds.length}` : taskBatchAction === 'approved' ? '确认批量通过' : '确认批量拒绝'} danger={taskBatchAction === 'rejected'} onCancel={() => { if (!taskBatchBusy) { setTaskBatchAction(null); setTaskBatchNote(''); } }} onConfirm={() => void runTaskBatch()} open={Boolean(taskBatchAction)} title={taskBatchAction === 'approved' ? '批量通过任务' : '批量拒绝任务'}>
+    <ConfirmDialog confirmLabel={taskBatchBusy ? '正在批量处理' : taskBatchAction === 'approved' ? '确认批量通过' : '确认批量拒绝'} danger={taskBatchAction === 'rejected'} onCancel={() => { if (!taskBatchBusy) { setTaskBatchAction(null); setTaskBatchNote(''); } }} onConfirm={() => void runTaskBatch()} open={Boolean(taskBatchAction)} title={taskBatchAction === 'approved' ? '批量通过任务' : '批量拒绝任务'}>
       <p>将{taskBatchAction === 'approved' ? '通过' : '拒绝'}选中的 {selectedTaskIds.length} 项任务；关联点货任务会同步处理对应点货清单。</p>
       {taskBatchAction === 'rejected' ? <label className="mt-3 block font-semibold">整改原因<textarea className="ui-input mt-1 min-h-20 py-2" disabled={taskBatchBusy} onChange={(event) => setTaskBatchNote(event.target.value)} placeholder="说明需要重新完成的原因" value={taskBatchNote} /></label> : null}
-      {taskBatchBusy ? <p className="mt-2" role="status">正在处理 {taskBatchCompleted}/{selectedTaskIds.length} 项，请稍候。</p> : null}
+      {taskBatchBusy ? <p className="mt-2" role="status">服务器正在批量处理所选任务，请稍候。</p> : null}
     </ConfirmDialog>
     <ConfirmDialog confirmLabel={lifecycleReview?.action === 'confirm_archive' ? '确认归档' : lifecycleReview?.action === 'confirm_delete' ? '确认删除' : '确认拒绝'} danger={lifecycleReview?.action === 'confirm_delete'} onCancel={() => setLifecycleReview(null)} onConfirm={() => void reviewLifecycleRequest()} open={Boolean(lifecycleReview)} title={lifecycleReview?.action === 'confirm_archive' ? '确认归档货品' : lifecycleReview?.action === 'confirm_delete' ? '确认删除货品' : '确认拒绝申请'}>
       {lifecycleReview?.action === 'confirm_archive'

@@ -11,6 +11,7 @@ vi.mock('../features/ai-review/useAiPilotSettings', () => ({ useAiPilotSettings:
 
 describe('AppMenuPage administrator workbench', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ profile: { role: 'admin' } } as ReturnType<typeof useAuth>);
     vi.mocked(useAiPilotSettings).mockReturnValue({ error: null, loading: false, reload: vi.fn(), settings: { adminApplyEnabled: true, adminVisible: true, autoRunEnabled: true, globalEnabled: true, pilotStores: [], workflowFlags: {} } });
   });
@@ -36,6 +37,13 @@ describe('AppMenuPage administrator workbench', () => {
     render(<MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}><AppMenuPage /></MemoryRouter>);
 
     expect(screen.getByRole('link', { name: /AI 质检试点/ })).toHaveAttribute('href', '/app/admin/ai-review');
+  });
+
+  it('keeps the administrator entry visible when analysis is disabled', () => {
+    vi.mocked(useAiPilotSettings).mockReturnValue({ error: null, loading: false, reload: vi.fn(), settings: { adminApplyEnabled: false, adminVisible: false, autoRunEnabled: false, globalEnabled: false, pilotStores: [], workflowFlags: {} } });
+    render(<MemoryRouter><AppMenuPage /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /AI 质检试点/ })).toHaveAttribute('href', '/app/admin/ai-review');
+    expect(useAiPilotSettings).not.toHaveBeenCalled();
   });
 
   it('gives a store employee a personal attendance entry without administrator access', () => {

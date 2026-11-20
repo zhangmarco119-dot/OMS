@@ -69,6 +69,14 @@ describe('AdminPayrollPage update guidance', () => {
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=revenue']}><AdminPayrollPage /></MemoryRouter>);
   };
 
+  it('opens the month and highlights the overtime record selected from todos', async () => {
+    vi.mocked(loadPayrollAdminSetup).mockResolvedValue({ ...setup, profiles: [{ id: 'manager-1', role: 'manager', display_name: '历史登记店长' }], overtimeRequests: [{ id: 'old-request', profile_id: 'manager-1', overtime_date: '2026-09-25', hours: 2, status: 'pending', store_id: 'store-1' }] } as never);
+    render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=overtime&request=old-request&month=2026-09']}><AdminPayrollPage /></MemoryRouter>);
+    expect(await screen.findByText('历史登记店长 · 店长', { selector: 'b' })).toBeInTheDocument();
+    expect(loadPayrollAdminSetup).toHaveBeenCalledWith({}, '2026-09-01');
+    expect(document.getElementById('overtime-old-request')).toHaveClass('ring-2');
+  });
+
   it('reports an all-zero generation as a successful skip without claiming drafts were created', async () => {
     vi.mocked(generatePayrollPayslips).mockResolvedValue({ generatedCount: 0, refreshedCount: 0, skippedSentCount: 0, skippedZeroCount: 2, missingTaxCount: 0, month: '2026-07-01' });
     render(<MemoryRouter initialEntries={['/app/admin/payroll?tab=payslips']}><AdminPayrollPage /></MemoryRouter>);

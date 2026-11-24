@@ -9,6 +9,12 @@ export interface SystemRelease {
 export const systemReleaseHistory: SystemRelease[] = [
   {
     date: '2026-11-24',
+    highlights: ['完善数据库和图片的备份与恢复机制。'],
+    title: '完善数据备份',
+    version: 'StoreHub v3.0.74',
+  },
+  {
+    date: '2026-11-24',
     highlights: ['提高登录及后端服务的运行稳定性。'],
     title: '完善服务运行维护',
     version: 'StoreHub v3.0.73',

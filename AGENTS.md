@@ -1,5 +1,12 @@
 # StoreHub repository instructions
 
+## Backup convention
+
+- Current business data remains on Tencent Cloud. The old local development/production databases are migration-era archives and must never be treated as the latest cloud data.
+- Backups are pulled to `D:\StoreHubBackups` after this user's Windows logon. The runner is `D:\StoreHubBackups\bin\run-local-backup.ps1`; `-Force` creates a fresh backup before database migrations or risky server maintenance. Check `backup-status.json` for successful completion in both environments before proceeding.
+- Cloud `storehub-backup` and `storehub-development-backup` services and timers are retired and masked. Do not re-enable them or run `ops/backup-cloud.sh` without an explicit user request. The restricted SSH exporter streams data directly to the local computer without creating cloud backup archives.
+- Keep local backup credentials, database dumps, image blobs and configuration exports outside Git. Preserve the protected local directory ACL. Never restore into an existing live database/storage volume for verification; use an isolated temporary instance with outgoing networking and scheduled jobs disabled.
+
 ## Release convention
 
 - Unless the user explicitly says otherwise, every completed fix, change, or optimization must be released to both `v2-development` (test) and `manage-system` (production) in the same task.

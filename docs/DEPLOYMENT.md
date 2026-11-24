@@ -1,5 +1,15 @@
 # StoreHub 部署说明
 
+## 腾讯云磁盘与备份维护
+
+运行脚本见 `ops/backup-cloud.sh` 和 `ops/maintain-backups.py`。两套环境分别安装到 `/opt/storehub-production/`、`/opt/storehub-development/`，备份 service 的 ExecStart 显式传入 `production` 或 `development`，不改变原有每日 timer。
+
+完整照片备份保留原始基线和最近最多 7 份，近期照片备份预算为每环境 18 GiB；至少保留两份近期完整恢复副本。数据库备份保留原始基线和最近 90 份。删除旧照片副本时保留该次数据库快照，并写入 `storage-pruned.json` 说明它只保留数据库。历史业务记录仍在在线数据库中，备份清理不触及在线数据卷。
+
+备份前后均执行保留策略，两环境共用备份锁；可用空间须覆盖照片原始体积的 120% 并额外预留 2 GiB，否则退出并在 service 日志中报错。未完成的文件用 `.part` 写入，失败时清理，成功后才生成校验清单。只允许清理时间戳命名的已完成备份目录，忽略符号链接、不完整备份和其他文件。
+
+所有 StoreHub Compose 服务设置 `json-file` 日志上限 `max-size=10m`、`max-file=3`。修改后需按环境重新创建容器使日志限额生效，保留原数据卷、密钥、环境变量和端口配置。部署后核对 Docker 实际 LogConfig，并验证账号登录、登录后数据访问和最新备份校验。
+
 自托管环境发布时，设置 `STOREHUB_MIGRATION_CHECK_CONFIG` 指向当前环境登记的 SSH 主机、身份文件、主机密钥文件、容器和项目编号。环境门禁验证这些登记与分支、后端 URL 一致，随后通过 SSH 只读核对真实数据库迁移；此时不依赖已退役的 Supabase CLI 项目链接。未提供自托管配置时仍保留原 CLI 链接校验。
 
 强制更新、两阶段启用和回滚操作见 [RELEASE_UPDATE_AND_ROLLBACK.md](./RELEASE_UPDATE_AND_ROLLBACK.md)。

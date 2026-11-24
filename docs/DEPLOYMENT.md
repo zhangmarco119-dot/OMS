@@ -1,8 +1,24 @@
 # StoreHub 部署说明
 
-## 腾讯云磁盘与备份维护
+## 当前备份方式：Windows 开机后拉取到本机
 
-运行脚本见 `ops/backup-cloud.sh` 和 `ops/maintain-backups.py`。两套环境分别安装到 `/opt/storehub-production/`、`/opt/storehub-development/`，备份 service 的 ExecStart 显式传入 `production` 或 `development`，不改变原有每日 timer。
+业务系统继续使用腾讯云数据库与图片，备份由本机独立执行，不依赖 Docker Desktop 或旧本地数据库。旧本地数据库仅是迁移时期的存档，不会自动同步云端新增记录。
+
+- 本地根目录：`D:\StoreHubBackups`，正式版和测试版分别保存，目录 ACL 仅允许当前用户、SYSTEM 和管理员访问。
+- 启动入口：Windows `StoreHub-LocalBackup` 当前用户登录触发的计划任务，执行 `bin\run-local-backup.ps1`。同一次开机成功后不重复运行；网络不可用时每 5 分钟重试，最多 12 次。临时强制备份使用该脚本的 `-Force`。
+- 每份快照包含 PostgreSQL 自定义格式数据库转储、全局角色、数据库加密根密钥、服务配置及函数代码，以及全部图片/附件的文件清单。每个图片按 SHA-256 内容存放在 `blobs`，相同内容复用，首次备份可校验复用旧本地图片；不在 Windows 上直接展开 Linux 对象路径，因此保留长路径、大小写、非法 Windows 文件名和 Linux 扩展属性。
+- 每个环境保留初始基线和最近 30 个成功快照。只在新快照完整校验成功后轮换并清理无引用的图片；中断时保留已成功下载的图片，不替换 `latest.json`。本地不足 10 GiB 余量时退出并保留旧快照。
+- `backup-status.json` 显示状态，`production\latest.json` 和 `development\latest.json` 指向最近成功快照。私钥和连接配置只放在 `config`，不提交到 Git。
+
+服务器安装 `ops/local-backup-bridge.py` 为 root 所有的 SSH 强制命令，专用公钥禁止 shell、PTY 和端口转发。仅允许两套固定环境的数据库、角色、配置和图片只读导出，数据经 SSH 流式传输，不在云服务器生成备份包。安装/更新本地程序时复制 `ops/local-backup.py`、`ops/run-local-backup.ps1`、`ops/restore-local-storage.py` 到本地 `bin`。
+
+云端原备份的两个 `.service`、两个 `.timer` 已禁用并 mask。不得继续调用旧迁移脚本中的 `systemctl start storehub-backup.service`；迁移前先在本机强制拉取备份并核对状态。
+
+恢复图片时先执行 `local-backup.py --config ... --verify`，再在 Linux 上运行 `restore-local-storage.py --backup-root <该环境目录> --snapshot <快照名> --target <新的空目录或卷>`，重建原始路径、权限和扩展属性。恢复数据库需使用相同 PostgreSQL/Supabase 版本及角色；验证实例必须断开外网并关闭 cron，禁止把旧快照直接覆盖在线数据。
+
+## 已退役的云端备份维护工具
+
+`ops/backup-cloud.sh` 和 `ops/maintain-backups.py` 仅保留为历史工具；以下为退役前的保留策略，当前不再由 timer 执行。
 
 完整照片备份保留原始基线和最近最多 7 份，近期照片备份预算为每环境 18 GiB；至少保留两份近期完整恢复副本。数据库备份保留原始基线和最近 90 份。删除旧照片副本时保留该次数据库快照，并写入 `storage-pruned.json` 说明它只保留数据库。历史业务记录仍在在线数据库中，备份清理不触及在线数据卷。
 

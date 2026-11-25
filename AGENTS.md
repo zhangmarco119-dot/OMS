@@ -1,5 +1,10 @@
 # StoreHub repository instructions
 
+## Handover documentation
+
+- Start project handoffs with `docs/AGENT_HANDOVER.md` and its `docs/handover/` appendices. Earlier phase/migration documents may describe retired hosting or backup methods; verify them against current code and cloud state before executing commands.
+- Keep usable secrets outside Markdown and Git. The handover documents index private credential locations and field names so authorized agents can reuse existing configuration without asking the user to re-enter it.
+
 ## Backup convention
 
 - Current business data remains on Tencent Cloud. The old local development/production databases are migration-era archives and must never be treated as the latest cloud data.

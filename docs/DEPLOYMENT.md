@@ -1,5 +1,7 @@
 # StoreHub 部署说明
 
+> 当前接手入口：[AGENT_HANDOVER.md](AGENT_HANDOVER.md) 与 [基础设施/凭据索引](handover/INFRASTRUCTURE.md)。下方保留托管 Supabase 时代的部署指令作历史参考；当前应采用腾讯云自托管迁移校验与函数发布流程，不要直接重新部署到旧托管项目。
+
 ## 当前备份方式：Windows 开机后拉取到本机
 
 业务系统继续使用腾讯云数据库与图片，备份由本机独立执行，不依赖 Docker Desktop 或旧本地数据库。旧本地数据库仅是迁移时期的存档，不会自动同步云端新增记录。

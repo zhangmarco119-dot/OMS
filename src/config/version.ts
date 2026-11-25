@@ -8,6 +8,12 @@ export interface SystemRelease {
 // 每次升级必须在数组顶部新增一条中文更新记录；登录页和“关于系统”会自动使用第一条版本号。
 export const systemReleaseHistory: SystemRelease[] = [
   {
+    date: '2026-11-25',
+    highlights: ['完善系统维护与开发文档。'],
+    title: '完善项目文档',
+    version: 'StoreHub v3.0.75',
+  },
+  {
     date: '2026-11-24',
     highlights: ['完善数据库和图片的备份与恢复机制。'],
     title: '完善数据备份',

@@ -1,18 +1,17 @@
-import { Bell, ChevronRight, Clock3, LogOut, RefreshCw, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Bell, CalendarClock, ChevronRight, CircleDollarSign, ClipboardList, Clock3, ListTodo, LogOut, RefreshCw, Store, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { IconButton } from '../components/ui/Actions';
-import { EmptyState, FeedbackBanner, StatusBadge } from '../components/ui/Feedback';
+import { FeedbackBanner, StatusBadge } from '../components/ui/Feedback';
 import { MetricCard, SectionCard, SectionHeader } from '../components/ui/Surface';
 import { useAuth } from '../features/auth/AuthContext';
-import { formatMoney, todayInChina, type AdminPayrollSummary } from '../features/payroll/model';
+import { AdminOperationBoard } from '../features/dashboard/AdminOperationBoard';
+import { formatMoney, todayInChina, type PayrollEstimate } from '../features/payroll/model';
 import { v2TaskStatusLabel } from '../features/v2-tasks/taskPresentation';
 import { supabase } from '../lib/supabase';
-import { loadAdminOperationOverview, type AdminOperationOverview } from '../services/admin-operation-overview.service';
 import { loadNotifications, markNotificationRead, type UserNotification } from '../services/notifications.service';
-import { loadAdminPayrollEstimates, loadMyPayrollEstimate } from '../services/payroll.service';
-import type { PayrollEstimate } from '../features/payroll/model';
+import { loadMyPayrollEstimate } from '../services/payroll.service';
 import { loadTodoSummary, type TodoSummary } from '../services/todo.service';
 import { loadNotices, type NoticeListItem } from '../services/v2-content.service';
 import { loadV2Tasks, type V2TaskListRow } from '../services/v2-tasks.service';
@@ -30,13 +29,23 @@ const notificationLink = (notification: UserNotification) => {
   return '/app/todos';
 };
 
+const formatTodayLabel = () => {
+  const iso = todayInChina();
+  const date = new Date(`${iso}T12:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return iso;
+  const weekday = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', weekday: 'long' }).format(date);
+  const [year, month, day] = iso.split('-');
+  return `${year}年${Number(month)}月${Number(day)}日 · ${weekday}`;
+};
+
 export function DashboardPage() {
-  return useAuth().profile?.role === 'admin' ? <AdminDashboard /> : <StaffDashboard />;
+  return useAuth().profile?.role === 'admin' ? <AdminOperationBoard /> : <StaffDashboard />;
 }
 
 function StaffDashboard() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const todayLabel = useMemo(() => formatTodayLabel(), []);
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [tasks, setTasks] = useState<V2TaskListRow[]>([]);
@@ -95,6 +104,7 @@ function StaffDashboard() {
     catch (error) { setMessage(error instanceof Error ? error.message : '切换门店失败。'); }
     finally { setSwitching(false); }
   };
+
   const openNotification = async (notification: UserNotification) => {
     const destination = notificationLink(notification);
     if (!supabase || notification.is_read) {
@@ -114,6 +124,7 @@ function StaffDashboard() {
       setMessage(error instanceof Error ? error.message : '通知已读状态更新失败，请重试。');
     }
   };
+
   const visibleNotifications = notifications.slice(0, 3);
   const visibleUnreadNotificationCount = visibleNotifications.filter((notification) => !notification.is_read).length;
   const visibleTickerNotices = notices.filter((notice) => notice.id !== dismissedNoticeId);
@@ -124,50 +135,87 @@ function StaffDashboard() {
     setDismissedNoticeId(id);
   };
 
+  const roleText = auth.profile?.employment_type === 'part_time' ? '兼职员工' : auth.profile?.role === 'manager' ? '店长' : '员工';
+
   return (
-    <section className="app-page-min-height bg-canvas px-4 pb-8 pt-4 sm:px-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-3">
-        <header className="ui-card flex items-start justify-between gap-3 p-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-brand-700">门店运营系统 · 当前门店</p>
-            {auth.availableStores.length > 1 ? (
-              <select aria-label="切换当前门店" className="ui-input mt-1 max-w-md text-lg font-bold" disabled={switching} onChange={(event) => void changeStore(event.target.value)} value={auth.store?.id ?? ''}>
-                {auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
-              </select>
-            ) : <h1 className="mt-1 break-words text-xl font-bold tracking-tight text-slate-900">{auth.store?.name ?? '未绑定门店'}</h1>}
-            <p className="mt-1 text-sm text-slate-500">{auth.profile?.employment_type === 'part_time' ? '兼职员工' : auth.profile?.role === 'manager' ? '店长' : '员工'} · {auth.profile?.display_name ?? auth.user?.email}</p>
+    <section className="app-page-min-height bg-canvas px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-5xl flex-col gap-3.5">
+        <header className="ui-card relative overflow-hidden p-4 sm:p-5">
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-700 via-brand-500 to-emerald-400" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="inline-flex items-center gap-1 text-xs font-bold tracking-wide text-brand-700">
+                  <Store aria-hidden="true" className="h-3.5 w-3.5" />
+                  门店运营系统 · 当前门店
+                </p>
+                <span className="text-xs text-slate-400">{todayLabel}</span>
+              </div>
+              {auth.availableStores.length > 1 ? (
+                <select aria-label="切换当前门店" className="ui-input mt-2 max-w-md text-lg font-bold" disabled={switching} onChange={(event) => void changeStore(event.target.value)} value={auth.store?.id ?? ''}>
+                  {auth.availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+                </select>
+              ) : <h1 className="mt-1.5 break-words text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{auth.store?.name ?? '未绑定门店'}</h1>}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <StatusBadge tone="success">{roleText}</StatusBadge>
+                <span className="text-sm font-medium text-slate-600">{auth.profile?.display_name ?? auth.user?.email}</span>
+              </div>
+            </div>
+            <IconButton aria-label="退出登录" onClick={() => void auth.signOut()}><LogOut className="h-5 w-5" /></IconButton>
           </div>
-          <IconButton aria-label="退出登录" onClick={() => void auth.signOut()}><LogOut className="h-5 w-5" /></IconButton>
         </header>
 
         {visibleTickerNotices.length ? (
-          <div className="notice-ticker flex min-h-11 items-center gap-1 overflow-hidden rounded-xl border border-brand-700 bg-brand-700 pl-3 text-sm font-semibold text-white">
+          <div className="notice-ticker flex min-h-11 items-center gap-1 overflow-hidden rounded-2xl border border-brand-700 bg-gradient-to-r from-brand-700 to-brand-600 pl-3.5 text-sm font-semibold text-white shadow-sm">
             <Link className="flex min-w-0 flex-1 items-center gap-2" to="/app/notices"><Bell className="h-4 w-4 shrink-0" /><span className="notice-ticker-text">未读公告：{visibleTickerNotices.map((notice) => notice.title).join('　·　')}</span><ChevronRight className="ml-auto h-4 w-4 shrink-0" /></Link>
-            <button aria-label="暂时关闭当前公告提示" className="flex h-11 w-11 shrink-0 items-center justify-center" onClick={dismissTicker} type="button"><X className="h-4 w-4" /></button>
+            <button aria-label="暂时关闭当前公告提示" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-white/10" onClick={dismissTicker} type="button"><X className="h-4 w-4" /></button>
           </div>
         ) : null}
 
         {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
 
-        {auth.profile?.employment_type === 'part_time' ? <section className="grid grid-cols-2 gap-2.5"><MetricCard label="本月兼职工时" note="仅统计已审批工时" tone="brand" to="/app/overtime?tab=records" value={partTimePayroll ? `${partTimePayroll.partTimeHours} 小时` : '—'} /><MetricCard label="本月累计薪资" note="已扣预计个税" tone="brand" to="/app/payroll" value={partTimePayroll ? formatMoney(partTimePayroll.estimatedNetPayable ?? partTimePayroll.knownEstimatedNetPayable ?? partTimePayroll.accruedPartTimeWage) : '—'} /></section> : null}
+        {auth.profile?.employment_type === 'part_time' ? (
+          <section className="grid grid-cols-2 gap-2.5">
+            <MetricCard icon={CalendarClock} label="本月兼职工时" note="仅统计已审批工时" tone="brand" to="/app/overtime?tab=records" value={partTimePayroll ? `${partTimePayroll.partTimeHours} 小时` : '—'} />
+            <MetricCard icon={CircleDollarSign} label="本月累计薪资" note="已扣预计个税" tone="brand" to="/app/payroll" value={partTimePayroll ? formatMoney(partTimePayroll.estimatedNetPayable ?? partTimePayroll.knownEstimatedNetPayable ?? partTimePayroll.accruedPartTimeWage) : '—'} />
+          </section>
+        ) : null}
 
         <section className="grid grid-cols-2 gap-2.5">
-          <MetricCard label="今日待办" note="任务及需确认公告" to="/app/todos" value={summary?.count ?? '—'} />
+          <MetricCard icon={ListTodo} label="今日待办" note="任务及需确认公告" tone={(summary?.count ?? 0) > 0 ? 'warning' : 'brand'} to="/app/todos" value={summary?.count ?? '—'} />
           {auth.profile?.employment_type === 'part_time'
-            ? <MetricCard label="工时填报" note="快速提交本次兼职工时" to="/app/overtime?tab=submit" value="填报" />
-            : <MetricCard label="工作台" note="点货、订货、到货与任务" to="/app/workbench" value="进入" />}
+            ? <MetricCard icon={CalendarClock} label="工时填报" note="快速提交本次兼职工时" tone="info" to="/app/overtime?tab=submit" value="填报" />
+            : <MetricCard icon={ClipboardList} label="工作台" note="点货、订货、到货与任务" tone="info" to="/app/workbench" value="进入" />}
         </section>
 
         <SectionCard>
-          <SectionHeader action={<Link className="text-sm font-bold text-brand-700" to="/app/todos">全部待办</Link>} description="只展示即将截止或需要整改的任务。" icon={Clock3} title="近期任务" />
-          <div className="mt-3 space-y-2">
-            {tasks.map((task) => (
-              <Link className="ui-interactive block rounded-lg border border-slate-100 bg-slate-50 p-3" key={task.id} to={`/app/tasks/${task.id}`}>
-                <div className="flex items-start justify-between gap-3"><b className="line-clamp-2 text-sm text-slate-900">{task.name}</b><StatusBadge tone={task.status === 'rejected' || task.status === 'overdue' ? 'danger' : task.status === 'in_progress' ? 'info' : 'warning'}>{v2TaskStatusLabel[task.status]}</StatusBadge></div>
-                <p className={task.status === 'rejected' ? 'mt-1.5 text-sm text-red-700' : 'mt-1.5 text-sm text-slate-500'}>{task.status === 'rejected' ? `整改原因：${task.review_note || '请处理指定项目。'}` : `截止：${new Date(task.due_at).toLocaleString('zh-CN')}`}</p>
-              </Link>
-            ))}
-            {tasks.length === 0 ? <p className="py-2 text-sm text-slate-500">当前没有待处理任务。</p> : null}
+          <SectionHeader action={<Link className="inline-flex min-h-9 items-center gap-0.5 rounded-lg px-2 text-sm font-bold text-brand-700 hover:bg-brand-50" to="/app/todos">全部待办<ChevronRight aria-hidden="true" className="h-4 w-4" /></Link>} description="只展示即将截止或需要整改的任务。" icon={Clock3} title="近期任务" />
+          <div className="mt-3 space-y-2.5">
+            {tasks.map((task) => {
+              const urgent = task.status === 'rejected' || task.status === 'overdue';
+              return (
+                <Link
+                  className={`ui-interactive block rounded-xl border border-l-4 p-3.5 ${
+                    urgent
+                      ? 'border-red-200/80 border-l-red-500 bg-red-50/35 hover:bg-red-50/60'
+                      : task.status === 'in_progress'
+                        ? 'border-sky-200/70 border-l-sky-500 bg-sky-50/25 hover:bg-sky-50/50'
+                        : 'border-slate-200/80 border-l-amber-400 bg-slate-50/70 hover:bg-slate-50'
+                  }`}
+                  key={task.id}
+                  to={`/app/tasks/${task.id}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <b className="line-clamp-2 text-sm text-slate-900">{task.name}</b>
+                    <StatusBadge tone={urgent ? 'danger' : task.status === 'in_progress' ? 'info' : 'warning'}>{v2TaskStatusLabel[task.status]}</StatusBadge>
+                  </div>
+                  <p className={task.status === 'rejected' ? 'mt-1.5 text-sm font-medium text-red-700' : 'mt-1.5 text-xs text-slate-500 sm:text-sm'}>
+                    {task.status === 'rejected' ? `整改原因：${task.review_note || '请处理指定项目。'}` : `截止：${new Date(task.due_at).toLocaleString('zh-CN')}`}
+                  </p>
+                </Link>
+              );
+            })}
+            {tasks.length === 0 ? <p className="rounded-xl bg-slate-50/70 py-4 text-center text-sm text-slate-500">当前没有待处理任务。</p> : null}
           </div>
         </SectionCard>
 
@@ -175,65 +223,17 @@ function StaffDashboard() {
           <SectionHeader action={<IconButton aria-label="刷新首页" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></IconButton>} description={`未读 ${visibleUnreadNotificationCount} 条`} icon={Bell} title="通知中心" />
           <div className="mt-2 divide-y divide-slate-100">
             {visibleNotifications.map((notification) => (
-              <button className="ui-interactive block w-full py-3 text-left" key={notification.id} onClick={() => void openNotification(notification)} type="button">
-                <div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{notification.title}</p>{!notification.is_read ? <StatusBadge tone="success">未读</StatusBadge> : null}</div>
+              <button className="ui-interactive block w-full rounded-xl px-2 py-3 text-left hover:bg-slate-50/90" key={notification.id} onClick={() => void openNotification(notification)} type="button">
+                <div className="flex items-center gap-2">
+                  <p className={`min-w-0 flex-1 truncate text-sm ${notification.is_read ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>{notification.title}</p>
+                  {!notification.is_read ? <StatusBadge tone="success">未读</StatusBadge> : null}
+                </div>
                 <p className="mt-1 line-clamp-1 text-xs text-slate-500">{notification.body} · {new Date(notification.created_at).toLocaleString('zh-CN')}</p>
               </button>
             ))}
-            {notifications.length === 0 ? <p className="py-3 text-sm text-slate-500">暂无通知。</p> : null}
+            {notifications.length === 0 ? <p className="py-4 text-center text-sm text-slate-500">暂无通知。</p> : null}
           </div>
         </SectionCard>
-      </div>
-    </section>
-  );
-}
-
-function AdminDashboard() {
-  const auth = useAuth();
-  const [overview, setOverview] = useState<AdminOperationOverview | null>(null);
-  const [summary, setSummary] = useState<TodoSummary | null>(null);
-  const [payrollSummary, setPayrollSummary] = useState<AdminPayrollSummary | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    if (!supabase || !auth.profile) return;
-    try {
-      const [nextOverview, nextSummary, nextPayrollSummary] = await Promise.all([
-        loadAdminOperationOverview(supabase),
-        loadTodoSummary(supabase, { isAdmin: true, profileId: auth.profile.id }),
-        loadAdminPayrollEstimates(supabase, { asOf: todayInChina() }),
-      ]);
-      setOverview(nextOverview);
-      setSummary(nextSummary);
-      setPayrollSummary(nextPayrollSummary);
-      setMessage(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '运营概览加载失败。');
-    }
-  }, [auth.profile]);
-  useEffect(() => {
-    void load();
-    const refreshArrivals = () => { void load(); };
-    window.addEventListener('storehub:arrivals-changed', refreshArrivals);
-    return () => window.removeEventListener('storehub:arrivals-changed', refreshArrivals);
-  }, [load]);
-
-  return (
-    <section className="app-page-min-height bg-canvas px-4 pb-8 pt-4 sm:px-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-3">
-        <header className="ui-card flex items-start justify-between p-4">
-          <div><p className="text-xs font-bold text-brand-700">门店运营系统 · 管理员</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">运营概览</h1><p className="mt-1 text-sm text-slate-500">优先查看异常和待处理事项。</p></div>
-          <IconButton aria-label="退出登录" onClick={() => void auth.signOut()}><LogOut className="h-5 w-5" /></IconButton>
-        </header>
-        {message ? <FeedbackBanner tone="danger">{message}</FeedbackBanner> : null}
-        <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-          <MetricCard label="待处理" note="货品申请与任务审核" tone="danger" to="/app/todos" value={summary?.count ?? '—'} />
-          <MetricCard label="到货数量" note="今日到货上报" tone="warning" to="/app/admin/arrivals" value={overview?.arrival_today ?? '—'} />
-          <MetricCard label="今日盘点" note={`进行中 ${overview?.inventory_pending ?? '—'}`} tone="info" to="/app/history" value={overview?.inventory_completed_today ?? '—'} />
-          <MetricCard label="执行中任务" note={`已完成 ${overview?.v2_task_completed ?? '—'}`} to="/app/admin/tasks" value={overview?.v2_task_active ?? '—'} />
-          <MetricCard label="实时薪资成本" note={`数据完整 ${payrollSummary?.completeCount ?? '—'}/${payrollSummary?.employeeCount ?? '—'}`} tone="brand" to="/app/admin/payroll" value={payrollSummary ? formatMoney(payrollSummary.knownEstimatedTotal) : '—'} />
-        </section>
-        <Link className="ui-card ui-interactive flex min-h-14 items-center justify-between px-4 font-bold text-slate-800 hover:border-brand-200" to="/app/admin/analytics"><span>查看运营统计</span><ChevronRight className="h-5 w-5 text-slate-400" /></Link>
-        {!message && !overview ? <EmptyState description="数据加载完成后会显示门店运营摘要。" title="正在准备运营数据" /> : null}
       </div>
     </section>
   );

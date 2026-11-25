@@ -8,7 +8,7 @@ export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLBut
 }
 
 export function MobileActionBar({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('safe-bottom sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 rounded-xl border border-slate-200 bg-white/95 p-2.5 shadow-floating backdrop-blur', className)}>{children}</div>;
+  return <div className={cn('safe-bottom sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 rounded-2xl border border-slate-200/90 bg-white/95 p-2.5 shadow-floating backdrop-blur-md', className)}>{children}</div>;
 }
 
 export function ConfirmDialog({ children, confirmLabel = '确认', danger = false, onCancel, onConfirm, open, title }: {

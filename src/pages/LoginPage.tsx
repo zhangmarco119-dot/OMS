@@ -52,13 +52,14 @@ export function LoginPage() {
   const isDisabled = !hasSupabaseConfig || isSubmitting || auth.status === 'loading';
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-5 py-8">
-      <form className="ui-card w-full max-w-md p-6 text-slate-800 sm:p-8" onSubmit={handleSubmit(onSubmit)}>
+    <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-b from-brand-50/70 via-canvas to-canvas px-5 py-8">
+      <form className="ui-card relative w-full max-w-md overflow-hidden p-6 text-slate-800 shadow-panel sm:p-8" onSubmit={handleSubmit(onSubmit)}>
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-700 via-brand-500 to-emerald-400" />
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-brand-50 ring-1 ring-brand-100">
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 shadow-sm ring-1 ring-brand-200/80">
             <Store className="h-7 w-7 text-brand-700" aria-hidden="true" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">门店运营系统</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">门店运营系统</h1>
           <p className="mt-1 text-sm text-slate-500">使用门店账号安全登录</p>
         </div>
 
@@ -74,7 +75,7 @@ export function LoginPage() {
           ) : null}
 
           <FormField error={errors.identifier?.message} label={<span className="flex items-center gap-2">
-              <User className="h-4 w-4" aria-hidden="true" />
+              <User className="h-4 w-4 text-slate-400" aria-hidden="true" />
               账号名或姓名
             </span>} required>
             <input
@@ -88,10 +89,10 @@ export function LoginPage() {
           </FormField>
 
           <FormField error={errors.password?.message} label={<span className="flex items-center gap-2">
-              <Lock className="h-4 w-4" aria-hidden="true" />
+              <Lock className="h-4 w-4 text-slate-400" aria-hidden="true" />
               密码
             </span>} required>
-            <div className="flex min-h-11 items-center rounded-lg border border-slate-300 bg-white pl-3 transition focus-within:border-brand-600 focus-within:ring-2 focus-within:ring-brand-100">
+            <div className="flex min-h-11 items-center rounded-xl border border-slate-300/90 bg-white pl-3.5 transition hover:border-slate-400/80 focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-brand-100/80">
               <input
                 autoComplete="current-password"
                 className="min-w-0 flex-1 bg-transparent text-base outline-none"
@@ -102,7 +103,7 @@ export function LoginPage() {
               />
               <button
                 aria-label={showPassword ? '隐藏密码' : '显示密码'}
-                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-500"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:text-slate-800"
                 disabled={isDisabled}
                 onClick={() => setShowPassword((current) => !current)}
                 type="button"
@@ -128,8 +129,8 @@ export function LoginPage() {
           </button>
         </div>
       </form>
-      <p className="mt-4 text-xs font-medium text-slate-500">{systemVersion}</p>
-      <a className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-brand-700" download href={`/downloads/storehub-${currentRelease.environment}.apk`}>
+      <p className="mt-5 text-xs font-medium text-slate-500">{systemVersion}</p>
+      <a className="ui-interactive mt-3 inline-flex min-h-11 items-center gap-2 rounded-full border border-brand-200/80 bg-white/90 px-4 text-sm font-semibold text-brand-700 shadow-card hover:bg-brand-50" download href={`/downloads/storehub-${currentRelease.environment}.apk`}>
         <Download aria-hidden="true" className="h-4 w-4" />
         {currentRelease.environment === 'development' ? '下载安卓测试版' : '下载安卓 APP'}
       </a>

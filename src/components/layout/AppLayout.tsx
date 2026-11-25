@@ -76,9 +76,9 @@ export function AppLayout() {
       <main className="app-content mx-auto w-full max-w-5xl">
         <Outlet />
       </main>
-      <nav aria-label="主导航" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pt-1.5 shadow-[0_-6px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+      <nav aria-label="主导航" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/90 px-3 pt-1.5 shadow-nav backdrop-blur-md">
         <div
-          className="mx-auto grid max-w-md gap-1"
+          className="mx-auto grid max-w-lg gap-1"
           style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
         >
           {navItems.map(({ to, label, icon: Icon }) => {
@@ -89,10 +89,10 @@ export function AppLayout() {
               key={to}
               replace
               to={to}
-              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-semibold transition ${active ? 'text-brand-700' : 'text-slate-500'}`}
+              className={`group flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-semibold transition-colors ${active ? 'text-brand-700' : 'text-slate-500 hover:text-slate-800'}`}
             >
-              <span className={`relative flex h-7 min-w-11 items-center justify-center rounded-full transition ${active ? 'bg-brand-50' : ''}`}><Icon aria-hidden="true" className="h-5 w-5" />{to === '/app/todos' && todoCount > 0 ? <span aria-label={`${todoCount} 条待办`} className="absolute -right-0.5 -top-1 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] font-bold leading-4 text-white ring-2 ring-white">{todoCount > 99 ? '99+' : todoCount}</span> : null}</span>
-              <span>{label}</span>
+              <span className={`relative flex h-7 min-w-12 items-center justify-center rounded-full transition-all duration-150 ${active ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200/70' : 'group-hover:bg-slate-100/80'}`}><Icon aria-hidden="true" className={active ? 'h-[19px] w-[19px] stroke-[2.25]' : 'h-[19px] w-[19px]'} />{to === '/app/todos' && todoCount > 0 ? <span aria-label={`${todoCount} 条待办`} className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-bold leading-[18px] text-white shadow-sm ring-2 ring-white">{todoCount > 99 ? '99+' : todoCount}</span> : null}</span>
+              <span className={active ? 'font-bold' : ''}>{label}</span>
             </Link>
           );})}
         </div>

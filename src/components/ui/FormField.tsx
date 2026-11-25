@@ -7,5 +7,5 @@ export function FormField({ children, error, hint, label, required }: { children
 }
 
 export function SegmentedControl({ className, items }: { className?: string; items: Array<{ active: boolean; disabled?: boolean; label: ReactNode; onClick: () => void }> }) {
-  return <div className={cn('grid gap-1 rounded-lg bg-slate-100 p-1', className)} role="tablist">{items.map((item, index) => <button aria-selected={item.active} className={cn('min-h-10 rounded-md px-3 text-sm font-bold transition', item.active ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900', item.disabled && 'cursor-not-allowed opacity-45')} disabled={item.disabled} key={index} onClick={item.onClick} role="tab" type="button">{item.label}</button>)}</div>;
+  return <div className={cn('grid gap-1 rounded-xl bg-slate-100/90 p-1 ring-1 ring-inset ring-slate-200/70', className)} role="tablist">{items.map((item, index) => <button aria-selected={item.active} className={cn('min-h-10 rounded-lg px-3 text-sm font-bold transition-all', item.active ? 'bg-white text-brand-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-600 hover:text-slate-900', item.disabled && 'cursor-not-allowed opacity-45')} disabled={item.disabled} key={index} onClick={item.onClick} role="tab" type="button">{item.label}</button>)}</div>;
 }
